@@ -7,7 +7,7 @@
 </p>
 
 ---
-https://private-user-images.githubusercontent.com/43977454/558493440-000b94eb-bf33-4e8b-8c60-15ca4a723c68.jpg?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzI2OTI5NTMsIm5iZiI6MTc3MjY5MjY1MywicGF0aCI6Ii80Mzk3NzQ1NC81NTg0OTM0NDAtMDAwYjk0ZWItYmYzMy00ZThiLThjNjAtMTVjYTRhNzIzYzY4LmpwZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjAzMDUlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwMzA1VDA2MzczM1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTMwMDg5MWFmMTVkZjE2M2M1NTFjNDc5MWRlOTZmMjVhZjFlOGZlNzRjOWVjOWVkMWQ0NDRhMjE3MzU3ZmRjMzImWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.37GgXlaaquqt4rc_9RcFW_hCny7dCsK7Ec8pY9pT2zg
+
 **ShadowBroker** is a real-time, full-spectrum geospatial intelligence dashboard that aggregates live data from dozens of open-source intelligence (OSINT) feeds and renders them on a unified dark-ops map interface. It tracks aircraft, ships, satellites, earthquakes, conflict zones, CCTV networks, GPS jamming, and breaking geopolitical events — all updating in real time.
 
 Built with **Next.js**, **MapLibre GL**, **FastAPI**, and **Python**, it's designed for analysts, researchers, and enthusiasts who want a single-pane-of-glass view of global activity.
