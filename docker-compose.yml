@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+    container_name: shadowbroker-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AISSTREAM_API_KEY=${AISSTREAM_API_KEY}
+      - N2YO_API_KEY=${N2YO_API_KEY}
+      - OPENSKY_USERNAME=${OPENSKY_USERNAME}
+      - OPENSKY_PASSWORD=${OPENSKY_PASSWORD}
+      - LTA_ACCOUNT_KEY=${LTA_ACCOUNT_KEY}
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: shadowbroker-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Styled thin scrollbar for dark HUD UI */
+.styled-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 10px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+.styled-scrollbar {
+  scrollbar-width: thin;
+}
+
+/* MapLibre Popup Overrides */
+.maplibregl-popup-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.maplibregl-popup-tip {
+  display: none !important;
+}
+
+/* Focus mode: dim the map canvas (tiles + drawn layers) when a popup is active.
+   Inside MapLibre's DOM, .maplibregl-canvas-container is a SIBLING of .maplibregl-popup,
+   so this filter dims the map without affecting the popup at all. */
+.map-focus-active .maplibregl-canvas-container {
+  filter: brightness(0.3);
+  transition: filter 0.3s ease;
+}
+
+/* Keep popups fully bright and interactive above the dimmed canvas */
+.map-focus-active .maplibregl-popup {
+  z-index: 10 !important;
+}

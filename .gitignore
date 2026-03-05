@@ -1,0 +1,66 @@
+# shadowbroker .gitignore
+# ----------------------
+
+# Dependencies
+node_modules/
+venv/
+env/
+.venv/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python caches & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Next.js build output
+.next/
+out/
+build/
+
+# Application Specific Caches & DBs
+backend/ais_cache.json
+backend/carrier_cache.json
+backend/cctv.db
+*.sqlite3
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Vercel / Deployment
+.vercel
+
+# Temp files
+tmp/
+*.log
+*.tmp
+*.bak
+out.txt
+out_sys.txt
+rss_output.txt
+merged.txt
+tmp_fast.json
+TheAirTraffic Database.xlsx

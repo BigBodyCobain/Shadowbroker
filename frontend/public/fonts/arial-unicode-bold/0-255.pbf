@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenMapTiles Font Server - Open-source maps for self-hosting</title>
+    
+    <meta name="author" content="MapTiler AG" />
+    <meta name="description" content="Official font glyph server for the OpenMapTiles project. Providing open-source fonts for MapLibre and Mapbox GL styles." />
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://openmaptiles.org/styles/">
+    
+    <link href="https://openmaptiles.org/base.css" rel="stylesheet" />
+
+    <meta http-equiv="refresh" content="3; url=https://openmaptiles.org/styles/">
+    
+    <style>
+      .redirect-box {
+        margin-top: 100px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+      }
+      .loader {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #95BF73;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 2s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 15px;
+      }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+  </head>
+
+  <body class="home">
+    <div class="container">
+      <div id="navbar-top" class="large">
+        <div class="container">
+          <a class="title" href="https://openmaptiles.org/">OpenMapTiles</a>
+          <div class="nav">
+            <a href="https://openmaptiles.org/about/">About</a>
+            <a href="https://openmaptiles.org/docs/">Docs</a>
+            <a href="https://openmaptiles.org/styles/">Styles</a>
+            <a class="github" href="https://github.com/openmaptiles/fonts">e</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container padt-10">
+      <div class="row">
+        <div class="col8 offset2 redirect-box pady-8 center">
+          <h1 class="gray">OpenMapTiles Font Server</h1>
+          <p class="padt-2">This is the backend server providing <b>vector glyphs</b> for open map styles.</p>
+          <p class="pady-4">
+            <span class="loader"></span>
+            Redirecting to the <a href="https://openmaptiles.org/styles/">Map Styles</a> gallery...
+          </p>
+          <p class="small gray">If you are a developer, you can find the source code on <a href="https://github.com/openmaptiles/fonts">GitHub</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+        // Immediate redirect fallback
+        setTimeout(function() {
+            window.location.href = "https://openmaptiles.org/styles/";
+        }, 3000);
+    </script>
+  </body>
+</html>

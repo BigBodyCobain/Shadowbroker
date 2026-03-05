@@ -1,0 +1,1585 @@
+
+> frontend@0.1.0 dev
+> concurrently --names "NEXT,API" --prefix-colors "cyan,yellow" "next dev" "..\backend\venv\Scripts\python.exe ../backend/main.py"
+
+[NEXT] ΓÜá Port 3000 is in use by process 27580, using available port 3001 instead.
+[NEXT] Γû▓ Next.js 16.1.6 (Turbopack)
+[NEXT] - Local:         http://localhost:3001
+[NEXT] - Network:       http://10.0.0.234:3001
+[NEXT] 
+[NEXT] Γ£ô Starting...
+[NEXT] Γ£ô Ready in 2.1s
+[API] INFO:     Will watch for changes in these directories: ['F:\\Codebase\\Oracle\\live-risk-dashboard\\frontend']
+[API] INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[API] INFO:     Started reloader process [42588] using StatReload
+[API] INFO:     Started server process [43356]
+[API] INFO:     Waiting for application startup.
+[API] INFO:services.ais_stream:AIS cache loaded: 26328 vessels from disk
+[API] INFO:services.ais_stream:Starting Node.js AIS Stream Proxy...
+[API] INFO:services.ais_stream:AIS Stream background thread started
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[API] INFO:apscheduler.scheduler:Added job "update_all_data" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "update_all_data" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "start_scheduler.<locals>.update_cctvs" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_flights" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_ships" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_geopolitics" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "start_scheduler.<locals>.update_cctvs" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_flights" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_ships" to job store "default"
+[API] INFO:apscheduler.scheduler:Added job "fetch_geopolitics" to job store "default"
+[API] INFO:apscheduler.scheduler:Scheduler started
+[API] INFO:     Application startup complete.
+[API] INFO:apscheduler.executors.default:Running job "update_all_data (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" (scheduled at 2026-02-28 02:13:00.847412-07:00)
+[API] INFO:apscheduler.scheduler:Removed job 7f2c4e32565a448cb9688a0efdff3e29
+[API] INFO:services.data_fetcher:Fetching new data concurrently...
+[API] INFO:services.data_fetcher:Downloading global airports database from ourairports.com...
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" (scheduled at 2026-02-28 02:13:00.850410-07:00)
+[API] INFO:apscheduler.scheduler:Removed job 4e206a9e1acc44548efb9941891ad4a7
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" (scheduled at 2026-02-28 02:13:00.851920-07:00)
+[API] INFO:apscheduler.scheduler:Removed job 1f65e7364f114f0bab4c92f0db44e751
+[API] INFO:services.ais_stream:AIS Stream proxy started ∩┐╜ receiving vessel data
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" (scheduled at 2026-02-28 02:13:00.851920-07:00)
+[API] INFO:apscheduler.scheduler:Removed job 5dc8c0086ab1420ea6a1bf576d445747
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" (scheduled at 2026-02-28 02:13:00.851920-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.scheduler:Removed job 63d934bc4a984372aa39ac47f8fb0bea
+[API] INFO:services.geopolitics:Fetching DeepStateMap from GitHub mirror...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21694 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.geopolitics:Downloading latest DeepStateMap: https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_20260228.geojson
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.data_fetcher:Loaded 1184 large airports into cache.
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21694 AIS vessels
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Tracked flights: 0 total (0 from military)
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-24 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 15720: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-30 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 48754: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3627 / 4846 flights
+[API] INFO:services.data_fetcher:Tracked flights: 8 total (8 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1288 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3507 / 4845 flights
+[API] INFO:services.data_fetcher:Tracked flights: 8 total (8 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1406 active trails, 0 pruned
+[API] INFO:services.data_fetcher:Data update complete.
+[API] INFO:apscheduler.executors.default:Job "update_all_data (trigger: date[2026-02-28 02:13:00 MST], next run at: 2026-02-28 02:13:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 5000 messages, tracking 26266 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26266 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:15:00 MST)" (scheduled at 2026-02-28 02:14:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:15:00 MST)" (scheduled at 2026-02-28 02:14:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21755 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:15:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:15:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 10000 messages, tracking 26326 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26326 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 15000 messages, tracking 26379 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26379 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 20000 messages, tracking 26440 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26440 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:16:00 MST)" (scheduled at 2026-02-28 02:15:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:16:00 MST)" (scheduled at 2026-02-28 02:15:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21744 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:16:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:16:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 25000 messages, tracking 26313 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26313 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 30000 messages, tracking 26399 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26399 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[NEXT] Γùï Compiling / ...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[NEXT]  GET / 200 in 9.2s (compile: 8.8s, render: 490ms)
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:17:00 MST)" (scheduled at 2026-02-28 02:16:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:19:00 MST)" (scheduled at 2026-02-28 02:16:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:17:00 MST)" (scheduled at 2026-02-28 02:16:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21632 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:17:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:17:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.data_fetcher:Resolved routes for 3724 / 4864 flights
+[API] INFO:services.data_fetcher:Tracked flights: 8 total (8 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1209 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:19:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:18:00 MST)" (scheduled at 2026-02-28 02:17:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:18:00 MST)" (scheduled at 2026-02-28 02:17:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21420 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:18:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:18:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:23:00 MST)" (scheduled at 2026-02-28 02:18:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:19:00 MST)" (scheduled at 2026-02-28 02:18:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:19:00 MST)" (scheduled at 2026-02-28 02:18:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:23:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21241 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:19:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:19:00 MST)" executed successfully
+[NEXT]  GET / 200 in 741ms (compile: 63ms, render: 677ms)
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:20:00 MST)" (scheduled at 2026-02-28 02:19:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:22:00 MST)" (scheduled at 2026-02-28 02:19:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:20:00 MST)" (scheduled at 2026-02-28 02:19:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21048 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:20:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:20:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3669 / 4988 flights
+[API] INFO:services.data_fetcher:Tracked flights: 8 total (7 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1380 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:22:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 35000 messages, tracking 25588 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:21:00 MST)" (scheduled at 2026-02-28 02:20:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:21:00 MST)" (scheduled at 2026-02-28 02:20:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 20803 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:21:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 25588 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:21:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 40000 messages, tracking 25324 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25324 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 45000 messages, tracking 25418 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25418 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 50000 messages, tracking 25517 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:22:00 MST)" (scheduled at 2026-02-28 02:21:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:22:00 MST)" (scheduled at 2026-02-28 02:21:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 20824 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:22:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 25517 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:22:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 55000 messages, tracking 25358 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25358 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 60000 messages, tracking 25431 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25431 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:23:00 MST)" (scheduled at 2026-02-28 02:22:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:25:00 MST)" (scheduled at 2026-02-28 02:22:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:23:00 MST)" (scheduled at 2026-02-28 02:22:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21014 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:23:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Error: Unexpected server response: 503
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:23:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Error: Unexpected server response: 503
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 65000 messages, tracking 25547 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25547 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 70000 messages, tracking 25640 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25640 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:28:00 MST)" (scheduled at 2026-02-28 02:23:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:24:00 MST)" (scheduled at 2026-02-28 02:23:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:24:00 MST)" (scheduled at 2026-02-28 02:23:00.852928-07:00)
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21056 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:24:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:28:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:24:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 75000 messages, tracking 25550 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25550 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 80000 messages, tracking 25611 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25611 vessels
+[API] ERROR:services.network_utils:curl fallback exception: Command '['curl.exe', '-s', '-X', 'POST', '-H', 'Content-Type: application/json', '-d', '{"planes": [{"callsign": "NSZ9742", "lat": 47.663635, "lng": 6.634781}, {"callsign": "EJU13LR", "lat": 49.619937, "lng": 6.641755}, {"callsign": "EJU78YD", "lat": 47.311877, "lng": 6.652644}, {"callsign": "KLM27U", "lat": 51.299821, "lng": 6.663208}, {"callsign": "RYR53YV", "lat": 47.568706, "lng": 6.665391}, {"callsign": "RYR19SW", "lat": 51.243439, "lng": 6.687705}, {"callsign": "LBT214", "lat": 50.972672, "lng": 6.688447}, {"callsign": "AUA22D", "lat": 50.268585, "lng": 6.694721}, {"callsign": "RYR13SJ", "lat": 43.839173, "lng": 6.714608}, {"callsign": "RYR261K", "lat": 40.34491, "lng": 6.728516}, {"callsign": "RYR62ST", "lat": 43.209927, "lng": 6.74639}, {"callsign": "ITY576", "lat": 45.884632, "lng": 6.751305}, {"callsign": "CHX9", "lat": 51.380344, "lng": 6.787454}, {"callsign": "JFA65T", "lat": 51.29924, "lng": 6.79304}, {"callsign": "EWG52N", "lat": 51.312698, "lng": 6.821545}, {"callsign": "LGL8254", "lat": 44.650269, "lng": 6.822183}, {"callsign": "IDIOT", "lat": 46.184661, "lng": 6.822372}, {"callsign": "BAW710R", "lat": 47.807984, "lng": 6.841384}, {"callsign": "HBNPG", "lat": 46.67688, "lng": 6.850244}, {"callsign": "VJH784", "lat": 44.393145, "lng": 6.851918}, {"callsign": "RYR27KJ", "lat": 46.284164, "lng": 6.852454}, {"callsign": "AUA312", "lat": 51.621311, "lng": 6.868515}, {"callsign": "VLG1TF", "lat": 46.74813, "lng": 6.918159}, {"callsign": "TVF8939", "lat": 40.909222, "lng": 6.932373}, {"callsign": "WZZ2W", "lat": 53.051954, "lng": 6.952619}, {"callsign": "BEL8XI", "lat": 48.532291, "lng": 6.952828}, {"callsign": "ICV68", "lat": 48.292786, "lng": 6.977656}, {"callsign": "EFW3PJ", "lat": 48.33072, "lng": 6.988895}, {"callsign": "CHX3", "lat": 50.888443, "lng": 7.017517}, {"callsign": "KLM1775", "lat": 52.389935, "lng": 7.031564}, {"callsign": "RYR6YE", "lat": 44.99311, "lng": 7.041164}, {"callsign": "AEE7LD", "lat": 40.909927, "lng": 7.048157}, {"callsign": "RYR32MM", "lat": 46.780623, "lng": 7.084534}, {"callsign": "IBE06SG", "lat": 44.967545, "lng": 7.088536}, {"callsign": "BAW62N", "lat": 58.445962, "lng": 7.095795}, {"callsign": "BCS081", "lat": 39.367355, "lng": 7.099616}, {"callsign": "ULC44", "lat": 46.682165, "lng": 7.108086}, {"callsign": "ITY305", "lat": 47.885308, "lng": 7.137874}, {"callsign": "FIA5903", "lat": 43.58963, "lng": 7.15095}, {"callsign": "RYR7102", "lat": 44.040253, "lng": 7.155549}, {"callsign": "AFR53KA", "lat": 43.712179, "lng": 7.155762}, {"callsign": "HBKGN", "lat": 46.823959, "lng": 7.157258}, {"callsign": "BAW844", "lat": 52.478531, "lng": 7.175827}, {"callsign": "VLG68TP", "lat": 43.914139, "lng": 7.182312}, {"callsign": "SWR7AK", "lat": 45.727611, "lng": 7.184441}, {"callsign": "LHX85P", "lat": 43.455443, "lng": 7.191663}, {"callsign": "CROIX2", "lat": 43.647797, "lng": 7.203941}, {"callsign": "KLM1943", "lat": 48.06067, "lng": 7.207383}, {"callsign": "TUI173", "lat": 45.896851, "lng": 7.217415}, {"callsign": "RAM954V", "lat": 43.516101, "lng": 7.219914}, {"callsign": "XGO1ML", "lat": 43.66572, "lng": 7.22338}, {"callsign": "DLH33E", "lat": 49.663184, "lng": 7.225886}, {"callsign": "EJU96XU", "lat": 48.252045, "lng": 7.23168}, {"callsign": "HBSDS", "lat": 46.802124, "lng": 7.23309}, {"callsign": "SWR4Y", "lat": 47.689556, "lng": 7.239075}, {"callsign": "EDW32L", "lat": 47.444275, "lng": 7.238342}, {"callsign": "DLH9MR", "lat": 52.044067, "lng": 7.279663}, {"callsign": "DLH3PP", "lat": 50.629166, "lng": 7.285815}, {"callsign": "SAS793", "lat": 43.997177, "lng": 7.28994}, {"callsign": "RYR73UV", "lat": 45.892136, "lng": 7.291974}, {"callsign": "RYR227P", "lat": 49.777889, "lng": 7.330034}, {"callsign": "VJH373", "lat": 50.869632, "lng": 7.332306}, {"callsign": "AFR282", "lat": 48.025909, "lng": 7.341064}, {"callsign": "SAS22E", "lat": 56.057367, "lng": 7.352428}, {"callsign": "EJU41VQ", "lat": 47.52301, "lng": 7.35569}, {"callsign": "EIN4RG", "lat": 47.605901, "lng": 7.396827}, {"callsign": "KLM97L", "lat": 50.000931, "lng": 7.409122}, {"callsign": "BAW550", "lat": 44.991993, "lng": 7.41758}, {"callsign": "HBZWD", "lat": 46.884247, "lng": 7.444405}, {"callsign": "GAC587V", "lat": 49.909199, "lng": 7.449581}, {"callsign": "BTI60L", "lat": 51.44339, "lng": 7.4638}, {"callsign": "QTR088", "lat": 49.257435, "lng": 7.471715}, {"callsign": "PGT852E", "lat": 40.316666, "lng": 7.482605}, {"callsign": "NSZ2876", "lat": 51.702172, "lng": 7.492523}, {"callsign": "DLH8LJ", "lat": 49.98674, "lng": 7.539368}, {"callsign": "SIA23", "lat": 50.280624, "lng": 7.554329}, {"callsign": "DELOX", "lat": 53.285191, "lng": 7.563455}, {"callsign": "TKJ2US", "lat": 39.488355, "lng": 7.578125}, {"callsign": "RYR995V", "lat": 40.372055, "lng": 7.586243}, {"callsign": "WMT9MC", "lat": 43.707184, "lng": 7.586762}, {"callsign": "DENCM", "lat": 47.884277, "lng": 7.612015}, {"callsign": "RYR2CD", "lat": 46.377201, "lng": 7.630348}, {"callsign": "KLM87R", "lat": 54.803741, "lng": 7.64083}, {"callsign": "IGGMS", "lat": 44.582845, "lng": 7.653652}, {"callsign": "NOZ2JC", "lat": 56.97952, "lng": 7.673241}, {"callsign": "EZY57YV", "lat": 47.318301, "lng": 7.67888}, {"callsign": "KLM29A", "lat": 50.586082, "lng": 7.693993}, {"callsign": "TUI3DN", "lat": 51.997686, "lng": 7.707145}, {"callsign": "IBE0647", "lat": 40.672806, "lng": 7.707764}, {"callsign": "HBTDZ", "lat": 46.696793, "lng": 7.71401}, {"callsign": "RYR4799", "lat": 47.246246, "lng": 7.716866}, {"callsign": "TVF47AK", "lat": 58.245229, "lng": 7.721283}, {"callsign": "DISGD", "lat": 51.413406, "lng": 7.72324}, {"callsign": "NJE834F", "lat": 51.181, "lng": 7.7513}, {"callsign": "EJU71FL", "lat": 43.377731, "lng": 7.784133}, {"callsign": "AFR53SH", "lat": 47.00647, "lng": 7.786354}, {"callsign": "RYR6JA", "lat": 52.038391, "lng": 7.787857}, {"callsign": "BAW665", "lat": 49.552689, "lng": 7.796896}, {"callsign": "ITY221", "lat": 47.38179, "lng": 7.798164}, {"callsign": "EWG4097", "lat": 51.583557, "lng": 7.798511}]}', 'https://api.adsb.lol/api/0/routeset']' timed out after 20 seconds
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-56 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 9465: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 85000 messages, tracking 25717 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS cache saved: 25717 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3526 / 4943 flights
+[API] INFO:services.data_fetcher:Tracked flights: 9 total (8 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1473 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:25:00 MST)" executed successfully
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:25:00 MST)" (scheduled at 2026-02-28 02:24:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:25:00 MST)" (scheduled at 2026-02-28 02:24:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21181 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:25:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.ais_stream:AIS Stream: processed 90000 messages, tracking 25679 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:25:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS cache saved: 25679 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:26:00 MST)" (scheduled at 2026-02-28 02:25:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:28:00 MST)" (scheduled at 2026-02-28 02:25:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:26:00 MST)" (scheduled at 2026-02-28 02:25:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 20580 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:26:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:26:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] Exception in thread Thread-70 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 30262: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-72 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 61813: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3549 / 5024 flights
+[API] INFO:services.ais_stream:AIS Stream: processed 95000 messages, tracking 25053 vessels
+[API] INFO:services.data_fetcher:Tracked flights: 9 total (8 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1551 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:28:00 MST)" executed successfully
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:27:00 MST)" (scheduled at 2026-02-28 02:26:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:27:00 MST)" (scheduled at 2026-02-28 02:26:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19657 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:27:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 25053 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:27:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 100000 messages, tracking 24118 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24118 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 105000 messages, tracking 24186 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24186 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 110000 messages, tracking 24259 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24259 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:28:00 MST)" (scheduled at 2026-02-28 02:27:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:28:00 MST)" (scheduled at 2026-02-28 02:27:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19775 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:28:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:28:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 115000 messages, tracking 24216 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24216 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 120000 messages, tracking 24291 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24291 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:33:00 MST)" (scheduled at 2026-02-28 02:28:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:29:00 MST)" (scheduled at 2026-02-28 02:28:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:31:00 MST)" (scheduled at 2026-02-28 02:28:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:29:00 MST)" (scheduled at 2026-02-28 02:28:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:33:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19879 AIS vessels
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:29:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:29:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (502 Server Error: Bad Gateway for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3624 / 4971 flights
+[API] INFO:services.data_fetcher:Tracked flights: 9 total (7 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1430 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:31:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:30:00 MST)" (scheduled at 2026-02-28 02:29:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:30:00 MST)" (scheduled at 2026-02-28 02:29:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19677 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:30:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:30:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.ais_stream:AIS Stream: processed 125000 messages, tracking 24065 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:31:00 MST)" (scheduled at 2026-02-28 02:30:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:31:00 MST)" (scheduled at 2026-02-28 02:30:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19435 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:31:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 24065 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:31:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 130000 messages, tracking 23907 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 23907 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 135000 messages, tracking 24055 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 24055 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 140000 messages, tracking 24464 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:32:00 MST)" (scheduled at 2026-02-28 02:31:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:34:00 MST)" (scheduled at 2026-02-28 02:31:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:32:00 MST)" (scheduled at 2026-02-28 02:31:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 19841 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:32:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 24464 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:32:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 145000 messages, tracking 25118 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25118 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-94 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 16340: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 150000 messages, tracking 25363 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25363 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3683 / 4955 flights
+[API] INFO:services.data_fetcher:Tracked flights: 11 total (9 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1351 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:34:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 155000 messages, tracking 25511 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25511 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:33:00 MST)" (scheduled at 2026-02-28 02:32:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:33:00 MST)" (scheduled at 2026-02-28 02:32:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21080 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:33:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:33:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:33:00 MST)" (scheduled at 2026-02-28 02:33:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:34:00 MST)" (scheduled at 2026-02-28 02:33:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:34:00 MST)" (scheduled at 2026-02-28 02:33:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21080 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:34:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:34:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:38:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:35:00 MST)" (scheduled at 2026-02-28 02:34:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:37:00 MST)" (scheduled at 2026-02-28 02:34:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:35:00 MST)" (scheduled at 2026-02-28 02:34:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21102 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:35:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:35:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 160000 messages, tracking 25697 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25697 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 165000 messages, tracking 25796 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25796 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 170000 messages, tracking 25903 vessels
+[API] Exception in thread Thread-104 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 12247: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:36:00 MST)" (scheduled at 2026-02-28 02:35:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:36:00 MST)" (scheduled at 2026-02-28 02:35:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21380 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:36:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS cache saved: 25903 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.data_fetcher:Resolved routes for 3626 / 5042 flights
+[API] INFO:services.data_fetcher:Tracked flights: 13 total (11 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1481 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:37:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:36:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 175000 messages, tracking 25916 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25916 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 180000 messages, tracking 25993 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25993 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 185000 messages, tracking 26084 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26084 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:37:00 MST)" (scheduled at 2026-02-28 02:36:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:37:00 MST)" (scheduled at 2026-02-28 02:36:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21437 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:37:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:37:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:38:00 MST)" (scheduled at 2026-02-28 02:37:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:40:00 MST)" (scheduled at 2026-02-28 02:37:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:38:00 MST)" (scheduled at 2026-02-28 02:37:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21237 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:38:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:38:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 190000 messages, tracking 25742 vessels
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25742 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-118 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 38847: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3482 / 4992 flights
+[API] INFO:services.data_fetcher:Tracked flights: 14 total (12 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1596 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:40:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 195000 messages, tracking 25841 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25841 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:43:00 MST)" (scheduled at 2026-02-28 02:38:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:39:00 MST)" (scheduled at 2026-02-28 02:38:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:39:00 MST)" (scheduled at 2026-02-28 02:38:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:43:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21238 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:39:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:39:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 200000 messages, tracking 25739 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25739 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 205000 messages, tracking 25811 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25811 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 210000 messages, tracking 25880 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25880 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:40:00 MST)" (scheduled at 2026-02-28 02:39:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:40:00 MST)" (scheduled at 2026-02-28 02:39:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21188 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:40:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:40:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 215000 messages, tracking 25689 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25689 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:41:00 MST)" (scheduled at 2026-02-28 02:40:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:43:00 MST)" (scheduled at 2026-02-28 02:40:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:41:00 MST)" (scheduled at 2026-02-28 02:40:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21211 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:41:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:41:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 220000 messages, tracking 25718 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25718 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 225000 messages, tracking 25804 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25804 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-130 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 63595: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 230000 messages, tracking 25899 vessels
+[API] INFO:services.data_fetcher:Resolved routes for 3575 / 5067 flights
+[API] INFO:services.data_fetcher:Tracked flights: 14 total (10 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1591 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:43:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS cache saved: 25899 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:42:00 MST)" (scheduled at 2026-02-28 02:41:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:42:00 MST)" (scheduled at 2026-02-28 02:41:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21426 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:42:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:42:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 235000 messages, tracking 25957 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25957 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 240000 messages, tracking 26047 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26047 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 245000 messages, tracking 26128 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26128 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:43:00 MST)" (scheduled at 2026-02-28 02:42:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:43:00 MST)" (scheduled at 2026-02-28 02:42:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21432 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:43:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:43:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.ais_stream:AIS Stream: processed 250000 messages, tracking 25965 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25965 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 255000 messages, tracking 26078 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26078 vessels
+[API] INFO:apscheduler.executors.default:Running job "update_all_data (trigger: interval[0:30:00], next run at: 2026-02-28 03:13:00 MST)" (scheduled at 2026-02-28 02:43:00.850410-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:48:00 MST)" (scheduled at 2026-02-28 02:43:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:44:00 MST)" (scheduled at 2026-02-28 02:43:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching new data concurrently...
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:46:00 MST)" (scheduled at 2026-02-28 02:43:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:44:00 MST)" (scheduled at 2026-02-28 02:43:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21326 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:44:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21328 AIS vessels
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.data_fetcher:Tracked flights: 14 total (0 from military)
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:48:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:44:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 260000 messages, tracking 25839 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25839 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 265000 messages, tracking 25919 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25919 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-156 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 50832: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] Exception in thread Thread-158 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 52550: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 270000 messages, tracking 25980 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25980 vessels
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3523 / 5025 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (14 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1587 active trails, 275 pruned
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:45:00 MST)" (scheduled at 2026-02-28 02:44:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:45:00 MST)" (scheduled at 2026-02-28 02:44:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Data update complete.
+[API] INFO:apscheduler.executors.default:Job "update_all_data (trigger: interval[0:30:00], next run at: 2026-02-28 03:13:00 MST)" executed successfully
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21555 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:45:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.data_fetcher:Resolved routes for 3661 / 5029 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (14 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1454 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:46:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:45:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 275000 messages, tracking 26063 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26063 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:46:00 MST)" (scheduled at 2026-02-28 02:45:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:46:00 MST)" (scheduled at 2026-02-28 02:45:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21659 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:46:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:46:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:47:00 MST)" (scheduled at 2026-02-28 02:46:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:49:00 MST)" (scheduled at 2026-02-28 02:46:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:47:00 MST)" (scheduled at 2026-02-28 02:46:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 20997 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:47:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:47:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 280000 messages, tracking 25432 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25432 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-170 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 27622: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 285000 messages, tracking 25476 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25476 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 290000 messages, tracking 25535 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:48:00 MST)" (scheduled at 2026-02-28 02:47:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:48:00 MST)" (scheduled at 2026-02-28 02:47:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 20871 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:48:00 MST)" executed successfully
+[API] Exception in thread Thread-174 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 51890: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 25535 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:48:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3675 / 5102 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (13 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1506 active trails, 101 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:49:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 295000 messages, tracking 25355 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25355 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 300000 messages, tracking 25443 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25443 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 305000 messages, tracking 25539 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25539 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:53:00 MST)" (scheduled at 2026-02-28 02:48:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:49:00 MST)" (scheduled at 2026-02-28 02:48:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:49:00 MST)" (scheduled at 2026-02-28 02:48:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.geopolitics:Fetching DeepStateMap from GitHub mirror...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21134 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:49:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.geopolitics:Downloading latest DeepStateMap: https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_20260228.geojson
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:53:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:49:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 310000 messages, tracking 25689 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25689 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[NEXT] Γ£ô Compiled in 312ms
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:50:00 MST)" (scheduled at 2026-02-28 02:49:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:52:00 MST)" (scheduled at 2026-02-28 02:49:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:50:00 MST)" (scheduled at 2026-02-28 02:49:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21329 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:50:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 88 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:50:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 315000 messages, tracking 25802 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25802 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 320000 messages, tracking 25869 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25869 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 325000 messages, tracking 25912 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25912 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3836 / 5063 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (12 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1308 active trails, 0 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:52:00 MST)" executed successfully
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:51:00 MST)" (scheduled at 2026-02-28 02:50:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:51:00 MST)" (scheduled at 2026-02-28 02:50:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21309 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:51:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 88 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:services.ais_stream:AIS Stream: processed 330000 messages, tracking 25760 vessels
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:51:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS cache saved: 25760 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 335000 messages, tracking 25813 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25813 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 340000 messages, tracking 25866 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25866 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:52:00 MST)" (scheduled at 2026-02-28 02:51:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:52:00 MST)" (scheduled at 2026-02-28 02:51:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21257 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:52:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 88 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:52:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:53:00 MST)" (scheduled at 2026-02-28 02:52:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:55:00 MST)" (scheduled at 2026-02-28 02:52:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:53:00 MST)" (scheduled at 2026-02-28 02:52:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21257 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:53:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 88 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:53:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 345000 messages, tracking 25745 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25745 vessels
+[API] INFO:services.data_fetcher:Resolved routes for 3783 / 5074 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (12 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1366 active trails, 126 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:55:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 350000 messages, tracking 25807 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25807 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:58:00 MST)" (scheduled at 2026-02-28 02:53:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:54:00 MST)" (scheduled at 2026-02-28 02:53:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:54:00 MST)" (scheduled at 2026-02-28 02:53:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21269 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:54:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 88 cameras from LTASingaporeIngestor
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 02:58:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:54:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 355000 messages, tracking 25739 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25739 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 360000 messages, tracking 25793 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25793 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 365000 messages, tracking 25856 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25856 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:55:00 MST)" (scheduled at 2026-02-28 02:54:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:55:00 MST)" (scheduled at 2026-02-28 02:54:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21214 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:55:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:55:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 370000 messages, tracking 25692 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25692 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[NEXT] Γ£ô Compiled in 174ms
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.ais_stream:AIS Stream: processed 375000 messages, tracking 25854 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25854 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:56:00 MST)" (scheduled at 2026-02-28 02:55:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:58:00 MST)" (scheduled at 2026-02-28 02:55:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:56:00 MST)" (scheduled at 2026-02-28 02:55:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21230 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:56:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:56:00 MST)" executed successfully
+[NEXT] Γ£ô Compiled in 317ms
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 380000 messages, tracking 25707 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS cache saved: 25707 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 385000 messages, tracking 25781 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25781 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[NEXT] ΓÜá Fast Refresh had to perform a full reload due to a runtime error.
+[NEXT]  GET / 200 in 1905ms (compile: 789ms, render: 1116ms)
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.data_fetcher:Resolved routes for 3833 / 5144 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (10 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1368 active trails, 198 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 02:58:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 390000 messages, tracking 25823 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25823 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:57:00 MST)" (scheduled at 2026-02-28 02:56:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:57:00 MST)" (scheduled at 2026-02-28 02:56:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21241 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:57:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:57:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 395000 messages, tracking 25710 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25710 vessels
+[NEXT]  GET / 200 in 257ms (compile: 18ms, render: 239ms)
+[API] INFO:services.ais_stream:AIS Stream: processed 400000 messages, tracking 25774 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25774 vessels
+[NEXT]  GET / 200 in 314ms (compile: 18ms, render: 296ms)
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.ais_stream:AIS Stream: processed 405000 messages, tracking 25867 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:58:00 MST)" (scheduled at 2026-02-28 02:57:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:58:00 MST)" (scheduled at 2026-02-28 02:57:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21207 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:58:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 25867 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:58:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 410000 messages, tracking 25805 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 25805 vessels
+[NEXT] Γ£ô Compiled in 443ms
+[API] INFO:services.ais_stream:AIS Stream: processed 415000 messages, tracking 26207 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26207 vessels
+[NEXT] Γ£ô Compiled in 312ms
+[API] INFO:services.ais_stream:AIS Stream: processed 420000 messages, tracking 26357 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 03:03:00 MST)" (scheduled at 2026-02-28 02:58:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:59:00 MST)" (scheduled at 2026-02-28 02:58:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 03:03:00 MST)" executed successfully
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:59:00 MST)" (scheduled at 2026-02-28 02:58:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 03:01:00 MST)" (scheduled at 2026-02-28 02:58:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21684 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 02:59:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.ais_stream:AIS cache saved: 26357 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 02:59:00 MST)" executed successfully
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 425000 messages, tracking 26218 vessels
+[NEXT] ΓÜá Fast Refresh had to perform a full reload due to a runtime error.
+[NEXT] ΓÜá Fast Refresh had to perform a full reload due to a runtime error.
+[NEXT]  GET / 200 in 973ms (compile: 361ms, render: 612ms)
+[NEXT]  GET / 200 in 1356ms (compile: 77ms, render: 1279ms)
+[API] INFO:services.ais_stream:AIS cache saved: 26218 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] ERROR:services.network_utils:curl fallback failed with exit code 0
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-210 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 55800: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-212 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 51720: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS Stream: processed 430000 messages, tracking 26275 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26275 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-214 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 73055: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.data_fetcher:Resolved routes for 3455 / 5082 flights
+[API] INFO:services.data_fetcher:Tracked flights: 17 total (9 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1702 active trails, 245 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 03:01:00 MST)" executed successfully
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:00:00 MST)" (scheduled at 2026-02-28 02:59:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:00:00 MST)" (scheduled at 2026-02-28 02:59:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21653 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:00:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:00:00 MST)" executed successfully
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:01:00 MST)" (scheduled at 2026-02-28 03:00:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:01:00 MST)" (scheduled at 2026-02-28 03:00:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21554 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:01:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[NEXT] Γ£ô Compiled in 608ms
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:01:00 MST)" executed successfully
+[NEXT] ΓÜá Fast Refresh had to perform a full reload due to a runtime error.
+[NEXT]  GET / 200 in 150ms (compile: 15ms, render: 134ms)
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:services.ais_stream:AIS Stream: processed 435000 messages, tracking 26037 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26037 vessels
+[API] INFO:services.ais_stream:AIS Stream: processed 440000 messages, tracking 26161 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26161 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:02:00 MST)" (scheduled at 2026-02-28 03:01:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 03:04:00 MST)" (scheduled at 2026-02-28 03:01:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:02:00 MST)" (scheduled at 2026-02-28 03:01:00.852928-07:00)
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21744 AIS vessels
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:02:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:02:00 MST)" executed successfully
+[NEXT]  GET / 200 in 579ms (compile: 120ms, render: 459ms)
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 445000 messages, tracking 26222 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26222 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] INFO:services.ais_stream:AIS Stream: processed 450000 messages, tracking 26270 vessels
+[API] WARNING:services.network_utils:Python HTTP blocked for https://api.adsb.lol/api/0/routeset (420 Client Error:  for url: https://api.adsb.lol/api/0/routeset), falling back to curl.exe...
+[API] Exception in thread Thread-222 (_readerthread):
+[API] Traceback (most recent call last):
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 1016, in _bootstrap_inner
+[API]     self.run()
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\threading.py", line 953, in run
+[API]     self._target(*self._args, **self._kwargs)
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\subprocess.py", line 1515, in _readerthread
+[API]     buffer.append(fh.read())
+[API]   File "C:\Users\admin\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 23, in decode
+[API]     return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+[API] UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 12863: character maps to <undefined>
+[API] ERROR:services.network_utils:curl fallback exception: 'NoneType' object has no attribute 'strip'
+[API] WARNING:services.data_fetcher:Routeset batch returned HTTP 500
+[API] INFO:services.ais_stream:AIS cache saved: 26270 vessels
+[API] INFO:services.data_fetcher:Resolved routes for 3789 / 5067 flights
+[API] INFO:services.data_fetcher:Tracked flights: 18 total (10 from civilian)
+[API] INFO:services.data_fetcher:Trail accumulation: 1348 active trails, 184 pruned
+[API] INFO:apscheduler.executors.default:Job "fetch_flights (trigger: interval[0:03:00], next run at: 2026-02-28 03:04:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 455000 messages, tracking 26327 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26327 vessels
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:03:00 MST)" (scheduled at 2026-02-28 03:02:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:03:00 MST)" (scheduled at 2026-02-28 03:02:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21794 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:03:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[NEXT]  GET / 200 in 423ms (compile: 17ms, render: 406ms)
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:03:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS Stream: processed 460000 messages, tracking 26277 vessels
+[API] INFO:services.ais_stream:AIS cache saved: 26277 vessels
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] ERROR:services.ais_stream:AIS Stream error: concurrent connections per user exceeded
+[API] WARNING:services.ais_stream:AIS proxy stderr: WebSocket Proxy Closed. Reconnecting in 5s...
+[API] INFO:apscheduler.executors.default:Running job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 03:08:00 MST)" (scheduled at 2026-02-28 03:03:00.852928-07:00)
+[API] INFO:services.data_fetcher:Fetching Geopolitics data...
+[API] INFO:services.geopolitics:Fetching GDELT Global Military Incidents...
+[API] INFO:apscheduler.executors.default:Running job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:04:00 MST)" (scheduled at 2026-02-28 03:03:00.852928-07:00)
+[API] INFO:apscheduler.executors.default:Running job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:04:00 MST)" (scheduled at 2026-02-28 03:03:00.852928-07:00)
+[API] INFO:services.data_fetcher:Running CCTV Pipeline Ingestion...
+[API] INFO:services.data_fetcher:Ships: 5 carriers + 21624 AIS vessels
+[API] INFO:apscheduler.executors.default:Job "fetch_ships (trigger: interval[0:01:00], next run at: 2026-02-28 03:04:00 MST)" executed successfully
+[API] INFO:services.cctv_pipeline:Successfully ingested 884 cameras from TFLJamCamIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 90 cameras from LTASingaporeIngestor
+[API] INFO:services.cctv_pipeline:Successfully ingested 978 cameras from AustinTXIngestor
+[API] INFO:services.ais_stream:AIS Stream: processed 465000 messages, tracking 26066 vessels
+[API] INFO:services.cctv_pipeline:Successfully ingested 1032 cameras from NYCDOTIngestor
+[API] INFO:apscheduler.executors.default:Job "start_scheduler.<locals>.update_cctvs (trigger: interval[0:01:00], next run at: 2026-02-28 03:04:00 MST)" executed successfully
+[API] INFO:apscheduler.executors.default:Job "fetch_geopolitics (trigger: interval[0:05:00], next run at: 2026-02-28 03:08:00 MST)" executed successfully
+[API] INFO:services.ais_stream:AIS cache saved: 26066 vessels

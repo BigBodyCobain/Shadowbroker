@@ -1,0 +1,10 @@
+fastapi==0.103.1
+uvicorn==0.23.2
+yfinance>=0.2.40
+feedparser==6.0.10
+requests==2.31.0
+apscheduler==3.10.3
+pydantic==2.3.0
+pydantic-settings==2.0.3
+playwright>=1.58.0
+beautifulsoup4>=4.12.0

@@ -1,0 +1,40 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"NEXT,API\" --prefix-colors \"cyan,yellow\" \"next dev\" \"cd ../backend && venv\\Scripts\\python.exe main.py\"",
+    "dev:frontend": "next dev",
+    "dev:backend": "cd ../backend && venv\\Scripts\\python.exe main.py",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.21",
+    "@types/mapbox-gl": "^3.4.1",
+    "framer-motion": "^12.34.3",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.575.0",
+    "mapbox-gl": "^3.19.0",
+    "maplibre-gl": "^4.7.1",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
+    "react-map-gl": "^8.1.0",
+    "satellite.js": "^6.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/mapbox__point-geometry": "^1.0.87",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

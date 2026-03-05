@@ -1,0 +1,33 @@
+
+> frontend@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.1.6 (Turbopack)
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./src/components/MapboxViewer.tsx:4:1
+Module not found: Can't resolve 'react-map-gl'
+  2 |
+  3 | import React, { useRef, useEffect, useState, useMemo } from "react";
+> 4 | import Map, { Source, Layer, Fog, Sky, useMap, MapRef } from "react-map-gl";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 | import type { LayerProps } from "react-map-gl";
+  6 | import "mapbox-gl/dist/mapbox-gl.css";
+  7 | import * as satellite from "satellite.js";
+
+
+
+Import trace:
+  Client Component Browser:
+    ./src/components/MapboxViewer.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (./src/components/MapboxViewer.tsx:4:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
