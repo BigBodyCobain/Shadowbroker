@@ -8,3 +8,9 @@ pydantic==2.3.0
 pydantic-settings==2.0.3
 playwright>=1.58.0
 beautifulsoup4>=4.12.0
+sgp4>=2.23
+cachetools>=5.3
+cloudscraper>=1.2.71
+python-dotenv>=1.0
+lxml>=5.0
+reverse_geocoder>=1.5
