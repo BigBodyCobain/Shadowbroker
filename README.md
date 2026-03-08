@@ -2,7 +2,7 @@
   <h1 align="center">🛰️ S H A D O W B R O K E R</h1>
   <p align="center"><strong>Global Threat Intercept — Real-Time Geospatial Intelligence Platform</strong></p>
   <p align="center">
-    
+
   </p>
 </p>
 
@@ -188,7 +188,7 @@ volumes:
 If you just want to run the dashboard without dealing with terminal commands:
 
 1. Go to the **[Releases](../../releases)** tab on the right side of this GitHub page.
-2. Download the `ShadowBroker_v0.1.zip` file.
+2. Download the `ShadowBroker_v0.2.zip` file.
 3. Extract the folder to your computer.
 4. **Windows:** Double-click `start.bat`.
    **Mac/Linux:** Open terminal, type `chmod +x start.sh`, and run `./start.sh`.

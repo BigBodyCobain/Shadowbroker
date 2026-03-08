@@ -2,7 +2,7 @@ import os
 import zipfile
 
 def create_clean_zip():
-    zip_name = 'ShadowBroker_v0.1.zip'
+    zip_name = 'ShadowBroker_v0.2.zip'
     exclude_dirs = {'.git', 'node_modules', 'venv', '.next', '__pycache__'}
     exclude_files = {zip_name, 'zip_repo.py', '.env', '.env.local'}
 
