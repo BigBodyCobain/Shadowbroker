@@ -11,7 +11,7 @@ hex_prefix = hex_code[-2:]
 # Test 1: adsb.fi trace_full
 url1 = f"https://globe.adsb.fi/data/traces/{date_str}/{hex_prefix}/trace_full_{hex_code}.json"
 print(f"URL1: {url1}")
-r = subprocess.run(["curl.exe", "-s", "--max-time", "10", url1], capture_output=True, text=True, timeout=15)
+r = subprocess.run(["curl", "-s", "--max-time", "10", url1], capture_output=True, text=True, timeout=15)
 if r.stdout.strip().startswith("{"):
     data = json.loads(r.stdout)
     print(f"SUCCESS! Keys: {list(data.keys())}")
@@ -28,7 +28,7 @@ else:
 # Test 2: adsb.lol hex lookup
 url2 = f"https://api.adsb.lol/v2/hex/{hex_code}"
 print(f"\nURL2: {url2}")
-r2 = subprocess.run(["curl.exe", "-s", "--max-time", "10", url2], capture_output=True, text=True, timeout=15)
+r2 = subprocess.run(["curl", "-s", "--max-time", "10", url2], capture_output=True, text=True, timeout=15)
 if r2.stdout.strip().startswith("{"):
     data = json.loads(r2.stdout)
     if 'ac' in data and data['ac']:
@@ -41,13 +41,13 @@ else:
 # Test 3: Try adsb.lol trace 
 url3 = f"https://api.adsb.lol/trace/{hex_code}"
 print(f"\nURL3: {url3}")
-r3 = subprocess.run(["curl.exe", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "10", url3], capture_output=True, text=True, timeout=15)
+r3 = subprocess.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "10", url3], capture_output=True, text=True, timeout=15)
 print(f"HTTP status: {r3.stdout}")
 
 # Test 4: Try globe.adsb.lol format
 url4 = f"https://globe.adsb.lol/data/traces/{date_str}/{hex_prefix}/trace_full_{hex_code}.json"
 print(f"\nURL4: {url4}")
-r4 = subprocess.run(["curl.exe", "-s", "--max-time", "10", url4], capture_output=True, text=True, timeout=15)
+r4 = subprocess.run(["curl", "-s", "--max-time", "10", url4], capture_output=True, text=True, timeout=15)
 if r4.stdout.strip().startswith("{"):
     data = json.loads(r4.stdout)
     print(f"SUCCESS! Keys: {list(data.keys())}")
