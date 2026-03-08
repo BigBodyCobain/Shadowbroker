@@ -1,0 +1,13 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+README.md
+.next
+.git
+.env
+.env.local
+.env.*
+eslint.config.mjs
+postcss.config.mjs
+tailwind.config.ts

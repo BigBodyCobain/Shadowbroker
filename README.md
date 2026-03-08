@@ -83,33 +83,34 @@ Built with **Next.js**, **MapLibre GL**, **FastAPI**, and **Python**, it's desig
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                    FRONTEND (Next.js)                 │
-│                                                      │
-│  ┌─────────────┐  ┌──────────┐  ┌─────────────────┐ │
-│  │ MapLibre GL │  │ NewsFeed │  │  Control Panels  │ │
-│  │  2D WebGL   │  │  SIGINT  │  │ Layers/Filters   │ │
-│  │  Map Render │  │  Intel   │  │ Markets/Radio    │ │
-│  └──────┬──────┘  └────┬─────┘  └────────┬────────┘ │
-│         └──────────────┼─────────────────┘           │
-│                        │ REST API (15s fast / 60s slow│
-├────────────────────────┼─────────────────────────────┤
+┌────────────────────────────────────────────────────────┐
+│                   FRONTEND (Next.js)                   │
+│                                                        │
+│  ┌─────────────┐    ┌──────────┐    ┌───────────────┐  │
+│  │ MapLibre GL │    │ NewsFeed │    │ Control Panels│  │
+│  │  2D WebGL   │    │  SIGINT  │    │ Layers/Filters│  │
+│  │ Map Render  │    │  Intel   │    │ Markets/Radio │  │
+│  └──────┬──────┘    └────┬─────┘    └───────┬───────┘  │
+│         └────────────────┼──────────────────┘          │
+│                          │ REST API (15s / 60s)        │
+├──────────────────────────┼─────────────────────────────┤
 │                    BACKEND (FastAPI)                   │
-│                        │                              │
-│  ┌─────────────────────┼─────────────────────────┐   │
-│  │              Data Fetcher (Scheduler)          │   │
-│  │  ┌──────────┬──────────┬──────────┬─────────┐ │   │
-│  │  │ OpenSky  │ adsb.lol │  N2YO    │  USGS   │ │   │
-│  │  │ Flights  │ Military │ Sats     │ Quakes  │ │   │
-│  │  ├──────────┼──────────┼──────────┼─────────┤ │   │
-│  │  │ AIS WS   │ Carrier  │  GDELT   │  CCTV   │ │   │
-│  │  │ Ships    │ Tracker  │ Conflict │ Cameras │ │   │
-│  │  ├──────────┼──────────┼──────────┼─────────┤ │   │
-│  │  │ DeepState│ RSS      │ Region   │  GPS    │ │   │
-│  │  │ Frontline│ Intel    │ Dossier  │ Jamming │ │   │
-│  │  └──────────┴──────────┴──────────┴─────────┘ │   │
-│  └───────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────┘
+│                          │                             │
+│  ┌───────────────────────┼──────────────────────────┐  │
+│  │               Data Fetcher (Scheduler)           │  │
+│  │                                                  │  │
+│  │  ┌──────────┬──────────┬──────────┬───────────┐  │  │
+│  │  │ OpenSky  │ adsb.lol │   N2YO   │   USGS    │  │  │
+│  │  │ Flights  │ Military │   Sats   │  Quakes   │  │  │
+│  │  ├──────────┼──────────┼──────────┼───────────┤  │  │
+│  │  │  AIS WS  │ Carrier  │  GDELT   │   CCTV    │  │  │
+│  │  │  Ships   │ Tracker  │ Conflict │  Cameras  │  │  │
+│  │  ├──────────┼──────────┼──────────┼───────────┤  │  │
+│  │  │ DeepState│   RSS    │  Region  │    GPS    │  │  │
+│  │  │ Frontline│  Intel   │ Dossier  │  Jamming  │  │  │
+│  │  └──────────┴──────────┴──────────┴───────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -137,6 +138,50 @@ Built with **Next.js**, **MapLibre GL**, **FastAPI**, and **Python**, it's desig
 ---
 
 ## 🚀 Getting Started
+
+### 🐳 Docker Setup (Recommended for Self-Hosting)
+
+You can run the dashboard easily using the pre-built Docker images hosted on GitHub Container Registry (GHCR).
+
+1. Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/<your-username>/live-risk-dashboard-backend:main
+    container_name: shadowbroker-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AISSTREAM_API_KEY=${AISSTREAM_API_KEY}
+      - N2YO_API_KEY=${N2YO_API_KEY}
+      # Add other required environment variables here
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/<your-username>/live-risk-dashboard-frontend:main
+    container_name: shadowbroker-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+```
+
+1. Create a `.env` file in the same directory with your API keys.
+2. Run `docker-compose up -d`.
+3. Access the dashboard at `http://localhost:3000`.
+
+---
 
 ### 📦 Quick Start (No Code Required)
 

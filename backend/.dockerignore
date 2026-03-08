@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+.coverage
+cctv.db
+*.json
+*.txt
+!requirements.txt
