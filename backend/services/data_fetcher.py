@@ -1362,6 +1362,84 @@ _SAT_INTEL_DB = [
     ("TIANGONG", {"country": "China", "mission": "space_station", "sat_type": "Space Station", "wiki": "https://en.wikipedia.org/wiki/Tiangong_space_station"}),
 ]
 
+def _parse_tle_to_gp(name, norad_id, line1, line2):
+    """Convert TLE two-line element to CelesTrak GP-style dict for unified processing."""
+    try:
+        # Parse TLE line 2 fields (standard TLE format)
+        incl = float(line2[8:16].strip())
+        raan = float(line2[17:25].strip())
+        ecc = float("0." + line2[26:33].strip())
+        argp = float(line2[34:42].strip())
+        ma = float(line2[43:51].strip())
+        mm = float(line2[52:63].strip())
+        # Parse BSTAR from line 1 (columns 54-61)
+        bstar_str = line1[53:61].strip()
+        if bstar_str:
+            mantissa = float(bstar_str[:-2]) / 1e5
+            exponent = int(bstar_str[-2:])
+            bstar = mantissa * (10 ** exponent)
+        else:
+            bstar = 0.0
+        # Parse epoch from line 1 (columns 18-32)
+        epoch_yr = int(line1[18:20])
+        epoch_day = float(line1[20:32].strip())
+        year = 2000 + epoch_yr if epoch_yr < 57 else 1900 + epoch_yr
+        from datetime import datetime, timedelta
+        epoch_dt = datetime(year, 1, 1) + timedelta(days=epoch_day - 1)
+        return {
+            "OBJECT_NAME": name,
+            "NORAD_CAT_ID": norad_id,
+            "MEAN_MOTION": mm,
+            "ECCENTRICITY": ecc,
+            "INCLINATION": incl,
+            "RA_OF_ASC_NODE": raan,
+            "ARG_OF_PERICENTER": argp,
+            "MEAN_ANOMALY": ma,
+            "BSTAR": bstar,
+            "EPOCH": epoch_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+    except Exception:
+        return None
+
+
+def _fetch_satellites_from_tle_api():
+    """Fallback: fetch satellite TLEs from tle.ivanstanojevic.me when CelesTrak is blocked."""
+    # Build search terms from our intel DB — deduplicate short prefixes
+    search_terms = set()
+    for key, _ in _SAT_INTEL_DB:
+        # Use first word for broader matching (e.g., "USA" catches USA 224, USA 245, etc.)
+        term = key.split()[0] if len(key.split()) > 1 and key.split()[0] in ("USA", "NROL") else key
+        search_terms.add(term)
+
+    all_results = []
+    seen_ids = set()
+    for term in search_terms:
+        try:
+            url = f"https://tle.ivanstanojevic.me/api/tle/?search={term}&page_size=100&format=json"
+            response = fetch_with_curl(url, timeout=10)
+            if response.status_code != 200:
+                continue
+            data = response.json()
+            for member in data.get("member", []):
+                sat_id = member.get("satelliteId")
+                if sat_id in seen_ids:
+                    continue
+                seen_ids.add(sat_id)
+                gp = _parse_tle_to_gp(
+                    member.get("name", "UNKNOWN"),
+                    sat_id,
+                    member.get("line1", ""),
+                    member.get("line2", ""),
+                )
+                if gp:
+                    all_results.append(gp)
+        except Exception as e:
+            logger.debug(f"TLE fallback search '{term}' failed: {e}")
+            continue
+
+    return all_results
+
+
 def fetch_satellites():
     sats = []
     try:
@@ -1369,16 +1447,40 @@ def fetch_satellites():
         # Positions are re-propagated from cached orbital elements each cycle
         now_ts = time.time()
         if _sat_gp_cache["data"] is None or (now_ts - _sat_gp_cache["last_fetch"]) > 1800:
-            url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json"
-            response = fetch_with_curl(url, timeout=15)
-            if response.status_code == 200:
-                _sat_gp_cache["data"] = response.json()
-                _sat_gp_cache["last_fetch"] = now_ts
-                logger.info(f"Satellites: Downloaded {len(_sat_gp_cache['data'])} GP records from CelesTrak")
-        
+            # Try multiple CelesTrak mirrors — .org is often blocked/banned by some networks
+            gp_urls = [
+                "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json",
+                "https://celestrak.com/NORAD/elements/gp.php?GROUP=active&FORMAT=json",
+            ]
+            for url in gp_urls:
+                try:
+                    response = fetch_with_curl(url, timeout=8)
+                    if response.status_code == 200:
+                        gp_data = response.json()
+                        if isinstance(gp_data, list) and len(gp_data) > 100:
+                            _sat_gp_cache["data"] = gp_data
+                            _sat_gp_cache["last_fetch"] = now_ts
+                            logger.info(f"Satellites: Downloaded {len(gp_data)} GP records from {url}")
+                            break
+                except Exception as e:
+                    logger.warning(f"Satellites: Failed to fetch from {url}: {e}")
+                    continue
+
+            # Fallback: if CelesTrak is blocked, use tle.ivanstanojevic.me TLE API
+            if _sat_gp_cache["data"] is None:
+                logger.info("Satellites: CelesTrak unreachable, trying TLE fallback API...")
+                try:
+                    fallback_data = _fetch_satellites_from_tle_api()
+                    if fallback_data and len(fallback_data) > 10:
+                        _sat_gp_cache["data"] = fallback_data
+                        _sat_gp_cache["last_fetch"] = now_ts
+                        logger.info(f"Satellites: Got {len(fallback_data)} records from TLE fallback API")
+                except Exception as e:
+                    logger.error(f"Satellites: TLE fallback also failed: {e}")
+
         data = _sat_gp_cache["data"]
         if not data:
-            logger.warning("No satellite GP data available")
+            logger.warning("No satellite GP data available from any source")
             latest_data["satellites"] = sats
             return
 
