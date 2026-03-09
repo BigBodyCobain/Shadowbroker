@@ -3,7 +3,7 @@
 import { API_BASE } from "@/lib/api";
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Eye, EyeOff, Copy, Check, ExternalLink, Key, Shield, X, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Settings, ExternalLink, Key, Shield, X, Save, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ApiEntry {
     id: string;
@@ -15,7 +15,7 @@ interface ApiEntry {
     has_key: boolean;
     env_key: string | null;
     value_obfuscated: string | null;
-    value_plain: string | null;
+    is_set: boolean;
 }
 
 // Category colors for the tactical UI
@@ -33,8 +33,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const [apis, setApis] = useState<ApiEntry[]>([]);
-    const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-    const [copiedId, setCopiedId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
     const [saving, setSaving] = useState(false);
@@ -56,28 +54,9 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
         if (isOpen) fetchKeys();
     }, [isOpen, fetchKeys]);
 
-    const toggleReveal = (id: string) => {
-        setRevealedKeys(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    };
-
-    const copyToClipboard = async (id: string, value: string) => {
-        try {
-            await navigator.clipboard.writeText(value);
-            setCopiedId(id);
-            setTimeout(() => setCopiedId(null), 2000);
-        } catch {
-            // Clipboard API may fail in some contexts
-        }
-    };
-
     const startEditing = (api: ApiEntry) => {
         setEditingId(api.id);
-        setEditValue(api.value_plain || "");
+        setEditValue("");
     };
 
     const saveKey = async (api: ApiEntry) => {
@@ -209,9 +188,15 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                                 </div>
                                                                 <div className="flex items-center gap-1.5">
                                                                     {api.has_key ? (
-                                                                        <span className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-green-500/30 text-green-400 bg-green-950/20">
-                                                                            KEY SET
-                                                                        </span>
+                                                                        api.is_set ? (
+                                                                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-green-500/30 text-green-400 bg-green-950/20">
+                                                                                KEY SET
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-yellow-500/30 text-yellow-400 bg-yellow-950/20">
+                                                                                MISSING
+                                                                            </span>
+                                                                        )
                                                                     ) : (
                                                                         <span className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-gray-700 text-gray-500">
                                                                             PUBLIC
@@ -272,34 +257,10 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                                                 className="flex-1 bg-black/40 border border-gray-800 rounded px-2.5 py-1.5 font-mono text-[11px] cursor-pointer hover:border-gray-700 transition-colors select-none"
                                                                                 onClick={() => startEditing(api)}
                                                                             >
-                                                                                <span className={revealedKeys.has(api.id) ? "text-cyan-300" : "text-gray-500 tracking-wider"}>
-                                                                                    {revealedKeys.has(api.id) ? api.value_plain : api.value_obfuscated}
+                                                                                <span className="text-gray-500 tracking-wider">
+                                                                                    {api.is_set ? api.value_obfuscated : "Click to set key..."}
                                                                                 </span>
                                                                             </div>
-
-                                                                            {/* Eye Toggle */}
-                                                                            <button
-                                                                                onClick={() => toggleReveal(api.id)}
-                                                                                className={`w-7 h-7 rounded flex items-center justify-center border transition-all ${revealedKeys.has(api.id)
-                                                                                        ? "border-cyan-500/40 text-cyan-400 bg-cyan-950/30"
-                                                                                        : "border-gray-700 text-gray-600 hover:text-gray-400 hover:border-gray-600"
-                                                                                    }`}
-                                                                                title={revealedKeys.has(api.id) ? "Hide key" : "Reveal key"}
-                                                                            >
-                                                                                {revealedKeys.has(api.id) ? <EyeOff size={12} /> : <Eye size={12} />}
-                                                                            </button>
-
-                                                                            {/* Copy */}
-                                                                            <button
-                                                                                onClick={() => copyToClipboard(api.id, api.value_plain || "")}
-                                                                                className={`w-7 h-7 rounded flex items-center justify-center border transition-all ${copiedId === api.id
-                                                                                        ? "border-green-500/40 text-green-400 bg-green-950/30"
-                                                                                        : "border-gray-700 text-gray-600 hover:text-gray-400 hover:border-gray-600"
-                                                                                    }`}
-                                                                                title="Copy to clipboard"
-                                                                            >
-                                                                                {copiedId === api.id ? <Check size={12} /> : <Copy size={12} />}
-                                                                            </button>
                                                                         </div>
                                                                     )}
                                                                 </div>

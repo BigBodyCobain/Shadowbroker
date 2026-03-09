@@ -15,6 +15,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 import MapLegend from "@/components/MapLegend";
 import ScaleBar from "@/components/ScaleBar";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import OnboardingModal, { useOnboarding } from "@/components/OnboardingModal";
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -75,6 +76,10 @@ export default function Dashboard() {
   // Mouse coordinate + reverse geocoding state
   const [mouseCoords, setMouseCoords] = useState<{ lat: number, lng: number } | null>(null);
   const [locationLabel, setLocationLabel] = useState('');
+
+  // Onboarding & connection status
+  const { showOnboarding, setShowOnboarding } = useOnboarding();
+  const [backendStatus, setBackendStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const geocodeCache = useRef<Map<string, string>>(new Map());
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -177,8 +182,9 @@ export default function Dashboard() {
         const headers: Record<string, string> = {};
         if (fastEtag.current) headers['If-None-Match'] = fastEtag.current;
         const res = await fetch(`${API_BASE}/api/live-data/fast`, { headers });
-        if (res.status === 304) return; // Data unchanged, skip update
+        if (res.status === 304) { setBackendStatus('connected'); return; }
         if (res.ok) {
+          setBackendStatus('connected');
           fastEtag.current = res.headers.get('etag') || null;
           const json = await res.json();
           dataRef.current = { ...dataRef.current, ...json };
@@ -186,6 +192,7 @@ export default function Dashboard() {
         }
       } catch (e) {
         console.error("Failed fetching fast live data", e);
+        setBackendStatus('disconnected');
       }
     };
 
@@ -425,6 +432,23 @@ export default function Dashboard() {
 
       {/* MAP LEGEND */}
       <MapLegend isOpen={legendOpen} onClose={() => setLegendOpen(false)} />
+
+      {/* ONBOARDING MODAL */}
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => setShowOnboarding(false)}
+          onOpenSettings={() => { setShowOnboarding(false); setSettingsOpen(true); }}
+        />
+      )}
+
+      {/* BACKEND DISCONNECTED BANNER */}
+      {backendStatus === 'disconnected' && (
+        <div className="absolute top-0 left-0 right-0 z-[9000] flex items-center justify-center py-2 bg-red-950/90 border-b border-red-500/40 backdrop-blur-sm">
+          <span className="text-[10px] font-mono tracking-widest text-red-400">
+            BACKEND OFFLINE — Cannot reach {API_BASE}. Start the backend server or check your connection.
+          </span>
+        </div>
+      )}
 
     </main>
   );

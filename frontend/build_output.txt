@@ -1,0 +1,92 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 838B 0.0s done
+#1 DONE 0.0s
+
+#2 [auth] library/node:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:18-alpine
+#3 DONE 0.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 207B 0.0s done
+#4 DONE 0.0s
+
+#5 [base 1/1] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+#5 resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e 0.0s done
+#5 DONE 0.0s
+
+#6 [runner 2/8] RUN addgroup --system --gid 1001 nodejs
+#6 CACHED
+
+#7 [builder 1/4] WORKDIR /app
+#7 CACHED
+
+#8 [runner 3/8] RUN adduser --system --uid 1001 nextjs
+#8 CACHED
+
+#9 [internal] load build context
+#9 transferring context: 3.49kB done
+#9 DONE 0.0s
+
+#10 [deps 1/4] RUN apk add --no-cache libc6-compat
+#10 CACHED
+
+#11 [deps 2/4] WORKDIR /app
+#11 CACHED
+
+#12 [deps 3/4] COPY package*.json ./
+#12 CACHED
+
+#13 [deps 4/4] RUN npm ci
+#13 CACHED
+
+#14 [builder 2/4] COPY --from=deps /app/node_modules ./node_modules
+#14 CACHED
+
+#15 [builder 3/4] COPY . .
+#15 DONE 0.0s
+
+#16 [builder 4/4] RUN npm run build
+#16 1.391 
+#16 1.391 > frontend@0.2.0 build
+#16 1.391 > next build
+#16 1.391 
+#16 1.821 You are using Node.js 18.20.8. For Next.js, Node.js version ">=20.9.0" is required.
+#16 1.837 npm notice
+#16 1.837 npm notice New major version of npm available! 10.8.2 -> 11.11.0
+#16 1.837 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+#16 1.837 npm notice To update run: npm install -g npm@11.11.0
+#16 1.837 npm notice
+#16 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
+------
+ > [builder 4/4] RUN npm run build:
+1.391 
+1.391 > frontend@0.2.0 build
+1.391 > next build
+1.391 
+1.821 You are using Node.js 18.20.8. For Next.js, Node.js version ">=20.9.0" is required.
+1.837 npm notice
+1.837 npm notice New major version of npm available! 10.8.2 -> 11.11.0
+1.837 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+1.837 npm notice To update run: npm install -g npm@11.11.0
+1.837 npm notice
+------
+
+ 5 warnings found (use docker --debug to expand):
+ - LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 13)
+ - LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 18)
+ - LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 19)
+ - LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 35)
+ - LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 36)
+Dockerfile:14
+--------------------
+  12 |     COPY . .
+  13 |     ENV NEXT_TELEMETRY_DISABLED 1
+  14 | >>> RUN npm run build
+  15 |     
+  16 |     FROM base AS runner
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1

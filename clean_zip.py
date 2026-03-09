@@ -1,7 +1,7 @@
 import os
 import zipfile
 
-zip_name = 'ShadowBroker_v0.1.zip'
+zip_name = 'ShadowBroker_v0.3.zip'
 
 if os.path.exists(zip_name):
     try:

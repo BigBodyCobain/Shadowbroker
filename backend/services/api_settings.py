@@ -145,12 +145,12 @@ def get_api_keys():
             "has_key": api["env_key"] is not None,
             "env_key": api["env_key"],
             "value_obfuscated": None,
-            "value_plain": None,
+            "is_set": False,
         }
         if api["env_key"]:
             raw = os.environ.get(api["env_key"], "")
             entry["value_obfuscated"] = _obfuscate(raw)
-            entry["value_plain"] = raw  # Sent only when reveal is requested
+            entry["is_set"] = bool(raw)
         result.append(entry)
     return result
 
