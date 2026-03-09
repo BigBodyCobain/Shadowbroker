@@ -1,0 +1,14 @@
+0000000000000000000000000000000000000000 8ed321f2bac0323dabc313a100504ca0a6e9af66 anoracleofra-code <anoracleofra@gmail.com> 1772689448 -0700	commit (initial): Initial commit: ShadowBroker v0.1
+8ed321f2bac0323dabc313a100504ca0a6e9af66 0000000000000000000000000000000000000000 anoracleofra-code <anoracleofra@gmail.com> 1772689448 -0700	Branch: renamed refs/heads/master to refs/heads/main
+0000000000000000000000000000000000000000 8ed321f2bac0323dabc313a100504ca0a6e9af66 anoracleofra-code <anoracleofra@gmail.com> 1772689448 -0700	Branch: renamed refs/heads/master to refs/heads/main
+8ed321f2bac0323dabc313a100504ca0a6e9af66 3888c91ab35178f779c7fa29f3cb1d33c65116c4 anoracleofra-code <anoracleofra@gmail.com> 1772691134 -0700	commit: feat: add cross-platform start.sh script and update package.json for macOS/Linux
+3888c91ab35178f779c7fa29f3cb1d33c65116c4 e1f4ac2cfb114de61c0d83234b8d2deb545b2301 anoracleofra-code <anoracleofra@gmail.com> 1773000243 -0600	commit: feat: add Docker publishing via GitHub Actions
+e1f4ac2cfb114de61c0d83234b8d2deb545b2301 e1f4ac2cfb114de61c0d83234b8d2deb545b2301 anoracleofra-code <anoracleofra@gmail.com> 1773000289 -0600	reset: moving to HEAD
+e1f4ac2cfb114de61c0d83234b8d2deb545b2301 313aa32a9b08c1ddce4e9c801bdda210e136d67f anoracleofra-code <anoracleofra@gmail.com> 1773000292 -0600	pull --rebase origin main (start): checkout 313aa32a9b08c1ddce4e9c801bdda210e136d67f
+313aa32a9b08c1ddce4e9c801bdda210e136d67f 36c92881c85d3de23f1bb1cbb19d961a3fe2153e anoracleofra-code <anoracleofra@gmail.com> 1773000292 -0600	pull --rebase origin main (pick): feat: add Docker publishing via GitHub Actions
+36c92881c85d3de23f1bb1cbb19d961a3fe2153e 36c92881c85d3de23f1bb1cbb19d961a3fe2153e anoracleofra-code <anoracleofra@gmail.com> 1773000292 -0600	pull --rebase origin main (finish): returning to refs/heads/main
+36c92881c85d3de23f1bb1cbb19d961a3fe2153e 9802fe55a36a903ee68631f48a65d3a2ed180414 anoracleofra-code <anoracleofra@gmail.com> 1773001228 -0600	commit: fix: make dev scripts cross-platform compatible
+9802fe55a36a903ee68631f48a65d3a2ed180414 b57830c1a6b44c36ce83a5acba2bca7b403a2e92 anoracleofra-code <anoracleofra@gmail.com> 1773001476 -0600	commit: fix: make test_trace.py curl commands OS-agnostic
+b57830c1a6b44c36ce83a5acba2bca7b403a2e92 15f1a1dc3ccce735bbeecf4589d935e56254f018 anoracleofra-code <anoracleofra@gmail.com> 1773001674 -0600	commit: bump: release v0.2.0
+15f1a1dc3ccce735bbeecf4589d935e56254f018 7976602b67bd7bebb98837fcefa21a07ed2de01d anoracleofra-code <anoracleofra@gmail.com> 1773003311 -0600	commit: fix: integrate AI cross-platform start scripts
+7976602b67bd7bebb98837fcefa21a07ed2de01d 5926084a17082014b2ce2aa7ffdcb8367c79975b anoracleofra-code <anoracleofra@gmail.com> 1773003718 -0600	commit: fix: resolve satellite NORAD ID lookup to fix propagation loop

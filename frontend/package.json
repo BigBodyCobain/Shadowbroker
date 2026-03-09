@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
@@ -12,17 +12,12 @@
   },
   "dependencies": {
     "@mapbox/point-geometry": "^1.1.0",
-    "@types/leaflet": "^1.9.21",
-    "@types/mapbox-gl": "^3.4.1",
     "framer-motion": "^12.34.3",
-    "leaflet": "^1.9.4",
     "lucide-react": "^0.575.0",
-    "mapbox-gl": "^3.19.0",
     "maplibre-gl": "^4.7.1",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-leaflet": "^5.0.0",
     "react-map-gl": "^8.1.0",
     "satellite.js": "^6.0.2"
   },
