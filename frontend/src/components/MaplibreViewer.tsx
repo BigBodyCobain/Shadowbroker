@@ -26,10 +26,12 @@ const svgPlanePink = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="
 const svgPlaneAlertRed = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#FF2020" stroke="black"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>`)}`;
 const svgPlaneDarkBlue = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#1A3A8A" stroke="#4A80D0"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>`)}`;
 const svgPlaneWhiteAlert = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="#ff0000" stroke-width="2"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>`)}`;
-const svgHeliPink = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#ff66b2" stroke="black"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ff66b2" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
+const svgHeliPink = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#FF1493" stroke="black"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#FF1493" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
 const svgHeliAlertRed = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#ff0000" stroke="black"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ff0000" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
 const svgHeliDarkBlue = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#000080" stroke="#4A80D0"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#4A80D0" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
-const svgHeliWhiteAlert = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="#ff0000"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#ff0000" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
+const svgHeliBlue = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#3b82f6" stroke="black"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#3b82f6" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
+const svgHeliLime = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="#32CD32" stroke="black"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#32CD32" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
+const svgHeliWhiteAlert = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="#666"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#999" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
 const svgPlaneBlack = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#222" stroke="#444"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>`)}`;
 const svgHeliBlack = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#222" stroke="#444"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z"/><circle cx="12" cy="12" r="8" fill="none" stroke="#444" stroke-dasharray="2 2" stroke-width="1"/></svg>`)}`;
 const svgDrone = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="orange" stroke="black"><path d="M12 2L15 8H9L12 2Z" /><rect x="8" y="8" width="8" height="2" /><path d="M4 10L10 14H14L20 10V12L14 16H10L4 12V10Z" /><circle cx="12" cy="14" r="2" fill="red"/></svg>`)}`;
@@ -88,6 +90,13 @@ function makeAircraftSvg(type: 'airliner' | 'turboprop' | 'bizjet' | 'generic', 
     return `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="${stroke}"><path d="${p}"/>${extras}</svg>`)}`;
 }
 
+// POTUS fleet — oversized hot pink with yellow halo ring
+const svgPotusPlane = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="none" stroke="gold" stroke-width="2" stroke-dasharray="4 2"/><g transform="translate(4,4)"><path d="${AIRLINER_PATH}" fill="#FF1493" stroke="black"/><circle cx="7" cy="12.5" r="1.2" fill="#FF1493" stroke="black" stroke-width="0.5"/><circle cx="17" cy="12.5" r="1.2" fill="#FF1493" stroke="black" stroke-width="0.5"/></g></svg>`)}`;
+const svgPotusHeli = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="none" stroke="gold" stroke-width="2" stroke-dasharray="4 2"/><g transform="translate(6,4)"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z" fill="#FF1493" stroke="black"/><circle cx="12" cy="12" r="8" fill="none" stroke="#FF1493" stroke-dasharray="2 2" stroke-width="1"/></g></svg>`)}`;
+
+// POTUS fleet ICAO hex codes (verified FAA registry)
+const POTUS_ICAOS = new Set(['ADFDF8','ADFDF9','AE0865','AE5E76','AE5E77','AE5E79']);
+
 // Pre-built aircraft SVGs by type & color
 const svgAirlinerCyan = makeAircraftSvg('airliner', 'cyan');
 const svgAirlinerOrange = makeAircraftSvg('airliner', '#FF8C00');
@@ -96,7 +105,10 @@ const svgAirlinerYellow = makeAircraftSvg('airliner', 'yellow');
 const svgAirlinerPink = makeAircraftSvg('airliner', '#FF1493', 'black', 22);
 const svgAirlinerRed = makeAircraftSvg('airliner', '#FF2020', 'black', 22);
 const svgAirlinerDarkBlue = makeAircraftSvg('airliner', '#1A3A8A', '#4A80D0', 22);
-const svgAirlinerWhite = makeAircraftSvg('airliner', 'white', '#ff0000', 22);
+const svgAirlinerBlue = makeAircraftSvg('airliner', '#3b82f6', 'black', 22);
+const svgAirlinerLime = makeAircraftSvg('airliner', '#32CD32', 'black', 22);
+const svgAirlinerBlack = makeAircraftSvg('airliner', '#222', '#555', 22);
+const svgAirlinerWhite = makeAircraftSvg('airliner', 'white', '#666', 22);
 
 const svgTurbopropCyan = makeAircraftSvg('turboprop', 'cyan');
 const svgTurbopropOrange = makeAircraftSvg('turboprop', '#FF8C00');
@@ -105,7 +117,10 @@ const svgTurbopropYellow = makeAircraftSvg('turboprop', 'yellow');
 const svgTurbopropPink = makeAircraftSvg('turboprop', '#FF1493', 'black', 22);
 const svgTurbopropRed = makeAircraftSvg('turboprop', '#FF2020', 'black', 22);
 const svgTurbopropDarkBlue = makeAircraftSvg('turboprop', '#1A3A8A', '#4A80D0', 22);
-const svgTurbopropWhite = makeAircraftSvg('turboprop', 'white', '#ff0000', 22);
+const svgTurbopropBlue = makeAircraftSvg('turboprop', '#3b82f6', 'black', 22);
+const svgTurbopropLime = makeAircraftSvg('turboprop', '#32CD32', 'black', 22);
+const svgTurbopropBlack = makeAircraftSvg('turboprop', '#222', '#555', 22);
+const svgTurbopropWhite = makeAircraftSvg('turboprop', 'white', '#666', 22);
 
 const svgBizjetCyan = makeAircraftSvg('bizjet', 'cyan');
 const svgBizjetOrange = makeAircraftSvg('bizjet', '#FF8C00');
@@ -114,7 +129,10 @@ const svgBizjetYellow = makeAircraftSvg('bizjet', 'yellow');
 const svgBizjetPink = makeAircraftSvg('bizjet', '#FF1493', 'black', 22);
 const svgBizjetRed = makeAircraftSvg('bizjet', '#FF2020', 'black', 22);
 const svgBizjetDarkBlue = makeAircraftSvg('bizjet', '#1A3A8A', '#4A80D0', 22);
-const svgBizjetWhite = makeAircraftSvg('bizjet', 'white', '#ff0000', 22);
+const svgBizjetBlue = makeAircraftSvg('bizjet', '#3b82f6', 'black', 22);
+const svgBizjetLime = makeAircraftSvg('bizjet', '#32CD32', 'black', 22);
+const svgBizjetBlack = makeAircraftSvg('bizjet', '#222', '#555', 22);
+const svgBizjetWhite = makeAircraftSvg('bizjet', 'white', '#666', 22);
 
 // Grey variants for grounded/parked aircraft (altitude 0)
 const svgAirlinerGrey = makeAircraftSvg('airliner', '#555', '#333');
@@ -334,21 +352,26 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         let isMounted = true;
 
         let callsign = null;
+        let entityLat = 0;
+        let entityLng = 0;
         if (selectedEntity && data) {
             let entity = null;
             if (selectedEntity.type === 'flight') entity = data?.commercial_flights?.[selectedEntity.id as number];
             else if (selectedEntity.type === 'private_flight') entity = data?.private_flights?.[selectedEntity.id as number];
             else if (selectedEntity.type === 'military_flight') entity = data?.military_flights?.[selectedEntity.id as number];
             else if (selectedEntity.type === 'private_jet') entity = data?.private_jets?.[selectedEntity.id as number];
+            else if (selectedEntity.type === 'tracked_flight') entity = data?.tracked_flights?.[selectedEntity.id as number];
 
             if (entity && entity.callsign) {
                 callsign = entity.callsign;
+                entityLat = entity.lat ?? 0;
+                entityLng = entity.lng ?? 0;
             }
         }
 
         if (callsign && callsign !== prevCallsign.current) {
             prevCallsign.current = callsign;
-            fetch(`${API_BASE}/api/route/${callsign}`)
+            fetch(`${API_BASE}/api/route/${callsign}?lat=${entityLat}&lng=${entityLng}`)
                 .then(res => res.json())
                 .then(routeData => {
                     if (isMounted) setDynamicRoute(routeData);
@@ -595,6 +618,8 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         loadImg('svgHeliCyan', svgHeliCyan);
         loadImg('svgHeliOrange', svgHeliOrange);
         loadImg('svgHeliPurple', svgHeliPurple);
+        loadImg('svgHeliBlue', svgHeliBlue);
+        loadImg('svgHeliLime', svgHeliLime);
         loadImg('svgFighter', svgFighter);
         loadImg('svgTanker', svgTanker);
         loadImg('svgRecon', svgRecon);
@@ -636,17 +661,28 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
             loadImg('svgHeliDarkBlue', svgHeliDarkBlue);
             loadImg('svgHeliWhiteAlert', svgHeliWhiteAlert);
             loadImg('svgHeliBlack', svgHeliBlack);
+            loadImg('svgPotusPlane', svgPotusPlane);
+            loadImg('svgPotusHeli', svgPotusHeli);
             loadImg('svgAirlinerPink', svgAirlinerPink);
             loadImg('svgAirlinerRed', svgAirlinerRed);
             loadImg('svgAirlinerDarkBlue', svgAirlinerDarkBlue);
+            loadImg('svgAirlinerBlue', svgAirlinerBlue);
+            loadImg('svgAirlinerLime', svgAirlinerLime);
+            loadImg('svgAirlinerBlack', svgAirlinerBlack);
             loadImg('svgAirlinerWhite', svgAirlinerWhite);
             loadImg('svgTurbopropPink', svgTurbopropPink);
             loadImg('svgTurbopropRed', svgTurbopropRed);
             loadImg('svgTurbopropDarkBlue', svgTurbopropDarkBlue);
+            loadImg('svgTurbopropBlue', svgTurbopropBlue);
+            loadImg('svgTurbopropLime', svgTurbopropLime);
+            loadImg('svgTurbopropBlack', svgTurbopropBlack);
             loadImg('svgTurbopropWhite', svgTurbopropWhite);
             loadImg('svgBizjetPink', svgBizjetPink);
             loadImg('svgBizjetRed', svgBizjetRed);
             loadImg('svgBizjetDarkBlue', svgBizjetDarkBlue);
+            loadImg('svgBizjetBlue', svgBizjetBlue);
+            loadImg('svgBizjetLime', svgBizjetLime);
+            loadImg('svgBizjetBlack', svgBizjetBlack);
             loadImg('svgBizjetWhite', svgBizjetWhite);
             loadImg('svgDrone', svgDrone);
             loadImg('svgCctv', svgCctv);
@@ -976,6 +1012,7 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         else if (selectedEntity.type === 'private_flight') entity = data?.private_flights?.[selectedEntity.id as number];
         else if (selectedEntity.type === 'military_flight') entity = data?.military_flights?.[selectedEntity.id as number];
         else if (selectedEntity.type === 'private_jet') entity = data?.private_jets?.[selectedEntity.id as number];
+        else if (selectedEntity.type === 'tracked_flight') entity = data?.tracked_flights?.[selectedEntity.id as number];
         else if (selectedEntity.type === 'ship') entity = data?.ships?.[selectedEntity.id as number];
 
         if (!entity) return null;
@@ -987,6 +1024,9 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         if (dynamicRoute && dynamicRoute.orig_loc && dynamicRoute.dest_loc) {
             originLoc = dynamicRoute.orig_loc;
             destLoc = dynamicRoute.dest_loc;
+            // Also override display names so NewsFeed shows the resolved airport info
+            if (dynamicRoute.origin_name) entity.origin_name = dynamicRoute.origin_name;
+            if (dynamicRoute.dest_name) entity.dest_name = dynamicRoute.dest_name;
         }
 
         const features = [];
@@ -1150,10 +1190,10 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
 
         // Tracked icon maps by aircraft shape and alert color
         const trackedIconMap: Record<string, Record<string, string>> = {
-            heli: { pink: 'svgHeliPink', red: 'svgHeliAlertRed', darkblue: 'svgHeliDarkBlue', white: 'svgHeliWhiteAlert' },
-            airliner: { pink: 'svgAirlinerPink', red: 'svgAirlinerRed', darkblue: 'svgAirlinerDarkBlue', white: 'svgAirlinerWhite' },
-            turboprop: { pink: 'svgTurbopropPink', red: 'svgTurbopropRed', darkblue: 'svgTurbopropDarkBlue', white: 'svgTurbopropWhite' },
-            bizjet: { pink: 'svgBizjetPink', red: 'svgBizjetRed', darkblue: 'svgBizjetDarkBlue', white: 'svgBizjetWhite' },
+            heli: { '#ff1493': 'svgHeliPink', pink: 'svgHeliPink', red: 'svgHeliAlertRed', blue: 'svgHeliBlue', darkblue: 'svgHeliDarkBlue', yellow: 'svgHeli', orange: 'svgHeliOrange', purple: 'svgHeliPurple', '#32cd32': 'svgHeliLime', black: 'svgHeliBlack', white: 'svgHeliWhiteAlert' },
+            airliner: { '#ff1493': 'svgAirlinerPink', pink: 'svgAirlinerPink', red: 'svgAirlinerRed', blue: 'svgAirlinerBlue', darkblue: 'svgAirlinerDarkBlue', yellow: 'svgAirlinerYellow', orange: 'svgAirlinerOrange', purple: 'svgAirlinerPurple', '#32cd32': 'svgAirlinerLime', black: 'svgAirlinerBlack', white: 'svgAirlinerWhite' },
+            turboprop: { '#ff1493': 'svgTurbopropPink', pink: 'svgTurbopropPink', red: 'svgTurbopropRed', blue: 'svgTurbopropBlue', darkblue: 'svgTurbopropDarkBlue', yellow: 'svgTurbopropYellow', orange: 'svgTurbopropOrange', purple: 'svgTurbopropPurple', '#32cd32': 'svgTurbopropLime', black: 'svgTurbopropBlack', white: 'svgTurbopropWhite' },
+            bizjet: { '#ff1493': 'svgBizjetPink', pink: 'svgBizjetPink', red: 'svgBizjetRed', blue: 'svgBizjetBlue', darkblue: 'svgBizjetDarkBlue', yellow: 'svgBizjetYellow', orange: 'svgBizjetOrange', purple: 'svgBizjetPurple', '#32cd32': 'svgBizjetLime', black: 'svgBizjetBlack', white: 'svgBizjetWhite' },
         };
 
         return {
@@ -1164,7 +1204,11 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                 const alertColor = f.alert_color || 'white';
                 const acType = classifyAircraft(f.model, f.aircraft_category);
                 const grounded = f.alt != null && f.alt <= 100;
-                const iconId = grounded ? GROUNDED_ICON_MAP[acType] : (trackedIconMap[acType]?.[alertColor] || trackedIconMap.airliner[alertColor] || 'svgAirlinerWhite');
+                const icaoHex = (f.icao24 || '').toUpperCase();
+                // POTUS fleet gets oversized gold-ringed icon
+                const isPotus = POTUS_ICAOS.has(icaoHex);
+                const potusIcon = acType === 'heli' ? 'svgPotusHeli' : 'svgPotusPlane';
+                const iconId = grounded ? GROUNDED_ICON_MAP[acType] : isPotus ? potusIcon : (trackedIconMap[acType]?.[alertColor] || trackedIconMap.airliner[alertColor] || 'svgAirlinerWhite');
 
                 const displayName = f.alert_operator || f.operator || f.owner || f.name || f.callsign || f.icao24 || "UNKNOWN";
 
@@ -1696,16 +1740,46 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                     </Marker>
                 ))}
 
-                {/* HTML labels for tracked flights (pink names, grey when grounded) */}
+                {/* HTML labels for tracked flights — color-matched, zoom-gated for non-HVA */}
                 {trackedFlightsGeoJSON && !selectedEntity && data?.tracked_flights?.map((f: any, i: number) => {
                     if (f.lat == null || f.lng == null) return null;
                     if (!inView(f.lat, f.lng)) return null;
-                    const displayName = f.alert_operator || f.operator || f.owner || f.name || f.callsign || f.icao24 || "UNKNOWN";
+
+                    const alertColor = f.alert_color || '#ff1493';
+                    // Always hide military labels (yellow) — too many, clutters map
+                    if (alertColor === 'yellow') return null;
+                    // Hide black (PIA) labels — they want to stay hidden
+                    if (alertColor === 'black') return null;
+
+                    // Only show non-HVA/non-red labels when zoomed in (~2000mi or closer = zoom >= 5)
+                    const isHighPriority = alertColor === '#ff1493' || alertColor === 'pink' || alertColor === 'red';
+                    if (!isHighPriority && viewState.zoom < 5) return null;
+
+                    let displayName = f.alert_operator || f.operator || f.owner || f.name || f.callsign || f.icao24 || "UNKNOWN";
+                    // Strip redundant "Private" labels — tells you nothing
+                    if (displayName === 'Private' || displayName === 'private') return null;
+
+                    // Map alert_color to a visible label color (some hex colors render near-white)
+                    const labelColorMap: Record<string, string> = {
+                        '#ff1493': '#ff1493', pink: '#ff1493', red: '#ff4444',
+                        blue: '#3b82f6', orange: '#FF8C00', '#32cd32': '#32cd32',
+                        purple: '#b266ff', white: '#cccccc',
+                    };
                     const grounded = f.alt != null && f.alt <= 100;
+                    const labelColor = grounded ? '#888' : (labelColorMap[alertColor] || alertColor);
                     const [iLng, iLat] = interpFlight(f);
+
                     return (
                         <Marker key={`tf-label-${i}`} longitude={iLng} latitude={iLat} anchor="top" offset={[0, 10]} style={{ zIndex: 2 }}>
-                            <div style={{ color: grounded ? '#888' : '#ff1493', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold', textShadow: '0 0 3px #000, 0 0 3px #000, 1px 1px 2px #000', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                            <div style={{
+                                color: labelColor,
+                                fontSize: '10px',
+                                fontFamily: 'monospace',
+                                fontWeight: 'bold',
+                                textShadow: '0 0 3px #000, 0 0 3px #000, 1px 1px 2px #000',
+                                whiteSpace: 'nowrap',
+                                pointerEvents: 'none'
+                            }}>
                                 {String(displayName)}
                             </div>
                         </Marker>

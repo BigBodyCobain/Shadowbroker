@@ -1,3 +1,40 @@
+import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Docker Swarm Secrets support
+# For each VAR below, if VAR_FILE is set (e.g. AIS_API_KEY_FILE=/run/secrets/AIS_API_KEY),
+# the file is read and its trimmed content is placed into VAR.
+# This MUST run before service imports — modules read os.environ at import time.
+# ---------------------------------------------------------------------------
+_SECRET_VARS = [
+    "AIS_API_KEY",
+    "OPENSKY_CLIENT_ID",
+    "OPENSKY_CLIENT_SECRET",
+    "LTA_ACCOUNT_KEY",
+    "CORS_ORIGINS",
+]
+
+for _var in _SECRET_VARS:
+    _file_var = f"{_var}_FILE"
+    _file_path = os.environ.get(_file_var)
+    if _file_path:
+        try:
+            with open(_file_path, "r") as _f:
+                _value = _f.read().strip()
+            if _value:
+                os.environ[_var] = _value
+                logger.info(f"Loaded secret {_var} from {_file_path}")
+            else:
+                logger.warning(f"Secret file {_file_path} for {_var} is empty")
+        except FileNotFoundError:
+            logger.error(f"Secret file {_file_path} for {_var} not found")
+        except Exception as _e:
+            logger.error(f"Failed to read secret file {_file_path} for {_var}: {_e}")
+
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -5,13 +42,9 @@ from services.data_fetcher import start_scheduler, stop_scheduler, get_latest_da
 from services.ais_stream import start_ais_stream, stop_ais_stream
 from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
 import uvicorn
-import logging
 import hashlib
 import json as json_mod
-import os
 import socket
-
-logging.basicConfig(level=logging.INFO)
 
 
 def _build_cors_origins():
@@ -187,9 +220,9 @@ async def api_get_nearest_radios_list(lat: float, lng: float, limit: int = 5):
 from services.network_utils import fetch_with_curl
 
 @app.get("/api/route/{callsign}")
-async def get_flight_route(callsign: str):
-    r = fetch_with_curl("https://api.adsb.lol/api/0/routeset", method="POST", json_data={"planes": [{"callsign": callsign}]}, timeout=10)
-    if r.status_code == 200:
+async def get_flight_route(callsign: str, lat: float = 0.0, lng: float = 0.0):
+    r = fetch_with_curl("https://api.adsb.lol/api/0/routeset", method="POST", json_data={"planes": [{"callsign": callsign, "lat": lat, "lng": lng}]}, timeout=10)
+    if r and r.status_code == 200:
         data = r.json()
         route_list = []
         if isinstance(data, dict):
@@ -201,9 +234,13 @@ async def get_flight_route(callsign: str):
             route = route_list[0]
             airports = route.get("_airports", [])
             if len(airports) >= 2:
+                orig = airports[0]
+                dest = airports[-1]
                 return {
-                    "orig_loc": [airports[0].get("lon", 0), airports[0].get("lat", 0)],
-                    "dest_loc": [airports[-1].get("lon", 0), airports[-1].get("lat", 0)]
+                    "orig_loc": [orig.get("lon", 0), orig.get("lat", 0)],
+                    "dest_loc": [dest.get("lon", 0), dest.get("lat", 0)],
+                    "origin_name": f"{orig.get('iata', '') or orig.get('icao', '')}: {orig.get('name', 'Unknown')}",
+                    "dest_name": f"{dest.get('iata', '') or dest.get('icao', '')}: {dest.get('name', 'Unknown')}",
                 }
     return {}
 

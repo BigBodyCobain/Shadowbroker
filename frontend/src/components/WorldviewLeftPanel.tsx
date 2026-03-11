@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plane, AlertTriangle, Activity, Satellite, Cctv, ChevronDown, ChevronUp, Ship, Eye, Anchor, Settings, Sun, Moon, BookOpen, Radio, Play, Pause, Globe, Flame, Wifi, Server } from "lucide-react";
+import { Plane, AlertTriangle, Activity, Satellite, Cctv, ChevronDown, ChevronUp, Ship, Eye, Anchor, Settings, Sun, Moon, BookOpen, Radio, Play, Pause, Globe, Flame, Wifi, Server, Shield } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
 function relativeTime(iso: string | undefined): string {
@@ -40,7 +40,25 @@ const FRESHNESS_MAP: Record<string, string> = {
     datacenters: "datacenters",
 };
 
-const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, activeLayers, setActiveLayers, onSettingsClick, onLegendClick, gibsDate, setGibsDate, gibsOpacity, setGibsOpacity }: { data: any; activeLayers: any; setActiveLayers: any; onSettingsClick?: () => void; onLegendClick?: () => void; gibsDate?: string; setGibsDate?: (d: string) => void; gibsOpacity?: number; setGibsOpacity?: (o: number) => void }) {
+// POTUS fleet ICAO hex codes for client-side filtering
+const POTUS_ICAOS: Record<string, { label: string; type: string }> = {
+    'ADFDF8': { label: 'Air Force One (82-8000)', type: 'AF1' },
+    'ADFDF9': { label: 'Air Force One (92-9000)', type: 'AF1' },
+    'ADFEB7': { label: 'Air Force Two (98-0001)', type: 'AF2' },
+    'ADFEB8': { label: 'Air Force Two (98-0002)', type: 'AF2' },
+    'ADFEB9': { label: 'Air Force Two (99-0003)', type: 'AF2' },
+    'ADFEBA': { label: 'Air Force Two (99-0004)', type: 'AF2' },
+    'AE4AE6': { label: 'Air Force Two (09-0015)', type: 'AF2' },
+    'AE4AE8': { label: 'Air Force Two (09-0016)', type: 'AF2' },
+    'AE4AEA': { label: 'Air Force Two (09-0017)', type: 'AF2' },
+    'AE4AEC': { label: 'Air Force Two (19-0018)', type: 'AF2' },
+    'AE0865': { label: 'Marine One (VH-3D)', type: 'M1' },
+    'AE5E76': { label: 'Marine One (VH-92A)', type: 'M1' },
+    'AE5E77': { label: 'Marine One (VH-92A)', type: 'M1' },
+    'AE5E79': { label: 'Marine One (VH-92A)', type: 'M1' },
+};
+
+const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, activeLayers, setActiveLayers, onSettingsClick, onLegendClick, gibsDate, setGibsDate, gibsOpacity, setGibsOpacity, onEntityClick, onFlyTo }: { data: any; activeLayers: any; setActiveLayers: any; onSettingsClick?: () => void; onLegendClick?: () => void; gibsDate?: string; setGibsDate?: (d: string) => void; gibsOpacity?: number; setGibsOpacity?: (o: number) => void; onEntityClick?: (entity: { type: string; id: number; extra?: any }) => void; onFlyTo?: (lat: number, lng: number) => void }) {
     const [isMinimized, setIsMinimized] = useState(false);
     const { theme, toggleTheme } = useTheme();
     const [gibsPlaying, setGibsPlaying] = useState(false);
@@ -83,6 +101,21 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
         }
         return { importantShipCount: important, passengerShipCount: passenger, civilianShipCount: civilian };
     }, [data?.ships]);
+
+    // Find POTUS fleet planes currently airborne from tracked flights
+    const potusFlights = useMemo(() => {
+        const tracked = data?.tracked_flights;
+        if (!tracked) return [];
+        const results: { index: number; flight: any; meta: { label: string; type: string } }[] = [];
+        for (let i = 0; i < tracked.length; i++) {
+            const f = tracked[i];
+            const icao = (f.icao24 || '').toUpperCase();
+            if (POTUS_ICAOS[icao]) {
+                results.push({ index: i, flight: f, meta: POTUS_ICAOS[icao] });
+            }
+        }
+        return results;
+    }, [data?.tracked_flights]);
 
     const layers = [
         { id: "flights", name: "Commercial Flights", source: "adsb.lol", count: data?.commercial_flights?.length || 0, icon: Plane },
@@ -260,6 +293,58 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                                         </div>
                                     )
                                 })}
+
+                                {/* POTUS Fleet Tracker */}
+                                <div className="border-t border-[var(--border-primary)]/50 pt-4 mt-2">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Shield size={14} className="text-[#ff1493]" />
+                                        <span className="text-[10px] text-[#ff1493] font-mono tracking-widest font-bold">POTUS FLEET</span>
+                                        {potusFlights.length > 0 && (
+                                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-[#ff1493]/20 border border-[#ff1493]/40 text-[#ff1493] animate-pulse">
+                                                {potusFlights.length} ACTIVE
+                                            </span>
+                                        )}
+                                    </div>
+                                    {potusFlights.length === 0 ? (
+                                        <div className="ml-5 text-[9px] text-[var(--text-muted)] font-mono">
+                                            No POTUS fleet aircraft currently airborne
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2 ml-1">
+                                            {potusFlights.map((pf) => {
+                                                const color = pf.meta.type === 'AF1' ? '#ff1493' : pf.meta.type === 'M1' ? '#ff1493' : '#3b82f6';
+                                                const alt = pf.flight.alt_baro || pf.flight.alt || 0;
+                                                const speed = pf.flight.gs || pf.flight.speed || 0;
+                                                return (
+                                                    <div
+                                                        key={pf.flight.icao24}
+                                                        className="flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all hover:bg-[var(--bg-secondary)]/60"
+                                                        style={{ borderColor: `${color}40`, background: `${color}10` }}
+                                                        onClick={() => {
+                                                            if (onFlyTo && pf.flight.lat != null && pf.flight.lng != null) {
+                                                                onFlyTo(pf.flight.lat, pf.flight.lng);
+                                                            }
+                                                            if (onEntityClick) {
+                                                                onEntityClick({ type: 'tracked_flight', id: pf.index });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-bold font-mono" style={{ color }}>{pf.meta.label}</span>
+                                                            <span className="text-[8px] text-[var(--text-muted)] font-mono mt-0.5">
+                                                                {alt > 0 ? `${Math.round(alt).toLocaleString()} ft` : 'GND'} · {speed > 0 ? `${Math.round(speed)} kts` : 'STATIC'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: color }} />
+                                                            <span className="text-[8px] font-mono" style={{ color }}>TRACK</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </motion.div>
                     )}
