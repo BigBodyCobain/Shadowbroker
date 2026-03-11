@@ -298,23 +298,32 @@ export default function Dashboard() {
   const slowEtag = useRef<string | null>(null);
 
   useEffect(() => {
+    // Track whether we've received substantial data yet (backend may still be starting up)
+    let hasData = false;
+    let fastTimerId: ReturnType<typeof setTimeout> | null = null;
+    let slowTimerId: ReturnType<typeof setTimeout> | null = null;
+
     const fetchFastData = async () => {
       try {
         const headers: Record<string, string> = {};
         if (fastEtag.current) headers['If-None-Match'] = fastEtag.current;
         const res = await fetch(`${API_BASE}/api/live-data/fast`, { headers });
-        if (res.status === 304) { setBackendStatus('connected'); return; }
+        if (res.status === 304) { setBackendStatus('connected'); scheduleNext('fast'); return; }
         if (res.ok) {
           setBackendStatus('connected');
           fastEtag.current = res.headers.get('etag') || null;
           const json = await res.json();
           dataRef.current = { ...dataRef.current, ...json };
           setDataVersion(v => v + 1);
+          // Check if we got real data (backend finished loading)
+          const flights = json.commercial_flights?.length || 0;
+          if (flights > 100) hasData = true;
         }
       } catch (e) {
         console.error("Failed fetching fast live data", e);
         setBackendStatus('disconnected');
       }
+      scheduleNext('fast');
     };
 
     const fetchSlowData = async () => {
@@ -322,7 +331,7 @@ export default function Dashboard() {
         const headers: Record<string, string> = {};
         if (slowEtag.current) headers['If-None-Match'] = slowEtag.current;
         const res = await fetch(`${API_BASE}/api/live-data/slow`, { headers });
-        if (res.status === 304) return;
+        if (res.status === 304) { scheduleNext('slow'); return; }
         if (res.ok) {
           slowEtag.current = res.headers.get('etag') || null;
           const json = await res.json();
@@ -332,19 +341,26 @@ export default function Dashboard() {
       } catch (e) {
         console.error("Failed fetching slow live data", e);
       }
+      scheduleNext('slow');
+    };
+
+    // Adaptive polling: retry every 3s during startup, back off to normal cadence once data arrives
+    const scheduleNext = (tier: 'fast' | 'slow') => {
+      if (tier === 'fast') {
+        const delay = hasData ? 60000 : 3000; // 3s startup retry → 60s steady state
+        fastTimerId = setTimeout(fetchFastData, delay);
+      } else {
+        const delay = hasData ? 120000 : 5000; // 5s startup retry → 120s steady state
+        slowTimerId = setTimeout(fetchSlowData, delay);
+      }
     };
 
     fetchFastData();
     fetchSlowData();
 
-    // Fast polling: 60s (matches backend update cadence — was 15s, wasting 75% on 304s)
-    // Slow polling: 120s (backend updates every 30min)
-    const fastInterval = setInterval(fetchFastData, 60000);
-    const slowInterval = setInterval(fetchSlowData, 120000);
-
     return () => {
-      clearInterval(fastInterval);
-      clearInterval(slowInterval);
+      if (fastTimerId) clearTimeout(fastTimerId);
+      if (slowTimerId) clearTimeout(slowTimerId);
     };
   }, []);
 
@@ -418,7 +434,7 @@ export default function Dashboard() {
           {/* LEFT HUD CONTAINER */}
           <div className="absolute left-6 top-24 bottom-6 w-80 flex flex-col gap-6 z-[200] pointer-events-none">
             {/* LEFT PANEL - DATA LAYERS */}
-            <WorldviewLeftPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} onSettingsClick={() => setSettingsOpen(true)} onLegendClick={() => setLegendOpen(true)} gibsDate={gibsDate} setGibsDate={setGibsDate} gibsOpacity={gibsOpacity} setGibsOpacity={setGibsOpacity} />
+            <WorldviewLeftPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} onSettingsClick={() => setSettingsOpen(true)} onLegendClick={() => setLegendOpen(true)} gibsDate={gibsDate} setGibsDate={setGibsDate} gibsOpacity={gibsOpacity} setGibsOpacity={setGibsOpacity} onEntityClick={setSelectedEntity} onFlyTo={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} />
 
             {/* LEFT BOTTOM - DISPLAY CONFIG */}
             <WorldviewRightPanel effects={effects} setEffects={setEffects} setUiVisible={setUiVisible} />
