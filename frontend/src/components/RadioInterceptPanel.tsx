@@ -359,21 +359,21 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
                                     {selectedEntity.extra.antenna && <span>{selectedEntity.extra.antenna.slice(0, 80)} · </span>}
                                     {selectedEntity.extra.users !== undefined && <span>{selectedEntity.extra.users}/{selectedEntity.extra.users_max} users</span>}
                                 </div>
-                                <iframe
-                                    src={selectedEntity.extra.url}
-                                    className="w-full h-72 rounded border border-amber-900/50 bg-black"
-                                    allow="microphone"
-                                    sandbox="allow-scripts allow-same-origin"
-                                    title="KiwiSDR Tuner"
-                                />
-                                <a
-                                    href={selectedEntity.extra.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[8px] text-amber-500 hover:text-amber-300 font-mono mt-1 inline-block"
-                                >
-                                    OPEN IN NEW TAB →
-                                </a>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <a
+                                        href={selectedEntity.extra.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-1 text-center px-4 py-2.5 rounded border border-amber-500/50 bg-amber-950/30 text-amber-400 hover:bg-amber-900/40 hover:border-amber-400 text-[10px] font-mono tracking-widest transition-colors"
+                                    >
+                                        OPEN SDR RECEIVER →
+                                    </a>
+                                </div>
+                                {selectedEntity.extra.bands && (
+                                    <div className="text-[8px] text-[var(--text-muted)] font-mono mt-2">
+                                        BANDS: {(Number(selectedEntity.extra.bands.split('-')[0]) / 1e6).toFixed(0)}-{(Number(selectedEntity.extra.bands.split('-')[1]) / 1e6).toFixed(0)} MHz
+                                    </div>
+                                )}
                             </div>
                         )}
 

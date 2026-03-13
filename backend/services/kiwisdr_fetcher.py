@@ -34,10 +34,10 @@ def _parse_gps(html: str):
 @cached(kiwisdr_cache)
 def fetch_kiwisdr_nodes() -> list[dict]:
     """Fetch and parse the KiwiSDR public receiver list."""
-    from services.network_utils import smart_request
+    from services.network_utils import fetch_with_curl
 
     try:
-        res = smart_request("http://kiwisdr.com/.public/", timeout=20)
+        res = fetch_with_curl("http://kiwisdr.com/.public/", timeout=20)
         if not res or res.status_code != 200:
             logger.error(f"KiwiSDR fetch failed: HTTP {res.status_code if res else 'no response'}")
             return []
