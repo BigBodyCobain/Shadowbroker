@@ -505,29 +505,29 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
     }, [interpTick]);
 
     // Helper: interpolate a flight's position if airborne and has speed+heading
-    const interpFlight = (f: any): [number, number] => {
+    const interpFlight = useCallback((f: any): [number, number] => {
         if (!f.speed_knots || f.speed_knots <= 0 || dtSeconds <= 0) return [f.lng, f.lat];
         if (f.alt != null && f.alt <= 100) return [f.lng, f.lat];
         if (dtSeconds < 1) return [f.lng, f.lat];
         const heading = f.true_track || f.heading || 0;
         const [newLat, newLng] = interpolatePosition(f.lat, f.lng, heading, f.speed_knots, dtSeconds);
         return [newLng, newLat];
-    };
+    }, [dtSeconds]);
 
     // Helper: interpolate a ship's position using SOG + heading
-    const interpShip = (s: any): [number, number] => {
+    const interpShip = useCallback((s: any): [number, number] => {
         if (typeof s.sog !== 'number' || !s.sog || s.sog <= 0 || dtSeconds <= 0) return [s.lng, s.lat];
         const heading = (typeof s.cog === 'number' ? s.cog : 0) || s.heading || 0;
         const [newLat, newLng] = interpolatePosition(s.lat, s.lng, heading, s.sog, dtSeconds);
         return [newLng, newLat];
-    };
+    }, [dtSeconds]);
 
     // Helper: interpolate a satellite's position between API updates
-    const interpSat = (s: any): [number, number] => {
+    const interpSat = useCallback((s: any): [number, number] => {
         if (!s.speed_knots || s.speed_knots <= 0 || dtSeconds < 1) return [s.lng, s.lat];
         const [newLat, newLng] = interpolatePosition(s.lat, s.lng, s.heading || 0, s.speed_knots, dtSeconds, 0, 65);
         return [newLng, newLat];
-    };
+    }, [dtSeconds]);
 
     // Satellite GeoJSON with interpolated positions
     const satellitesGeoJSON = useMemo(() => {
