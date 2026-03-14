@@ -128,7 +128,7 @@ Open your project folder, Right-Click, and select "Open Git Bash here".
 
 ### ⚠️ **Stuck on the old version?**
 
-If the dashboard still shows old data after updating:
+**If the dashboard still shows old data after updating:**
 
 **Clear Docker Cache:** docker compose build --no-cache
 
