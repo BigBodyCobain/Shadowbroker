@@ -1037,7 +1037,7 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                 if (!inView(gLat, gLng)) return null;
                 return {
                     type: 'Feature',
-                    properties: { id: i, type: 'gdelt', title: g.title },
+                    properties: { id: g.properties?.name || String(g.geometry.coordinates), type: 'gdelt', title: g.title },
                     geometry: g.geometry
                 };
             }).filter(Boolean)
@@ -2232,10 +2232,13 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                 })()}
 
                 {
-                    selectedEntity?.type === 'gdelt' && data?.gdelt?.[selectedEntity.id as number] && (
+                    selectedEntity?.type === 'gdelt' && (() => {
+                        const item = data?.gdelt?.find((g: any) => (g.properties?.name || String(g.geometry?.coordinates)) === selectedEntity.id);
+                        if (!item) return null;
+                        return (
                         <Popup
-                            longitude={data.gdelt[selectedEntity.id as number].geometry.coordinates[0]}
-                            latitude={data.gdelt[selectedEntity.id as number].geometry.coordinates[1]}
+                            longitude={item.geometry.coordinates[0]}
+                            latitude={item.geometry.coordinates[1]}
                             closeButton={false}
                             closeOnClick={false}
                             onClose={() => onEntityClick?.(null)}
@@ -2252,14 +2255,14 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                                 <div className="p-3 flex flex-col gap-2">
                                     <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
                                         <span className="text-[var(--text-muted)] text-[9px]">LOCATION</span>
-                                        <span className="text-white text-[10px] font-bold text-right ml-2 break-words max-w-[150px]">{data.gdelt[selectedEntity.id as number].properties?.name || 'UNKNOWN REGION'}</span>
+                                        <span className="text-white text-[10px] font-bold text-right ml-2 break-words max-w-[150px]">{item.properties?.name || 'UNKNOWN REGION'}</span>
                                     </div>
                                     <div className="flex flex-col gap-1 mt-1">
-                                        <span className="text-[var(--text-muted)] text-[9px]">LATEST REPORTS: ({data.gdelt[selectedEntity.id as number].properties?.count || 1})</span>
+                                        <span className="text-[var(--text-muted)] text-[9px]">LATEST REPORTS: ({item.properties?.count || 1})</span>
                                         <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto styled-scrollbar mt-1">
                                             {(() => {
-                                                const urls: string[] = data.gdelt[selectedEntity.id as number].properties?._urls_list || [];
-                                                const headlines: string[] = data.gdelt[selectedEntity.id as number].properties?._headlines_list || [];
+                                                const urls: string[] = item.properties?._urls_list || [];
+                                                const headlines: string[] = item.properties?._headlines_list || [];
                                                 if (urls.length === 0) return <span className="text-[var(--text-muted)] text-[10px]">No articles available.</span>;
                                                 return urls.map((url: string, idx: number) => {
                                                     const headline = headlines[idx] || '';
@@ -2290,7 +2293,8 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                                 </div>
                             </div>
                         </Popup>
-                    )
+                        );
+                    })()
                 }
 
                 {
@@ -2336,8 +2340,8 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                 }
 
                 {
-                    selectedEntity?.type === 'news' && data?.news?.[selectedEntity.id as number] && (() => {
-                        const item = data.news[selectedEntity.id as number];
+                    selectedEntity?.type === 'news' && (() => {
+                        const item = data?.news?.find((n: any) => (n.alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`) === selectedEntity.id);
                         let threatColor = "text-yellow-400";
                         let borderColor = "border-yellow-800";
                         let bgHeaderColor = "bg-yellow-950/40";

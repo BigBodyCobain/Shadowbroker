@@ -168,7 +168,7 @@ interface ThreatMarkerProps {
     spreadAlerts: any[];
     viewState: ViewState;
     selectedEntity: any;
-    onEntityClick?: (entity: { id: number; type: string } | null) => void;
+    onEntityClick?: (entity: { id: string | number; type: string } | null) => void;
     onDismiss?: (alertKey: string) => void;
 }
 
@@ -176,21 +176,19 @@ export function ThreatMarkers({ spreadAlerts, viewState, selectedEntity, onEntit
     return (
         <>
             {spreadAlerts.map((n: any) => {
-                const idx = n.originalIdx;
                 const count = n.cluster_count || 1;
                 const score = n.risk_score || 0;
                 const riskColor = getRiskColor(score);
+                const alertKey = n.alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`;
 
                 let isVisible = viewState.zoom >= 1;
                 if (selectedEntity) {
                     if (selectedEntity.type === 'news') {
-                        if (selectedEntity.id !== idx) isVisible = false;
+                        if (selectedEntity.id !== alertKey) isVisible = false;
                     } else {
                         isVisible = false;
                     }
                 }
-
-                const alertKey = n.alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`;
 
                 return (
                     <Marker
@@ -202,7 +200,7 @@ export function ThreatMarkers({ spreadAlerts, viewState, selectedEntity, onEntit
                         style={{ zIndex: 50 + score }}
                         onClick={(e) => {
                             e.originalEvent.stopPropagation();
-                            onEntityClick?.({ id: idx, type: 'news' });
+                            onEntityClick?.({ id: alertKey, type: 'news' });
                         }}
                     >
                         <div className="relative group/alert">
