@@ -32,6 +32,7 @@ const FRESHNESS_MAP: Record<string, string> = {
     ships_cargo: "ships",
     ships_civilian: "ships",
     ships_passenger: "ships",
+    ships_tracked_yachts: "ships",
     ukraine_frontline: "frontlines",
     global_incidents: "gdelt",
     cctv: "cctv",
@@ -59,8 +60,9 @@ const POTUS_ICAOS: Record<string, { label: string; type: string }> = {
     'AE5E77': { label: 'Marine One (VH-92A)', type: 'M1' },
     'AE5E79': { label: 'Marine One (VH-92A)', type: 'M1' },
 };
+import type { DashboardData, ActiveLayers, SelectedEntity } from "@/types/dashboard";
 
-const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, activeLayers, setActiveLayers, onSettingsClick, onLegendClick, gibsDate, setGibsDate, gibsOpacity, setGibsOpacity, onEntityClick, onFlyTo }: { data: any; activeLayers: any; setActiveLayers: any; onSettingsClick?: () => void; onLegendClick?: () => void; gibsDate?: string; setGibsDate?: (d: string) => void; gibsOpacity?: number; setGibsOpacity?: (o: number) => void; onEntityClick?: (entity: { type: string; id: number; extra?: any }) => void; onFlyTo?: (lat: number, lng: number) => void }) {
+const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, activeLayers, setActiveLayers, onSettingsClick, onLegendClick, gibsDate, setGibsDate, gibsOpacity, setGibsOpacity, onEntityClick, onFlyTo }: { data: DashboardData; activeLayers: ActiveLayers; setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>; onSettingsClick?: () => void; onLegendClick?: () => void; gibsDate?: string; setGibsDate?: (d: string) => void; gibsOpacity?: number; setGibsOpacity?: (o: number) => void; onEntityClick?: (entity: SelectedEntity) => void; onFlyTo?: (lat: number, lng: number) => void }) {
     const [isMinimized, setIsMinimized] = useState(false);
     const { theme, toggleTheme } = useTheme();
     const [gibsPlaying, setGibsPlaying] = useState(false);
@@ -92,18 +94,19 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
     }, [gibsPlaying, gibsDate, setGibsDate]);
 
     // Compute ship category counts (memoized — ships array can be 1000+ items)
-    const { militaryShipCount, cargoShipCount, passengerShipCount, civilianShipCount } = useMemo(() => {
+    const { militaryShipCount, cargoShipCount, passengerShipCount, civilianShipCount, trackedYachtCount } = useMemo(() => {
         const ships = data?.ships;
-        if (!ships || !ships.length) return { militaryShipCount: 0, cargoShipCount: 0, passengerShipCount: 0, civilianShipCount: 0 };
-        let military = 0, cargo = 0, passenger = 0, civilian = 0;
+        if (!ships || !ships.length) return { militaryShipCount: 0, cargoShipCount: 0, passengerShipCount: 0, civilianShipCount: 0, trackedYachtCount: 0 };
+        let military = 0, cargo = 0, passenger = 0, civilian = 0, trackedYacht = 0;
         for (const s of ships) {
+            if (s.yacht_alert) { trackedYacht++; continue; }
             const t = s.type;
             if (t === 'carrier' || t === 'military_vessel') military++;
             else if (t === 'tanker' || t === 'cargo') cargo++;
             else if (t === 'passenger') passenger++;
             else civilian++;
         }
-        return { militaryShipCount: military, cargoShipCount: cargo, passengerShipCount: passenger, civilianShipCount: civilian };
+        return { militaryShipCount: military, cargoShipCount: cargo, passengerShipCount: passenger, civilianShipCount: civilian, trackedYachtCount: trackedYacht };
     }, [data?.ships]);
 
     // Find POTUS fleet planes currently airborne from tracked flights
@@ -133,6 +136,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
         { id: "ships_cargo", name: "Cargo / Tankers", source: "AIS Stream", count: cargoShipCount, icon: Ship },
         { id: "ships_civilian", name: "Civilian Vessels", source: "AIS Stream", count: civilianShipCount, icon: Anchor },
         { id: "ships_passenger", name: "Cruise / Passenger", source: "AIS Stream", count: passengerShipCount, icon: Anchor },
+        { id: "ships_tracked_yachts", name: "Tracked Yachts", source: "Yacht-Alert DB", count: trackedYachtCount, icon: Eye },
         { id: "ukraine_frontline", name: "Ukraine Frontline", source: "DeepStateMap", count: data?.frontlines ? 1 : 0, icon: AlertTriangle },
         { id: "global_incidents", name: "Global Incidents", source: "GDELT", count: data?.gdelt?.length || 0, icon: Activity },
         { id: "cctv", name: "CCTV Mesh", source: "CCTV Mesh + Street View", count: data?.cctv?.length || 0, icon: Cctv },
@@ -314,8 +318,8 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    {active && layer.count > 0 && (
-                                                        <span className="text-[10px] text-gray-300 font-mono">{layer.count.toLocaleString()}</span>
+                                                    {active && (layer.count ?? 0) > 0 && (
+                                                        <span className="text-[10px] text-gray-300 font-mono">{(layer.count ?? 0).toLocaleString()}</span>
                                                     )}
                                                     <div className={`text-[9px] font-mono tracking-wider px-2 py-0.5 rounded-full border ${active
                                                         ? 'border-cyan-500/50 text-cyan-400 bg-cyan-950/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]'

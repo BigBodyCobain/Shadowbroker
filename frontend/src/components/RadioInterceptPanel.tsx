@@ -4,11 +4,12 @@ import { API_BASE } from "@/lib/api";
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RadioReceiver, Activity, Play, Square, FastForward, ChevronDown, ChevronUp } from 'lucide-react';
+import type { DashboardData, SelectedEntity, RadioFeed } from "@/types/dashboard";
 
-export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesdropping, eavesdropLocation, cameraCenter, selectedEntity }: { data: any, isEavesdropping?: boolean, setIsEavesdropping?: (val: boolean) => void, eavesdropLocation?: { lat: number, lng: number } | null, cameraCenter?: { lat: number, lng: number } | null, selectedEntity?: { type: string, id: string | number, extra?: any } | null }) {
+export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesdropping, eavesdropLocation, cameraCenter, selectedEntity }: { data: DashboardData, isEavesdropping?: boolean, setIsEavesdropping?: (val: boolean) => void, eavesdropLocation?: { lat: number, lng: number } | null, cameraCenter?: { lat: number, lng: number } | null, selectedEntity?: SelectedEntity | null }) {
     const [isMinimized, setIsMinimized] = useState(true);
-    const [feeds, setFeeds] = useState<any[]>([]);
-    const [activeFeed, setActiveFeed] = useState<any | null>(null);
+    const [feeds, setFeeds] = useState<RadioFeed[]>([]);
+    const [activeFeed, setActiveFeed] = useState<RadioFeed | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -113,7 +114,7 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
         }
     }, [eavesdropLocation]);
 
-    const playFeed = (feed: any) => {
+    const playFeed = (feed: RadioFeed) => {
         if (isScanning && scanTimeoutRef.current) {
             clearTimeout(scanTimeoutRef.current);
             setIsScanning(false);
@@ -135,10 +136,10 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
     useEffect(() => {
         if (activeFeed && isPlaying) {
             if (!audioRef.current) {
-                const audio = new Audio(activeFeed.stream_url);
+                const audio = new Audio(activeFeed.stream_url || '');
                 audioRef.current = audio;
             } else {
-                audioRef.current.src = activeFeed.stream_url;
+                audioRef.current.src = activeFeed.stream_url || '';
             }
             audioRef.current.volume = volume;
             audioRef.current.play().catch(e => console.log("Audio play blocked", e));
@@ -382,7 +383,7 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
                             {feeds.length === 0 ? (
                                 <div className="text-[10px] text-cyan-700 font-mono text-center p-4">SEARCHING FREQUENCIES...</div>
                             ) : (
-                                feeds.map((feed: any, idx: number) => (
+                                feeds.map((feed: RadioFeed, idx: number) => (
                                     <div
                                         key={feed.id}
                                         onClick={() => playFeed(feed)}

@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, Droplet, ChevronDown, ChevronUp } from 'lucide-react';
+import type { DashboardData } from "@/types/dashboard";
 
-const MarketsPanel = React.memo(function MarketsPanel({ data }: { data: any }) {
+const MarketsPanel = React.memo(function MarketsPanel({ data }: { data: DashboardData }) {
     const [isMinimized, setIsMinimized] = useState(true);
 
     const stocks = data?.stocks || {};

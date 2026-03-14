@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import type { MapEffects } from "@/types/dashboard";
 
-const WorldviewRightPanel = React.memo(function WorldviewRightPanel({ effects, setEffects, setUiVisible }: { effects: any; setEffects: any; setUiVisible: any }) {
+const WorldviewRightPanel = React.memo(function WorldviewRightPanel({ effects, setEffects, setUiVisible }: { effects: MapEffects; setEffects: (e: MapEffects) => void; setUiVisible: (v: boolean) => void }) {
     const [isMinimized, setIsMinimized] = useState(true);
     const [currentTime, setCurrentTime] = useState({ date: "XXXX-XX-XX", time: "00:00:00" });
 

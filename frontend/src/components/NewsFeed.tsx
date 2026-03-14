@@ -6,6 +6,7 @@ import { AlertTriangle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import React, { useEffect, useRef, useCallback } from 'react';
 import Hls from 'hls.js';
 import WikiImage from '@/components/WikiImage';
+import type { DashboardData, SelectedEntity, RegionDossier } from "@/types/dashboard";
 
 // HLS video player — uses hls.js on Chrome/Firefox, native on Safari
 function HlsVideo({ url, className }: { url: string; className?: string }) {
@@ -154,7 +155,7 @@ const VESSEL_TYPE_WIKI: Record<string, string> = {
     'military_vessel': 'https://en.wikipedia.org/wiki/Warship',
 };
 
-function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoading }: { data: any, selectedEntity?: { type: string, id: string | number, name?: string, callsign?: string, media_url?: string, extra?: any } | null, regionDossier?: any, regionDossierLoading?: boolean }) {
+function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoading }: { data: DashboardData, selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean }) {
     const [isMinimized, setIsMinimized] = useState(false);
     const [expandedIndexes, setExpandedIndexes] = useState<number[]>([]);
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -431,7 +432,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                 airline = "PRIVATE JET";
             } else if (selectedEntity.type === 'private_flight') {
                 airline = "PRIVATE / GA";
-            } else if (flight.airline_code) {
+            } else if ('airline_code' in flight && flight.airline_code) {
                 // Use the airline code resolved from adsb.lol routeset API
                 const codeMap: Record<string, string> = {
                     "UAL": "UNITED AIRLINES", "DAL": "DELTA AIR LINES", "SWA": "SOUTHWEST AIRLINES",
@@ -603,7 +604,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                 <span className="text-[var(--text-primary)] text-xs font-bold">{ship.callsign}</span>
                             </div>
                         )}
-                        {ship.imo > 0 && (
+                        {(ship.imo ?? 0) > 0 && (
                             <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                                 <span className="text-[var(--text-muted)] text-[10px]">IMO NUMBER</span>
                                 <span className="text-[var(--text-primary)] text-xs font-bold">{ship.imo}</span>
