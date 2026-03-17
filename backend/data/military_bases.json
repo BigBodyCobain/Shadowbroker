@@ -93,7 +93,7 @@
     "operator": "USAF 36th Wing",
     "branch": "air_force",
     "lat": 13.584,
-    "lng": 144.930
+    "lng": 144.93
   },
   {
     "name": "Naval Base Guam",
@@ -108,8 +108,8 @@
     "country": "South Korea",
     "operator": "USAF 51st Fighter Wing",
     "branch": "air_force",
-    "lat": 37.090,
-    "lng": 127.030
+    "lat": 37.09,
+    "lng": 127.03
   },
   {
     "name": "Camp Humphreys",
@@ -196,7 +196,7 @@
     "country": "Japan",
     "operator": "ASDF Air Defense Command",
     "branch": "asdf",
-    "lat": 34.750,
+    "lat": 34.75,
     "lng": 137.703
   },
   {
@@ -212,7 +212,7 @@
     "country": "Japan",
     "operator": "MSDF Fleet HQ",
     "branch": "msdf",
-    "lat": 35.290,
+    "lat": 35.29,
     "lng": 139.665
   },
   {
@@ -348,7 +348,7 @@
     "country": "China",
     "operator": "PLAAF",
     "branch": "air_force",
-    "lat": 30.500,
+    "lat": 30.5,
     "lng": 114.211
   },
   {
@@ -365,7 +365,7 @@
     "operator": "PLAAF",
     "branch": "air_force",
     "lat": 40.296,
-    "lng": 99.750
+    "lng": 99.75
   },
   {
     "name": "Hotan Air Base",
@@ -396,7 +396,7 @@
     "country": "China",
     "operator": "PLAN Southern Theater",
     "branch": "navy",
-    "lat": 21.190,
+    "lat": 21.19,
     "lng": 110.405
   },
   {
@@ -404,7 +404,7 @@
     "country": "China",
     "operator": "PLAN Northern Theater",
     "branch": "navy",
-    "lat": 36.100,
+    "lat": 36.1,
     "lng": 120.272
   },
   {
@@ -452,7 +452,7 @@
     "country": "China",
     "operator": "PLAN Eastern Theater",
     "branch": "navy",
-    "lat": 29.480,
+    "lat": 29.48,
     "lng": 121.933
   },
   {
@@ -468,7 +468,7 @@
     "country": "China",
     "operator": "PLA (SCS outpost)",
     "branch": "air_force",
-    "lat": 9.550,
+    "lat": 9.55,
     "lng": 112.892
   },
   {
@@ -508,7 +508,7 @@
     "country": "China",
     "operator": "PLARF 61 Base",
     "branch": "missile",
-    "lat": 29.480,
+    "lat": 29.48,
     "lng": 119.281
   },
   {
@@ -548,7 +548,7 @@
     "country": "China",
     "operator": "PLARF 63 Base",
     "branch": "missile",
-    "lat": 34.620,
+    "lat": 34.62,
     "lng": 112.454
   },
   {
@@ -564,10 +564,9 @@
     "country": "China",
     "operator": "PLARF 66 Base",
     "branch": "missile",
-    "lat": 40.200,
-    "lng": 113.200
+    "lat": 40.2,
+    "lng": 113.2
   },
-
   {
     "name": "Vladivostok (Pacific Fleet HQ)",
     "country": "Russia",
@@ -605,8 +604,8 @@
     "country": "Russia",
     "operator": "Russian VKS Long-Range Aviation",
     "branch": "air_force",
-    "lat": 51.170,
-    "lng": 128.400
+    "lat": 51.17,
+    "lng": 128.4
   },
   {
     "name": "Fokino Naval Base",
@@ -640,11 +639,10 @@
     "lat": 44.927,
     "lng": 147.863
   },
-
   {
     "name": "Yongbyon Nuclear Complex",
     "country": "North Korea",
-    "operator": "DPRK Nuclear Program",
+    "operator": "Atomic Energy General Bureau",
     "branch": "nuclear",
     "lat": 39.796,
     "lng": 125.754
@@ -652,7 +650,7 @@
   {
     "name": "Punggye-ri Nuclear Test Site",
     "country": "North Korea",
-    "operator": "DPRK Nuclear Program",
+    "operator": "KPA Nuclear Weapons Institute",
     "branch": "nuclear",
     "lat": 41.281,
     "lng": 129.104
@@ -661,22 +659,22 @@
     "name": "Sinpo Submarine Base",
     "country": "North Korea",
     "operator": "KPN (SLBM)",
-    "branch": "navy",
+    "branch": "kpa_navy",
     "lat": 40.024,
     "lng": 128.178
   },
   {
     "name": "Sohae Satellite Launching Station",
     "country": "North Korea",
-    "operator": "DPRK NADA",
+    "operator": "KPA Strategic Rocket Force",
     "branch": "missile",
-    "lat": 39.660,
+    "lat": 39.66,
     "lng": 124.705
   },
   {
     "name": "Tonghae Satellite Launching Ground",
     "country": "North Korea",
-    "operator": "DPRK NADA",
+    "operator": "KPA Strategic Rocket Force",
     "branch": "missile",
     "lat": 40.856,
     "lng": 129.665
@@ -684,24 +682,24 @@
   {
     "name": "Kaechon Air Base",
     "country": "North Korea",
-    "operator": "KPAF",
-    "branch": "air_force",
+    "operator": "KPA Air & Anti-Air Force",
+    "branch": "kpa_air_force",
     "lat": 39.752,
-    "lng": 125.890
+    "lng": 125.89
   },
   {
     "name": "Wonsan-Kalma Air Base",
     "country": "North Korea",
-    "operator": "KPAF",
-    "branch": "air_force",
+    "operator": "KPA Air & Anti-Air Force",
+    "branch": "kpa_air_force",
     "lat": 39.167,
     "lng": 127.487
   },
   {
     "name": "Nampo Naval Base",
     "country": "North Korea",
-    "operator": "KPN West Fleet",
-    "branch": "navy",
+    "operator": "KPA Naval Force",
+    "branch": "kpa_navy",
     "lat": 38.737,
     "lng": 125.408
   },
@@ -709,7 +707,7 @@
     "name": "Haeju Forward Naval Base",
     "country": "North Korea",
     "operator": "KPN",
-    "branch": "navy",
+    "branch": "kpa_navy",
     "lat": 38.033,
     "lng": 125.714
   },
@@ -717,11 +715,74 @@
     "name": "Koksan Long-Range Artillery Base",
     "country": "North Korea",
     "operator": "KPA Artillery Corps",
-    "branch": "army",
-    "lat": 38.330,
+    "branch": "kpa_army",
+    "lat": 38.33,
     "lng": 126.586
   },
-
+  {
+    "name": "Sino-ri Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Rocket Force",
+    "branch": "missile",
+    "lat": 39.647,
+    "lng": 125.517
+  },
+  {
+    "name": "Sakkanmol Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Rocket Force",
+    "branch": "missile",
+    "lat": 38.377,
+    "lng": 126.558
+  },
+  {
+    "name": "Yeongjeo-dong Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Rocket Force",
+    "branch": "missile",
+    "lat": 40.966,
+    "lng": 129.076
+  },
+  {
+    "name": "Sanchon (Kanggye) Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Rocket Force",
+    "branch": "missile",
+    "lat": 40.663,
+    "lng": 126.613
+  },
+  {
+    "name": "Kangson Uranium Enrichment Facility",
+    "country": "North Korea",
+    "operator": "Atomic Energy General Bureau",
+    "branch": "nuclear",
+    "lat": 38.997,
+    "lng": 125.574
+  },
+  {
+    "name": "Pyongyang Defense Command",
+    "country": "North Korea",
+    "operator": "KPA Ground Force",
+    "branch": "kpa_army",
+    "lat": 39.03,
+    "lng": 125.75
+  },
+  {
+    "name": "Onchon Air Base",
+    "country": "North Korea",
+    "operator": "KPA Air & Anti-Air Force",
+    "branch": "kpa_air_force",
+    "lat": 38.929,
+    "lng": 125.073
+  },
+  {
+    "name": "Toejo-dong Naval Base",
+    "country": "North Korea",
+    "operator": "KPA Naval Force",
+    "branch": "kpa_navy",
+    "lat": 40.971,
+    "lng": 129.722
+  },
   {
     "name": "Hualien Air Force Base (Jiashan)",
     "country": "Taiwan",
@@ -786,7 +847,6 @@
     "lat": 22.793,
     "lng": 121.182
   },
-
   {
     "name": "Subic Bay (EDCA site)",
     "country": "Philippines",
@@ -801,7 +861,7 @@
     "operator": "Philippine Air Force / US EDCA",
     "branch": "air_force",
     "lat": 15.186,
-    "lng": 120.560
+    "lng": 120.56
   },
   {
     "name": "Basa Air Base",
@@ -824,7 +884,7 @@
     "country": "Philippines",
     "operator": "Philippine Army / US EDCA",
     "branch": "army",
-    "lat": 18.200,
+    "lat": 18.2,
     "lng": 121.659
   },
   {
@@ -835,7 +895,6 @@
     "lat": 7.986,
     "lng": 117.062
   },
-
   {
     "name": "RAAF Base Darwin",
     "country": "Australia",
