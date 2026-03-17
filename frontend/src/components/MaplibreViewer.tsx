@@ -1892,6 +1892,7 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                         air_force: 'AIR FORCE', navy: 'NAVY', marines: 'MARINES', army: 'ARMY',
                         gsdf: 'GSDF (陸自)', msdf: 'MSDF (海自)', asdf: 'ASDF (空自)',
                         missile: 'MISSILE FORCES', nuclear: 'NUCLEAR FACILITY',
+                        kpa_army: 'KPA ARMY', kpa_air_force: 'KPA AIR FORCE', kpa_navy: 'KPA NAVY',
                     };
                     const isAdversary = ['China', 'Russia', 'North Korea'].includes(base.country);
                     const isROC = base.country === 'Taiwan';
