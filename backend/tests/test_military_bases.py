@@ -35,7 +35,10 @@ class TestMilitaryBasesData:
             assert -180 <= entry["lng"] <= 180, f"{entry['name']} has invalid lng"
 
     def test_branch_values_are_known(self):
-        known_branches = {"air_force", "navy", "marines", "army", "gsdf", "msdf", "asdf", "missile", "nuclear"}
+        known_branches = {
+            "air_force", "navy", "marines", "army", "gsdf", "msdf", "asdf",
+            "missile", "nuclear", "kpa_army", "kpa_air_force", "kpa_navy",
+        }
         raw = json.loads(BASES_PATH.read_text(encoding="utf-8"))
         for entry in raw:
             assert entry["branch"] in known_branches, f"{entry['name']} has unknown branch: {entry['branch']}"
@@ -80,6 +83,31 @@ class TestFetchMilitaryBases:
         assert "Yonaguni Garrison" in names
         assert "Naha Air Base" in names
         assert "Kure Naval Base" in names
+
+    def test_includes_north_korea_facilities(self):
+        from services.fetchers.infrastructure import fetch_military_bases
+        fetch_military_bases()
+        with _data_lock:
+            names = {b["name"] for b in latest_data["military_bases"]}
+        assert "Sohae Satellite Launching Station" in names
+        assert "Yongbyon Nuclear Complex" in names
+        assert "Punggye-ri Nuclear Test Site" in names
+        assert "Kaechon Air Base" in names
+
+    def test_north_korea_facility_count(self):
+        from services.fetchers.infrastructure import fetch_military_bases
+        fetch_military_bases()
+        with _data_lock:
+            nk = [b for b in latest_data["military_bases"] if b.get("country") == "North Korea"]
+        assert len(nk) >= 15
+
+    def test_north_korea_branches(self):
+        from services.fetchers.infrastructure import fetch_military_bases
+        fetch_military_bases()
+        with _data_lock:
+            nk_branches = {b["branch"] for b in latest_data["military_bases"] if b.get("country") == "North Korea"}
+        assert "missile" in nk_branches
+        assert "nuclear" in nk_branches
 
     def test_colocated_bases_have_separate_entries(self):
         from services.fetchers.infrastructure import fetch_military_bases
