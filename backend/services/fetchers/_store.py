@@ -31,7 +31,8 @@ latest_data = {
     "internet_outages": [],
     "firms_fires": [],
     "datacenters": [],
-    "military_bases": []
+    "military_bases": [],
+    "eth_nodes": []
 }
 
 # Per-source freshness timestamps

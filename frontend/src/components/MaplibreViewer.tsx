@@ -19,7 +19,7 @@ import {
     svgTanker, svgRecon, svgPlanePink, svgPlaneAlertRed, svgPlaneDarkBlue,
     svgPlaneWhiteAlert, svgHeliPink, svgHeliAlertRed, svgHeliDarkBlue,
     svgHeliBlue, svgHeliLime, svgHeliWhiteAlert, svgPlaneBlack, svgHeliBlack,
-    svgDrone, svgDataCenter, svgRadioTower, svgShipGray, svgShipRed, svgShipYellow,
+    svgDrone, svgDataCenter, svgEthNode, svgRadioTower, svgShipGray, svgShipRed, svgShipYellow,
     svgShipBlue, svgShipWhite, svgShipPink, svgCarrier, svgCctv, svgWarning, svgThreat,
     svgTriangleYellow, svgTriangleRed,
     svgFireYellow, svgFireOrange, svgFireRed, svgFireDarkRed,
@@ -51,6 +51,7 @@ import { spreadAlertItems } from "@/utils/alertSpread";
 import {
     buildEarthquakesGeoJSON, buildJammingGeoJSON, buildCctvGeoJSON, buildKiwisdrGeoJSON,
     buildFirmsGeoJSON, buildInternetOutagesGeoJSON, buildDataCentersGeoJSON, buildMilitaryBasesGeoJSON,
+    buildEthNodesGeoJSON,
     buildGdeltGeoJSON, buildLiveuaGeoJSON, buildFrontlineGeoJSON,
     buildFlightLayerGeoJSON, buildUavGeoJSON,
     buildSatellitesGeoJSON, buildShipsGeoJSON, buildCarriersGeoJSON,
@@ -226,6 +227,10 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         activeLayers.military_bases ? buildMilitaryBasesGeoJSON(data?.military_bases) : null,
         [activeLayers.military_bases, data?.military_bases]);
 
+    const ethNodesGeoJSON = useMemo(() =>
+        activeLayers.eth_nodes ? buildEthNodesGeoJSON(data?.eth_nodes) : null,
+        [activeLayers.eth_nodes, data?.eth_nodes]);
+
     // Load Images into the Map Style once loaded
     const onMapLoad = useCallback((e: any) => {
         const map = e.target;
@@ -353,6 +358,8 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
             loadImg('fire-cluster-xl', svgFireClusterXL);
             // Data center icon
             loadImg('datacenter', svgDataCenter);
+            // Ethereum node icon
+            loadImg('eth-node', svgEthNode);
             // Satellite mission-type icons
             loadImg('sat-mil', makeSatSvg('#ff3333'));
             loadImg('sat-sar', makeSatSvg('#00e5ff'));
@@ -593,6 +600,7 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         internetOutagesGeoJSON && 'internet-outages-layer',
         dataCentersGeoJSON && 'datacenters-layer',
         militaryBasesGeoJSON && 'military-bases-layer',
+        ethNodesGeoJSON && 'eth-nodes-layer',
         firmsGeoJSON && 'firms-viirs-layer'
     ].filter(Boolean) as string[];
 
@@ -1502,6 +1510,61 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                     </Source>
                 )}
 
+                {/* Ethereum Node positions */}
+                {ethNodesGeoJSON && (
+                    <Source id="eth-nodes" type="geojson" data={ethNodesGeoJSON as any} cluster={true} clusterRadius={35} clusterMaxZoom={8}>
+                        {/* Cluster circles */}
+                        <Layer
+                            id="eth-nodes-clusters"
+                            type="circle"
+                            filter={['has', 'point_count']}
+                            paint={{
+                                'circle-color': '#0e7490',
+                                'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
+                                'circle-opacity': 0.7,
+                                'circle-stroke-width': 1,
+                                'circle-stroke-color': '#67e8f9',
+                            }}
+                        />
+                        <Layer
+                            id="eth-nodes-cluster-count"
+                            type="symbol"
+                            filter={['has', 'point_count']}
+                            layout={{
+                                'text-field': '{point_count_abbreviated}',
+                                'text-font': ['Noto Sans Bold'],
+                                'text-size': 10,
+                                'text-allow-overlap': true,
+                            }}
+                            paint={{
+                                'text-color': '#cffafe',
+                            }}
+                        />
+                        {/* Individual node icons */}
+                        <Layer
+                            id="eth-nodes-layer"
+                            type="symbol"
+                            filter={['!', ['has', 'point_count']]}
+                            layout={{
+                                'icon-image': 'eth-node',
+                                'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 6, 0.7, 10, 1.0],
+                                'icon-allow-overlap': true,
+                                'text-field': ['step', ['zoom'], '', 8, ['get', 'name']],
+                                'text-font': ['Noto Sans Regular'],
+                                'text-size': 9,
+                                'text-offset': [0, 1.2],
+                                'text-anchor': 'top',
+                                'text-allow-overlap': false,
+                            }}
+                            paint={{
+                                'text-color': '#67e8f9',
+                                'text-halo-color': 'rgba(0,0,0,0.9)',
+                                'text-halo-width': 1,
+                            }}
+                        />
+                    </Source>
+                )}
+
                 {/* Satellite positions — mission-type icons */}
                 {/* satellites: data pushed imperatively */}
                     <Source id="satellites" type="geojson" data={EMPTY_FC as any}>
@@ -1922,6 +1985,66 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                                 </div>
                                 <div className={`mt-1.5 text-[9px] ${footerCls} tracking-wider`}>
                                     MILITARY BASE — {branchLabel[base.branch] || base.branch.toUpperCase()}
+                                </div>
+                            </div>
+                        </Popup>
+                    );
+                })()}
+
+                {/* Ethereum Node click popup */}
+                {selectedEntity?.type === 'eth_node' && (() => {
+                    const node = data?.eth_nodes?.find((_: any, i: number) => `eth-${i}` === selectedEntity.id);
+                    if (!node) return null;
+                    const maskedIp = node.ip.replace(/\.\d+$/, '.***');
+                    return (
+                        <Popup
+                            longitude={node.lng}
+                            latitude={node.lat}
+                            closeButton={false}
+                            closeOnClick={false}
+                            onClose={() => onEntityClick?.(null)}
+                            className="threat-popup"
+                            maxWidth="280px"
+                        >
+                            <div className="map-popup bg-[#0a1a2a] border border-cyan-400/40 text-[#cffafe] min-w-[200px]">
+                                <div className="map-popup-title text-cyan-400 border-b border-cyan-400/20 pb-1">
+                                    Ethereum Node
+                                </div>
+                                <div className="map-popup-row">
+                                    IP: <span className="text-white font-mono">{maskedIp}:{node.port}</span>
+                                </div>
+                                {node.city && (
+                                    <div className="map-popup-row">
+                                        Location: <span className="text-white">{node.city}{node.country ? `, ${node.country}` : ''}</span>
+                                    </div>
+                                )}
+                                {!node.city && node.country && (
+                                    <div className="map-popup-row">
+                                        Country: <span className="text-white">{node.country}</span>
+                                    </div>
+                                )}
+                                {node.isp && (
+                                    <div className="map-popup-row">
+                                        ISP: <span className="text-[#67e8f9]">{node.isp}</span>
+                                    </div>
+                                )}
+                                {node.asn && (
+                                    <div className="map-popup-row">
+                                        ASN: <span className="text-[#67e8f9] font-mono">{node.asn}</span>
+                                    </div>
+                                )}
+                                {node.org && (
+                                    <div className="map-popup-row">
+                                        Org: <span className="text-white">{node.org}</span>
+                                    </div>
+                                )}
+                                {node.os && (
+                                    <div className="map-popup-row">
+                                        OS: <span className="text-[#67e8f9]">{node.os}</span>
+                                    </div>
+                                )}
+                                <div className="mt-1.5 text-[9px] text-cyan-700 tracking-wider">
+                                    ETH NODE · PORT 30303
                                 </div>
                             </div>
                         </Popup>

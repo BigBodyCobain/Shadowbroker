@@ -13,9 +13,10 @@ import type { Earthquake, FireHotspot, InternetOutage, DataCenter, Ship, ActiveL
 const allShipLayers: ActiveLayers = {
   flights: true, private: true, jets: true, military: true, tracked: true,
   satellites: true, earthquakes: true, cctv: false, ukraine_frontline: true,
-  global_incidents: true, firms_fires: true, jamming: true, internet_outages: true,
-  datacenters: true, gdelt: false, liveuamap: true, weather: true, uav: true,
-  kiwisdr: false,
+  global_incidents: true, day_night: true, gps_jamming: true,
+  gibs_imagery: false, highres_satellite: false,
+  kiwisdr: false, firms: true, internet_outages: true,
+  datacenters: true, military_bases: true, eth_nodes: false,
   ships_military: true, ships_cargo: true, ships_civilian: true,
   ships_passenger: true, ships_tracked_yachts: true,
 };

@@ -121,6 +121,15 @@ API_REGISTRY = [
         "url": "https://openmhz.com/",
         "required": False,
     },
+    {
+        "id": "shodan_api_key",
+        "env_key": "SHODAN_API_KEY",
+        "name": "Shodan — API Key",
+        "description": "API key for Shodan internet device search. Used to discover Ethereum nodes via port 30303.",
+        "category": "Infrastructure",
+        "url": "https://developer.shodan.io/",
+        "required": False,
+    },
 ]
 
 

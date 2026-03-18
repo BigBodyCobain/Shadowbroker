@@ -163,6 +163,7 @@ export default function Dashboard() {
     internet_outages: false,
     datacenters: false,
     military_bases: false,
+    eth_nodes: false,
   });
 
   // NASA GIBS satellite imagery state

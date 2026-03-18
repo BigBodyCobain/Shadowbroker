@@ -19,6 +19,7 @@ _SECRET_VARS = [
     "LTA_ACCOUNT_KEY",
     "CORS_ORIGINS",
     "ADMIN_KEY",
+    "SHODAN_API_KEY",
 ]
 
 for _var in _SECRET_VARS:
@@ -306,6 +307,7 @@ async def live_data_slow(request: Request,
         "firms_fires": _f(d.get("firms_fires", [])),
         "datacenters": _f(d.get("datacenters", [])),
         "military_bases": _f(d.get("military_bases", [])),
+        "eth_nodes": _f(d.get("eth_nodes", [])),
         "freshness": dict(source_timestamps),
     }
     bbox_tag = f"{s},{w},{n},{e}" if has_bbox else "full"

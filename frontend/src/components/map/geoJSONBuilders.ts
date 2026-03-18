@@ -2,7 +2,7 @@
 // Extracted from MaplibreViewer to reduce component size and enable unit testing.
 // Each function takes data arrays + optional helpers and returns a GeoJSON FeatureCollection or null.
 
-import type { Earthquake, GPSJammingZone, FireHotspot, InternetOutage, DataCenter, MilitaryBase, GDELTIncident, LiveUAmapIncident, CCTVCamera, KiwiSDR, FrontlineGeoJSON, UAV, Satellite, Ship, ActiveLayers } from "@/types/dashboard";
+import type { Earthquake, GPSJammingZone, FireHotspot, InternetOutage, DataCenter, MilitaryBase, EthNode, GDELTIncident, LiveUAmapIncident, CCTVCamera, KiwiSDR, FrontlineGeoJSON, UAV, Satellite, Ship, ActiveLayers } from "@/types/dashboard";
 import { classifyAircraft } from "@/utils/aircraftClassification";
 import { MISSION_COLORS, MISSION_ICON_MAP } from "@/components/map/icons/SatelliteIcons";
 
@@ -223,6 +223,32 @@ export function buildMilitaryBasesGeoJSON(bases?: MilitaryBase[]): FC {
                 side: _baseSide(base.country || '', base.operator || ''),
             },
             geometry: { type: 'Point' as const, coordinates: [base.lng, base.lat] }
+        }))
+    };
+}
+
+// ─── Ethereum Nodes ─────────────────────────────────────────────────────────
+
+export function buildEthNodesGeoJSON(nodes?: EthNode[]): FC {
+    if (!nodes?.length) return null;
+    return {
+        type: 'FeatureCollection',
+        features: nodes.map((n, i) => ({
+            type: 'Feature' as const,
+            properties: {
+                id: `eth-${i}`,
+                type: 'eth_node',
+                name: n.city || n.org || n.ip,
+                ip: n.ip,
+                port: n.port,
+                country: n.country || '',
+                city: n.city || '',
+                org: n.org || '',
+                isp: n.isp || '',
+                asn: n.asn || '',
+                os: n.os || '',
+            },
+            geometry: { type: 'Point' as const, coordinates: [n.lng, n.lat] }
         }))
     };
 }

@@ -1,5 +1,6 @@
-"""Infrastructure fetchers — internet outages (IODA), data centers, CCTV, KiwiSDR."""
+"""Infrastructure fetchers — internet outages (IODA), data centers, CCTV, KiwiSDR, Ethereum nodes."""
 import json
+import os
 import time
 import heapq
 import logging
@@ -211,3 +212,52 @@ def fetch_kiwisdr():
         logger.error(f"Error fetching KiwiSDR nodes: {e}")
         with _data_lock:
             latest_data["kiwisdr"] = []
+
+
+# ---------------------------------------------------------------------------
+# Ethereum Nodes (Shodan — port:30303)
+# ---------------------------------------------------------------------------
+@with_retry(max_retries=1, base_delay=2)
+def fetch_eth_nodes():
+    """Fetch Ethereum nodes from Shodan (port:30303)."""
+    api_key = os.environ.get("SHODAN_API_KEY", "")
+    if not api_key:
+        logger.debug("SHODAN_API_KEY not set — skipping Ethereum nodes")
+        return
+
+    nodes = []
+    max_pages = 5  # 500 nodes max, 5 credits per fetch cycle
+    for page in range(1, max_pages + 1):
+        url = f"https://api.shodan.io/shodan/host/search?key={api_key}&query=port:30303&page={page}"
+        response = fetch_with_curl(url, timeout=15)
+        if response.status_code != 200:
+            break
+        data = response.json()
+        for match in data.get("matches", []):
+            loc = match.get("location", {})
+            lat = loc.get("latitude")
+            lng = loc.get("longitude")
+            if lat is None or lng is None:
+                continue
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                continue
+            nodes.append({
+                "ip": match.get("ip_str", ""),
+                "port": match.get("port", 30303),
+                "country": loc.get("country_code", ""),
+                "city": loc.get("city", ""),
+                "lat": lat,
+                "lng": lng,
+                "org": match.get("org", ""),
+                "isp": match.get("isp", ""),
+                "asn": match.get("asn", ""),
+                "os": match.get("os", ""),
+            })
+        if len(data.get("matches", [])) < 100:
+            break  # Last page
+
+    with _data_lock:
+        latest_data["eth_nodes"] = nodes
+    if nodes:
+        _mark_fresh("eth_nodes")
+    logger.info(f"Ethereum nodes: {len(nodes)} found via Shodan")

@@ -241,6 +241,21 @@ export interface MilitaryBase {
   lng: number;
 }
 
+// ─── ETHEREUM NODES (SHODAN) ────────────────────────────────────────────────
+
+export interface EthNode {
+  ip: string;
+  port: number;
+  country: string;
+  city?: string;
+  lat: number;
+  lng: number;
+  org?: string;
+  isp?: string;
+  asn?: string;
+  os?: string;
+}
+
 // ─── NEWS / GLOBAL INCIDENTS ────────────────────────────────────────────────
 
 export interface NewsArticle {
@@ -422,6 +437,7 @@ export interface DashboardData {
   firms_fires?: FireHotspot[];
   datacenters?: DataCenter[];
   military_bases?: MilitaryBase[];
+  eth_nodes?: EthNode[];
 }
 
 // ─── COMPONENT PROPS ────────────────────────────────────────────────────────
@@ -451,6 +467,7 @@ export interface ActiveLayers {
   internet_outages: boolean;
   datacenters: boolean;
   military_bases: boolean;
+  eth_nodes: boolean;
 }
 
 export interface SelectedEntity {
