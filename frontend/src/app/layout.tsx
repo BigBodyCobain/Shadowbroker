@@ -13,9 +13,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
+export const metadata: Metadata = {,
   title: "WORLDVIEW // ORBITAL TRACKING",
-  description: "Advanced Geopolitical Risk Dashboard",
+  description: "Advanced Geopolitical Risk Dashboard"
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -31,6 +32,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>{children}</ThemeProvider>
+            <script dangerouslySetInnerHTML={{__html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }`}} />
       </body>
     </html>
   );
