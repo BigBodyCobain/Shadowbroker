@@ -1,0 +1,38 @@
+{
+  "name": "ShadowBroker Intelligence",
+  "short_name": "ShadowBroker",
+  "id": "com.bsdyno.shadowbroker",
+  "description": "Real-time OSINT intelligence dashboard with interactive maps tracking aircraft, ships, satellites, earthquakes, and global threats.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00d4ff",
+  "dir": "ltr",
+  "lang": "en",
+  "categories": ["news", "utilities", "security"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "ShadowBroker Intelligence Dashboard"
+    }
+  ]
+}
