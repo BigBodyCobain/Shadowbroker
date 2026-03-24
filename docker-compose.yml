@@ -4,7 +4,7 @@ services:
       context: ./backend
     container_name: shadowbroker-backend
     ports:
-      - "8000:8000"
+      - "${BIND:-127.0.0.1}:8000:8000"
     environment:
       - AIS_API_KEY=${AIS_API_KEY}
       - OPENSKY_CLIENT_ID=${OPENSKY_CLIENT_ID}
@@ -32,7 +32,7 @@ services:
       context: ./frontend
     container_name: shadowbroker-frontend
     ports:
-      - "3000:3000"
+      - "${BIND:-127.0.0.1}:3000:3000"
     environment:
       # Points the Next.js server-side proxy at the backend container via Docker networking.
       # Change this if your backend runs on a different host or port.
