@@ -1,9 +1,15 @@
-"""Financial data fetchers — defense stocks and oil prices.
+"""Financial data fetchers -- defense stocks and oil prices.
 
 Uses yfinance batch download to minimise Yahoo Finance requests and avoid rate limiting.
+Falls back to Stooq CSV for oil futures when yfinance returns no data.
 """
 import logging
+import io
+import time
+from urllib.request import urlopen
+
 import yfinance as yf
+import pandas as pd
 from services.fetchers._store import latest_data, _data_lock, _mark_fresh
 from services.fetchers.retry import with_retry
 
@@ -40,6 +46,27 @@ def _batch_fetch(symbols: list[str], period: str = "5d") -> dict:
         return {}
 
 
+def _fetch_stooq_oil(ticker: str) -> dict | None:
+    """Fetch a single oil future from Stooq CSV as fallback."""
+    stooq_sym = ticker.replace("=", ".").lower()  # CL=F -> cl.f
+    url = f"https://stooq.com/q/l/?s={stooq_sym}&f=sd2t2ohlcv&h&e=csv"
+    try:
+        raw = urlopen(url, timeout=15).read().decode("utf-8")
+        df = pd.read_csv(io.StringIO(raw), on_bad_lines="skip")
+        if df.empty or "Close" not in df.columns:
+            return None
+        close_val = df["Close"].dropna()
+        if close_val.empty or str(close_val.iloc[-1]).strip() == "N/D":
+            return None
+        price = float(close_val.iloc[-1])
+        open_val = float(df["Open"].iloc[-1]) if "Open" in df.columns else price
+        change = ((price - open_val) / open_val * 100) if open_val else 0
+        return {"price": round(price, 2), "change_percent": round(change, 2), "up": bool(change >= 0)}
+    except Exception as e:
+        logger.warning(f"Stooq oil fallback failed for {ticker}: {e}")
+        return None
+
+
 _STOCK_TICKERS = ["RTX", "LMT", "NOC", "GD", "BA", "PLTR"]
 _OIL_MAP = {"WTI Crude": "CL=F", "Brent Crude": "BZ=F"}
 _ALL_TICKERS = _STOCK_TICKERS + list(_OIL_MAP.values())
@@ -53,13 +80,19 @@ def _fetch_all_market_data():
     raw = _batch_fetch(_ALL_TICKERS, period="5d")
     stocks = {sym: raw[sym] for sym in _STOCK_TICKERS if sym in raw}
     oil = {name: raw[sym] for name, sym in _OIL_MAP.items() if sym in raw}
+    # Stooq fallback for any missing oil tickers
+    for name, sym in _OIL_MAP.items():
+        if name not in oil:
+            fallback = _fetch_stooq_oil(sym)
+            if fallback:
+                oil[name] = fallback
+                logger.info(f"Stooq fallback: {name}=${fallback['price']}")
     return stocks, oil
 
 
 @with_retry(max_retries=2, base_delay=10)
 def fetch_defense_stocks():
     global _last_market_fetch
-    import time
     if time.time() - _last_market_fetch < _MARKET_COOLDOWN_SECONDS:
         return
     try:
