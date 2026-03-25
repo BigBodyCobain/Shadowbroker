@@ -222,7 +222,7 @@ def fetch_news():
         selected_set = set(selected_categories)
         feed_config = [
             f for f in feed_config
-            if selected_set.intersection(set(f.get("categories", [])))
+            if (not f.get("categories")) or selected_set.intersection(set(f.get("categories", [])))
         ]
     if not feed_config:
         logger.warning("News fetch skipped: no feeds match selected categories")

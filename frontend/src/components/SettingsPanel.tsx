@@ -124,7 +124,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                         ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
                         : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
                     map_visible: Boolean(f.map_visible),
-                    categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+                    categories: Array.isArray(f.categories) ? f.categories : [],
                 }));
                 setFeeds(normalised);
                 setFeedsDirty(false);
@@ -227,7 +227,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
             const current = Array.isArray(f.categories) ? f.categories : [];
             const exists = current.includes(category);
             const next = exists ? current.filter(c => c !== category) : [...current, category];
-            return { ...f, categories: next.length > 0 ? next : [category] };
+            return { ...f, categories: next };
         }));
         setFeedsDirty(true);
         setFeedMsg(null);
@@ -247,7 +247,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
 
     const addFeed = () => {
         if (feeds.length >= MAX_FEEDS) return;
-        setFeeds(prev => [...prev, { name: "", url: "", weight: 3, weights: [3], categories: ["War / Conflict Events"] }]);
+        setFeeds(prev => [...prev, { name: "", url: "", weight: 3, weights: [3], categories: [] }]);
         setFeedsDirty(true);
         setFeedMsg(null);
     };
@@ -295,7 +295,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                 ? Math.max(...f.weights)
                 : Math.max(1, Math.min(5, Number(f.weight) || 3)),
             map_visible: Boolean(f.map_visible),
-            categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+            categories: Array.isArray(f.categories) ? f.categories : [],
         }));
         try {
             const res = await fetch(`${API_BASE}/api/settings/news-feeds`, {
@@ -333,7 +333,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                         ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
                         : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
                     map_visible: Boolean(f.map_visible),
-                    categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+                    categories: Array.isArray(f.categories) ? f.categories : [],
                 }));
                 setFeeds(normalised);
                 if (Array.isArray(d.selected_categories) && d.selected_categories.length > 0) {

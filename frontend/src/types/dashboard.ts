@@ -460,6 +460,7 @@ export interface ActiveLayers {
   day_night: boolean;
   gps_jamming: boolean;
   gibs_imagery: boolean;
+  highres_satellite: boolean;
   kiwisdr: boolean;
   firms: boolean;
   internet_outages: boolean;

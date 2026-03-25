@@ -691,7 +691,7 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                 }}
             >
                 {/* Esri World Imagery — high-res static satellite (zoom 0-18+) */}
-                {effects?.style === 'SATELLITE' && (
+                {activeLayers.highres_satellite && (
                     <Source
                         id="esri-world-imagery"
                         type="raster"
@@ -712,7 +712,7 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                     </Source>
                 )}
                 {/* Esri Reference Overlay — borders, labels, cities on top of satellite imagery */}
-                {effects?.style === 'SATELLITE' && (
+                {activeLayers.highres_satellite && (
                     <Source
                         id="esri-reference-overlay"
                         type="raster"

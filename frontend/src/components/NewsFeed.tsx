@@ -832,19 +832,6 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             <span className="text-[var(--text-muted)] text-[10px]">HEADLINE</span>
                             <span className="text-red-400 text-xs font-bold leading-tight">{item.title}</span>
                         </div>
-                        {item.featured_image && (
-                            <div className="border-b border-[var(--border-primary)] pb-2">
-                                <span className="text-[var(--text-muted)] text-[10px]">FEATURED IMAGE</span>
-                                <img
-                                    src={item.featured_image}
-                                    alt={item.title || "Featured image"}
-                                    loading="lazy"
-                                    referrerPolicy="no-referrer"
-                                    className="mt-1.5 w-full h-32 object-cover rounded border border-red-900/40"
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                                />
-                            </div>
-                        )}
                         {detailEntries.length > 0 && (
                             <div className="border-b border-[var(--border-primary)] pb-2">
                                 <span className="text-[var(--text-muted)] text-[10px]">DETAILS</span>
@@ -1118,17 +1105,6 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                     <a href={item.link} target="_blank" rel="noreferrer" className={`text-[11px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight`}>
                                         {item.title}
                                     </a>
-                                    {item.featured_image && (
-                                        <img
-                                            src={item.featured_image}
-                                            alt={item.title || "Featured image"}
-                                            loading="lazy"
-                                            referrerPolicy="no-referrer"
-                                            className="mt-1 w-full h-24 object-cover rounded border border-cyan-900/40"
-                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                                        />
-                                    )}
-
                                     {item.machine_assessment && (
                                         <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[8.5px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
                                             <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>

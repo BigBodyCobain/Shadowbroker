@@ -3,292 +3,102 @@
     {
       "name": "ZeroHedge",
       "url": "https://cms.zerohedge.com/fullrss2.xml",
-      "weight": 4,
-      "categories": [
-        "Finance",
-        "War / Conflict Events"
-      ]
+      "weight": 4
     },
     {
-      "name": "Reuters World",
-      "url": "https://www.reuters.com/rss/worldNews",
-      "weight": 4,
-      "categories": [
-        "War / Conflict Events"
-      ]
+      "name": "NPR",
+      "url": "https://feeds.npr.org/1004/rss.xml",
+      "weight": 4
     },
     {
-      "name": "BBC World",
+      "name": "BBC",
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
-      "weight": 3,
-      "categories": [
-        "War / Conflict Events"
-      ]
+      "weight": 3
     },
     {
-      "name": "Al Jazeera",
+      "name": "AlJazeera",
       "url": "https://www.aljazeera.com/xml/rss/all.xml",
-      "weight": 3,
-      "categories": [
-        "War / Conflict Events"
-      ]
+      "weight": 2
     },
     {
-      "name": "The Grayzone",
-      "url": "https://thegrayzone.com/feed/",
-      "weight": 3,
-      "categories": [
-        "War / Conflict Events"
-      ]
+      "name": "NYT",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+      "weight": 1
     },
     {
-      "name": "Crisis Group",
-      "url": "https://www.crisisgroup.org/rss",
-      "weight": 3,
-      "categories": [
-        "War / Conflict Events"
-      ]
+      "name": "GDACS",
+      "url": "https://www.gdacs.org/xml/rss.xml",
+      "weight": 5
     },
     {
-      "name": "MarineLink",
-      "url": "https://www.marinelink.com/feeds",
-      "weight": 4,
-      "categories": [
-        "Maritime / Shipping"
-      ]
+      "name": "NHK",
+      "url": "https://www3.nhk.or.jp/nhkworld/rss/world.xml",
+      "weight": 3
     },
     {
-      "name": "Hellenic Shipping News",
-      "url": "https://www.hellenicshippingnews.com/feed/",
-      "weight": 4,
-      "categories": [
-        "Maritime / Shipping"
-      ]
+      "name": "CNA",
+      "url": "https://www.channelnewsasia.com/rssfeed/8395986",
+      "weight": 3
     },
     {
-      "name": "Ship & Bunker",
-      "url": "https://shipandbunker.com/rss",
-      "weight": 3,
-      "categories": [
-        "Maritime / Shipping"
-      ]
+      "name": "Mercopress",
+      "url": "https://en.mercopress.com/rss/",
+      "weight": 3
     },
     {
-      "name": "Lloyd's List",
-      "url": "https://www.lloydslist.com/rss-feeds",
-      "weight": 3,
-      "categories": [
-        "Maritime / Shipping"
-      ]
+      "name": "FocusTaiwan",
+      "url": "https://focustaiwan.tw/rss",
+      "weight": 5
     },
     {
-      "name": "CIMSEC",
-      "url": "https://cimsec.org/feed/",
-      "weight": 3,
-      "categories": [
-        "Maritime / Shipping"
-      ]
+      "name": "Kyodo",
+      "url": "https://english.kyodonews.net/rss/news.xml",
+      "weight": 4
     },
     {
-      "name": "The Aviationist",
-      "url": "https://theaviationist.com/feed/",
-      "weight": 4,
-      "categories": [
-        "Air Traffic / Aviation"
-      ]
+      "name": "SCMP",
+      "url": "https://www.scmp.com/rss/91/feed",
+      "weight": 4
     },
     {
-      "name": "Simple Flying",
-      "url": "https://simpleflying.com/feed/",
-      "weight": 3,
-      "categories": [
-        "Air Traffic / Aviation"
-      ]
+      "name": "The Diplomat",
+      "url": "https://thediplomat.com/feed/",
+      "weight": 4
     },
     {
-      "name": "ch-aviation",
-      "url": "https://www.ch-aviation.com/news/full/feed",
-      "weight": 3,
-      "categories": [
-        "Air Traffic / Aviation"
-      ]
+      "name": "Stars and Stripes",
+      "url": "https://www.stripes.com/feeds/pacific.rss",
+      "weight": 4
     },
     {
-      "name": "AirlineReporter",
-      "url": "https://www.airlinereporter.com/feed/",
-      "weight": 3,
-      "categories": [
-        "Air Traffic / Aviation"
-      ]
+      "name": "Yonhap",
+      "url": "https://en.yna.co.kr/RSS/news.xml",
+      "weight": 4
+    },
+    {
+      "name": "Nikkei Asia",
+      "url": "https://asia.nikkei.com/rss",
+      "weight": 3
+    },
+    {
+      "name": "Taipei Times",
+      "url": "https://www.taipeitimes.com/xml/pda.rss",
+      "weight": 4
+    },
+    {
+      "name": "Asia Times",
+      "url": "https://asiatimes.com/feed/",
+      "weight": 3
     },
     {
       "name": "Defense News",
       "url": "https://www.defensenews.com/arc/outboundfeeds/rss/",
-      "weight": 3,
-      "categories": [
-        "Air Traffic / Aviation"
-      ]
+      "weight": 3
     },
     {
-      "name": "Krebs on Security",
-      "url": "https://krebsonsecurity.com/feed/",
-      "weight": 5,
-      "categories": [
-        "Cyber Hacks"
-      ]
-    },
-    {
-      "name": "The Hacker News",
-      "url": "https://thehackernews.com/feed",
-      "weight": 4,
-      "categories": [
-        "Cyber Hacks"
-      ]
-    },
-    {
-      "name": "Bleeping Computer",
-      "url": "https://www.bleepingcomputer.com/feed/",
-      "weight": 4,
-      "categories": [
-        "Cyber Hacks"
-      ]
-    },
-    {
-      "name": "Dark Reading",
-      "url": "https://www.darkreading.com/rss.xml",
-      "weight": 3,
-      "categories": [
-        "Cyber Hacks"
-      ]
-    },
-    {
-      "name": "Help Net Security",
-      "url": "https://www.helpnetsecurity.com/feed/",
-      "weight": 3,
-      "categories": [
-        "Cyber Hacks"
-      ]
-    },
-    {
-      "name": "Law & Crime",
-      "url": "https://lawandcrime.com/feed/",
-      "weight": 4,
-      "categories": [
-        "Police Events / Big Crime"
-      ]
-    },
-    {
-      "name": "Court TV",
-      "url": "https://www.courttv.com/feed/",
-      "weight": 3,
-      "categories": [
-        "Police Events / Big Crime"
-      ]
-    },
-    {
-      "name": "NYT Crime",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/NYRegion.xml",
-      "weight": 2,
-      "categories": [
-        "Police Events / Big Crime"
-      ]
-    },
-    {
-      "name": "The Guardian Crime",
-      "url": "https://www.theguardian.com/uk/crime/rss",
-      "weight": 2,
-      "categories": [
-        "Police Events / Big Crime"
-      ]
-    },
-    {
-      "name": "Vice Crime",
-      "url": "https://www.vice.com/en/rss/topic/crime",
-      "weight": 2,
-      "categories": [
-        "Police Events / Big Crime"
-      ]
-    },
-    {
-      "name": "CoinDesk",
-      "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-      "weight": 4,
-      "categories": [
-        "Crypto"
-      ]
-    },
-    {
-      "name": "Cointelegraph",
-      "url": "https://cointelegraph.com/rss",
-      "weight": 3,
-      "categories": [
-        "Crypto"
-      ]
-    },
-    {
-      "name": "The Block",
-      "url": "https://www.theblock.co/rss",
-      "weight": 3,
-      "categories": [
-        "Crypto"
-      ]
-    },
-    {
-      "name": "Decrypt",
-      "url": "https://decrypt.co/feed",
-      "weight": 3,
-      "categories": [
-        "Crypto"
-      ]
-    },
-    {
-      "name": "Bitcoin Magazine",
-      "url": "https://bitcoinmagazine.com/feed",
-      "weight": 2,
-      "categories": [
-        "Crypto"
-      ]
-    },
-    {
-      "name": "Bellingcat",
-      "url": "https://www.bellingcat.com/feed/",
-      "weight": 4,
-      "categories": [
-        "OSINT"
-      ]
-    },
-    {
-      "name": "OSINT Me",
-      "url": "https://osint.me/feed",
-      "weight": 4,
-      "categories": [
-        "OSINT"
-      ]
-    },
-    {
-      "name": "Intel Crab",
-      "url": "https://intelcrab.com/feed/",
-      "weight": 4,
-      "categories": [
-        "OSINT"
-      ]
-    },
-    {
-      "name": "Oryx",
-      "url": "https://www.oryxspioenkop.com/feeds/posts/default",
-      "weight": 5,
-      "categories": [
-        "OSINT",
-        "War / Conflict Events"
-      ]
-    },
-    {
-      "name": "OSINT Curious",
-      "url": "https://osintcurious.org/feed/",
-      "weight": 3,
-      "categories": [
-        "OSINT"
-      ]
+      "name": "Japan Times",
+      "url": "https://www.japantimes.co.jp/feed/",
+      "weight": 3
     }
   ],
   "selected_categories": [
