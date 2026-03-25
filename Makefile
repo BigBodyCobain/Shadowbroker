@@ -19,6 +19,8 @@ help:
 	@echo "  down            Stop all containers"
 	@echo "  restart-local   Bounce and restart in local mode"
 	@echo "  restart-lan     Bounce and restart in LAN mode"
+	@echo "  dev             Start in watch mode (local only)"
+	@echo "  dev-lan         Start in watch mode (LAN accessible)"
 	@echo "  logs            Tail logs for all services"
 	@echo "  status          Show container status"
 	@echo ""
@@ -56,6 +58,20 @@ restart-local: down up-local
 
 ## Restart in LAN mode
 restart-lan: down up-lan
+
+## Start in watch mode (local only, foreground)
+dev:
+	BIND=127.0.0.1 $(COMPOSE) up --watch
+
+## Start in watch mode (LAN accessible, foreground)
+dev-lan:
+	@if [ -z "$(LAN_IP)" ]; then \
+		echo "ERROR: Could not detect LAN IP. Check your network connection."; \
+		exit 1; \
+	fi
+	@echo "Detected LAN IP: $(LAN_IP)"
+	@echo "$(LAN_IP_MSG)"
+	BIND=0.0.0.0 HOST=0.0.0.0 CORS_ORIGINS=http://$(LAN_IP):3000 $(COMPOSE) up --watch
 
 ## Tail logs for all services
 logs:
