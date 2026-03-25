@@ -3,21 +3,38 @@
     {
       "name": "ZeroHedge",
       "url": "https://cms.zerohedge.com/fullrss2.xml",
+<<<<<<< Updated upstream
       "weight": 4
     },
     {
       "name": "NPR",
       "url": "https://feeds.npr.org/1004/rss.xml",
       "weight": 4
+=======
+      "weight": 4,
+      "categories": ["Finance", "War / Conflict Events"]
+    },
+    {
+      "name": "Reuters World",
+      "url": "https://www.reuters.com/rss/worldNews",
+      "weight": 4,
+      "categories": ["War / Conflict Events"]
+>>>>>>> Stashed changes
     },
     {
       "name": "BBC",
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+<<<<<<< Updated upstream
       "weight": 3
+=======
+      "weight": 3,
+      "categories": ["War / Conflict Events"]
+>>>>>>> Stashed changes
     },
     {
       "name": "AlJazeera",
       "url": "https://www.aljazeera.com/xml/rss/all.xml",
+<<<<<<< Updated upstream
       "weight": 2
     },
     {
@@ -99,9 +116,101 @@
       "name": "Japan Times",
       "url": "https://www.japantimes.co.jp/feed/",
       "weight": 3
+=======
+      "weight": 3,
+      "categories": ["War / Conflict Events"]
+    },
+    {
+      "name": "The Grayzone",
+      "url": "https://thegrayzone.com/feed/",
+      "weight": 3,
+      "categories": ["War / Conflict Events"]
+    },
+    {
+      "name": "MarineLink",
+      "url": "https://www.marinelink.com/feeds",
+      "weight": 4,
+      "categories": ["Maritime / Shipping"]
+    },
+    {
+      "name": "Hellenic Shipping News",
+      "url": "https://www.hellenicshippingnews.com/feed/",
+      "weight": 4,
+      "categories": ["Maritime / Shipping"]
+    },
+    {
+      "name": "Ship & Bunker",
+      "url": "https://shipandbunker.com/rss",
+      "weight": 3,
+      "categories": ["Maritime / Shipping"]
+    },
+    {
+      "name": "CIMSEC",
+      "url": "https://cimsec.org/feed/",
+      "weight": 3,
+      "categories": ["Maritime / Shipping"]
+    },
+    {
+      "name": "The Aviationist",
+      "url": "https://theaviationist.com/feed/",
+      "weight": 4,
+      "categories": ["Air Traffic / Aviation"]
+    },
+    {
+      "name": "Simple Flying",
+      "url": "https://simpleflying.com/feed/",
+      "weight": 3,
+      "categories": ["Air Traffic / Aviation"]
+    },
+    {
+      "name": "AirlineReporter",
+      "url": "https://www.airlinereporter.com/feed/",
+      "weight": 3,
+      "categories": ["Air Traffic / Aviation"]
+    },
+    {
+      "name": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "weight": 5,
+      "categories": ["Cyber Hacks"]
+    },
+    {
+      "name": "The Hacker News",
+      "url": "https://thehackernews.com/feed",
+      "weight": 4,
+      "categories": ["Cyber Hacks"]
+    },
+    {
+      "name": "Bleeping Computer",
+      "url": "https://www.bleepingcomputer.com/feed/",
+      "weight": 4,
+      "categories": ["Cyber Hacks"]
+    },
+    {
+      "name": "Dark Reading",
+      "url": "https://www.darkreading.com/rss.xml",
+      "weight": 3,
+      "categories": ["Cyber Hacks"]
+    },
+    {
+      "name": "Law & Crime",
+      "url": "https://lawandcrime.com/feed/",
+      "weight": 4,
+      "categories": ["Police Events / Big Crime"]
+    },
+    {
+      "name": "CoinDesk",
+      "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "weight": 4,
+      "categories": ["Crypto"]
+    },
+    {
+      "name": "Bellingcat",
+      "url": "https://www.bellingcat.com/feed/",
+      "weight": 4,
+      "categories": ["OSINT"]
+>>>>>>> Stashed changes
     }
   ],
-  "selected_categories": [
-    "all"
-  ]
+  "selected_categories": ["all"]
 }
