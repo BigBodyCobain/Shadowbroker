@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.bigskydynamics.shadowbroker",
+    "sha256_cert_fingerprints": [
+      "__REPLACE_WITH_ACTUAL_SIGNING_KEY_FINGERPRINT__"
+    ]
+  }
+}]
