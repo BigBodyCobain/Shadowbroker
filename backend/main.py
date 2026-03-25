@@ -152,6 +152,23 @@ app.add_middleware(
 from services.data_fetcher import update_all_data
 
 _refresh_lock = threading.Lock()
+_news_refresh_lock = threading.Lock()
+
+
+def _trigger_news_refresh() -> str:
+    """Run news-only refresh in background, skipping duplicate concurrent runs."""
+    if not _news_refresh_lock.acquire(blocking=False):
+        return "already in progress"
+
+    def _do_news_refresh():
+        try:
+            from services.fetchers.news import fetch_news
+            fetch_news()
+        finally:
+            _news_refresh_lock.release()
+
+    threading.Thread(target=_do_news_refresh, daemon=True).start()
+    return "triggered"
 
 @app.get("/api/refresh", response_model=RefreshResponse)
 @limiter.limit("2/minute")
@@ -491,7 +508,11 @@ async def api_save_news_feeds(request: Request):
         ok = save_feeds(body)
     if ok:
         count = len(body.get("feeds", [])) if isinstance(body, dict) else len(body)
-        return {"status": "updated", "count": count}
+        return {
+            "status": "updated",
+            "count": count,
+            "news_refresh": _trigger_news_refresh(),
+        }
     return Response(
         content=json_mod.dumps({"status": "error", "message": "Validation failed (max 50 feeds, each needs name/url/weight 1-5, with valid categories)"}),
         status_code=400,
@@ -514,7 +535,11 @@ async def api_save_news_feed_categories(request: Request):
     categories = body if isinstance(body, list) else body.get("selected_categories", [])
     ok = save_selected_categories(categories)
     if ok:
-        return {"status": "updated", "selected_categories": get_selected_categories()}
+        return {
+            "status": "updated",
+            "selected_categories": get_selected_categories(),
+            "news_refresh": _trigger_news_refresh(),
+        }
     return Response(
         content=json_mod.dumps({"status": "error", "message": "Validation failed for selected categories"}),
         status_code=400,
@@ -530,6 +555,7 @@ async def api_reset_news_feeds(request: Request):
             "status": "reset",
             "feeds": get_feeds(),
             "selected_categories": get_selected_categories(),
+            "news_refresh": _trigger_news_refresh(),
         }
     return {"status": "error", "message": "Failed to reset feeds"}
 

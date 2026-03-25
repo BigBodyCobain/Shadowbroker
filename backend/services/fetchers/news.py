@@ -210,6 +210,12 @@ def fetch_news():
         ALL_CATEGORIES_VALUE,
     )
     feed_config = get_feeds()
+    # Optional per-feed map visibility override:
+    # when one or more feeds are explicitly enabled, only those are fetched.
+    explicit_visible = [f for f in feed_config if f.get("map_visible")]
+    if explicit_visible:
+        feed_config = explicit_visible
+
     selected_categories = get_selected_categories()
     all_selected = ALL_CATEGORIES_VALUE in selected_categories
     if not all_selected:
