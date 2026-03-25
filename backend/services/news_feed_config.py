@@ -138,6 +138,7 @@ def get_feeds() -> list[dict]:
                         "url": url,
                         "weight": max(weights),
                         "weights": weights,
+                        "map_visible": bool(f.get("map_visible", False)),
                         "categories": categories,
                     })
                 if normalised:
@@ -174,6 +175,7 @@ def save_feeds(feeds: list[dict]) -> bool:
         f["url"] = url
         f["weights"] = weights
         f["weight"] = max(weights)
+        f["map_visible"] = bool(f.get("map_visible", False))
         f["categories"] = categories
         if "category" in f:
             del f["category"]

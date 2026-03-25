@@ -3,7 +3,7 @@
 import { API_BASE } from "@/lib/api";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, ExternalLink, Key, Shield, X, Save, ChevronDown, ChevronUp, Rss, Plus, Trash2, RotateCcw } from "lucide-react";
+import { Settings, ExternalLink, Key, Shield, X, Save, ChevronDown, ChevronUp, Rss, Plus, Trash2, RotateCcw, Eye, EyeOff } from "lucide-react";
 
 interface ApiEntry {
     id: string;
@@ -23,6 +23,7 @@ interface FeedEntry {
     url: string;
     weight: number;
     weights?: number[];
+    map_visible?: boolean;
     categories?: string[];
 }
 
@@ -113,6 +114,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                     weights: Array.isArray(f.weights) && f.weights.length > 0
                         ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
                         : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
+                    map_visible: Boolean(f.map_visible),
                     categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
                 }));
                 setFeeds(normalised);
@@ -222,6 +224,12 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
         setFeedMsg(null);
     };
 
+    const toggleFeedMapVisibility = (idx: number) => {
+        setFeeds(prev => prev.map((f, i) => i === idx ? { ...f, map_visible: !Boolean(f.map_visible) } : f));
+        setFeedsDirty(true);
+        setFeedMsg(null);
+    };
+
     const removeFeed = (idx: number) => {
         setFeeds(prev => prev.filter((_, i) => i !== idx));
         setFeedsDirty(true);
@@ -277,6 +285,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
             weight: Array.isArray(f.weights) && f.weights.length > 0
                 ? Math.max(...f.weights)
                 : Math.max(1, Math.min(5, Number(f.weight) || 3)),
+            map_visible: Boolean(f.map_visible),
             categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
         }));
         try {
@@ -290,7 +299,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
             });
             if (res.ok) {
                 setFeedsDirty(false);
-                setFeedMsg({ type: "ok", text: "Feeds saved. Changes take effect on next news refresh (~30min) or manual /api/refresh." });
+                setFeedMsg({ type: "ok", text: "Feeds saved. News refresh triggered in background; map pings will update as soon as new feed data is fetched." });
             } else {
                 const d = await res.json().catch(() => ({}));
                 setFeedMsg({ type: "err", text: d.message || "Save failed" });
@@ -313,6 +322,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                     weights: Array.isArray(f.weights) && f.weights.length > 0
                         ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
                         : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
+                    map_visible: Boolean(f.map_visible),
                     categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
                 }));
                 setFeeds(normalised);
@@ -601,6 +611,13 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                         {WEIGHT_LABELS[(Array.isArray(feed.weights) && feed.weights.length > 0 ? Math.max(...feed.weights) : feed.weight)] || "STD"}
                                                     </span>
                                                 </div>
+                                                <button
+                                                    onClick={() => toggleFeedMapVisibility(idx)}
+                                                    className={`w-6 h-6 rounded flex items-center justify-center transition-all ${feed.map_visible ? "text-cyan-300 bg-cyan-900/20 border border-cyan-500/40" : "text-[var(--text-muted)] border border-[var(--border-primary)]/40 hover:text-cyan-300 hover:border-cyan-500/40"}`}
+                                                    title={feed.map_visible ? "Map-visible only mode: ON for this feed" : "Map-visible only mode: OFF for this feed"}
+                                                >
+                                                    {feed.map_visible ? <Eye size={11} /> : <EyeOff size={11} />}
+                                                </button>
                                                 <button
                                                     onClick={() => removeFeed(idx)}
                                                     className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-950/20 transition-all opacity-0 group-hover:opacity-100"
