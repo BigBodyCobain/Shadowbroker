@@ -6,7 +6,7 @@ import Map, { Source, Layer, MapRef, ViewState, Popup, Marker } from "react-map-
 import "maplibre-gl/dist/maplibre-gl.css";
 import { computeNightPolygon } from "@/utils/solarTerminator";
 import { interpolatePosition } from "@/utils/positioning";
-import { darkStyle, lightStyle } from "@/components/map/styles/mapStyles";
+import { darkStyle, lightStyle, streetsStyle, terrainStyle } from "@/components/map/styles/mapStyles";
 import ScaleBar from "@/components/ScaleBar";
 import maplibregl from "maplibre-gl";
 import { AlertTriangle, Radio, Globe, Activity, Play } from "lucide-react";
@@ -57,11 +57,18 @@ import {
     type FlightLayerConfig,
 } from "@/components/map/geoJSONBuilders";
 
-const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, selectedEntity, onMouseCoords, onRightClick, regionDossier, regionDossierLoading, onViewStateChange, measureMode, onMeasureClick, measurePoints, gibsDate, gibsOpacity, viewBoundsRef, setTrackedSdr }: MaplibreViewerProps) => {
+const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocation, selectedEntity, onMouseCoords, onRightClick, regionDossier, regionDossierLoading, onViewStateChange, measureMode, onMeasureClick, measurePoints, gibsDate, gibsOpacity, viewBoundsRef, setTrackedSdr }: MaplibreViewerProps) => {
     const mapRef = useRef<MapRef>(null);
     const [mapReady, setMapReady] = useState(false);
     const { theme } = useTheme();
-    const mapThemeStyle = useMemo(() => theme === 'light' ? lightStyle : darkStyle, [theme]);
+    const mapThemeStyle = useMemo(() => {
+        const stylePreset = effects?.style;
+        if (stylePreset === "LIGHT") return lightStyle;
+        if (stylePreset === "DARK") return darkStyle;
+        if (stylePreset === "STREETS") return streetsStyle;
+        if (stylePreset === "TERRAIN") return terrainStyle;
+        return theme === "light" ? lightStyle : darkStyle;
+    }, [theme, effects?.style]);
 
     const [viewState, setViewState] = useState<ViewState>({
         longitude: 0,

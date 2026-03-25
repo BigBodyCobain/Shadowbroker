@@ -179,7 +179,7 @@ export default function Dashboard() {
   });
 
   const [activeStyle, setActiveStyle] = useState('DEFAULT');
-  const stylesList = ['DEFAULT', 'SATELLITE'];
+  const stylesList = ['DEFAULT', 'SATELLITE', 'STREETS', 'TERRAIN', 'LIGHT', 'DARK'];
 
   const cycleStyle = () => {
     setActiveStyle((prev) => {
