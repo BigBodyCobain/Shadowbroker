@@ -30,6 +30,7 @@ const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ss
 const STYLE_STORAGE_KEY = "sb_map_style";
 const STYLE_OPTIONS = ["DEFAULT", "SATELLITE", "STREETS", "TERRAIN", "LIGHT", "DARK"] as const;
 type StyleOption = (typeof STYLE_OPTIONS)[number];
+const DEFAULT_STYLE: StyleOption = "SATELLITE";
 
 /* ── LOCATE BAR ── coordinate / place-name search above bottom status bar ── */
 function LocateBar({ onLocate }: { onLocate: (lat: number, lng: number) => void }) {
@@ -142,25 +143,24 @@ export default function Dashboard() {
   const [measurePoints, setMeasurePoints] = useState<{ lat: number; lng: number }[]>([]);
 
   const [activeLayers, setActiveLayers] = useState({
-    flights: true,
-    private: true,
-    jets: true,
-    military: true,
-    tracked: true,
-    satellites: true,
-    ships_military: true,
-    ships_cargo: true,
+    flights: false,
+    private: false,
+    jets: false,
+    military: false,
+    tracked: false,
+    satellites: false,
+    ships_military: false,
+    ships_cargo: false,
     ships_civilian: false,
-    ships_passenger: true,
-    ships_tracked_yachts: true,
-    earthquakes: true,
+    ships_passenger: false,
+    ships_tracked_yachts: false,
+    earthquakes: false,
     cctv: false,
-    ukraine_frontline: true,
+    ukraine_frontline: false,
     global_incidents: true,
-    day_night: true,
-    gps_jamming: true,
+    day_night: false,
+    gps_jamming: false,
     gibs_imagery: false,
-    highres_satellite: false,
     kiwisdr: false,
     firms: false,
     internet_outages: false,
@@ -182,9 +182,9 @@ export default function Dashboard() {
   });
 
   const [activeStyle, setActiveStyle] = useState<StyleOption>(() => {
-    if (typeof window === "undefined") return "DEFAULT";
+    if (typeof window === "undefined") return DEFAULT_STYLE;
     const saved = window.localStorage.getItem(STYLE_STORAGE_KEY);
-    return (saved && (STYLE_OPTIONS as readonly string[]).includes(saved)) ? (saved as StyleOption) : "DEFAULT";
+    return (saved && (STYLE_OPTIONS as readonly string[]).includes(saved)) ? (saved as StyleOption) : DEFAULT_STYLE;
   });
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const styleMenuRef = useRef<HTMLDivElement | null>(null);
@@ -198,11 +198,6 @@ export default function Dashboard() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STYLE_STORAGE_KEY, activeStyle);
     }
-    // Auto-toggle High-Res Satellite layer with SATELLITE style
-    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "SATELLITE")
-      ? l
-      : { ...l, highres_satellite: activeStyle === "SATELLITE" }
-    ));
   }, [activeStyle]);
 
   useEffect(() => {
