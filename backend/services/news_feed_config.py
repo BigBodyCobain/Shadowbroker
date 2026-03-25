@@ -24,29 +24,6 @@ NEWS_CATEGORIES = [
 DEFAULT_SELECTED_CATEGORIES = [ALL_CATEGORIES_VALUE]
 
 
-def _default_categories_for_feed(name: str, url: str) -> list[str]:
-    """Infer sensible defaults for legacy feeds that don't have categories yet."""
-    text = f"{name} {url}".lower()
-    matched: list[str] = []
-    if any(k in text for k in ("ship", "vessel", "marine", "port", "maritime")):
-        matched.append("Maritime / Shipping")
-    if any(k in text for k in ("air", "aviation", "flight", "aero", "defense")):
-        matched.append("Air Traffic / Aviation")
-    if any(k in text for k in ("cyber", "hack", "infosec", "security")):
-        matched.append("Cyber Hacks")
-    if any(k in text for k in ("crypto", "bitcoin", "ethereum", "blockchain", "coin")):
-        matched.append("Crypto")
-    if any(k in text for k in ("osint", "intel", "bellingcat", "oryx")):
-        matched.append("OSINT")
-    if any(k in text for k in ("market", "finance", "macro", "economy", "bank", "fed")):
-        matched.append("Finance")
-    if any(k in text for k in ("crime", "police", "law")):
-        matched.append("Police Events / Big Crime")
-    if not matched:
-        matched.append("War / Conflict Events")
-    return matched
-
-
 def _normalise_categories(value, *, allow_all: bool = False) -> list[str]:
     values = value if isinstance(value, list) else [value]
     cleaned: list[str] = []
@@ -132,7 +109,7 @@ def get_feeds() -> list[dict]:
                     )
                     categories = _normalise_categories(
                         f.get("categories", f.get("category", []))
-                    ) or _default_categories_for_feed(name, url)
+                    )
                     normalised.append({
                         "name": name,
                         "url": url,
@@ -169,7 +146,7 @@ def save_feeds(feeds: list[dict]) -> bool:
         )
         categories = _normalise_categories(
             f.get("categories", f.get("category", []))
-        ) or _default_categories_for_feed(name, url)
+        )
         # Normalise
         f["name"] = name
         f["url"] = url
