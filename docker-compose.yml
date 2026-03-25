@@ -38,6 +38,7 @@ services:
       # Points the Next.js server-side proxy at the backend container via Docker networking.
       # Change this if your backend runs on a different host or port.
       - BACKEND_URL=http://backend:8000
+      - HOST=${HOST:-127.0.0.1}
     depends_on:
       backend:
         condition: service_healthy

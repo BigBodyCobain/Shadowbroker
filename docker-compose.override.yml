@@ -1,0 +1,6 @@
+# docker-compose.override.yml (automatically loaded)
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
