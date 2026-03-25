@@ -12,7 +12,7 @@ CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
 MAX_FEEDS = 25
 
 DEFAULT_FEEDS = [
-    {"name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 4},
+    {"name": "ZeroHedge", "url": "https://cms.zerohedge.com/fullrss2.xml", "weight": 4},
     {"name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3},
     {"name": "AlJazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml", "weight": 2},
     {"name": "NYT", "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", "weight": 1},

@@ -1,8 +1,8 @@
 {
   "feeds": [
     {
-      "name": "NPR",
-      "url": "https://feeds.npr.org/1004/rss.xml",
+      "name": "ZeroHedge",
+      "url": "https://cms.zerohedge.com/fullrss2.xml",
       "weight": 4
     },
     {
