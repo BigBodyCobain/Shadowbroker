@@ -462,7 +462,15 @@ async def api_update_key(request: Request, body: ApiKeyUpdate):
 # ---------------------------------------------------------------------------
 # News Feed Configuration
 # ---------------------------------------------------------------------------
-from services.news_feed_config import get_feeds, save_feeds, reset_feeds
+from services.news_feed_config import (
+    get_feeds,
+    save_feeds,
+    reset_feeds,
+    get_selected_categories,
+    save_selected_categories,
+    NEWS_CATEGORIES,
+    ALL_CATEGORIES_VALUE,
+)
 
 @app.get("/api/settings/news-feeds")
 @limiter.limit("30/minute")
@@ -473,11 +481,42 @@ async def api_get_news_feeds(request: Request):
 @limiter.limit("10/minute")
 async def api_save_news_feeds(request: Request):
     body = await request.json()
-    ok = save_feeds(body)
+    if isinstance(body, dict):
+        feeds_payload = body.get("feeds", [])
+        selected_payload = body.get("selected_categories")
+        ok = save_feeds(feeds_payload)
+        if ok and isinstance(selected_payload, list):
+            ok = save_selected_categories(selected_payload)
+    else:
+        ok = save_feeds(body)
     if ok:
-        return {"status": "updated", "count": len(body)}
+        count = len(body.get("feeds", [])) if isinstance(body, dict) else len(body)
+        return {"status": "updated", "count": count}
     return Response(
-        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 20 feeds, each needs name/url/weight 1-5)"}),
+        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 50 feeds, each needs name/url/weight 1-5, with valid categories)"}),
+        status_code=400,
+        media_type="application/json",
+    )
+
+@app.get("/api/settings/news-feed-categories")
+@limiter.limit("30/minute")
+async def api_get_news_feed_categories(request: Request):
+    return {
+        "available_categories": NEWS_CATEGORIES,
+        "all_value": ALL_CATEGORIES_VALUE,
+        "selected_categories": get_selected_categories(),
+    }
+
+@app.put("/api/settings/news-feed-categories", dependencies=[Depends(require_admin)])
+@limiter.limit("10/minute")
+async def api_save_news_feed_categories(request: Request):
+    body = await request.json()
+    categories = body if isinstance(body, list) else body.get("selected_categories", [])
+    ok = save_selected_categories(categories)
+    if ok:
+        return {"status": "updated", "selected_categories": get_selected_categories()}
+    return Response(
+        content=json_mod.dumps({"status": "error", "message": "Validation failed for selected categories"}),
         status_code=400,
         media_type="application/json",
     )
@@ -487,7 +526,11 @@ async def api_save_news_feeds(request: Request):
 async def api_reset_news_feeds(request: Request):
     ok = reset_feeds()
     if ok:
-        return {"status": "reset", "feeds": get_feeds()}
+        return {
+            "status": "reset",
+            "feeds": get_feeds(),
+            "selected_categories": get_selected_categories(),
+        }
     return {"status": "error", "message": "Failed to reset feeds"}
 
 # ---------------------------------------------------------------------------

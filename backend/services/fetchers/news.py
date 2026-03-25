@@ -1,5 +1,6 @@
 """News fetching, geocoding, clustering, and risk assessment."""
 import re
+import html
 import logging
 import concurrent.futures
 import requests
@@ -9,6 +10,56 @@ from services.fetchers._store import latest_data, _data_lock, _mark_fresh
 from services.fetchers.retry import with_retry
 
 logger = logging.getLogger("services.data_fetcher")
+
+_IMG_RE = re.compile(
+    r"""<img[^>]+src=["']([^"']+)["']|href=["']([^"']+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^"']*)?)["']""",
+    re.IGNORECASE,
+)
+
+
+def _extract_featured_image(entry) -> str | None:
+    """Extract best-effort featured image URL from RSS entry."""
+    # 1) links/enclosure (standard RSS enclosure)
+    for link in entry.get("links", []) or []:
+        if not isinstance(link, dict):
+            continue
+        href = link.get("href", "")
+        rel = str(link.get("rel", "")).lower()
+        mime = str(link.get("type", "")).lower()
+        if href and ("image/" in mime or rel == "enclosure"):
+            if href.startswith("http://") or href.startswith("https://"):
+                return href
+
+    # 2) media_content / media_thumbnail (Media RSS)
+    for key in ("media_content", "media_thumbnail"):
+        media_list = entry.get(key, []) or []
+        for media in media_list:
+            if not isinstance(media, dict):
+                continue
+            url = media.get("url", "")
+            if url and (url.startswith("http://") or url.startswith("https://")):
+                return url
+
+    # 3) content/summary HTML <img src=...> fallback
+    html_blocks: list[str] = []
+    for c in entry.get("content", []) or []:
+        if isinstance(c, dict):
+            val = c.get("value", "")
+            if isinstance(val, str):
+                html_blocks.append(val)
+    summary = entry.get("summary", "")
+    if isinstance(summary, str) and summary:
+        html_blocks.append(summary)
+
+    for block in html_blocks:
+        decoded = html.unescape(block)
+        m = _IMG_RE.search(decoded)
+        if not m:
+            continue
+        url = m.group(1) or m.group(2)
+        if url and (url.startswith("http://") or url.startswith("https://")):
+            return url
+    return None
 
 
 # Keyword -> coordinate mapping for geocoding news articles
@@ -153,8 +204,27 @@ def _resolve_coords(text: str) -> tuple[float, float] | None:
 
 @with_retry(max_retries=1, base_delay=2)
 def fetch_news():
-    from services.news_feed_config import get_feeds
+    from services.news_feed_config import (
+        get_feeds,
+        get_selected_categories,
+        ALL_CATEGORIES_VALUE,
+    )
     feed_config = get_feeds()
+    selected_categories = get_selected_categories()
+    all_selected = ALL_CATEGORIES_VALUE in selected_categories
+    if not all_selected:
+        selected_set = set(selected_categories)
+        feed_config = [
+            f for f in feed_config
+            if selected_set.intersection(set(f.get("categories", [])))
+        ]
+    if not feed_config:
+        logger.warning("News fetch skipped: no feeds match selected categories")
+        with _data_lock:
+            latest_data['news'] = []
+        _mark_fresh("news")
+        return
+
     feeds = {f["name"]: f["url"] for f in feed_config}
     source_weights = {f["name"]: f["weight"] for f in feed_config}
 
@@ -179,6 +249,7 @@ def fetch_news():
         for entry in feed.entries[:5]:
             title = entry.get('title', '')
             summary = entry.get('summary', '')
+            featured_image = _extract_featured_image(entry)
 
             _seismic_kw = ["earthquake", "seismic", "quake", "tremor", "magnitude", "richter"]
             _text_lower = (title + " " + summary).lower()
@@ -246,7 +317,8 @@ def fetch_news():
                 "published": entry.get('published', ''),
                 "source": source_name,
                 "risk_score": risk_score,
-                "coords": [lat, lng] if lat is not None else None
+                "coords": [lat, lng] if lat is not None else None,
+                "featured_image": featured_image,
             })
 
     news_items = []
@@ -262,6 +334,7 @@ def fetch_news():
             "source": top_article["source"],
             "risk_score": max_risk,
             "coords": top_article["coords"],
+            "featured_image": top_article.get("featured_image"),
             "cluster_count": len(articles),
             "articles": articles,
             "machine_assessment": None

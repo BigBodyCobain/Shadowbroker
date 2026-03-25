@@ -1,7 +1,7 @@
 "use client";
 
 import { API_BASE } from "@/lib/api";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, ExternalLink, Key, Shield, X, Save, ChevronDown, ChevronUp, Rss, Plus, Trash2, RotateCcw } from "lucide-react";
 
@@ -22,6 +22,8 @@ interface FeedEntry {
     name: string;
     url: string;
     weight: number;
+    weights?: number[];
+    categories?: string[];
 }
 
 const WEIGHT_LABELS: Record<number, string> = { 1: "LOW", 2: "MED", 3: "STD", 4: "HIGH", 5: "CRIT" };
@@ -32,7 +34,18 @@ const WEIGHT_COLORS: Record<number, string> = {
     4: "text-orange-400 border-orange-600",
     5: "text-red-400 border-red-600",
 };
-const MAX_FEEDS = 20;
+const MAX_FEEDS = 50;
+const ALL_NEWS_CATEGORY_VALUE = "all";
+const DEFAULT_NEWS_CATEGORIES = [
+    "Maritime / Shipping",
+    "Air Traffic / Aviation",
+    "War / Conflict Events",
+    "Cyber Hacks",
+    "Police Events / Big Crime",
+    "Finance",
+    "Crypto",
+    "OSINT",
+];
 
 // Category colors for the tactical UI
 const CATEGORY_COLORS: Record<string, string> = {
@@ -75,6 +88,9 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
     const [feedsDirty, setFeedsDirty] = useState(false);
     const [feedSaving, setFeedSaving] = useState(false);
     const [feedMsg, setFeedMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+    const [availableNewsCategories, setAvailableNewsCategories] = useState<string[]>(DEFAULT_NEWS_CATEGORIES);
+    const [selectedNewsCategories, setSelectedNewsCategories] = useState<string[]>([ALL_NEWS_CATEGORY_VALUE]);
+    const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
 
     const fetchKeys = useCallback(async () => {
         try {
@@ -91,7 +107,15 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
         try {
             const res = await fetch(`${API_BASE}/api/settings/news-feeds`);
             if (res.ok) {
-                setFeeds(await res.json());
+                const rawFeeds = await res.json();
+                const normalised = (Array.isArray(rawFeeds) ? rawFeeds : []).map((f: FeedEntry) => ({
+                    ...f,
+                    weights: Array.isArray(f.weights) && f.weights.length > 0
+                        ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
+                        : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
+                    categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+                }));
+                setFeeds(normalised);
                 setFeedsDirty(false);
             }
         } catch (e) {
@@ -99,12 +123,31 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
         }
     }, []);
 
+    const fetchNewsCategories = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/settings/news-feed-categories`);
+            if (!res.ok) return;
+            const json = await res.json();
+            const available = Array.isArray(json.available_categories) && json.available_categories.length > 0
+                ? json.available_categories
+                : DEFAULT_NEWS_CATEGORIES;
+            const selected = Array.isArray(json.selected_categories) && json.selected_categories.length > 0
+                ? json.selected_categories
+                : [ALL_NEWS_CATEGORY_VALUE];
+            setAvailableNewsCategories(available);
+            setSelectedNewsCategories(selected);
+        } catch (e) {
+            console.error("Failed to fetch news feed categories", e);
+        }
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
             fetchKeys();
             fetchFeeds();
+            fetchNewsCategories();
         }
-    }, [isOpen, fetchKeys, fetchFeeds]);
+    }, [isOpen, fetchKeys, fetchFeeds, fetchNewsCategories]);
 
     // API Keys handlers
     const startEditing = (api: ApiEntry) => { setEditingId(api.id); setEditValue(""); };
@@ -145,6 +188,40 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
         setFeedMsg(null);
     };
 
+    const toggleFeedWeight = (idx: number, weightValue: number) => {
+        setFeeds(prev => prev.map((f, i) => {
+            if (i !== idx) return f;
+            const current = Array.isArray(f.weights) && f.weights.length > 0
+                ? [...new Set(f.weights.filter(w => Number.isInteger(w) && w >= 1 && w <= 5))]
+                : [Math.max(1, Math.min(5, Number(f.weight) || 3))];
+
+            const exists = current.includes(weightValue);
+            if (exists) {
+                // Keep at least one active weight at all times.
+                if (current.length === 1) return f;
+                const next = current.filter(w => w !== weightValue).sort((a, b) => a - b);
+                return { ...f, weights: next, weight: Math.max(...next) };
+            }
+
+            const next = [...current, weightValue].sort((a, b) => a - b);
+            return { ...f, weights: next, weight: Math.max(...next) };
+        }));
+        setFeedsDirty(true);
+        setFeedMsg(null);
+    };
+
+    const toggleFeedCategory = (idx: number, category: string) => {
+        setFeeds(prev => prev.map((f, i) => {
+            if (i !== idx) return f;
+            const current = Array.isArray(f.categories) ? f.categories : [];
+            const exists = current.includes(category);
+            const next = exists ? current.filter(c => c !== category) : [...current, category];
+            return { ...f, categories: next.length > 0 ? next : [category] };
+        }));
+        setFeedsDirty(true);
+        setFeedMsg(null);
+    };
+
     const removeFeed = (idx: number) => {
         setFeeds(prev => prev.filter((_, i) => i !== idx));
         setFeedsDirty(true);
@@ -153,19 +230,63 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
 
     const addFeed = () => {
         if (feeds.length >= MAX_FEEDS) return;
-        setFeeds(prev => [...prev, { name: "", url: "", weight: 3 }]);
+        setFeeds(prev => [...prev, { name: "", url: "", weight: 3, weights: [3], categories: ["War / Conflict Events"] }]);
         setFeedsDirty(true);
         setFeedMsg(null);
     };
 
+    const toggleNewsCategoryFilter = (category: string) => {
+        setSelectedNewsCategories(prev => {
+            if (category === ALL_NEWS_CATEGORY_VALUE) {
+                return [ALL_NEWS_CATEGORY_VALUE];
+            }
+            const withoutAll = prev.filter(c => c !== ALL_NEWS_CATEGORY_VALUE);
+            const hasCategory = withoutAll.includes(category);
+            if (hasCategory) {
+                const next = withoutAll.filter(c => c !== category);
+                return next.length > 0 ? next : [ALL_NEWS_CATEGORY_VALUE];
+            }
+            return [...withoutAll, category];
+        });
+        setFeedsDirty(true);
+        setFeedMsg(null);
+    };
+
+    const isFeedEnabledByCategory = useCallback((feed: FeedEntry) => {
+        if (selectedNewsCategories.includes(ALL_NEWS_CATEGORY_VALUE)) return true;
+        const categories = Array.isArray(feed.categories) ? feed.categories : [];
+        return categories.some(c => selectedNewsCategories.includes(c));
+    }, [selectedNewsCategories]);
+
+    const visibleFeedIndexes = useMemo(
+        () => feeds
+            .map((feed, idx) => ({ feed, idx }))
+            .filter(({ feed }) => isFeedEnabledByCategory(feed))
+            .map(({ idx }) => idx),
+        [feeds, isFeedEnabledByCategory]
+    );
+
     const saveFeeds = async () => {
         setFeedSaving(true);
         setFeedMsg(null);
+        const payloadFeeds = feeds.map(f => ({
+            ...f,
+            weights: Array.isArray(f.weights) && f.weights.length > 0
+                ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
+                : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
+            weight: Array.isArray(f.weights) && f.weights.length > 0
+                ? Math.max(...f.weights)
+                : Math.max(1, Math.min(5, Number(f.weight) || 3)),
+            categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+        }));
         try {
             const res = await fetch(`${API_BASE}/api/settings/news-feeds`, {
                 method: "PUT",
                 headers: adminHeaders({ "Content-Type": "application/json" }),
-                body: JSON.stringify(feeds),
+                body: JSON.stringify({
+                    feeds: payloadFeeds,
+                    selected_categories: selectedNewsCategories,
+                }),
             });
             if (res.ok) {
                 setFeedsDirty(false);
@@ -187,7 +308,19 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
             });
             if (res.ok) {
                 const d = await res.json();
-                setFeeds(d.feeds || []);
+                const normalised = (Array.isArray(d.feeds) ? d.feeds : []).map((f: FeedEntry) => ({
+                    ...f,
+                    weights: Array.isArray(f.weights) && f.weights.length > 0
+                        ? [...new Set(f.weights.filter((w) => Number.isInteger(w) && w >= 1 && w <= 5))].sort((a, b) => a - b)
+                        : [Math.max(1, Math.min(5, Number(f.weight) || 3))],
+                    categories: Array.isArray(f.categories) && f.categories.length > 0 ? f.categories : ["War / Conflict Events"],
+                }));
+                setFeeds(normalised);
+                if (Array.isArray(d.selected_categories) && d.selected_categories.length > 0) {
+                    setSelectedNewsCategories(d.selected_categories);
+                } else {
+                    setSelectedNewsCategories([ALL_NEWS_CATEGORY_VALUE]);
+                }
                 setFeedsDirty(false);
                 setFeedMsg({ type: "ok", text: "Reset to defaults" });
             }
@@ -390,9 +523,58 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                     </div>
                                 </div>
 
+                                {/* Category Filter */}
+                                <div className="mx-4 mt-3 rounded-lg border border-[var(--border-primary)]/60 bg-[var(--bg-primary)]/30">
+                                    <button
+                                        onClick={() => setCategoryFilterOpen(v => !v)}
+                                        className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-[var(--bg-secondary)]/40 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-mono tracking-widest text-orange-300">CATEGORY FILTER</span>
+                                            <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                                                {selectedNewsCategories.includes(ALL_NEWS_CATEGORY_VALUE)
+                                                    ? "ALL (DEFAULT)"
+                                                    : `${selectedNewsCategories.length} SELECTED`}
+                                            </span>
+                                        </div>
+                                        {categoryFilterOpen ? <ChevronUp size={12} className="text-[var(--text-muted)]" /> : <ChevronDown size={12} className="text-[var(--text-muted)]" />}
+                                    </button>
+                                    <AnimatePresence>
+                                        {categoryFilterOpen && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: "auto", opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="px-3 pb-3 overflow-hidden"
+                                            >
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <button
+                                                        onClick={() => toggleNewsCategoryFilter(ALL_NEWS_CATEGORY_VALUE)}
+                                                        className={`px-2 py-1 rounded border text-[9px] font-mono transition-colors ${selectedNewsCategories.includes(ALL_NEWS_CATEGORY_VALUE) ? "text-orange-300 border-orange-500/50 bg-orange-950/30" : "text-[var(--text-muted)] border-[var(--border-primary)] hover:border-orange-500/40"}`}
+                                                    >
+                                                        ALL (DEFAULT)
+                                                    </button>
+                                                    {availableNewsCategories.map(cat => (
+                                                        <button
+                                                            key={cat}
+                                                            onClick={() => toggleNewsCategoryFilter(cat)}
+                                                            className={`px-2 py-1 rounded border text-[9px] font-mono transition-colors ${selectedNewsCategories.includes(cat) ? "text-cyan-300 border-cyan-500/50 bg-cyan-950/30" : "text-[var(--text-muted)] border-[var(--border-primary)] hover:border-cyan-500/40"}`}
+                                                        >
+                                                            {cat}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
                                 {/* Feed List */}
                                 <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-2">
-                                    {feeds.map((feed, idx) => (
+                                    {visibleFeedIndexes.map((idx) => {
+                                        const feed = feeds[idx];
+                                        if (!feed) return null;
+                                        return (
                                         <div key={idx} className="rounded-lg border border-[var(--border-primary)]/60 p-3 hover:border-[var(--border-secondary)]/60 transition-colors group">
                                             {/* Row 1: Name + Weight + Delete */}
                                             <div className="flex items-center gap-2 mb-2">
@@ -408,15 +590,15 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                     {[1, 2, 3, 4, 5].map(w => (
                                                         <button
                                                             key={w}
-                                                            onClick={() => updateFeed(idx, "weight", w)}
-                                                            className={`w-5 h-5 rounded text-[8px] font-mono font-bold border transition-all ${feed.weight === w ? WEIGHT_COLORS[w] + " bg-black/40" : "border-[var(--border-primary)]/40 text-[var(--text-muted)]/50 hover:border-[var(--border-secondary)]"}`}
+                                                            onClick={() => toggleFeedWeight(idx, w)}
+                                                            className={`w-5 h-5 rounded text-[8px] font-mono font-bold border transition-all ${(Array.isArray(feed.weights) ? feed.weights : [feed.weight]).includes(w) ? WEIGHT_COLORS[w] + " bg-black/40" : "border-[var(--border-primary)]/40 text-[var(--text-muted)]/50 hover:border-[var(--border-secondary)]"}`}
                                                             title={WEIGHT_LABELS[w]}
                                                         >
                                                             {w}
                                                         </button>
                                                     ))}
-                                                    <span className={`text-[8px] font-mono ml-1 w-7 ${WEIGHT_COLORS[feed.weight]?.split(" ")[0] || "text-gray-400"}`}>
-                                                        {WEIGHT_LABELS[feed.weight] || "STD"}
+                                                    <span className={`text-[8px] font-mono ml-1 w-7 ${WEIGHT_COLORS[(Array.isArray(feed.weights) && feed.weights.length > 0 ? Math.max(...feed.weights) : feed.weight)]?.split(" ")[0] || "text-gray-400"}`}>
+                                                        {WEIGHT_LABELS[(Array.isArray(feed.weights) && feed.weights.length > 0 ? Math.max(...feed.weights) : feed.weight)] || "STD"}
                                                     </span>
                                                 </div>
                                                 <button
@@ -427,6 +609,21 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                     <Trash2 size={11} />
                                                 </button>
                                             </div>
+                                            {/* Row 2: Categories */}
+                                            <div className="mb-2 flex flex-wrap gap-1.5">
+                                                {availableNewsCategories.map(cat => {
+                                                    const selected = Array.isArray(feed.categories) && feed.categories.includes(cat);
+                                                    return (
+                                                        <button
+                                                            key={cat}
+                                                            onClick={() => toggleFeedCategory(idx, cat)}
+                                                            className={`px-2 py-1 rounded border text-[8px] font-mono transition-colors ${selected ? "text-cyan-300 border-cyan-500/50 bg-cyan-950/30" : "text-[var(--text-muted)] border-[var(--border-primary)] hover:border-cyan-500/40"}`}
+                                                        >
+                                                            {cat}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                             {/* Row 2: URL */}
                                             <input
                                                 type="text"
@@ -436,7 +633,8 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                                 placeholder="https://example.com/rss.xml"
                                             />
                                         </div>
-                                    ))}
+                                        );
+                                    })}
 
                                     {/* Add Feed Button */}
                                     <button
@@ -478,7 +676,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                                     </div>
                                     <div className="flex items-center justify-between text-[9px] text-[var(--text-muted)] font-mono mt-2">
                                         <span>{feeds.length}/{MAX_FEEDS} SOURCES</span>
-                                        <span>WEIGHT: 1=LOW  5=CRITICAL</span>
+                                        <span>SHOWING {visibleFeedIndexes.length}  WEIGHT: 1=LOW  5=CRITICAL</span>
                                     </div>
                                 </div>
                             </>
