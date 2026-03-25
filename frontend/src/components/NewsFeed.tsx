@@ -51,6 +51,48 @@ function formatTime(pubDate: string) {
     }
 }
 
+function formatDateTime(pubDate?: string) {
+    if (!pubDate) return "UNKNOWN";
+    try {
+        const d = new Date(pubDate);
+        if (Number.isNaN(d.getTime())) return pubDate;
+        return d.toLocaleString();
+    } catch {
+        return pubDate;
+    }
+}
+
+const NEWS_DETAIL_LABELS: Record<string, string> = {
+    source: "SOURCE",
+    published: "PUBLISHED",
+    pub_date: "PUBLISHED",
+    risk_score: "THREAT LEVEL",
+    cluster_count: "CLUSTER SIZE",
+    coords: "COORDS",
+    region: "REGION",
+    category: "CATEGORY",
+};
+
+function formatNewsDetailValue(key: string, value: any): string {
+    if (value == null) return "N/A";
+    if (key === "risk_score") return `${value}/10`;
+    if (key === "published" || key === "pub_date") return formatDateTime(String(value));
+    if (key === "coords" && Array.isArray(value) && value.length >= 2) {
+        const lat = typeof value[0] === "number" ? value[0].toFixed(3) : String(value[0]);
+        const lng = typeof value[1] === "number" ? value[1].toFixed(3) : String(value[1]);
+        return `${lat}, ${lng}`;
+    }
+    if (Array.isArray(value)) {
+        const text = value.map(v => typeof v === "string" ? v : JSON.stringify(v)).join(", ");
+        return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+    }
+    if (typeof value === "object") {
+        const text = JSON.stringify(value);
+        return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+    }
+    return String(value);
+}
+
 // ICAO type designator → Wikipedia article title
 const AIRCRAFT_WIKI: Record<string, string> = {
     // Boeing widebodies
@@ -763,6 +805,10 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
     if (selectedEntity?.type === 'news') {
         const item = data?.news?.[selectedEntity.id as number];
         if (item) {
+            const detailEntries = Object.entries(item).filter(([key]) =>
+                !["title", "link", "machine_assessment", "articles", "featured_image"].includes(key)
+            );
+            const relatedArticles = Array.isArray(item.articles) ? item.articles : [];
             return (
                 <motion.div
                     initial={{ y: 50, opacity: 0 }}
@@ -786,11 +832,62 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             <span className="text-[var(--text-muted)] text-[10px]">HEADLINE</span>
                             <span className="text-red-400 text-xs font-bold leading-tight">{item.title}</span>
                         </div>
+                        {item.featured_image && (
+                            <div className="border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px]">FEATURED IMAGE</span>
+                                <img
+                                    src={item.featured_image}
+                                    alt={item.title || "Featured image"}
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer"
+                                    className="mt-1.5 w-full h-32 object-cover rounded border border-red-900/40"
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                />
+                            </div>
+                        )}
+                        {detailEntries.length > 0 && (
+                            <div className="border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px]">DETAILS</span>
+                                <div className="mt-1.5 flex flex-col gap-1.5">
+                                    {detailEntries.map(([key, value]) => (
+                                        <div key={key} className="flex justify-between items-start gap-3">
+                                            <span className="text-[var(--text-muted)] text-[9px] tracking-wider">
+                                                {NEWS_DETAIL_LABELS[key] || key.replace(/_/g, " ").toUpperCase()}
+                                            </span>
+                                            <span className="text-[var(--text-primary)] text-[10px] text-right max-w-[70%] break-words">
+                                                {formatNewsDetailValue(key, value)}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         {item.machine_assessment && (
                             <div className="mt-2 p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[9px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
                                 <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
                                 <span className="font-bold text-white">&gt;_ SYS.ANALYSIS: </span>
                                 <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
+                            </div>
+                        )}
+                        {relatedArticles.length > 0 && (
+                            <div className="mt-1 p-2 bg-black/40 border border-[var(--border-primary)] rounded-sm">
+                                <div className="text-[9px] text-cyan-500 font-bold mb-1.5">
+                                    RELATED ARTICLES ({relatedArticles.length})
+                                </div>
+                                <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto styled-scrollbar">
+                                    {relatedArticles.slice(0, 5).map((subItem: any, idx: number) => (
+                                        <a
+                                            key={`${subItem.link || idx}`}
+                                            href={subItem.link || item.link}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[9px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] leading-tight"
+                                        >
+                                            <span className="text-cyan-400">&gt;_ {subItem.source || "UNKNOWN"}: </span>
+                                            {subItem.title || "Untitled"}
+                                        </a>
+                                    ))}
+                                </div>
                             </div>
                         )}
                         {item.link && (
@@ -1021,6 +1118,16 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                     <a href={item.link} target="_blank" rel="noreferrer" className={`text-[11px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight`}>
                                         {item.title}
                                     </a>
+                                    {item.featured_image && (
+                                        <img
+                                            src={item.featured_image}
+                                            alt={item.title || "Featured image"}
+                                            loading="lazy"
+                                            referrerPolicy="no-referrer"
+                                            className="mt-1 w-full h-24 object-cover rounded border border-cyan-900/40"
+                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                        />
+                                    )}
 
                                     {item.machine_assessment && (
                                         <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[8.5px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">

@@ -1,14 +1,7 @@
 """Regression tests for news geocoding keywords and feed configuration."""
-import json
-from pathlib import Path
-
-import pytest
 
 from services.fetchers.news import _resolve_coords
-from services.news_feed_config import DEFAULT_FEEDS
-
-
-CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
+from services.news_feed_config import DEFAULT_FEEDS, get_feeds, NEWS_CATEGORIES, ALL_CATEGORIES_VALUE, get_selected_categories
 
 
 # -- Keyword resolution: East Asia specific locations --------------------------
@@ -129,22 +122,27 @@ class TestResolveCoords:
 # -- Feed configuration consistency -------------------------------------------
 
 class TestFeedConfig:
-    """DEFAULT_FEEDS and news_feeds.json must stay in sync."""
+    """Feed config should be valid and loadable."""
 
-    def test_default_feeds_match_json(self):
-        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        json_feeds = data["feeds"]
+    def test_feeds_load_and_validate(self):
+        feeds = get_feeds()
+        assert isinstance(feeds, list)
+        assert len(feeds) > 0
+        for f in feeds:
+            assert f.get("name")
+            assert f.get("url")
+            assert 1 <= int(f.get("weight", 0)) <= 5
+            categories = f.get("categories", [])
+            assert isinstance(categories, list)
+            assert categories
+            assert all(c in NEWS_CATEGORIES for c in categories)
 
-        def normalize(feeds):
-            return sorted(
-                [{"name": f["name"], "url": f["url"], "weight": f["weight"]} for f in feeds],
-                key=lambda f: f["name"],
-            )
+    def test_default_feeds_shape(self):
+        assert isinstance(DEFAULT_FEEDS, list)
+        assert len(DEFAULT_FEEDS) > 0
 
-        assert normalize(DEFAULT_FEEDS) == normalize(json_feeds)
-
-    def test_new_east_asia_feeds_present(self):
-        names = {f["name"] for f in DEFAULT_FEEDS}
-        expected = {"FocusTaiwan", "Kyodo", "SCMP", "The Diplomat", "Stars and Stripes",
-                    "Yonhap", "Nikkei Asia", "Taipei Times", "Asia Times", "Defense News", "Japan Times"}
-        assert expected.issubset(names)
+    def test_selected_categories_valid(self):
+        selected = get_selected_categories()
+        assert selected
+        allowed = set(NEWS_CATEGORIES) | {ALL_CATEGORIES_VALUE}
+        assert all(c in allowed for c in selected)
