@@ -233,6 +233,9 @@ def fetch_news():
 
     feeds = {f["name"]: f["url"] for f in feed_config}
     source_weights = {f["name"]: f["weight"] for f in feed_config}
+    source_allowed_weights = {
+        f["name"]: f.get("weights", [f.get("weight", 3)]) for f in feed_config
+    }
 
     clusters = {}
     _cluster_grid = {}
@@ -276,6 +279,13 @@ def fetch_news():
                     if kw in text:
                         risk_score += 2
                 risk_score = min(10, risk_score)
+
+            # Convert article risk (1-10) to a 1-5 weight bucket:
+            # 1-2->1, 3-4->2, 5-6->3, 7-8->4, 9-10->5.
+            article_weight_bucket = max(1, min(5, (risk_score + 1) // 2))
+            allowed_weights = source_allowed_weights.get(source_name, [3])
+            if article_weight_bucket not in allowed_weights:
+                continue
 
             lat, lng = None, None
 

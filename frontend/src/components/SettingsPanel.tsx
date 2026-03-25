@@ -93,6 +93,15 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
     const [selectedNewsCategories, setSelectedNewsCategories] = useState<string[]>([ALL_NEWS_CATEGORY_VALUE]);
     const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
 
+    const requestImmediateDashboardRefresh = () => {
+        if (typeof window === "undefined") return;
+        // Fire immediately and with short retries so we catch the backend's background news refresh completion.
+        const emit = () => window.dispatchEvent(new Event("sb:force-data-refresh"));
+        emit();
+        window.setTimeout(emit, 1200);
+        window.setTimeout(emit, 3200);
+    };
+
     const fetchKeys = useCallback(async () => {
         try {
             const res = await fetch(`${API_BASE}/api/settings/api-keys`, {
@@ -300,6 +309,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
             if (res.ok) {
                 setFeedsDirty(false);
                 setFeedMsg({ type: "ok", text: "Feeds saved. News refresh triggered in background; map pings will update as soon as new feed data is fetched." });
+                requestImmediateDashboardRefresh();
             } else {
                 const d = await res.json().catch(() => ({}));
                 setFeedMsg({ type: "err", text: d.message || "Save failed" });
@@ -333,6 +343,7 @@ const SettingsPanel = React.memo(function SettingsPanel({ isOpen, onClose }: { i
                 }
                 setFeedsDirty(false);
                 setFeedMsg({ type: "ok", text: "Reset to defaults" });
+                requestImmediateDashboardRefresh();
             }
         } catch (e) {
             setFeedMsg({ type: "err", text: "Reset failed" });
