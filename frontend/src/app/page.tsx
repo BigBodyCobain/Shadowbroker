@@ -286,7 +286,7 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-col">
               <h1 className="text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)] flex items-center gap-3" style={{ fontFamily: 'monospace' }}>
-                S H A D O W <span className="text-cyan-400">B R O K E R</span>
+                L U C K Y <span className="text-cyan-400">S T R I K E</span>
               </h1>
               <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-[0.3em] mt-1 ml-1">GLOBAL THREAT INTERCEPT</span>
             </div>
