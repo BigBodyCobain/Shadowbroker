@@ -124,9 +124,7 @@ jobs:
       - name: Create and push manifest
         working-directory: /tmp/digests/frontend
         run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
+          docker buildx imagetools create             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
 
   build-backend:
     runs-on: ${{ matrix.runner }}
@@ -239,6 +237,4 @@ jobs:
       - name: Create and push manifest
         working-directory: /tmp/digests/backend
         run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend@sha256:%s ' *)
+          docker buildx imagetools create             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend@sha256:%s ' *)
