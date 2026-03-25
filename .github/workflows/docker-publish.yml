@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
-
+  
 env:
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
@@ -124,7 +124,9 @@ jobs:
       - name: Create and push manifest
         working-directory: /tmp/digests/frontend
         run: |
-          docker buildx imagetools create             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
 
   build-backend:
     runs-on: ${{ matrix.runner }}
@@ -171,7 +173,6 @@ jobs:
         uses: docker/build-push-action@v5.0.0
         with:
           context: .
-          file: ./backend/Dockerfile
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -237,4 +238,6 @@ jobs:
       - name: Create and push manifest
         working-directory: /tmp/digests/backend
         run: |
-          docker buildx imagetools create             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON")             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend@sha256:%s ' *)
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend@sha256:%s ' *)
