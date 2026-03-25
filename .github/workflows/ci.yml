@@ -38,7 +38,7 @@ jobs:
         with:
           python-version-file: "pyproject.toml"
       - name: Install dependencies
-        run: uv sync --group test
+        run: uv sync --directory backend --group test
       - run: uv run --directory backend python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
       - name: Run tests
         run: uv run --directory backend pytest tests -v --tb=short
