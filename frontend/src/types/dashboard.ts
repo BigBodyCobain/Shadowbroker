@@ -360,6 +360,8 @@ export type CustomIntelInput = CustomIntelStory | CustomIntelStory[];
 export interface CustomIntelFeatureProperties {
   id: string;
   type: "custom_intel_event";
+  dataset_id?: string;
+  dataset_title?: string;
   story_id: string;
   story_title: string;
   event_id: string;
@@ -381,6 +383,24 @@ export interface CustomIntelFeatureProperties {
 export interface CustomIntelSummary {
   stories: number;
   events: number;
+}
+
+export interface CustomIntelDataset {
+  datasetId: string;
+  story_id?: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  stories: CustomIntelStory[];
+  eventCount: number;
+  latestEventDate?: string;
+  visible: boolean;
+}
+
+export interface CustomIntelStore {
+  version: number;
+  datasets: CustomIntelDataset[];
+  updatedAt: string;
 }
 
 // ─── STOCKS & COMMODITIES ───────────────────────────────────────────────────

@@ -23,8 +23,8 @@ function toStringOrEmpty(v: unknown): string {
 }
 
 function toWeight(v: unknown): number {
-  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return 1;
-  return v;
+  if (typeof v !== "number" || !Number.isFinite(v)) return 1;
+  return Math.max(1, Math.min(5, Math.round(v)));
 }
 
 function toConfidence(v: unknown): number | undefined {

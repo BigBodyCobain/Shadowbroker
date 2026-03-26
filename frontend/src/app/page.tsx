@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import dynamic from 'next/dynamic';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import WorldviewLeftPanel from "@/components/WorldviewLeftPanel";
+import CustomIntelDatasetsPanel from "@/components/CustomIntelDatasetsPanel";
 
 import NewsFeed from "@/components/NewsFeed";
 import MarketsPanel from "@/components/MarketsPanel";
@@ -20,8 +21,8 @@ import { DashboardDataProvider } from "@/lib/DashboardDataContext";
 import OnboardingModal, { useOnboarding } from "@/components/OnboardingModal";
 import ChangelogModal, { useChangelog } from "@/components/ChangelogModal";
 import type {
+  CustomIntelStore,
   CustomIntelFeatureProperties,
-  CustomIntelStory,
   CustomIntelSummary,
   SelectedEntity,
 } from "@/types/dashboard";
@@ -29,7 +30,22 @@ import { NOMINATIM_DEBOUNCE_MS } from "@/lib/constants";
 import { useDataPolling } from "@/hooks/useDataPolling";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { useRegionDossier } from "@/hooks/useRegionDossier";
-import { parseAndBuildCustomIntel } from "@/lib/customIntel";
+import {
+  appendCustomIntelDataset,
+  copyCustomIntelStoreToClipboard,
+  createEmptyCustomIntelStore,
+  exportCustomIntelStore,
+  getCustomIntelSummary,
+  getVisibleCustomIntelFeatures,
+  importCustomIntelStore,
+  loadCustomIntelStore,
+  migrateCustomIntelStore,
+  normalizeCustomIntelDataset,
+  removeCustomIntelDataset,
+  removeCustomIntelEvent,
+  saveCustomIntelStore,
+  toggleCustomIntelDatasetVisibility,
+} from "@/lib/customIntelStore";
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -178,10 +194,10 @@ export default function Dashboard() {
 
   const [customIntelModalOpen, setCustomIntelModalOpen] = useState(false);
   const [customIntelRawInput, setCustomIntelRawInput] = useState("");
-  const [customIntelStories, setCustomIntelStories] = useState<CustomIntelStory[]>([]);
-  const [customIntelGeoJSON, setCustomIntelGeoJSON] = useState<GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> | null>(null);
+  const [customIntelStore, setCustomIntelStore] = useState<CustomIntelStore>(createEmptyCustomIntelStore);
   const [customIntelSummary, setCustomIntelSummary] = useState<CustomIntelSummary | null>(null);
   const [customIntelError, setCustomIntelError] = useState<string | null>(null);
+  const customIntelTotals = useMemo(() => getCustomIntelSummary(customIntelStore), [customIntelStore]);
 
   // NASA GIBS satellite imagery state
   const [gibsDate, setGibsDate] = useState<string>(() => {
@@ -215,7 +231,7 @@ export default function Dashboard() {
     // Auto-toggle High-Res Satellite layer with SATELLITE style
     setActiveLayers((l) => (l.highres_satellite === (activeStyle === "SATELLITE")
       ? l
-      : { ...l, highres_satellite: activeStyle === "DEFAULT" }
+      : { ...l, highres_satellite: activeStyle === "SATELLITE" }
     ));
   }, [activeStyle]);
 
@@ -253,10 +269,29 @@ export default function Dashboard() {
     }
   }, [activeLayers.custom_intel]);
 
+  useEffect(() => {
+    if (customIntelStore.datasets.length === 0 && activeLayers.custom_intel) {
+      setActiveLayers((prev) => ({ ...prev, custom_intel: false }));
+    }
+  }, [customIntelStore.datasets.length, activeLayers.custom_intel]);
+
+  useEffect(() => {
+    setCustomIntelStore(loadCustomIntelStore());
+  }, []);
+
+  useEffect(() => {
+    saveCustomIntelStore(customIntelStore);
+  }, [customIntelStore]);
+
+  const customIntelGeoJSON = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> | null>(() => {
+    if (!activeLayers.custom_intel) return null;
+    const fc = getVisibleCustomIntelFeatures(customIntelStore);
+    return fc.features.length > 0 ? fc : null;
+  }, [activeLayers.custom_intel, customIntelStore]);
+
   const resetCustomIntelState = useCallback(() => {
     setCustomIntelRawInput("");
-    setCustomIntelStories([]);
-    setCustomIntelGeoJSON(null);
+    setCustomIntelStore(createEmptyCustomIntelStore());
     setCustomIntelSummary(null);
     setCustomIntelError(null);
     setActiveLayers((prev) => (prev.custom_intel ? { ...prev, custom_intel: false } : prev));
@@ -265,10 +300,12 @@ export default function Dashboard() {
 
   const handlePopulateCustomIntel = useCallback(() => {
     try {
-      const parsed = parseAndBuildCustomIntel(customIntelRawInput);
-      setCustomIntelStories(parsed.stories);
-      setCustomIntelGeoJSON(parsed.features);
-      setCustomIntelSummary(parsed.summary);
+      const dataset = normalizeCustomIntelDataset(customIntelRawInput);
+      setCustomIntelStore((prev) => appendCustomIntelDataset(prev, dataset));
+      setCustomIntelSummary({
+        stories: dataset.stories.length,
+        events: dataset.eventCount,
+      });
       setCustomIntelError(null);
       setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
       setCustomIntelModalOpen(false);
@@ -276,11 +313,49 @@ export default function Dashboard() {
       const msg = err instanceof Error ? err.message : "Failed to parse Custom Intel JSON.";
       setCustomIntelError(msg);
       setCustomIntelSummary(null);
-      setCustomIntelStories([]);
-      setCustomIntelGeoJSON(null);
-      setActiveLayers((prev) => ({ ...prev, custom_intel: false }));
     }
   }, [customIntelRawInput]);
+
+  const handleToggleDatasetVisibility = useCallback((datasetId: string) => {
+    setCustomIntelStore((prev) => toggleCustomIntelDatasetVisibility(prev, datasetId));
+  }, []);
+
+  const handleDeleteDataset = useCallback((datasetId: string) => {
+    setCustomIntelStore((prev) => removeCustomIntelDataset(prev, datasetId));
+    setSelectedEntity((prev) => {
+      if (prev?.type !== "custom_intel_event") return prev;
+      const extra = prev.extra as Record<string, unknown> | undefined;
+      return extra?.dataset_id === datasetId ? null : prev;
+    });
+  }, []);
+
+  const handleDeleteEvent = useCallback((datasetId: string, eventId: string) => {
+    setCustomIntelStore((prev) => removeCustomIntelEvent(prev, datasetId, eventId));
+    setSelectedEntity((prev) => {
+      if (prev?.type !== "custom_intel_event") return prev;
+      const extra = prev.extra as Record<string, unknown> | undefined;
+      const selectedDatasetId = typeof extra?.dataset_id === "string" ? extra.dataset_id : "";
+      const selectedEventId = typeof extra?.event_id === "string" ? extra.event_id : "";
+      return selectedDatasetId === datasetId && selectedEventId === eventId ? null : prev;
+    });
+  }, []);
+
+  const handleExportMasterJson = useCallback(() => {
+    exportCustomIntelStore(customIntelStore);
+  }, [customIntelStore]);
+
+  const handleCopyMasterJson = useCallback(async () => {
+    await copyCustomIntelStoreToClipboard(customIntelStore);
+  }, [customIntelStore]);
+
+  const handleImportMasterJson = useCallback(async (raw: string, mode: "merge" | "replace") => {
+    const parsed = JSON.parse(raw);
+    const next = importCustomIntelStore(customIntelStore, parsed, mode);
+    setCustomIntelStore(migrateCustomIntelStore(next));
+    setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
+    setCustomIntelSummary(null);
+    setCustomIntelError(null);
+  }, [customIntelStore]);
 
   return (
     <DashboardDataProvider data={data} selectedEntity={selectedEntity} setSelectedEntity={setSelectedEntity}>
@@ -387,7 +462,8 @@ export default function Dashboard() {
                 onClearCustomIntel={resetCustomIntelState}
                 customIntelError={customIntelError}
                 customIntelSummary={customIntelSummary}
-                customIntelStoriesCount={customIntelStories.length}
+                customIntelStoriesCount={customIntelTotals.stories}
+                customIntelEventsCount={customIntelTotals.events}
               />
             </ErrorBoundary>
           </motion.div>
@@ -474,6 +550,27 @@ export default function Dashboard() {
             <div className="flex-shrink-0">
               <ErrorBoundary name="FilterPanel">
                 <FilterPanel data={data} activeFilters={activeFilters} setActiveFilters={setActiveFilters} />
+              </ErrorBoundary>
+            </div>
+
+            {/* CUSTOM INTEL DATASET MANAGER */}
+            <div className="flex-shrink-0">
+              <ErrorBoundary name="CustomIntelDatasetsPanel">
+                <CustomIntelDatasetsPanel
+                  datasets={customIntelStore.datasets}
+                  layerActive={activeLayers.custom_intel}
+                  onAddDataset={() => {
+                    setCustomIntelError(null);
+                    setCustomIntelSummary(null);
+                    setCustomIntelModalOpen(true);
+                  }}
+                  onToggleDatasetVisibility={handleToggleDatasetVisibility}
+                  onDeleteDataset={handleDeleteDataset}
+                  onDeleteEvent={(datasetId, eventId) => handleDeleteEvent(datasetId, eventId)}
+                  onCopyMasterJson={handleCopyMasterJson}
+                  onExportMasterJson={handleExportMasterJson}
+                  onImportMasterJson={handleImportMasterJson}
+                />
               </ErrorBoundary>
             </div>
 
