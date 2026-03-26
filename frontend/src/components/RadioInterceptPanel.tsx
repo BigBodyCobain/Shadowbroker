@@ -7,7 +7,7 @@ import { RadioReceiver, Activity, Play, Square, FastForward, ChevronDown, Chevro
 import type { DashboardData, SelectedEntity, RadioFeed } from "@/types/dashboard";
 
 export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesdropping, eavesdropLocation, cameraCenter, selectedEntity }: { data: DashboardData, isEavesdropping?: boolean, setIsEavesdropping?: (val: boolean) => void, eavesdropLocation?: { lat: number, lng: number } | null, cameraCenter?: { lat: number, lng: number } | null, selectedEntity?: SelectedEntity | null }) {
-    const [isMinimized, setIsMinimized] = useState(true);
+    const [isMinimized, setIsMinimized] = useState(false);
     const [feeds, setFeeds] = useState<RadioFeed[]>([]);
     const [activeFeed, setActiveFeed] = useState<RadioFeed | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -250,7 +250,7 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1, delay: 0.2 }}
-            className="w-full flex flex-col bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl pointer-events-auto shadow-[0_4px_30px_rgba(0,0,0,0.2)] relative overflow-hidden max-h-full"
+            className="w-full h-full min-h-0 flex flex-col bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl pointer-events-auto shadow-[0_4px_30px_rgba(0,0,0,0.2)] relative overflow-hidden flex-1"
         >
             <div
                 className="flex items-center justify-between p-3 border-b border-[var(--border-primary)]/50 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
@@ -272,7 +272,7 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="flex flex-col overflow-hidden"
+                        className="flex flex-col overflow-hidden flex-1 min-h-0"
                     >
                         {/* Audio Player Controls */}
                         <div className="p-4 border-b border-[var(--border-primary)]/40 bg-[var(--bg-primary)]/60">
@@ -349,7 +349,7 @@ export default function RadioInterceptPanel({ data, isEavesdropping, setIsEavesd
                         </div>
 
                         {/* Feed List */}
-                        <div className="flex-col overflow-y-auto styled-scrollbar max-h-64 p-2">
+                        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto styled-scrollbar p-2">
                             {feeds.length === 0 ? (
                                 <div className="text-[10px] text-cyan-700 font-mono text-center p-4">SEARCHING FREQUENCIES...</div>
                             ) : (

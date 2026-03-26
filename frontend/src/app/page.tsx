@@ -524,7 +524,7 @@ export default function Dashboard() {
             {/* ACTIVE INTEL MODE CONTENT */}
             <div className="flex-1 min-h-0 flex flex-col">
               {activeIntelTab === "globalMarkets" && (
-                <div className="flex-shrink-0">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <ErrorBoundary name="MarketsPanel">
                     <MarketsPanel data={data} />
                   </ErrorBoundary>
@@ -532,7 +532,7 @@ export default function Dashboard() {
               )}
 
               {activeIntelTab === "sigintIntercept" && (
-                <div className="flex-shrink-0">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <ErrorBoundary name="RadioInterceptPanel">
                     <RadioInterceptPanel
                       data={data}
@@ -547,7 +547,7 @@ export default function Dashboard() {
               )}
 
               {activeIntelTab === "dataFilters" && (
-                <div className="flex-shrink-0">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <ErrorBoundary name="FilterPanel">
                     <FilterPanel data={data} activeFilters={activeFilters} setActiveFilters={setActiveFilters} />
                   </ErrorBoundary>
@@ -555,7 +555,7 @@ export default function Dashboard() {
               )}
 
               {activeIntelTab === "customIntelFeed" && (
-                <div className="flex-shrink-0">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <ErrorBoundary name="CustomIntelDatasetsPanel">
                     <CustomIntelDatasetsPanel
                       events={getVisibleMasterEvents(customIntelStore)}

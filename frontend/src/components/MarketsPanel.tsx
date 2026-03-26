@@ -6,7 +6,7 @@ import { ArrowUpRight, ArrowDownRight, TrendingUp, Droplet, ChevronDown, Chevron
 import type { DashboardData } from "@/types/dashboard";
 
 const MarketsPanel = React.memo(function MarketsPanel({ data }: { data: DashboardData }) {
-    const [isMinimized, setIsMinimized] = useState(true);
+    const [isMinimized, setIsMinimized] = useState(false);
 
     const stocks = data?.stocks || {};
     const oil = data?.oil || {};
@@ -16,7 +16,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data }: { data: Dashboar
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="w-full bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl z-10 flex flex-col font-mono text-sm shadow-[0_4px_30px_rgba(0,0,0,0.2)] pointer-events-auto flex-shrink-0"
+            className="w-full h-full min-h-0 bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl z-10 flex flex-col font-mono text-sm shadow-[0_4px_30px_rgba(0,0,0,0.2)] pointer-events-auto flex-1"
         >
             {/* Header Toggle */}
             <div
@@ -38,7 +38,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data }: { data: Dashboar
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="overflow-y-auto styled-scrollbar flex flex-col gap-4 p-4 pt-3 max-h-[400px]"
+                        className="overflow-y-auto styled-scrollbar flex-1 min-h-0 flex flex-col gap-4 p-4 pt-3"
                     >
                         <div className="border-b border-[var(--border-primary)] pb-3">
                             <h2 className="text-xs font-bold tracking-widest text-cyan-400 flex items-center gap-2 mb-2">

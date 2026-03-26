@@ -43,7 +43,7 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.45 }}
-      className={`w-full bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.45)] pointer-events-auto overflow-hidden transition-all duration-300 ${minimized ? "h-[52px] flex-shrink-0" : "max-h-[320px]"}`}
+      className={`w-full h-full min-h-0 bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.45)] pointer-events-auto overflow-hidden transition-all duration-300 ${minimized ? "h-[52px] flex-shrink-0" : "flex-1 min-h-0"}`}
     >
       <div
         className="p-3 border-b border-[var(--border-primary)]/50 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
@@ -72,7 +72,7 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="p-3 flex flex-col gap-2 overflow-y-auto styled-scrollbar"
+            className="p-3 flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto styled-scrollbar"
           >
             <div className="flex items-center justify-between gap-2">
               <button

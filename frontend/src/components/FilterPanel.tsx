@@ -22,7 +22,7 @@ type ModalConfig = {
 };
 
 export default function FilterPanel({ data, activeFilters, setActiveFilters }: FilterPanelProps) {
-    const [isMinimized, setIsMinimized] = useState(true);
+    const [isMinimized, setIsMinimized] = useState(false);
     const [openModal, setOpenModal] = useState<string | null>(null);
 
     // ── Extract unique values from live data ──
@@ -251,7 +251,7 @@ export default function FilterPanel({ data, activeFilters, setActiveFilters }: F
                 initial={{ y: -30, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
-                className="w-full bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl z-10 flex flex-col font-mono text-sm shadow-[0_4px_30px_rgba(0,0,0,0.2)] pointer-events-auto flex-shrink-0"
+                className="w-full h-full min-h-0 bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl z-10 flex flex-col font-mono text-sm shadow-[0_4px_30px_rgba(0,0,0,0.2)] pointer-events-auto flex-1"
             >
                 {/* Header Toggle */}
                 <div
@@ -278,7 +278,7 @@ export default function FilterPanel({ data, activeFilters, setActiveFilters }: F
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="overflow-y-auto styled-scrollbar flex flex-col gap-2 p-3 pt-2 max-h-[400px]"
+                            className="overflow-y-auto styled-scrollbar flex-1 min-h-0 flex flex-col gap-2 p-3 pt-2"
                         >
                             {activeCount > 0 && (
                                 <button
