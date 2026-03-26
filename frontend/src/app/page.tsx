@@ -37,14 +37,13 @@ import {
   exportCustomIntelStore,
   getCustomIntelSummary,
   getVisibleCustomIntelFeatures,
+  getVisibleMasterEvents,
   importCustomIntelStore,
   loadCustomIntelStore,
   migrateCustomIntelStore,
   normalizeCustomIntelDataset,
-  removeCustomIntelDataset,
-  removeCustomIntelEvent,
+  removeCustomIntelEventByMasterEventId,
   saveCustomIntelStore,
-  toggleCustomIntelDatasetVisibility,
 } from "@/lib/customIntelStore";
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
@@ -270,10 +269,10 @@ export default function Dashboard() {
   }, [activeLayers.custom_intel]);
 
   useEffect(() => {
-    if (customIntelStore.datasets.length === 0 && activeLayers.custom_intel) {
+    if (customIntelStore.masterEvents.length === 0 && activeLayers.custom_intel) {
       setActiveLayers((prev) => ({ ...prev, custom_intel: false }));
     }
-  }, [customIntelStore.datasets.length, activeLayers.custom_intel]);
+  }, [customIntelStore.masterEvents.length, activeLayers.custom_intel]);
 
   useEffect(() => {
     setCustomIntelStore(loadCustomIntelStore());
@@ -316,27 +315,14 @@ export default function Dashboard() {
     }
   }, [customIntelRawInput]);
 
-  const handleToggleDatasetVisibility = useCallback((datasetId: string) => {
-    setCustomIntelStore((prev) => toggleCustomIntelDatasetVisibility(prev, datasetId));
-  }, []);
-
-  const handleDeleteDataset = useCallback((datasetId: string) => {
-    setCustomIntelStore((prev) => removeCustomIntelDataset(prev, datasetId));
-    setSelectedEntity((prev) => {
-      if (prev?.type !== "custom_intel_event") return prev;
-      const extra = prev.extra as Record<string, unknown> | undefined;
-      return extra?.dataset_id === datasetId ? null : prev;
-    });
-  }, []);
-
-  const handleDeleteEvent = useCallback((datasetId: string, eventId: string) => {
-    setCustomIntelStore((prev) => removeCustomIntelEvent(prev, datasetId, eventId));
+  const handleDeleteEvent = useCallback((masterEventId: string) => {
+    setCustomIntelStore((prev) => removeCustomIntelEventByMasterEventId(prev, masterEventId));
     setSelectedEntity((prev) => {
       if (prev?.type !== "custom_intel_event") return prev;
       const extra = prev.extra as Record<string, unknown> | undefined;
       const selectedDatasetId = typeof extra?.dataset_id === "string" ? extra.dataset_id : "";
       const selectedEventId = typeof extra?.event_id === "string" ? extra.event_id : "";
-      return selectedDatasetId === datasetId && selectedEventId === eventId ? null : prev;
+      return `${selectedDatasetId}::${String(extra?.story_id || "")}::${selectedEventId}` === masterEventId ? null : prev;
     });
   }, []);
 
@@ -557,16 +543,14 @@ export default function Dashboard() {
             <div className="flex-shrink-0">
               <ErrorBoundary name="CustomIntelDatasetsPanel">
                 <CustomIntelDatasetsPanel
-                  datasets={customIntelStore.datasets}
+                  events={getVisibleMasterEvents(customIntelStore)}
                   layerActive={activeLayers.custom_intel}
                   onAddDataset={() => {
                     setCustomIntelError(null);
                     setCustomIntelSummary(null);
                     setCustomIntelModalOpen(true);
                   }}
-                  onToggleDatasetVisibility={handleToggleDatasetVisibility}
-                  onDeleteDataset={handleDeleteDataset}
-                  onDeleteEvent={(datasetId, eventId) => handleDeleteEvent(datasetId, eventId)}
+                  onDeleteEvent={handleDeleteEvent}
                   onCopyMasterJson={handleCopyMasterJson}
                   onExportMasterJson={handleExportMasterJson}
                   onImportMasterJson={handleImportMasterJson}
