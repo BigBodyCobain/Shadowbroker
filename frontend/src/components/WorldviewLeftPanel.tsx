@@ -419,9 +419,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                                     if (layer.id === "custom_intel") {
                                                         if (active) {
                                                             setActiveLayers((prev: any) => ({ ...prev, custom_intel: false }));
-                                                            onClearCustomIntel?.();
                                                         } else {
-                                                            onOpenCustomIntelModal?.();
+                                                            if (customIntelStoriesCount > 0) {
+                                                                setActiveLayers((prev: any) => ({ ...prev, custom_intel: true }));
+                                                            } else {
+                                                                onOpenCustomIntelModal?.();
+                                                            }
                                                         }
                                                         return;
                                                     }
