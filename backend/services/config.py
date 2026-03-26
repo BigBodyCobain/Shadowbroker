@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     MESH_RNS_ENABLED: bool = False
     MESH_ARTI_ENABLED: bool = False
     MESH_ARTI_SOCKS_PORT: int = 9050
-    MESH_RELAY_PEERS: str = ""
+    MESH_RELAY_PEERS: str = "http://cipher0.shadowbroker.info:8000"
     MESH_BOOTSTRAP_DISABLED: bool = False
     MESH_BOOTSTRAP_MANIFEST_PATH: str = "data/bootstrap_peers.json"
     MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY: str = ""

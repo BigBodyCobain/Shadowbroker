@@ -12,6 +12,8 @@ services:
       - ADMIN_KEY=${ADMIN_KEY:-}
       # Override allowed CORS origins (comma-separated). Auto-detects LAN IPs if empty.
       - CORS_ORIGINS=${CORS_ORIGINS:-}
+      # Default Infonet relay peer so fresh installs can sync immediately.
+      - MESH_RELAY_PEERS=${MESH_RELAY_PEERS:-http://cipher0.shadowbroker.info:8000}
     volumes:
       - backend_data:/app/data
     restart: unless-stopped
