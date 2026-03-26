@@ -417,6 +417,8 @@ export interface CustomIntelMasterEvent {
   weight: number;
   confidence?: number;
   sources?: CustomIntelSourceLink[];
+  explicitEventId?: boolean;
+  dedupeKey?: string;
   createdAt: string;
   updatedAt: string;
 }

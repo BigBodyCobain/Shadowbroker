@@ -42,6 +42,7 @@ import {
   loadCustomIntelStore,
   migrateCustomIntelStore,
   normalizeCustomIntelDataset,
+  parseCustomIntelStore,
   removeCustomIntelEventByMasterEventId,
   saveCustomIntelStore,
 } from "@/lib/customIntelStore";
@@ -164,10 +165,10 @@ export default function Dashboard() {
 
   const [activeLayers, setActiveLayers] = useState({
     flights: true,
-    private: true,
-    jets: true,
-    military: true,
-    tracked: true,
+    private: false,
+    jets: false,
+    military: false,
+    tracked: false,
     satellites: false,
     ships_military: false,
     ships_cargo: false,
@@ -335,8 +336,8 @@ export default function Dashboard() {
   }, [customIntelStore]);
 
   const handleImportMasterJson = useCallback(async (raw: string, mode: "merge" | "replace") => {
-    const parsed = JSON.parse(raw);
-    const next = importCustomIntelStore(customIntelStore, parsed, mode);
+    const parsedStore = parseCustomIntelStore(raw);
+    const next = importCustomIntelStore(customIntelStore, parsedStore, mode);
     setCustomIntelStore(migrateCustomIntelStore(next));
     setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
     setCustomIntelSummary(null);

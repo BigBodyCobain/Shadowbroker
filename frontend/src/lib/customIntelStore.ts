@@ -155,6 +155,45 @@ function resolveEventId(storyId: string, eventId: string | undefined, index: num
   return eventId && eventId.trim().length > 0 ? eventId : `${storyId}-${index}`;
 }
 
+function normalizeDedupeText(value?: string): string {
+  return (value || "").trim().toLowerCase();
+}
+
+function normalizeCoord(value: number): string {
+  return value.toFixed(5);
+}
+
+function getStoryEventKey(story: CustomIntelStory, event: CustomIntelEvent): string {
+  const explicitId = toSafeString(event.id);
+  if (explicitId) {
+    return `${normalizeDedupeText(story.story_id)}:${normalizeDedupeText(explicitId)}`;
+  }
+
+  const fallbackDate = event.date || event.start_date || event.end_date || "";
+  return [
+    normalizeDedupeText(event.name),
+    normalizeDedupeText(event.type),
+    normalizeDedupeText(fallbackDate),
+    normalizeCoord(event.geo.lat),
+    normalizeCoord(event.geo.lng),
+  ].join(":");
+}
+
+export function getCustomIntelEventKey(event: Pick<CustomIntelMasterEvent, "story_id" | "event_id" | "explicitEventId" | "name" | "type" | "date" | "start_date" | "end_date" | "geo">): string {
+  if (event.explicitEventId) {
+    return `${normalizeDedupeText(event.story_id)}:${normalizeDedupeText(event.event_id)}`;
+  }
+
+  const fallbackDate = event.date || event.start_date || event.end_date || "";
+  return [
+    normalizeDedupeText(event.name),
+    normalizeDedupeText(event.type),
+    normalizeDedupeText(fallbackDate),
+    normalizeCoord(event.geo.lat),
+    normalizeCoord(event.geo.lng),
+  ].join(":");
+}
+
 function toMasterEvent(
   dataset: CustomIntelDataset,
   story: CustomIntelStory,
@@ -162,6 +201,10 @@ function toMasterEvent(
   eventIndex: number
 ): CustomIntelMasterEvent {
   const eventId = resolveEventId(story.story_id, event.id, eventIndex);
+  const explicitEventId = Boolean(event.id && event.id.trim().length > 0);
+  const dedupeKey = explicitEventId
+    ? `${normalizeDedupeText(story.story_id)}:${normalizeDedupeText(eventId)}`
+    : getStoryEventKey(story, event);
 
   return {
     masterEventId: `${dataset.datasetId}::${story.story_id}::${eventId}`,
@@ -183,6 +226,8 @@ function toMasterEvent(
     weight: normalizeWeight(event.weight),
     confidence: event.confidence,
     sources: event.sources?.length ? event.sources : undefined,
+    explicitEventId,
+    dedupeKey,
     createdAt: dataset.createdAt,
     updatedAt: dataset.updatedAt,
   };
@@ -213,6 +258,17 @@ export function sortMasterEvents(events: CustomIntelMasterEvent[]): CustomIntelM
   });
 }
 
+export function dedupeCustomIntelEvents(events: CustomIntelMasterEvent[]): CustomIntelMasterEvent[] {
+  const map = new Map<string, CustomIntelMasterEvent>();
+  for (const event of events) {
+    const key = event.dedupeKey || getCustomIntelEventKey(event);
+    if (!map.has(key)) {
+      map.set(key, { ...event, dedupeKey: key });
+    }
+  }
+  return sortMasterEvents(Array.from(map.values()));
+}
+
 export function flattenCustomIntelEventsFromDatasets(store: Pick<CustomIntelStore, "datasets">): CustomIntelMasterEvent[] {
   const masterEvents: CustomIntelMasterEvent[] = [];
 
@@ -224,7 +280,7 @@ export function flattenCustomIntelEventsFromDatasets(store: Pick<CustomIntelStor
     }
   }
 
-  return sortMasterEvents(masterEvents);
+  return dedupeCustomIntelEvents(masterEvents);
 }
 
 function normalizeDataset(dataset: CustomIntelDataset, idFallback?: string): CustomIntelDataset {
@@ -250,12 +306,16 @@ function normalizeDataset(dataset: CustomIntelDataset, idFallback?: string): Cus
   };
 }
 
-function withSyncedMasterEvents(store: CustomIntelStore): CustomIntelStore {
+function withSyncedMasterEvents(
+  store: CustomIntelStore,
+  options?: { touchUpdatedAt?: boolean }
+): CustomIntelStore {
+  const touchUpdatedAt = options?.touchUpdatedAt ?? false;
   return {
     ...store,
     version: CUSTOM_INTEL_STORE_VERSION,
     masterEvents: flattenCustomIntelEventsFromDatasets(store),
-    updatedAt: nowIso(),
+    updatedAt: touchUpdatedAt ? nowIso() : toSafeString(store.updatedAt, nowIso()),
   };
 }
 
@@ -310,19 +370,38 @@ export function normalizeCustomIntelDataset(raw: string): CustomIntelDataset {
 export function appendCustomIntelDataset(store: CustomIntelStore, dataset: CustomIntelDataset): CustomIntelStore {
   const used = new Set(store.datasets.map((d) => d.datasetId));
   const normalized = normalizeDataset(dataset, generateDatasetId());
-  const withUniqueId = { ...normalized, datasetId: ensureUniqueDatasetId(normalized.datasetId, used) };
+  const existingEventKeys = new Set(store.masterEvents.map((event) => event.dedupeKey || getCustomIntelEventKey(event)));
+  const seenIncoming = new Set<string>();
+  const dedupedStories = normalized.stories
+    .map((story) => {
+      const events = story.events.filter((event) => {
+        const key = getStoryEventKey(story, event);
+        if (existingEventKeys.has(key) || seenIncoming.has(key)) return false;
+        seenIncoming.add(key);
+        return true;
+      });
+      return events.length > 0 ? { ...story, events } : null;
+    })
+    .filter((story): story is CustomIntelStory => Boolean(story));
+
+  if (!dedupedStories.length) {
+    return store;
+  }
+
+  const dedupedDataset = normalizeDataset({ ...normalized, stories: dedupedStories });
+  const withUniqueId = { ...dedupedDataset, datasetId: ensureUniqueDatasetId(dedupedDataset.datasetId, used) };
 
   return withSyncedMasterEvents({
     ...store,
     datasets: sortDatasetsByDateInternal([...store.datasets, withUniqueId]),
-  });
+  }, { touchUpdatedAt: true });
 }
 
 export function removeCustomIntelDataset(store: CustomIntelStore, datasetId: string): CustomIntelStore {
   return withSyncedMasterEvents({
     ...store,
     datasets: store.datasets.filter((d) => d.datasetId !== datasetId),
-  });
+  }, { touchUpdatedAt: true });
 }
 
 export function toggleCustomIntelDatasetVisibility(store: CustomIntelStore, datasetId: string): CustomIntelStore {
@@ -333,7 +412,7 @@ export function toggleCustomIntelDatasetVisibility(store: CustomIntelStore, data
   return withSyncedMasterEvents({
     ...store,
     datasets,
-  });
+  }, { touchUpdatedAt: true });
 }
 
 export function removeCustomIntelEvent(
@@ -374,7 +453,7 @@ export function removeCustomIntelEvent(
   return withSyncedMasterEvents({
     ...store,
     datasets: sortDatasetsByDateInternal(nextDatasets),
-  });
+  }, { touchUpdatedAt: true });
 }
 
 export function removeCustomIntelEventByMasterEventId(
@@ -482,8 +561,7 @@ function timestampForFilename(): string {
 }
 
 export function exportCustomIntelStore(store: CustomIntelStore): void {
-  const normalized = migrateCustomIntelStore(store);
-  const json = JSON.stringify(normalized, null, 2);
+  const json = serializeCustomIntelStore(store);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -496,8 +574,7 @@ export function exportCustomIntelStore(store: CustomIntelStore): void {
 }
 
 export async function copyCustomIntelStoreToClipboard(store: CustomIntelStore): Promise<void> {
-  const normalized = migrateCustomIntelStore(store);
-  const json = JSON.stringify(normalized, null, 2);
+  const json = serializeCustomIntelStore(store);
   await navigator.clipboard.writeText(json);
 }
 
@@ -508,16 +585,11 @@ export function validateCustomIntelStore(input: unknown): input is CustomIntelSt
   return true;
 }
 
-export function migrateCustomIntelStore(input: unknown): CustomIntelStore {
-  if (!validateCustomIntelStore(input)) {
-    return createEmptyCustomIntelStore();
-  }
-
-  const inStore = input as CustomIntelStore;
+function normalizeStoreForPersistence(input: CustomIntelStore): CustomIntelStore {
   const used = new Set<string>();
   const datasets: CustomIntelDataset[] = [];
 
-  for (const raw of inStore.datasets) {
+  for (const raw of input.datasets) {
     const normalized = normalizeDataset(raw, generateDatasetId());
     const datasetId = ensureUniqueDatasetId(normalized.datasetId, used);
     datasets.push({ ...normalized, datasetId });
@@ -525,10 +597,26 @@ export function migrateCustomIntelStore(input: unknown): CustomIntelStore {
 
   return withSyncedMasterEvents({
     version: CUSTOM_INTEL_STORE_VERSION,
-    updatedAt: toSafeString(inStore.updatedAt, nowIso()),
+    updatedAt: toSafeString(input.updatedAt, nowIso()),
     datasets: sortDatasetsByDateInternal(datasets),
     masterEvents: [],
-  });
+  }, { touchUpdatedAt: false });
+}
+
+export function serializeCustomIntelStore(store: CustomIntelStore): string {
+  return JSON.stringify(normalizeStoreForPersistence(store), null, 2);
+}
+
+export function parseCustomIntelStore(raw: string): CustomIntelStore {
+  const parsed = JSON.parse(raw);
+  return migrateCustomIntelStore(parsed);
+}
+
+export function migrateCustomIntelStore(input: unknown): CustomIntelStore {
+  if (!validateCustomIntelStore(input)) {
+    return createEmptyCustomIntelStore();
+  }
+  return normalizeStoreForPersistence(input as CustomIntelStore);
 }
 
 export function loadCustomIntelStore(): CustomIntelStore {
@@ -546,8 +634,7 @@ export function loadCustomIntelStore(): CustomIntelStore {
 
 export function saveCustomIntelStore(store: CustomIntelStore): void {
   if (typeof window === "undefined") return;
-  const normalized = migrateCustomIntelStore(store);
-  window.localStorage.setItem(CUSTOM_INTEL_STORAGE_KEY, JSON.stringify(normalized));
+  window.localStorage.setItem(CUSTOM_INTEL_STORAGE_KEY, serializeCustomIntelStore(store));
 }
 
 export function mergeCustomIntelStores(current: CustomIntelStore, incoming: CustomIntelStore): CustomIntelStore {
@@ -555,23 +642,24 @@ export function mergeCustomIntelStores(current: CustomIntelStore, incoming: Cust
   const b = migrateCustomIntelStore(incoming);
 
   const used = new Set(a.datasets.map((d) => d.datasetId));
-  const merged = [...a.datasets];
+  let mergedStore = a;
 
   for (const dataset of b.datasets) {
     const nextId = ensureUniqueDatasetId(dataset.datasetId, used);
-    merged.push(normalizeDataset({ ...dataset, datasetId: nextId }));
+    mergedStore = appendCustomIntelDataset(
+      mergedStore,
+      normalizeDataset({ ...dataset, datasetId: nextId })
+    );
   }
 
   return withSyncedMasterEvents({
-    version: CUSTOM_INTEL_STORE_VERSION,
+    ...mergedStore,
     updatedAt: nowIso(),
-    datasets: sortDatasetsByDateInternal(merged),
-    masterEvents: [],
-  });
+  }, { touchUpdatedAt: true });
 }
 
 export function replaceCustomIntelStore(incoming: CustomIntelStore): CustomIntelStore {
-  return withSyncedMasterEvents(migrateCustomIntelStore(incoming));
+  return withSyncedMasterEvents(migrateCustomIntelStore(incoming), { touchUpdatedAt: true });
 }
 
 export function importCustomIntelStore(
