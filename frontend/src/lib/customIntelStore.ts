@@ -3,6 +3,7 @@ import type {
   CustomIntelDataset,
   CustomIntelEvent,
   CustomIntelFeatureProperties,
+  CustomIntelMasterEvent,
   CustomIntelStory,
   CustomIntelStore,
 } from "@/types/dashboard";
@@ -18,6 +19,14 @@ export const CUSTOM_INTEL_WEIGHT_COLORS: Record<number, { fill: string; stroke: 
   3: { fill: "#eab308", stroke: "#fde047", text: "text-yellow-300" },
   4: { fill: "#f97316", stroke: "#fdba74", text: "text-orange-300" },
   5: { fill: "#ef4444", stroke: "#fca5a5", text: "text-red-300" },
+};
+
+const WEIGHT_TO_LEVEL: Record<number, number> = {
+  1: 2,
+  2: 4,
+  3: 6,
+  4: 8,
+  5: 10,
 };
 
 function nowIso(): string {
@@ -41,13 +50,18 @@ export function getCustomIntelWeightColor(weight?: number): { fill: string; stro
   return CUSTOM_INTEL_WEIGHT_COLORS[normalizeWeight(weight)];
 }
 
+export function getCustomIntelLevelLabel(weight?: number): string {
+  const normalized = normalizeWeight(weight);
+  return `${WEIGHT_TO_LEVEL[normalized]}/10`;
+}
+
 function parseDateValue(value?: string): number | null {
   if (!value) return null;
   const t = Date.parse(value);
   return Number.isFinite(t) ? t : null;
 }
 
-function eventDateMs(event: CustomIntelEvent): number | null {
+function eventDateMs(event: Pick<CustomIntelEvent, "date" | "end_date" | "start_date">): number | null {
   const candidates = [
     parseDateValue(event.date),
     parseDateValue(event.end_date),
@@ -137,6 +151,82 @@ function ensureUniqueDatasetId(id: string, used: Set<string>): string {
   return candidate;
 }
 
+function resolveEventId(storyId: string, eventId: string | undefined, index: number): string {
+  return eventId && eventId.trim().length > 0 ? eventId : `${storyId}-${index}`;
+}
+
+function toMasterEvent(
+  dataset: CustomIntelDataset,
+  story: CustomIntelStory,
+  event: CustomIntelEvent,
+  eventIndex: number
+): CustomIntelMasterEvent {
+  const eventId = resolveEventId(story.story_id, event.id, eventIndex);
+
+  return {
+    masterEventId: `${dataset.datasetId}::${story.story_id}::${eventId}`,
+    datasetId: dataset.datasetId,
+    story_id: story.story_id,
+    story_title: story.title,
+    event_id: eventId,
+    type: event.type,
+    name: event.name,
+    location_label: event.location_label,
+    geo: {
+      lat: event.geo.lat,
+      lng: event.geo.lng,
+    },
+    date: event.date,
+    start_date: event.start_date,
+    end_date: event.end_date,
+    description: event.description,
+    weight: normalizeWeight(event.weight),
+    confidence: event.confidence,
+    sources: event.sources?.length ? event.sources : undefined,
+    createdAt: dataset.createdAt,
+    updatedAt: dataset.updatedAt,
+  };
+}
+
+export function getEventSortTimestamp(event: Pick<CustomIntelMasterEvent, "date" | "end_date" | "start_date" | "updatedAt" | "createdAt">): number {
+  return (
+    parseDateValue(event.date) ??
+    parseDateValue(event.end_date) ??
+    parseDateValue(event.start_date) ??
+    parseDateValue(event.updatedAt) ??
+    parseDateValue(event.createdAt) ??
+    0
+  );
+}
+
+export function sortMasterEvents(events: CustomIntelMasterEvent[]): CustomIntelMasterEvent[] {
+  return [...events].sort((a, b) => {
+    const aw = normalizeWeight(a.weight);
+    const bw = normalizeWeight(b.weight);
+    if (bw !== aw) return bw - aw;
+
+    const ad = getEventSortTimestamp(a);
+    const bd = getEventSortTimestamp(b);
+    if (bd !== ad) return bd - ad;
+
+    return a.masterEventId.localeCompare(b.masterEventId);
+  });
+}
+
+export function flattenCustomIntelEventsFromDatasets(store: Pick<CustomIntelStore, "datasets">): CustomIntelMasterEvent[] {
+  const masterEvents: CustomIntelMasterEvent[] = [];
+
+  for (const dataset of store.datasets) {
+    for (const story of dataset.stories) {
+      for (let i = 0; i < story.events.length; i += 1) {
+        masterEvents.push(toMasterEvent(dataset, story, story.events[i], i));
+      }
+    }
+  }
+
+  return sortMasterEvents(masterEvents);
+}
+
 function normalizeDataset(dataset: CustomIntelDataset, idFallback?: string): CustomIntelDataset {
   const createdAt = toSafeString(dataset.createdAt, nowIso());
   const updatedAt = toSafeString(dataset.updatedAt, createdAt);
@@ -160,9 +250,19 @@ function normalizeDataset(dataset: CustomIntelDataset, idFallback?: string): Cus
   };
 }
 
+function withSyncedMasterEvents(store: CustomIntelStore): CustomIntelStore {
+  return {
+    ...store,
+    version: CUSTOM_INTEL_STORE_VERSION,
+    masterEvents: flattenCustomIntelEventsFromDatasets(store),
+    updatedAt: nowIso(),
+  };
+}
+
 export function createEmptyCustomIntelStore(): CustomIntelStore {
   return {
     version: CUSTOM_INTEL_STORE_VERSION,
+    masterEvents: [],
     datasets: [],
     updatedAt: nowIso(),
   };
@@ -179,14 +279,6 @@ function sortDatasetsByDateInternal(datasets: CustomIntelDataset[]): CustomIntel
 
 export function sortDatasetsByDate(datasets: CustomIntelDataset[]): CustomIntelDataset[] {
   return sortDatasetsByDateInternal(datasets);
-}
-
-function touchStore(store: CustomIntelStore): CustomIntelStore {
-  return {
-    ...store,
-    version: CUSTOM_INTEL_STORE_VERSION,
-    updatedAt: nowIso(),
-  };
 }
 
 export function normalizeCustomIntelDataset(raw: string): CustomIntelDataset {
@@ -220,14 +312,14 @@ export function appendCustomIntelDataset(store: CustomIntelStore, dataset: Custo
   const normalized = normalizeDataset(dataset, generateDatasetId());
   const withUniqueId = { ...normalized, datasetId: ensureUniqueDatasetId(normalized.datasetId, used) };
 
-  return touchStore({
+  return withSyncedMasterEvents({
     ...store,
     datasets: sortDatasetsByDateInternal([...store.datasets, withUniqueId]),
   });
 }
 
 export function removeCustomIntelDataset(store: CustomIntelStore, datasetId: string): CustomIntelStore {
-  return touchStore({
+  return withSyncedMasterEvents({
     ...store,
     datasets: store.datasets.filter((d) => d.datasetId !== datasetId),
   });
@@ -238,7 +330,7 @@ export function toggleCustomIntelDatasetVisibility(store: CustomIntelStore, data
     d.datasetId === datasetId ? normalizeDataset({ ...d, visible: !d.visible, updatedAt: nowIso() }) : d
   );
 
-  return touchStore({
+  return withSyncedMasterEvents({
     ...store,
     datasets,
   });
@@ -261,7 +353,7 @@ export function removeCustomIntelEvent(
 
     for (const story of dataset.stories) {
       const nextEvents = story.events.filter((e, idx) => {
-        const resolvedId = e.id && e.id.trim() ? e.id : `${story.story_id}-${idx}`;
+        const resolvedId = resolveEventId(story.story_id, e.id, idx);
         return resolvedId !== eventId;
       });
 
@@ -279,33 +371,60 @@ export function removeCustomIntelEvent(
     }
   }
 
-  return touchStore({
+  return withSyncedMasterEvents({
     ...store,
     datasets: sortDatasetsByDateInternal(nextDatasets),
   });
 }
 
+export function removeCustomIntelEventByMasterEventId(
+  store: CustomIntelStore,
+  masterEventId: string
+): CustomIntelStore {
+  const target = store.masterEvents.find((event) => event.masterEventId === masterEventId);
+  if (!target) return store;
+  return removeCustomIntelEvent(store, target.datasetId, target.event_id);
+}
+
 export function getVisibleCustomIntelFeatures(
   store: CustomIntelStore
 ): GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> {
+  const datasetById = new Map(store.datasets.map((dataset) => [dataset.datasetId, dataset]));
   const features: GeoJSON.Feature<GeoJSON.Point, CustomIntelFeatureProperties>[] = [];
 
-  for (const dataset of store.datasets) {
-    if (!dataset.visible) continue;
-    const datasetFc = flattenCustomIntelEvents(dataset.stories);
+  for (const event of store.masterEvents) {
+    const dataset = datasetById.get(event.datasetId);
+    if (!dataset) continue;
 
-    for (const feature of datasetFc.features) {
-      const props = feature.properties;
-      features.push({
-        ...feature,
-        properties: {
-          ...props,
-          dataset_id: dataset.datasetId,
-          dataset_title: dataset.title,
-          weight: normalizeWeight(props.weight),
-        },
-      });
-    }
+    features.push({
+      type: "Feature",
+      properties: {
+        id: event.event_id,
+        type: "custom_intel_event",
+        dataset_id: event.datasetId,
+        dataset_title: dataset.title,
+        story_id: event.story_id,
+        story_title: event.story_title,
+        event_id: event.event_id,
+        event_type: event.type,
+        event_name: event.name,
+        location_label: event.location_label,
+        date: event.date,
+        start_date: event.start_date,
+        end_date: event.end_date,
+        description: event.description,
+        weight: normalizeWeight(event.weight),
+        confidence: event.confidence,
+        sources: event.sources,
+        source_count: event.sources?.length ? event.sources.length : undefined,
+        lat: event.geo.lat,
+        lng: event.geo.lng,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [event.geo.lng, event.geo.lat],
+      },
+    });
   }
 
   return {
@@ -316,11 +435,10 @@ export function getVisibleCustomIntelFeatures(
 
 export function getCustomIntelSummary(store: CustomIntelStore): { datasets: number; stories: number; events: number } {
   const stories = store.datasets.reduce((sum, d) => sum + d.stories.length, 0);
-  const events = store.datasets.reduce((sum, d) => sum + d.eventCount, 0);
   return {
     datasets: store.datasets.length,
     stories,
-    events,
+    events: store.masterEvents.length,
   };
 }
 
@@ -329,6 +447,27 @@ export function getDatasetLatestDateLabel(dataset: CustomIntelDataset): string {
   const ms = parseDateValue(iso);
   if (!ms) return "N/A";
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function getShortLocationLabel(locationLabel?: string): string {
+  if (!locationLabel || !locationLabel.trim()) return "Unknown location";
+  const parts = locationLabel.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) return `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`;
+  return locationLabel;
+}
+
+export function getEventDisplayTime(event: Pick<CustomIntelMasterEvent, "date" | "start_date" | "end_date">): string {
+  const primary = event.date || event.start_date || event.end_date;
+  if (!primary) return "UNKNOWN";
+  const parsed = new Date(primary);
+  if (Number.isNaN(parsed.getTime())) return primary;
+
+  const hasTime = /T\d{2}:\d{2}/.test(primary);
+  if (hasTime) {
+    return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return parsed.toISOString().slice(0, 10);
 }
 
 function timestampForFilename(): string {
@@ -384,11 +523,12 @@ export function migrateCustomIntelStore(input: unknown): CustomIntelStore {
     datasets.push({ ...normalized, datasetId });
   }
 
-  return {
+  return withSyncedMasterEvents({
     version: CUSTOM_INTEL_STORE_VERSION,
     updatedAt: toSafeString(inStore.updatedAt, nowIso()),
     datasets: sortDatasetsByDateInternal(datasets),
-  };
+    masterEvents: [],
+  });
 }
 
 export function loadCustomIntelStore(): CustomIntelStore {
@@ -422,15 +562,16 @@ export function mergeCustomIntelStores(current: CustomIntelStore, incoming: Cust
     merged.push(normalizeDataset({ ...dataset, datasetId: nextId }));
   }
 
-  return touchStore({
+  return withSyncedMasterEvents({
     version: CUSTOM_INTEL_STORE_VERSION,
     updatedAt: nowIso(),
     datasets: sortDatasetsByDateInternal(merged),
+    masterEvents: [],
   });
 }
 
 export function replaceCustomIntelStore(incoming: CustomIntelStore): CustomIntelStore {
-  return touchStore(migrateCustomIntelStore(incoming));
+  return withSyncedMasterEvents(migrateCustomIntelStore(incoming));
 }
 
 export function importCustomIntelStore(
@@ -441,4 +582,21 @@ export function importCustomIntelStore(
   const incoming = migrateCustomIntelStore(input);
   if (mode === "replace") return replaceCustomIntelStore(incoming);
   return mergeCustomIntelStores(current, incoming);
+}
+
+export function getDatasetTitleById(store: CustomIntelStore, datasetId: string): string {
+  return store.datasets.find((d) => d.datasetId === datasetId)?.title || "Unknown dataset";
+}
+
+export function getDatasetVisibilityById(store: CustomIntelStore, datasetId: string): boolean {
+  const dataset = store.datasets.find((d) => d.datasetId === datasetId);
+  return dataset ? dataset.visible : false;
+}
+
+export function getVisibleMasterEvents(store: CustomIntelStore): CustomIntelMasterEvent[] {
+  return sortMasterEvents(store.masterEvents);
+}
+
+export function flattenDatasetEvents(dataset: CustomIntelDataset): GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> {
+  return flattenCustomIntelEvents(dataset.stories);
 }

@@ -397,8 +397,33 @@ export interface CustomIntelDataset {
   visible: boolean;
 }
 
+export interface CustomIntelMasterEvent {
+  masterEventId: string;
+  datasetId: string;
+  story_id: string;
+  story_title: string;
+  event_id: string;
+  type: string;
+  name: string;
+  location_label: string;
+  geo: {
+    lat: number;
+    lng: number;
+  };
+  date?: string;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+  weight: number;
+  confidence?: number;
+  sources?: CustomIntelSourceLink[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CustomIntelStore {
   version: number;
+  masterEvents: CustomIntelMasterEvent[];
   datasets: CustomIntelDataset[];
   updatedAt: string;
 }
