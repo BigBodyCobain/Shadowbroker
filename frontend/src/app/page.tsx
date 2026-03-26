@@ -11,7 +11,6 @@ import NewsFeed from "@/components/NewsFeed";
 import MarketsPanel from "@/components/MarketsPanel";
 import FilterPanel from "@/components/FilterPanel";
 import FindLocateBar from "@/components/FindLocateBar";
-import TopRightControls from "@/components/TopRightControls";
 import RadioInterceptPanel from "@/components/RadioInterceptPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import MapLegend from "@/components/MapLegend";
@@ -48,6 +47,7 @@ const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ss
 const STYLE_STORAGE_KEY = "sb_map_style";
 const STYLE_OPTIONS = ["DEFAULT", "SATELLITE", "STREETS", "TERRAIN", "LIGHT", "DARK"] as const;
 type StyleOption = (typeof STYLE_OPTIONS)[number];
+type IntelTab = "globalMarkets" | "sigintIntercept" | "dataFilters" | "customIntelFeed" | "globalThreatIntercept";
 
 /* ── LOCATE BAR ── coordinate / place-name search above bottom status bar ── */
 function LocateBar({ onLocate }: { onLocate: (lat: number, lng: number) => void }) {
@@ -249,6 +249,7 @@ export default function Dashboard() {
 
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [flyToLocation, setFlyToLocation] = useState<{ lat: number, lng: number, ts: number } | null>(null);
+  const [activeIntelTab, setActiveIntelTab] = useState<IntelTab>("globalThreatIntercept");
 
   // Eavesdrop Mode State
   const [isEavesdropping, setIsEavesdropping] = useState(false);
@@ -474,7 +475,32 @@ export default function Dashboard() {
             animate={{ x: rightOpen ? 0 : 360 }}
             transition={{ type: 'spring', damping: 30, stiffness: 250 }}
           >
-            <TopRightControls />
+            {/* INTEL MODE TABS */}
+            <div className="flex-shrink-0 grid grid-cols-5 gap-1 rounded-lg border border-[var(--border-primary)]/70 bg-[var(--bg-primary)]/35 p-1">
+              {[
+                { key: "globalMarkets", label: "Markets" },
+                { key: "sigintIntercept", label: "SIGINT" },
+                { key: "dataFilters", label: "Filters" },
+                { key: "customIntelFeed", label: "Custom Intel" },
+                { key: "globalThreatIntercept", label: "Threats" },
+              ].map((tab) => {
+                const isActive = activeIntelTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveIntelTab(tab.key as IntelTab)}
+                    className={`px-1.5 py-1.5 rounded-md text-[8px] font-mono tracking-wider border transition-colors ${
+                      isActive
+                        ? "text-cyan-200 border-cyan-500/60 bg-cyan-950/45 shadow-[0_0_14px_rgba(0,255,255,0.12)]"
+                        : "text-[var(--text-muted)] border-[var(--border-primary)]/70 bg-[var(--bg-secondary)]/35 hover:text-cyan-300 hover:border-cyan-700/70"
+                    }`}
+                    title={tab.label}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
 
             {/* FIND / LOCATE */}
             <div className="flex-shrink-0">
@@ -495,56 +521,64 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* TOP RIGHT - MARKETS */}
-            <div className="flex-shrink-0">
-              <ErrorBoundary name="MarketsPanel">
-                <MarketsPanel data={data} />
-              </ErrorBoundary>
-            </div>
-
-            {/* SIGINT & RADIO INTERCEPTS */}
-            <div className="flex-shrink-0">
-              <ErrorBoundary name="RadioInterceptPanel">
-                <RadioInterceptPanel
-                  data={data}
-                  isEavesdropping={isEavesdropping}
-                  setIsEavesdropping={setIsEavesdropping}
-                  eavesdropLocation={eavesdropLocation}
-                  cameraCenter={cameraCenter}
-                  selectedEntity={selectedEntity}
-                />
-              </ErrorBoundary>
-            </div>
-
-            {/* DATA FILTERS */}
-            <div className="flex-shrink-0">
-              <ErrorBoundary name="FilterPanel">
-                <FilterPanel data={data} activeFilters={activeFilters} setActiveFilters={setActiveFilters} />
-              </ErrorBoundary>
-            </div>
-
-            {/* CUSTOM INTEL DATASET MANAGER */}
-            <div className="flex-shrink-0">
-              <ErrorBoundary name="CustomIntelDatasetsPanel">
-                <CustomIntelDatasetsPanel
-                  events={getVisibleMasterEvents(customIntelStore)}
-                  layerActive={activeLayers.custom_intel}
-                  onAddDataset={() => {
-                    setCustomIntelError(null);
-                    setCustomIntelSummary(null);
-                    setCustomIntelModalOpen(true);
-                  }}
-                  onDeleteEvent={handleDeleteEvent}
-                  onExportMasterJson={handleExportMasterJson}
-                />
-              </ErrorBoundary>
-            </div>
-
-            {/* BOTTOM RIGHT - NEWS FEED (fills remaining space) */}
+            {/* ACTIVE INTEL MODE CONTENT */}
             <div className="flex-1 min-h-0 flex flex-col">
-              <ErrorBoundary name="NewsFeed">
-                <NewsFeed data={data} selectedEntity={selectedEntity} regionDossier={regionDossier} regionDossierLoading={regionDossierLoading} />
-              </ErrorBoundary>
+              {activeIntelTab === "globalMarkets" && (
+                <div className="flex-shrink-0">
+                  <ErrorBoundary name="MarketsPanel">
+                    <MarketsPanel data={data} />
+                  </ErrorBoundary>
+                </div>
+              )}
+
+              {activeIntelTab === "sigintIntercept" && (
+                <div className="flex-shrink-0">
+                  <ErrorBoundary name="RadioInterceptPanel">
+                    <RadioInterceptPanel
+                      data={data}
+                      isEavesdropping={isEavesdropping}
+                      setIsEavesdropping={setIsEavesdropping}
+                      eavesdropLocation={eavesdropLocation}
+                      cameraCenter={cameraCenter}
+                      selectedEntity={selectedEntity}
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
+
+              {activeIntelTab === "dataFilters" && (
+                <div className="flex-shrink-0">
+                  <ErrorBoundary name="FilterPanel">
+                    <FilterPanel data={data} activeFilters={activeFilters} setActiveFilters={setActiveFilters} />
+                  </ErrorBoundary>
+                </div>
+              )}
+
+              {activeIntelTab === "customIntelFeed" && (
+                <div className="flex-shrink-0">
+                  <ErrorBoundary name="CustomIntelDatasetsPanel">
+                    <CustomIntelDatasetsPanel
+                      events={getVisibleMasterEvents(customIntelStore)}
+                      layerActive={activeLayers.custom_intel}
+                      onAddDataset={() => {
+                        setCustomIntelError(null);
+                        setCustomIntelSummary(null);
+                        setCustomIntelModalOpen(true);
+                      }}
+                      onDeleteEvent={handleDeleteEvent}
+                      onExportMasterJson={handleExportMasterJson}
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
+
+              {activeIntelTab === "globalThreatIntercept" && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <ErrorBoundary name="NewsFeed">
+                    <NewsFeed data={data} selectedEntity={selectedEntity} regionDossier={regionDossier} regionDossierLoading={regionDossierLoading} />
+                  </ErrorBoundary>
+                </div>
+              )}
             </div>
           </motion.div>
 
