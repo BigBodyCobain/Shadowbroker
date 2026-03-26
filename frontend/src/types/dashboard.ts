@@ -316,6 +316,63 @@ export interface LiveUAmapIncident {
   region?: string;
 }
 
+// ─── CUSTOM INTEL (OPERATOR JSON OVERLAY) ──────────────────────────────────
+
+export interface CustomIntelImpactZone {
+  type: string;
+  name: string;
+  scope: string;
+  products: string[];
+}
+
+export interface CustomIntelEvent {
+  id?: string;
+  type: string;
+  name: string;
+  location_label: string;
+  geo: {
+    lat: number;
+    lng: number;
+  };
+  date?: string;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+  weight?: number;
+}
+
+export interface CustomIntelStory {
+  story_id: string;
+  title: string;
+  events: CustomIntelEvent[];
+  impact_zones: CustomIntelImpactZone[];
+}
+
+export type CustomIntelInput = CustomIntelStory | CustomIntelStory[];
+
+export interface CustomIntelFeatureProperties {
+  id: string;
+  type: "custom_intel_event";
+  story_id: string;
+  story_title: string;
+  event_id: string;
+  event_type: string;
+  event_name: string;
+  location_label: string;
+  date?: string;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+  weight: number;
+  lat: number;
+  lng: number;
+}
+
+export interface CustomIntelSummary {
+  stories: number;
+  events: number;
+}
+
 // ─── STOCKS & COMMODITIES ───────────────────────────────────────────────────
 
 export interface StockTicker {
@@ -463,6 +520,7 @@ export interface ActiveLayers {
   datacenters: boolean;
   military_bases: boolean;
   power_plants: boolean;
+  custom_intel: boolean;
 }
 
 export interface SelectedEntity {
@@ -509,4 +567,5 @@ export interface MaplibreViewerProps {
   viewBoundsRef?: React.RefObject<{ south: number; west: number; north: number; east: number } | null>;
   trackedSdr?: KiwiSDR | null;
   setTrackedSdr?: (sdr: KiwiSDR | null) => void;
+  customIntelGeoJSON?: GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> | null;
 }

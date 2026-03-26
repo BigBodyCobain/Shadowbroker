@@ -57,7 +57,7 @@ import {
     type FlightLayerConfig,
 } from "@/components/map/geoJSONBuilders";
 
-const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocation, selectedEntity, onMouseCoords, onRightClick, regionDossier, regionDossierLoading, onViewStateChange, measureMode, onMeasureClick, measurePoints, gibsDate, gibsOpacity, viewBoundsRef, setTrackedSdr }: MaplibreViewerProps) => {
+const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocation, selectedEntity, onMouseCoords, onRightClick, regionDossier, regionDossierLoading, onViewStateChange, measureMode, onMeasureClick, measurePoints, gibsDate, gibsOpacity, viewBoundsRef, setTrackedSdr, customIntelGeoJSON }: MaplibreViewerProps) => {
     const mapRef = useRef<MapRef>(null);
     const [mapReady, setMapReady] = useState(false);
     const { theme } = useTheme();
@@ -582,6 +582,9 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
         activeLayers.ukraine_frontline ? buildFrontlineGeoJSON(data?.frontlines) : null,
         [activeLayers.ukraine_frontline, data?.frontlines]);
 
+    const customIntelVisibleGeoJSON = useMemo(() =>
+        activeLayers.custom_intel && customIntelGeoJSON?.features?.length ? customIntelGeoJSON : null,
+        [activeLayers.custom_intel, customIntelGeoJSON]);
 
 
     // Interactive layer IDs for click handling
@@ -597,6 +600,7 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
         uavGeoJSON && 'uav-layer',
         gdeltGeoJSON && 'gdelt-layer',
         liveuaGeoJSON && 'liveuamap-layer',
+        customIntelVisibleGeoJSON && 'custom-intel-layer',
         frontlineGeoJSON && 'ukraine-frontline-layer',
         earthquakesGeoJSON && 'earthquakes-layer',
         satellitesGeoJSON && 'satellites-layer',
@@ -1101,6 +1105,29 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                                 'icon-image': ['get', 'iconId'],
                                 'icon-size': 0.8,
                                 'icon-allow-overlap': true,
+                            }}
+                        />
+                    </Source>
+                )}
+
+                {customIntelVisibleGeoJSON && (
+                    <Source id="custom-intel" type="geojson" data={customIntelVisibleGeoJSON as any}>
+                        <Layer
+                            id="custom-intel-layer"
+                            type="circle"
+                            minzoom={2}
+                            paint={{
+                                'circle-radius': [
+                                    'interpolate', ['linear'], ['coalesce', ['to-number', ['get', 'weight']], 1],
+                                    1, 5,
+                                    2, 7,
+                                    3, 9,
+                                    5, 12
+                                ],
+                                'circle-color': '#06b6d4',
+                                'circle-stroke-color': '#22d3ee',
+                                'circle-stroke-width': 1.2,
+                                'circle-opacity': 0.75
                             }}
                         />
                     </Source>
@@ -2224,6 +2251,50 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                                 </div>
                             </Popup>
                         );
+                })()}
+
+                {selectedEntity?.type === 'custom_intel_event' && selectedEntity.extra && (() => {
+                    const props = selectedEntity.extra as Record<string, unknown>;
+                    const lat = typeof props.lat === 'number' ? props.lat : null;
+                    const lng = typeof props.lng === 'number' ? props.lng : null;
+                    if (lat == null || lng == null) return null;
+
+                    const date = typeof props.date === 'string' ? props.date : '';
+                    const startDate = typeof props.start_date === 'string' ? props.start_date : '';
+                    const endDate = typeof props.end_date === 'string' ? props.end_date : '';
+                    const dateLabel = date || (startDate && endDate ? `${startDate} → ${endDate}` : (startDate || endDate || 'N/A'));
+
+                    return (
+                        <Popup
+                            longitude={lng}
+                            latitude={lat}
+                            closeButton={false}
+                            closeOnClick={false}
+                            onClose={() => onEntityClick?.(null)}
+                            anchor="bottom"
+                            offset={15}
+                        >
+                            <div className="bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-cyan-800 rounded-lg flex flex-col z-[100] font-mono shadow-[0_4px_30px_rgba(6,182,212,0.25)] pointer-events-auto overflow-hidden w-[300px]">
+                                <div className="p-2 border-b border-cyan-500/30 bg-cyan-950/40 flex justify-between items-center">
+                                    <h2 className="text-[10px] tracking-widest font-bold text-cyan-300 flex items-center gap-1">
+                                        <Activity size={12} className="text-cyan-300" /> CUSTOM INTEL
+                                    </h2>
+                                    <button onClick={() => onEntityClick?.(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">✕</button>
+                                </div>
+                                <div className="p-3 flex flex-col gap-2 text-[10px]">
+                                    <div className="text-cyan-200 font-bold leading-tight">{String(props.story_title || 'Untitled Story')}</div>
+                                    <div className="text-[9px] text-[var(--text-muted)]">story_id: <span className="text-white">{String(props.story_id || 'N/A')}</span></div>
+                                    <div className="border-t border-[var(--border-primary)]/60 my-1" />
+                                    <div className="text-[var(--text-muted)]">Event: <span className="text-white">{String(props.event_name || 'N/A')}</span></div>
+                                    <div className="text-[var(--text-muted)]">Type: <span className="text-cyan-300">{String(props.event_type || 'N/A')}</span></div>
+                                    <div className="text-[var(--text-muted)]">Location: <span className="text-white">{String(props.location_label || 'N/A')}</span></div>
+                                    <div className="text-[var(--text-muted)]">Date: <span className="text-white">{dateLabel}</span></div>
+                                    <div className="text-[var(--text-muted)]">Weight: <span className="text-cyan-300">{String(props.weight ?? 1)}</span></div>
+                                    <div className="text-[var(--text-muted)] leading-relaxed">Description: <span className="text-white">{String(props.description || 'N/A')}</span></div>
+                                </div>
+                            </div>
+                        </Popup>
+                    );
                 })()}
 
                 {/* REGION DOSSIER — location pin on map (full intel shown in right panel) */}
