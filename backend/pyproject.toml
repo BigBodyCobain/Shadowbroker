@@ -6,7 +6,7 @@ dependencies = [
     "apscheduler==3.10.3",
     "cachetools==5.5.2",
     "cloudscraper==1.2.71",
-    "fastapi==0.115.12",
+    "fastapi==0.135.2",
     "feedparser==6.0.10",
     "httpx==0.28.1",
     "playwright==1.50.0",
