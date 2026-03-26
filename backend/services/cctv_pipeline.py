@@ -186,32 +186,49 @@ class AustinTXIngestor(BaseCCTVIngestor):
 
 
 class NYCDOTIngestor(BaseCCTVIngestor):
+    """Updated NYC DOT Traffic Cameras (2026)"""
+    
     def fetch_data(self) -> List[Dict[str, Any]]:
-        url = "https://webcams.nyctmc.org/api/cameras"
-        response = fetch_with_curl(url, timeout=15)
-        response.raise_for_status()
+        # Newer public endpoint for NYC traffic cameras
+        url = "https://data.cityofnewyork.us/resource/5rzb-5w4u.json?$limit=5000"
+        
+        try:
+            response = fetch_with_curl(url, timeout=20)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            logger.error(f"NYCDOTIngestor: failed to fetch data: {e}")
+            return []
 
-        data = response.json()
         cameras = []
         for item in data:
-            cam_id = item.get("id")
+            cam_id = item.get("id") or item.get("camera_id")
             if not cam_id:
                 continue
 
-            lat = item.get("latitude")
-            lon = item.get("longitude")
-            if lat and lon:
-                cameras.append(
-                    {
-                        "id": f"NYC-{cam_id}",
-                        "source_agency": "NYC DOT",
-                        "lat": lat,
-                        "lon": lon,
-                        "direction_facing": item.get("name", "NYC Camera"),
-                        "media_url": f"https://webcams.nyctmc.org/api/cameras/{cam_id}/image",
-                        "refresh_rate_seconds": 30,
-                    }
-                )
+            lat = item.get("latitude") or item.get("lat")
+            lon = item.get("longitude") or item.get("lon")
+            if not lat or not lon:
+                continue
+
+            # NYC uses a different image endpoint now
+            media_url = f"https://webcams.nyctmc.org/api/cameras/{cam_id}/image"
+            # Alternative fallback image URL (sometimes more stable)
+            # media_url = f"https://nyc3.digitaloceanspaces.com/traffic-cameras/{cam_id}.jpg"
+
+            name = item.get("name") or item.get("location") or f"NYC Camera {cam_id}"
+
+            cameras.append({
+                "id": f"NYC-{cam_id}",
+                "source_agency": "NYC DOT",
+                "lat": float(lat),
+                "lon": float(lon),
+                "direction_facing": name,
+                "media_url": media_url,
+                "refresh_rate_seconds": 30,
+            })
+
+        logger.info(f"NYCDOTIngestor: parsed {len(cameras)} cameras")
         return cameras
 
 
