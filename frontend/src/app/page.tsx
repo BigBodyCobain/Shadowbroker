@@ -32,17 +32,13 @@ import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { useRegionDossier } from "@/hooks/useRegionDossier";
 import {
   appendCustomIntelDataset,
-  copyCustomIntelStoreToClipboard,
   createEmptyCustomIntelStore,
   exportCustomIntelStore,
   getCustomIntelSummary,
   getVisibleCustomIntelFeatures,
   getVisibleMasterEvents,
-  importCustomIntelStore,
   loadCustomIntelStore,
-  migrateCustomIntelStore,
   normalizeCustomIntelDataset,
-  parseCustomIntelStore,
   removeCustomIntelEventByMasterEventId,
   saveCustomIntelStore,
 } from "@/lib/customIntelStore";
@@ -331,19 +327,6 @@ export default function Dashboard() {
     exportCustomIntelStore(customIntelStore);
   }, [customIntelStore]);
 
-  const handleCopyMasterJson = useCallback(async () => {
-    await copyCustomIntelStoreToClipboard(customIntelStore);
-  }, [customIntelStore]);
-
-  const handleImportMasterJson = useCallback(async (raw: string, mode: "merge" | "replace") => {
-    const parsedStore = parseCustomIntelStore(raw);
-    const next = importCustomIntelStore(customIntelStore, parsedStore, mode);
-    setCustomIntelStore(migrateCustomIntelStore(next));
-    setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
-    setCustomIntelSummary(null);
-    setCustomIntelError(null);
-  }, [customIntelStore]);
-
   return (
     <DashboardDataProvider data={data} selectedEntity={selectedEntity} setSelectedEntity={setSelectedEntity}>
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden font-sans">
@@ -552,9 +535,7 @@ export default function Dashboard() {
                     setCustomIntelModalOpen(true);
                   }}
                   onDeleteEvent={handleDeleteEvent}
-                  onCopyMasterJson={handleCopyMasterJson}
                   onExportMasterJson={handleExportMasterJson}
-                  onImportMasterJson={handleImportMasterJson}
                 />
               </ErrorBoundary>
             </div>
