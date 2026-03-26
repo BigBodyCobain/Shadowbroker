@@ -87,6 +87,7 @@ interface WorldviewLeftPanelProps {
     customIntelError?: string | null;
     customIntelSummary?: { stories: number; events: number } | null;
     customIntelStoriesCount?: number;
+    customIntelEventsCount?: number;
 }
 
 const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
@@ -113,6 +114,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     customIntelError,
     customIntelSummary,
     customIntelStoriesCount = 0,
+    customIntelEventsCount = 0,
 }: WorldviewLeftPanelProps) {
     const [isMinimized, setIsMinimized] = useState(false);
     const { theme, toggleTheme, hudColor, cycleHudColor } = useTheme();
@@ -439,8 +441,8 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                                         <span className={`text-sm font-medium ${active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'} tracking-wide`}>{layer.name}</span>
                                                         <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">{layer.source} · {active ? (() => {
                                                             if (layer.id === "custom_intel") {
-                                                                return customIntelSummary
-                                                                    ? <span className="text-cyan-500/70">{customIntelSummary.events} events</span>
+                                                                return customIntelEventsCount > 0
+                                                                    ? <span className="text-cyan-500/70">{customIntelEventsCount} events</span>
                                                                     : 'READY';
                                                             }
                                                             const fKey = FRESHNESS_MAP[layer.id];

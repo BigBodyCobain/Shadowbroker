@@ -48,6 +48,7 @@ import { INTERP_TICK_MS, ALERT_BOX_WIDTH_PX, ALERT_MAX_OFFSET_PX } from "@/lib/c
 import { useInterpolation } from "@/components/map/hooks/useInterpolation";
 import { useClusterLabels } from "@/components/map/hooks/useClusterLabels";
 import { spreadAlertItems } from "@/utils/alertSpread";
+import { CUSTOM_INTEL_WEIGHT_COLORS, getCustomIntelWeightColor } from "@/lib/customIntelStore";
 import {
     buildEarthquakesGeoJSON, buildJammingGeoJSON, buildCctvGeoJSON, buildKiwisdrGeoJSON,
     buildFirmsGeoJSON, buildInternetOutagesGeoJSON, buildDataCentersGeoJSON, buildPowerPlantsGeoJSON, buildMilitaryBasesGeoJSON,
@@ -1124,8 +1125,24 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                                     3, 9,
                                     5, 12
                                 ],
-                                'circle-color': '#06b6d4',
-                                'circle-stroke-color': '#22d3ee',
+                                'circle-color': [
+                                    'match',
+                                    ['coalesce', ['to-number', ['get', 'weight']], 1],
+                                    5, CUSTOM_INTEL_WEIGHT_COLORS[5].fill,
+                                    4, CUSTOM_INTEL_WEIGHT_COLORS[4].fill,
+                                    3, CUSTOM_INTEL_WEIGHT_COLORS[3].fill,
+                                    2, CUSTOM_INTEL_WEIGHT_COLORS[2].fill,
+                                    CUSTOM_INTEL_WEIGHT_COLORS[1].fill
+                                ],
+                                'circle-stroke-color': [
+                                    'match',
+                                    ['coalesce', ['to-number', ['get', 'weight']], 1],
+                                    5, CUSTOM_INTEL_WEIGHT_COLORS[5].stroke,
+                                    4, CUSTOM_INTEL_WEIGHT_COLORS[4].stroke,
+                                    3, CUSTOM_INTEL_WEIGHT_COLORS[3].stroke,
+                                    2, CUSTOM_INTEL_WEIGHT_COLORS[2].stroke,
+                                    CUSTOM_INTEL_WEIGHT_COLORS[1].stroke
+                                ],
                                 'circle-stroke-width': 1.2,
                                 'circle-opacity': 0.75
                             }}
@@ -2258,6 +2275,9 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                     const lat = typeof props.lat === 'number' ? props.lat : null;
                     const lng = typeof props.lng === 'number' ? props.lng : null;
                     if (lat == null || lng == null) return null;
+                    const weightNumber = typeof props.weight === 'number' ? props.weight : Number(props.weight ?? 1);
+                    const weight = Number.isFinite(weightNumber) ? Math.max(1, Math.min(5, Math.round(weightNumber))) : 1;
+                    const weightTextClass = getCustomIntelWeightColor(weight).text;
 
                     const date = typeof props.date === 'string' ? props.date : '';
                     const startDate = typeof props.start_date === 'string' ? props.start_date : '';
@@ -2318,13 +2338,14 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                                 </div>
                                 <div className="p-3 flex flex-col gap-2 text-[10px]">
                                     <div className="text-cyan-200 font-bold leading-tight">{String(props.story_title || 'Untitled Story')}</div>
+                                    <div className="text-[9px] text-[var(--text-muted)]">dataset: <span className="text-white">{String(props.dataset_title || 'N/A')}</span></div>
                                     <div className="text-[9px] text-[var(--text-muted)]">story_id: <span className="text-white">{String(props.story_id || 'N/A')}</span></div>
                                     <div className="border-t border-[var(--border-primary)]/60 my-1" />
                                     <div className="text-[var(--text-muted)]">Event: <span className="text-white">{String(props.event_name || 'N/A')}</span></div>
                                     <div className="text-[var(--text-muted)]">Type: <span className="text-cyan-300">{String(props.event_type || 'N/A')}</span></div>
                                     <div className="text-[var(--text-muted)]">Location: <span className="text-white">{String(props.location_label || 'N/A')}</span></div>
                                     <div className="text-[var(--text-muted)]">Date: <span className="text-white">{dateLabel}</span></div>
-                                    <div className="text-[var(--text-muted)]">Weight: <span className="text-cyan-300">{String(props.weight ?? 1)}</span></div>
+                                    <div className="text-[var(--text-muted)]">Weight: <span className={weightTextClass}>{weight}</span></div>
                                     <div className="text-[var(--text-muted)] leading-relaxed">Description: <span className="text-white">{String(props.description || 'N/A')}</span></div>
                                     {parsedSources.length > 0 && (
                                         <div className="mt-1 border-t border-[var(--border-primary)]/60 pt-2 flex flex-col gap-1">
