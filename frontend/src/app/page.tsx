@@ -182,7 +182,6 @@ export default function Dashboard() {
   const [customIntelGeoJSON, setCustomIntelGeoJSON] = useState<GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> | null>(null);
   const [customIntelSummary, setCustomIntelSummary] = useState<CustomIntelSummary | null>(null);
   const [customIntelError, setCustomIntelError] = useState<string | null>(null);
-  const customIntelWasActiveRef = useRef(false);
 
   // NASA GIBS satellite imagery state
   const [gibsDate, setGibsDate] = useState<string>(() => {
@@ -214,9 +213,9 @@ export default function Dashboard() {
       window.localStorage.setItem(STYLE_STORAGE_KEY, activeStyle);
     }
     // Auto-toggle High-Res Satellite layer with SATELLITE style
-    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "DEFAULT")
+    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "SATELLITE")
       ? l
-      : { ...l, highres_satellite: activeStyle === "SATELLITE" }
+      : { ...l, highres_satellite: activeStyle === "DEFAULT" }
     ));
   }, [activeStyle]);
 
@@ -249,15 +248,9 @@ export default function Dashboard() {
   const { showChangelog, setShowChangelog } = useChangelog();
 
   useEffect(() => {
-    if (customIntelWasActiveRef.current && !activeLayers.custom_intel) {
-      setCustomIntelRawInput("");
-      setCustomIntelStories([]);
-      setCustomIntelGeoJSON(null);
-      setCustomIntelSummary(null);
-      setCustomIntelError(null);
+    if (!activeLayers.custom_intel) {
       setSelectedEntity((prev) => (prev?.type === "custom_intel_event" ? null : prev));
     }
-    customIntelWasActiveRef.current = activeLayers.custom_intel;
   }, [activeLayers.custom_intel]);
 
   const resetCustomIntelState = useCallback(() => {
@@ -278,6 +271,7 @@ export default function Dashboard() {
       setCustomIntelSummary(parsed.summary);
       setCustomIntelError(null);
       setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
+      setCustomIntelModalOpen(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to parse Custom Intel JSON.";
       setCustomIntelError(msg);
