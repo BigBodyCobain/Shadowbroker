@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Plus, Trash2, AlertTriangle, Clock, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, AlertTriangle, Clock, Download } from "lucide-react";
 import type { CustomIntelMasterEvent } from "@/types/dashboard";
 import {
   getCustomIntelLevelLabel,
@@ -17,9 +17,7 @@ interface CustomIntelDatasetsPanelProps {
   layerActive: boolean;
   onAddDataset: () => void;
   onDeleteEvent: (masterEventId: string) => void;
-  onCopyMasterJson: () => Promise<void>;
   onExportMasterJson: () => void;
-  onImportMasterJson: (raw: string, mode: "merge" | "replace") => Promise<void>;
 }
 
 const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
@@ -27,15 +25,11 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
   layerActive,
   onAddDataset,
   onDeleteEvent,
-  onCopyMasterJson,
   onExportMasterJson,
-  onImportMasterJson,
 }: CustomIntelDatasetsPanelProps) {
   const [minimized, setMinimized] = useState(false);
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importRaw, setImportRaw] = useState("");
 
   const setTransientFeedback = (msg: string) => {
     setFeedback(msg);
@@ -80,41 +74,15 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
             exit={{ opacity: 0 }}
             className="p-3 flex flex-col gap-2 overflow-y-auto styled-scrollbar"
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddDataset();
-              }}
-              className="w-full px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-950/25 text-cyan-300 hover:text-cyan-200 hover:border-cyan-400 text-[9px] tracking-wider flex items-center justify-center gap-1"
-            >
-              <Plus size={11} /> ADD INTEL DATASET
-            </button>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setImportRaw("");
-                setImportOpen(true);
-              }}
-              className="w-full px-2 py-1.5 rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-300 hover:border-cyan-500/40 text-[9px] tracking-wider flex items-center justify-center gap-1"
-            >
-              <Upload size={11} /> IMPORT MASTER JSON
-            </button>
-
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between gap-2">
               <button
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation();
-                  try {
-                    await onCopyMasterJson();
-                    setTransientFeedback("Master JSON copied");
-                  } catch {
-                    setTransientFeedback("Clipboard failed");
-                  }
+                  onAddDataset();
                 }}
-                className="px-2 py-1.5 rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-300 hover:border-cyan-500/40 text-[9px] tracking-wider"
+                className="px-2 py-1.5 rounded border border-cyan-500/40 bg-cyan-950/25 text-cyan-300 hover:text-cyan-200 hover:border-cyan-400 text-[9px] tracking-wider flex items-center gap-1"
               >
-                COPY MASTER JSON
+                <Plus size={11} /> ADD INTEL DATASET
               </button>
               <button
                 onClick={(e) => {
@@ -126,9 +94,11 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
                     setTransientFeedback("Export failed");
                   }
                 }}
-                className="px-2 py-1.5 rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-300 hover:border-cyan-500/40 text-[9px] tracking-wider"
+                className="h-[28px] w-[28px] rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-300 hover:border-cyan-500/40 flex items-center justify-center transition-colors"
+                title="Export Master JSON"
+                aria-label="Export Master JSON"
               >
-                EXPORT MASTER JSON
+                <Download size={12} />
               </button>
             </div>
 
@@ -238,102 +208,6 @@ const CustomIntelDatasetsPanel = React.memo(function CustomIntelDatasetsPanel({
               })
             )}
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {importOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998]"
-              onClick={() => setImportOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-w-[92vw] z-[9999]"
-            >
-              <div className="bg-[var(--bg-secondary)]/98 border border-cyan-900/50 rounded-xl shadow-[0_0_60px_rgba(0,180,255,0.12)] overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)]/70 bg-[var(--bg-primary)]/40">
-                  <div className="text-[10px] font-mono tracking-[0.18em] text-[var(--text-primary)]">IMPORT MASTER JSON</div>
-                  <button
-                    onClick={() => setImportOpen(false)}
-                    className="w-7 h-7 rounded-lg border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-colors"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="p-4 flex flex-col gap-3">
-                  <textarea
-                    value={importRaw}
-                    onChange={(e) => setImportRaw(e.target.value)}
-                    placeholder="Paste exported CustomIntelStore JSON..."
-                    className="w-full h-[180px] bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] rounded-lg px-3 py-2 text-[10px] text-[var(--text-primary)] font-mono leading-relaxed resize-y outline-none focus:border-cyan-500/60 styled-scrollbar"
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-[9px] text-[var(--text-muted)] border border-[var(--border-primary)] rounded px-2 py-1 cursor-pointer hover:text-cyan-300 hover:border-cyan-500/40">
-                      Upload .json
-                      <input
-                        type="file"
-                        accept="application/json,.json"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const f = e.target.files?.[0];
-                          if (!f) return;
-                          const text = await f.text();
-                          setImportRaw(text);
-                          e.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-                    <div className="text-[8px] text-[var(--text-muted)]">Choose merge or replace</div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => setImportOpen(false)}
-                      className="px-3 py-1.5 rounded border border-[var(--border-primary)] text-[9px] font-mono tracking-wider text-[var(--text-muted)] hover:text-cyan-300 hover:border-cyan-500/40"
-                    >
-                      CANCEL
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await onImportMasterJson(importRaw, "merge");
-                          setImportOpen(false);
-                          setTransientFeedback("Imported (merge)");
-                        } catch {
-                          setTransientFeedback("Import failed");
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded border border-cyan-500/40 bg-cyan-950/30 text-[9px] font-mono tracking-wider text-cyan-300 hover:text-cyan-200 hover:border-cyan-400"
-                    >
-                      MERGE
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm("Replace current master store?")) return;
-                        try {
-                          await onImportMasterJson(importRaw, "replace");
-                          setImportOpen(false);
-                          setTransientFeedback("Imported (replace)");
-                        } catch {
-                          setTransientFeedback("Import failed");
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded border border-orange-500/40 bg-orange-950/30 text-[9px] font-mono tracking-wider text-orange-300 hover:text-orange-200 hover:border-orange-400"
-                    >
-                      REPLACE
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
         )}
       </AnimatePresence>
     </motion.div>
