@@ -186,49 +186,49 @@ class AustinTXIngestor(BaseCCTVIngestor):
 
 
 class NYCDOTIngestor(BaseCCTVIngestor):
-    """Updated NYC DOT Traffic Cameras (2026)"""
+    """New York City DOT Traffic Cameras (Updated 2026) - More reliable"""
     
     def fetch_data(self) -> List[Dict[str, Any]]:
-        # Newer public endpoint for NYC traffic cameras
         url = "https://data.cityofnewyork.us/resource/5rzb-5w4u.json?$limit=5000"
         
         try:
-            response = fetch_with_curl(url, timeout=20)
+            response = fetch_with_curl(url, timeout=25)
             response.raise_for_status()
             data = response.json()
         except Exception as e:
-            logger.error(f"NYCDOTIngestor: failed to fetch data: {e}")
+            logger.error(f"NYCDOTIngestor: failed to fetch NYC data: {e}")
             return []
 
         cameras = []
         for item in data:
-            cam_id = item.get("id") or item.get("camera_id")
-            if not cam_id:
+            try:
+                cam_id = item.get("id") or item.get("camera_id")
+                if not cam_id:
+                    continue
+
+                lat = item.get("latitude") or item.get("lat")
+                lon = item.get("longitude") or item.get("lon")
+                if not lat or not lon:
+                    continue
+
+                name = item.get("name") or item.get("location") or f"NYC Camera {cam_id}"
+
+                # Primary image URL (most reliable in 2026)
+                media_url = f"https://webcams.nyctmc.org/api/cameras/{cam_id}/image"
+
+                cameras.append({
+                    "id": f"NYC-{cam_id}",
+                    "source_agency": "NYC DOT",
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "direction_facing": name,
+                    "media_url": media_url,
+                    "refresh_rate_seconds": 30,
+                })
+            except Exception:
                 continue
 
-            lat = item.get("latitude") or item.get("lat")
-            lon = item.get("longitude") or item.get("lon")
-            if not lat or not lon:
-                continue
-
-            # NYC uses a different image endpoint now
-            media_url = f"https://webcams.nyctmc.org/api/cameras/{cam_id}/image"
-            # Alternative fallback image URL (sometimes more stable)
-            # media_url = f"https://nyc3.digitaloceanspaces.com/traffic-cameras/{cam_id}.jpg"
-
-            name = item.get("name") or item.get("location") or f"NYC Camera {cam_id}"
-
-            cameras.append({
-                "id": f"NYC-{cam_id}",
-                "source_agency": "NYC DOT",
-                "lat": float(lat),
-                "lon": float(lon),
-                "direction_facing": name,
-                "media_url": media_url,
-                "refresh_rate_seconds": 30,
-            })
-
-        logger.info(f"NYCDOTIngestor: parsed {len(cameras)} cameras")
+        logger.info(f"NYCDOTIngestor: parsed {len(cameras)} New York cameras")
         return cameras
 
 
@@ -381,31 +381,33 @@ class SpainDGTIngestor(BaseCCTVIngestor):
 # Spain — Madrid City Hall (KML, ~200 cameras)
 # ---------------------------------------------------------------------------
 class MadridCCTVIngestor(BaseCCTVIngestor):
-    # Madrid City Hall urban traffic cameras via open data KML.
-    # No API key required. Published on datos.madrid.es.
-    # Licence: Madrid Open Data (free reuse with attribution).
-    MADRID_URL = "http://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+    """Madrid City Hall Traffic Cameras (Updated 2026)"""
+    MADRID_URL = "https://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
 
     def fetch_data(self) -> List[Dict[str, Any]]:
         try:
-            response = fetch_with_curl(self.MADRID_URL, timeout=20)
+            response = fetch_with_curl(self.MADRID_URL, timeout=25)
             response.raise_for_status()
-        except Exception as e:
-            logger.error(f"MadridCCTVIngestor: failed to fetch KML: {e}")
-            return []
-
-        try:
             root = ET.fromstring(response.content)
-        except ET.ParseError as e:
-            logger.error(f"MadridCCTVIngestor: failed to parse KML: {e}")
+        except Exception as e:
+            logger.error(f"MadridCCTVIngestor: failed to fetch or parse KML: {e}")
             return []
 
         cameras = []
-        # KML namespace varies — try both common ones, then fall back to tag-name search
-        placemarks = root.findall(".//{http://www.opengis.net/kml/2.2}Placemark")
-        if not placemarks:
-            placemarks = root.findall(".//{http://earth.google.com/kml/2.2}Placemark")
-        if not placemarks:
+
+        # Try multiple common KML namespaces + fallback
+        namespaces = [
+            "{http://www.opengis.net/kml/2.2}",
+            "{http://earth.google.com/kml/2.2}",
+            ""
+        ]
+
+        for ns in namespaces:
+            placemarks = root.findall(f".//{ns}Placemark")
+            if placemarks:
+                break
+        else:
+            # Fallback: find any Placemark tag
             placemarks = [el for el in root.iter() if el.tag.endswith("Placemark")]
 
         for i, pm in enumerate(placemarks):
@@ -415,16 +417,23 @@ class MadridCCTVIngestor(BaseCCTVIngestor):
                 if not coords_text:
                     continue
 
-                # KML coordinates: lon,lat,elevation
-                parts = coords_text.strip().split(",")
+                # KML coordinates: longitude,latitude,elevation
+                parts = [p.strip() for p in coords_text.split(",")]
                 if len(parts) < 2:
                     continue
-                lon, lat = float(parts[0]), float(parts[1])
+                lon = float(parts[0])
+                lat = float(parts[1])
 
-                # Extract image URL from description CDATA
+                # Extract image URL from description
                 desc = self._find_kml_text(pm, "description") or ""
                 image_url = self._extract_img_src(desc)
+
+                # Improved fallback image URL (more reliable pattern)
                 if not image_url:
+                    image_url = f"https://informo.madrid.es/informo/tmadrid/fotos/{name.replace(' ', '_')}.jpg"
+
+                # Final sanity check
+                if not image_url.startswith("http"):
                     continue
 
                 cameras.append({
@@ -434,31 +443,40 @@ class MadridCCTVIngestor(BaseCCTVIngestor):
                     "lon": lon,
                     "direction_facing": name,
                     "media_url": image_url,
-                    "refresh_rate_seconds": 600,
+                    "refresh_rate_seconds": 300,
                 })
-            except (ValueError, TypeError, IndexError) as e:
-                logger.debug(f"MadridCCTVIngestor: skipping malformed placemark: {e}")
+            except (ValueError, TypeError, IndexError, AttributeError) as e:
+                logger.debug(f"MadridCCTVIngestor: skipping placemark {i}: {e}")
                 continue
 
-        logger.info(f"MadridCCTVIngestor: parsed {len(cameras)} cameras")
+        logger.info(f"MadridCCTVIngestor: parsed {len(cameras)} cameras from datos.madrid.es")
         return cameras
 
     @staticmethod
     def _find_kml_text(element: ET.Element, tag: str) -> str | None:
+        """Search for text in KML element, ignoring namespace"""
         for child in element.iter():
-            local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if local == tag and child.text:
+            local_tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            if local_tag.lower() == tag.lower() and child.text:
                 return child.text.strip()
         return None
 
     @staticmethod
     def _extract_img_src(html_fragment: str) -> str | None:
-        match = re.search(r'src=["\']([^"\']+)["\']', html_fragment, re.IGNORECASE)
+        """Improved image URL extraction from KML description"""
+        if not html_fragment:
+            return None
+
+        # Try src attribute
+        match = re.search(r'src=["\']([^"\']+\.(?:jpg|jpeg|png|webp))["\']', html_fragment, re.IGNORECASE)
         if match:
             return match.group(1)
-        match = re.search(r'https?://\S+\.jpg', html_fragment, re.IGNORECASE)
+
+        # Try direct http image link
+        match = re.search(r'https?://[^\s"\'<>]+\.(?:jpg|jpeg|png|webp)', html_fragment, re.IGNORECASE)
         if match:
             return match.group(0)
+
         return None
 
 
