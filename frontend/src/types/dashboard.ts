@@ -260,16 +260,12 @@ export interface NewsArticle {
   source: string;
   link: string;
   pub_date: string;
-  published?: string;
   risk_score: number;
   lat: number;
   lng: number;
   region?: string;
   coords?: [number, number];
   machine_assessment?: string;
-  featured_image?: string;
-  cluster_count?: number;
-  articles?: NewsArticle[];
 }
 
 // ─── UKRAINE FRONTLINE ──────────────────────────────────────────────────────

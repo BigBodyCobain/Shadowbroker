@@ -27,9 +27,6 @@ import { useRegionDossier } from "@/hooks/useRegionDossier";
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
-const STYLE_STORAGE_KEY = "sb_map_style";
-const STYLE_OPTIONS = ["DEFAULT", "SATELLITE", "STREETS", "TERRAIN", "LIGHT", "DARK"] as const;
-type StyleOption = (typeof STYLE_OPTIONS)[number];
 
 /* ── LOCATE BAR ── coordinate / place-name search above bottom status bar ── */
 function LocateBar({ onLocate }: { onLocate: (lat: number, lng: number) => void }) {
@@ -181,45 +178,18 @@ export default function Dashboard() {
     bloom: true,
   });
 
-  const [activeStyle, setActiveStyle] = useState<StyleOption>(() => {
-    if (typeof window === "undefined") return "DEFAULT";
-    const saved = window.localStorage.getItem(STYLE_STORAGE_KEY);
-    return (saved && (STYLE_OPTIONS as readonly string[]).includes(saved)) ? (saved as StyleOption) : "DEFAULT";
-  });
-  const [styleMenuOpen, setStyleMenuOpen] = useState(false);
-  const styleMenuRef = useRef<HTMLDivElement | null>(null);
+  const [activeStyle, setActiveStyle] = useState('DEFAULT');
+  const stylesList = ['DEFAULT', 'SATELLITE', 'STREETS', 'TERRAIN', 'LIGHT', 'DARK'];
 
-  const selectStyle = (style: StyleOption) => {
-    setActiveStyle(style);
-    setStyleMenuOpen(false);
+  const cycleStyle = () => {
+    setActiveStyle((prev) => {
+      const idx = stylesList.indexOf(prev);
+      const next = stylesList[(idx + 1) % stylesList.length];
+      // Auto-toggle High-Res Satellite layer with SATELLITE style
+      setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
+      return next;
+    });
   };
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STYLE_STORAGE_KEY, activeStyle);
-    }
-    // Auto-toggle High-Res Satellite layer with SATELLITE style
-    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "SATELLITE")
-      ? l
-      : { ...l, highres_satellite: activeStyle === "SATELLITE" }
-    ));
-  }, [activeStyle]);
-
-  useEffect(() => {
-    if (!styleMenuOpen) return;
-    const onDocClick = (ev: MouseEvent) => {
-      if (!styleMenuRef.current?.contains(ev.target as Node)) setStyleMenuOpen(false);
-    };
-    const onEsc = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") setStyleMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [styleMenuOpen]);
 
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [flyToLocation, setFlyToLocation] = useState<{ lat: number, lng: number, ts: number } | null>(null);
@@ -286,7 +256,7 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-col">
               <h1 className="text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)] flex items-center gap-3" style={{ fontFamily: 'monospace' }}>
-                LUCKY<span className="text-cyan-400">STRIKE</span>
+                S H A D O W <span className="text-cyan-400">B R O K E R</span>
               </h1>
               <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-[0.3em] mt-1 ml-1">GLOBAL THREAT INTERCEPT</span>
             </div>
@@ -443,25 +413,10 @@ export default function Dashboard() {
               {/* Divider */}
               <div className="w-px h-8 bg-[var(--border-primary)]" />
 
-              {/* Style preset (dropdown) */}
-              <div ref={styleMenuRef} className="relative">
-                {styleMenuOpen && (
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 min-w-[130px] rounded-lg border border-cyan-900/60 bg-[var(--bg-secondary)]/95 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.45)] overflow-hidden z-[220]">
-                    {STYLE_OPTIONS.map((style) => (
-                      <button
-                        key={style}
-                        onClick={() => selectStyle(style)}
-                        className={`w-full px-3 py-2 text-left text-[10px] font-mono tracking-wider transition-colors ${activeStyle === style ? "text-cyan-300 bg-cyan-950/40" : "text-[var(--text-secondary)] hover:bg-cyan-950/25 hover:text-cyan-300"}`}
-                      >
-                        {style}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <button className="flex flex-col items-center cursor-pointer" onClick={() => setStyleMenuOpen((v) => !v)}>
-                  <div className="text-[8px] text-[var(--text-muted)] font-mono tracking-[0.2em]">STYLE</div>
-                  <div className="text-[11px] text-cyan-400 font-mono font-bold">{activeStyle}</div>
-                </button>
+              {/* Style preset (compact) */}
+              <div className="flex flex-col items-center cursor-pointer" onClick={cycleStyle}>
+                <div className="text-[8px] text-[var(--text-muted)] font-mono tracking-[0.2em]">STYLE</div>
+                <div className="text-[11px] text-cyan-400 font-mono font-bold">{activeStyle}</div>
               </div>
 
               {/* Divider */}

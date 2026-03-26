@@ -152,23 +152,6 @@ app.add_middleware(
 from services.data_fetcher import update_all_data
 
 _refresh_lock = threading.Lock()
-_news_refresh_lock = threading.Lock()
-
-
-def _trigger_news_refresh() -> str:
-    """Run news-only refresh in background, skipping duplicate concurrent runs."""
-    if not _news_refresh_lock.acquire(blocking=False):
-        return "already in progress"
-
-    def _do_news_refresh():
-        try:
-            from services.fetchers.news import fetch_news
-            fetch_news()
-        finally:
-            _news_refresh_lock.release()
-
-    threading.Thread(target=_do_news_refresh, daemon=True).start()
-    return "triggered"
 
 @app.get("/api/refresh", response_model=RefreshResponse)
 @limiter.limit("2/minute")
@@ -479,15 +462,7 @@ async def api_update_key(request: Request, body: ApiKeyUpdate):
 # ---------------------------------------------------------------------------
 # News Feed Configuration
 # ---------------------------------------------------------------------------
-from services.news_feed_config import (
-    get_feeds,
-    save_feeds,
-    reset_feeds,
-    get_selected_categories,
-    save_selected_categories,
-    NEWS_CATEGORIES,
-    ALL_CATEGORIES_VALUE,
-)
+from services.news_feed_config import get_feeds, save_feeds, reset_feeds
 
 @app.get("/api/settings/news-feeds")
 @limiter.limit("30/minute")
@@ -498,50 +473,11 @@ async def api_get_news_feeds(request: Request):
 @limiter.limit("10/minute")
 async def api_save_news_feeds(request: Request):
     body = await request.json()
-    if isinstance(body, dict):
-        feeds_payload = body.get("feeds", [])
-        selected_payload = body.get("selected_categories")
-        ok = save_feeds(feeds_payload)
-        if ok and isinstance(selected_payload, list):
-            ok = save_selected_categories(selected_payload)
-    else:
-        ok = save_feeds(body)
+    ok = save_feeds(body)
     if ok:
-        count = len(body.get("feeds", [])) if isinstance(body, dict) else len(body)
-        return {
-            "status": "updated",
-            "count": count,
-            "news_refresh": _trigger_news_refresh(),
-        }
+        return {"status": "updated", "count": len(body)}
     return Response(
-        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 50 feeds, each needs name/url/weight 1-5, with valid categories)"}),
-        status_code=400,
-        media_type="application/json",
-    )
-
-@app.get("/api/settings/news-feed-categories")
-@limiter.limit("30/minute")
-async def api_get_news_feed_categories(request: Request):
-    return {
-        "available_categories": NEWS_CATEGORIES,
-        "all_value": ALL_CATEGORIES_VALUE,
-        "selected_categories": get_selected_categories(),
-    }
-
-@app.put("/api/settings/news-feed-categories", dependencies=[Depends(require_admin)])
-@limiter.limit("10/minute")
-async def api_save_news_feed_categories(request: Request):
-    body = await request.json()
-    categories = body if isinstance(body, list) else body.get("selected_categories", [])
-    ok = save_selected_categories(categories)
-    if ok:
-        return {
-            "status": "updated",
-            "selected_categories": get_selected_categories(),
-            "news_refresh": _trigger_news_refresh(),
-        }
-    return Response(
-        content=json_mod.dumps({"status": "error", "message": "Validation failed for selected categories"}),
+        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 20 feeds, each needs name/url/weight 1-5)"}),
         status_code=400,
         media_type="application/json",
     )
@@ -551,12 +487,7 @@ async def api_save_news_feed_categories(request: Request):
 async def api_reset_news_feeds(request: Request):
     ok = reset_feeds()
     if ok:
-        return {
-            "status": "reset",
-            "feeds": get_feeds(),
-            "selected_categories": get_selected_categories(),
-            "news_refresh": _trigger_news_refresh(),
-        }
+        return {"status": "reset", "feeds": get_feeds()}
     return {"status": "error", "message": "Failed to reset feeds"}
 
 # ---------------------------------------------------------------------------

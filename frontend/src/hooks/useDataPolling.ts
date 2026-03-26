@@ -71,31 +71,18 @@ export function useDataPolling() {
     // Adaptive polling: retry every 3s during startup, back off to normal cadence once data arrives
     const scheduleNext = (tier: 'fast' | 'slow') => {
       if (tier === 'fast') {
-        if (fastTimerId) clearTimeout(fastTimerId);
         const delay = hasData ? 15000 : 3000; // 3s startup retry → 15s steady state
         fastTimerId = setTimeout(fetchFastData, delay);
       } else {
-        if (slowTimerId) clearTimeout(slowTimerId);
         const delay = hasData ? 120000 : 5000; // 5s startup retry → 120s steady state
         slowTimerId = setTimeout(fetchSlowData, delay);
       }
     };
 
-    const forceRefreshNow = () => {
-      // Force unconditional pulls so UI updates immediately after settings save.
-      fastEtag.current = null;
-      slowEtag.current = null;
-      fetchFastData();
-      fetchSlowData();
-    };
-
-    window.addEventListener('sb:force-data-refresh', forceRefreshNow);
-
     fetchFastData();
     fetchSlowData();
 
     return () => {
-      window.removeEventListener('sb:force-data-refresh', forceRefreshNow);
       if (fastTimerId) clearTimeout(fastTimerId);
       if (slowTimerId) clearTimeout(slowTimerId);
     };

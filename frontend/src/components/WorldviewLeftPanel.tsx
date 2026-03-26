@@ -167,6 +167,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                 <div className="text-[10px] text-[var(--text-secondary)] font-mono tracking-widest mb-1">TOP SECRET // SI-TK // NOFORN</div>
                 <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest mb-4">KH11-4094 OPS-4168</div>
                 <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold tracking-[0.2em] text-[var(--text-heading)]">FLIR</h1>
                     <button
                         onClick={toggleTheme}
                         className={`w-7 h-7 rounded-lg border border-[var(--border-primary)] hover:border-cyan-500/50 flex items-center justify-center ${theme === 'dark' ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-300 transition-all hover:bg-[var(--hover-accent)]`}

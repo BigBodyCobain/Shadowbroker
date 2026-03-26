@@ -136,7 +136,7 @@ const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSet
                             <div className="space-y-4">
                                 <div className="text-center py-4">
                                     <div className="text-lg font-bold tracking-[0.3em] text-[var(--text-primary)] font-mono mb-2">
-                                        LUCKY<span className="text-cyan-400">STRIKE</span>
+                                        S H A D O W <span className="text-cyan-400">B R O K E R</span>
                                     </div>
                                     <p className="text-[11px] text-[var(--text-secondary)] font-mono leading-relaxed max-w-md mx-auto">
                                         Real-time OSINT dashboard aggregating 12+ live intelligence sources.
