@@ -15,6 +15,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Default empty = auto-detect from browser hostname at runtime.
 ARG NEXT_PUBLIC_API_URL=""
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV DOCKER_BUILD=1
 RUN npm run build
 
 FROM base AS runner
