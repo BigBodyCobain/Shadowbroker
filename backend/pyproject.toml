@@ -4,7 +4,7 @@ version = "0.9.5"
 requires-python = ">=3.10"
 dependencies = [
     "apscheduler==3.10.3",
-    "cachetools==5.5.2",
+    "cachetools==7.0.5",
     "cloudscraper==1.2.71",
     "fastapi==0.115.12",
     "feedparser==6.0.10",
