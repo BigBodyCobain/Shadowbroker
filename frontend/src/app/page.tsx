@@ -199,7 +199,7 @@ export default function Dashboard() {
       window.localStorage.setItem(STYLE_STORAGE_KEY, activeStyle);
     }
     // Auto-toggle High-Res Satellite layer with SATELLITE style
-    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "SATELLITE")
+    setActiveLayers((l) => (l.highres_satellite === (activeStyle === "DEFAULT")
       ? l
       : { ...l, highres_satellite: activeStyle === "SATELLITE" }
     ));
