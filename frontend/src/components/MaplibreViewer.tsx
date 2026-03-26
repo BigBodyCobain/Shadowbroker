@@ -2263,6 +2263,41 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                     const startDate = typeof props.start_date === 'string' ? props.start_date : '';
                     const endDate = typeof props.end_date === 'string' ? props.end_date : '';
                     const dateLabel = date || (startDate && endDate ? `${startDate} → ${endDate}` : (startDate || endDate || 'N/A'));
+                    const isSafeUrl = (value: string): boolean => {
+                        try {
+                            const parsed = new URL(value);
+                            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+                        } catch {
+                            return false;
+                        }
+                    };
+                    const rawSources = props.sources;
+                    let parsedSources: Array<{ name: string; url: string }> = [];
+
+                    if (Array.isArray(rawSources)) {
+                        parsedSources = rawSources
+                            .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null && !Array.isArray(s))
+                            .map((s) => ({
+                                name: typeof s.name === 'string' ? s.name.trim() : '',
+                                url: typeof s.url === 'string' ? s.url.trim() : '',
+                            }))
+                            .filter((s) => s.name.length > 0 && s.url.length > 0 && isSafeUrl(s.url));
+                    } else if (typeof rawSources === 'string' && rawSources.trim()) {
+                        try {
+                            const fromJson = JSON.parse(rawSources);
+                            if (Array.isArray(fromJson)) {
+                                parsedSources = fromJson
+                                    .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null && !Array.isArray(s))
+                                    .map((s) => ({
+                                        name: typeof s.name === 'string' ? s.name.trim() : '',
+                                        url: typeof s.url === 'string' ? s.url.trim() : '',
+                                    }))
+                                    .filter((s) => s.name.length > 0 && s.url.length > 0 && isSafeUrl(s.url));
+                            }
+                        } catch {
+                            parsedSources = [];
+                        }
+                    }
 
                     return (
                         <Popup
@@ -2291,6 +2326,25 @@ const MaplibreViewer = ({ data, activeLayers, effects, onEntityClick, flyToLocat
                                     <div className="text-[var(--text-muted)]">Date: <span className="text-white">{dateLabel}</span></div>
                                     <div className="text-[var(--text-muted)]">Weight: <span className="text-cyan-300">{String(props.weight ?? 1)}</span></div>
                                     <div className="text-[var(--text-muted)] leading-relaxed">Description: <span className="text-white">{String(props.description || 'N/A')}</span></div>
+                                    {parsedSources.length > 0 && (
+                                        <div className="mt-1 border-t border-[var(--border-primary)]/60 pt-2 flex flex-col gap-1">
+                                            <div className="text-[9px] text-cyan-300 tracking-wider">SOURCES</div>
+                                            <div className="flex flex-col gap-1 max-h-[96px] overflow-y-auto styled-scrollbar pr-1">
+                                                {parsedSources.map((source, idx) => (
+                                                    <a
+                                                        key={`${source.name}-${idx}`}
+                                                        href={source.url}
+                                                        target="_blank"
+                                                        rel="noreferrer noopener nofollow"
+                                                        className="text-[9px] text-cyan-400 hover:text-cyan-300 underline truncate block"
+                                                        title={source.url}
+                                                    >
+                                                        {source.name || source.url}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </Popup>

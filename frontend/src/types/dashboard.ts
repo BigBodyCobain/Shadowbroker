@@ -325,6 +325,11 @@ export interface CustomIntelImpactZone {
   products: string[];
 }
 
+export interface CustomIntelSourceLink {
+  name: string;
+  url: string;
+}
+
 export interface CustomIntelEvent {
   id?: string;
   type: string;
@@ -339,6 +344,8 @@ export interface CustomIntelEvent {
   end_date?: string;
   description?: string;
   weight?: number;
+  confidence?: number;
+  sources?: CustomIntelSourceLink[];
 }
 
 export interface CustomIntelStory {
@@ -364,6 +371,9 @@ export interface CustomIntelFeatureProperties {
   end_date?: string;
   description?: string;
   weight: number;
+  confidence?: number;
+  sources?: CustomIntelSourceLink[];
+  source_count?: number;
   lat: number;
   lng: number;
 }
