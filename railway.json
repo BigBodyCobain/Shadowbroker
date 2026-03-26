@@ -5,9 +5,9 @@
     "dockerfilePath": "backend/Dockerfile"
   },
   "deploy": {
-    "startCommand": "uvicorn main:app --host 0.0.0.0 --port 8000",
+    "startCommand": "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}",
     "healthcheckPath": "/api/live-data/fast",
-    "healthcheckTimeout": 90,
+    "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }
