@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import dynamic from 'next/dynamic';
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,11 +19,17 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { DashboardDataProvider } from "@/lib/DashboardDataContext";
 import OnboardingModal, { useOnboarding } from "@/components/OnboardingModal";
 import ChangelogModal, { useChangelog } from "@/components/ChangelogModal";
-import type { SelectedEntity } from "@/types/dashboard";
+import type {
+  CustomIntelFeatureProperties,
+  CustomIntelStory,
+  CustomIntelSummary,
+  SelectedEntity,
+} from "@/types/dashboard";
 import { NOMINATIM_DEBOUNCE_MS } from "@/lib/constants";
 import { useDataPolling } from "@/hooks/useDataPolling";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 import { useRegionDossier } from "@/hooks/useRegionDossier";
+import { parseAndBuildCustomIntel } from "@/lib/customIntel";
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -167,7 +173,16 @@ export default function Dashboard() {
     datacenters: false,
     military_bases: false,
     power_plants: false,
+    custom_intel: false,
   });
+
+  const [customIntelModalOpen, setCustomIntelModalOpen] = useState(false);
+  const [customIntelRawInput, setCustomIntelRawInput] = useState("");
+  const [customIntelStories, setCustomIntelStories] = useState<CustomIntelStory[]>([]);
+  const [customIntelGeoJSON, setCustomIntelGeoJSON] = useState<GeoJSON.FeatureCollection<GeoJSON.Point, CustomIntelFeatureProperties> | null>(null);
+  const [customIntelSummary, setCustomIntelSummary] = useState<CustomIntelSummary | null>(null);
+  const [customIntelError, setCustomIntelError] = useState<string | null>(null);
+  const customIntelWasActiveRef = useRef(false);
 
   // NASA GIBS satellite imagery state
   const [gibsDate, setGibsDate] = useState<string>(() => {
@@ -233,6 +248,46 @@ export default function Dashboard() {
   const { showOnboarding, setShowOnboarding } = useOnboarding();
   const { showChangelog, setShowChangelog } = useChangelog();
 
+  useEffect(() => {
+    if (customIntelWasActiveRef.current && !activeLayers.custom_intel) {
+      setCustomIntelRawInput("");
+      setCustomIntelStories([]);
+      setCustomIntelGeoJSON(null);
+      setCustomIntelSummary(null);
+      setCustomIntelError(null);
+      setSelectedEntity((prev) => (prev?.type === "custom_intel_event" ? null : prev));
+    }
+    customIntelWasActiveRef.current = activeLayers.custom_intel;
+  }, [activeLayers.custom_intel]);
+
+  const resetCustomIntelState = useCallback(() => {
+    setCustomIntelRawInput("");
+    setCustomIntelStories([]);
+    setCustomIntelGeoJSON(null);
+    setCustomIntelSummary(null);
+    setCustomIntelError(null);
+    setActiveLayers((prev) => (prev.custom_intel ? { ...prev, custom_intel: false } : prev));
+    setSelectedEntity((prev) => (prev?.type === "custom_intel_event" ? null : prev));
+  }, []);
+
+  const handlePopulateCustomIntel = useCallback(() => {
+    try {
+      const parsed = parseAndBuildCustomIntel(customIntelRawInput);
+      setCustomIntelStories(parsed.stories);
+      setCustomIntelGeoJSON(parsed.features);
+      setCustomIntelSummary(parsed.summary);
+      setCustomIntelError(null);
+      setActiveLayers((prev) => ({ ...prev, custom_intel: true }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to parse Custom Intel JSON.";
+      setCustomIntelError(msg);
+      setCustomIntelSummary(null);
+      setCustomIntelStories([]);
+      setCustomIntelGeoJSON(null);
+      setActiveLayers((prev) => ({ ...prev, custom_intel: false }));
+    }
+  }, [customIntelRawInput]);
+
   return (
     <DashboardDataProvider data={data} selectedEntity={selectedEntity} setSelectedEntity={setSelectedEntity}>
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden font-sans">
@@ -264,6 +319,7 @@ export default function Dashboard() {
           measurePoints={measurePoints}
           trackedSdr={trackedSdr}
           setTrackedSdr={setTrackedSdr}
+          customIntelGeoJSON={customIntelGeoJSON}
         />
       </ErrorBoundary>
 
@@ -311,7 +367,34 @@ export default function Dashboard() {
           >
             {/* LEFT PANEL - DATA LAYERS */}
             <ErrorBoundary name="WorldviewLeftPanel">
-              <WorldviewLeftPanel data={data} activeLayers={activeLayers} setActiveLayers={setActiveLayers} onSettingsClick={() => setSettingsOpen(true)} onLegendClick={() => setLegendOpen(true)} gibsDate={gibsDate} setGibsDate={setGibsDate} gibsOpacity={gibsOpacity} setGibsOpacity={setGibsOpacity} onEntityClick={setSelectedEntity} onFlyTo={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })} trackedSdr={trackedSdr} setTrackedSdr={setTrackedSdr} />
+              <WorldviewLeftPanel
+                data={data}
+                activeLayers={activeLayers}
+                setActiveLayers={setActiveLayers}
+                onSettingsClick={() => setSettingsOpen(true)}
+                onLegendClick={() => setLegendOpen(true)}
+                gibsDate={gibsDate}
+                setGibsDate={setGibsDate}
+                gibsOpacity={gibsOpacity}
+                setGibsOpacity={setGibsOpacity}
+                onEntityClick={setSelectedEntity}
+                onFlyTo={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
+                trackedSdr={trackedSdr}
+                setTrackedSdr={setTrackedSdr}
+                customIntelModalOpen={customIntelModalOpen}
+                onOpenCustomIntelModal={() => {
+                  setCustomIntelError(null);
+                  setCustomIntelModalOpen(true);
+                }}
+                onCloseCustomIntelModal={() => setCustomIntelModalOpen(false)}
+                customIntelRawInput={customIntelRawInput}
+                onCustomIntelRawInputChange={setCustomIntelRawInput}
+                onPopulateCustomIntel={handlePopulateCustomIntel}
+                onClearCustomIntel={resetCustomIntelState}
+                customIntelError={customIntelError}
+                customIntelSummary={customIntelSummary}
+                customIntelStoriesCount={customIntelStories.length}
+              />
             </ErrorBoundary>
           </motion.div>
 

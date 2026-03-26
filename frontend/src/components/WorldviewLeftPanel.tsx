@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plane, AlertTriangle, Activity, Satellite, Cctv, ChevronDown, ChevronUp, Ship, Eye, Anchor, Settings, Sun, Moon, BookOpen, Radio, Play, Pause, Globe, Flame, Wifi, Server, Shield, Zap, ToggleLeft, ToggleRight, Palette } from "lucide-react";
+import { Plane, AlertTriangle, Activity, Satellite, Cctv, ChevronDown, ChevronUp, Ship, Eye, Anchor, Settings, Sun, Moon, BookOpen, Radio, Play, Pause, Globe, Flame, Wifi, Server, Shield, Zap, ToggleLeft, ToggleRight, Palette, Paperclip, X } from "lucide-react";
 import packageJson from "../../package.json";
 import { useTheme } from "@/lib/ThemeContext";
 
@@ -63,7 +63,57 @@ const POTUS_ICAOS: Record<string, { label: string; type: string }> = {
 };
 import type { DashboardData, ActiveLayers, SelectedEntity, KiwiSDR } from "@/types/dashboard";
 
-const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, activeLayers, setActiveLayers, onSettingsClick, onLegendClick, gibsDate, setGibsDate, gibsOpacity, setGibsOpacity, onEntityClick, onFlyTo, trackedSdr, setTrackedSdr }: { data: DashboardData; activeLayers: ActiveLayers; setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>; onSettingsClick?: () => void; onLegendClick?: () => void; gibsDate?: string; setGibsDate?: (d: string) => void; gibsOpacity?: number; setGibsOpacity?: (o: number) => void; onEntityClick?: (entity: SelectedEntity) => void; onFlyTo?: (lat: number, lng: number) => void; trackedSdr?: KiwiSDR | null; setTrackedSdr?: (sdr: KiwiSDR | null) => void }) {
+interface WorldviewLeftPanelProps {
+    data: DashboardData;
+    activeLayers: ActiveLayers;
+    setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>;
+    onSettingsClick?: () => void;
+    onLegendClick?: () => void;
+    gibsDate?: string;
+    setGibsDate?: (d: string) => void;
+    gibsOpacity?: number;
+    setGibsOpacity?: (o: number) => void;
+    onEntityClick?: (entity: SelectedEntity) => void;
+    onFlyTo?: (lat: number, lng: number) => void;
+    trackedSdr?: KiwiSDR | null;
+    setTrackedSdr?: (sdr: KiwiSDR | null) => void;
+    customIntelModalOpen?: boolean;
+    onOpenCustomIntelModal?: () => void;
+    onCloseCustomIntelModal?: () => void;
+    customIntelRawInput?: string;
+    onCustomIntelRawInputChange?: (value: string) => void;
+    onPopulateCustomIntel?: () => void;
+    onClearCustomIntel?: () => void;
+    customIntelError?: string | null;
+    customIntelSummary?: { stories: number; events: number } | null;
+    customIntelStoriesCount?: number;
+}
+
+const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
+    data,
+    activeLayers,
+    setActiveLayers,
+    onSettingsClick,
+    onLegendClick,
+    gibsDate,
+    setGibsDate,
+    gibsOpacity,
+    setGibsOpacity,
+    onEntityClick,
+    onFlyTo,
+    trackedSdr,
+    setTrackedSdr,
+    customIntelModalOpen = false,
+    onOpenCustomIntelModal,
+    onCloseCustomIntelModal,
+    customIntelRawInput = "",
+    onCustomIntelRawInputChange,
+    onPopulateCustomIntel,
+    onClearCustomIntel,
+    customIntelError,
+    customIntelSummary,
+    customIntelStoriesCount = 0,
+}: WorldviewLeftPanelProps) {
     const [isMinimized, setIsMinimized] = useState(false);
     const { theme, toggleTheme, hudColor, cycleHudColor } = useTheme();
     const [gibsPlaying, setGibsPlaying] = useState(false);
@@ -150,6 +200,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
         { id: "datacenters", name: "Data Centers", source: "DC Map (GitHub)", count: data?.datacenters?.length || 0, icon: Server },
         { id: "power_plants", name: "Power Plants", source: "WRI (Static)", count: data?.power_plants?.length || 0, icon: Zap },
         { id: "military_bases", name: "Military Bases", source: "OSINT (Static)", count: data?.military_bases?.length || 0, icon: Shield },
+        { id: "custom_intel", name: "Custom Intel", source: "JSON Data", count: customIntelStoriesCount, icon: Paperclip },
         { id: "day_night", name: "Day / Night Cycle", source: "Solar Calc", count: null, icon: Sun },
     ];
 
@@ -217,21 +268,22 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                     <span className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest" onClick={() => setIsMinimized(!isMinimized)}>DATA LAYERS</span>
                     <div className="flex items-center gap-2">
                         <button
-                            title={Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery').every(([, v]) => v) ? "Disable all layers" : "Enable all layers"}
-                            className={`${Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery').every(([, v]) => v) ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-400 transition-colors`}
+                            title={Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery' && k !== 'custom_intel').every(([, v]) => v) ? "Disable all layers" : "Enable all layers"}
+                            className={`${Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery' && k !== 'custom_intel').every(([, v]) => v) ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-400 transition-colors`}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                const allOn = Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery').every(([, v]) => v);
+                                const allOn = Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery' && k !== 'custom_intel').every(([, v]) => v);
                                 setActiveLayers((prev: any) => {
                                     const next: any = {};
                                     for (const k of Object.keys(prev)) {
-                                        next[k] = k === 'gibs_imagery' ? false : !allOn;
+                                        if (k === 'gibs_imagery' || k === 'custom_intel') next[k] = false;
+                                        else next[k] = !allOn;
                                     }
                                     return next;
                                 });
                             }}
                         >
-                            {Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery').every(([, v]) => v) ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                            {Object.entries(activeLayers).filter(([k]) => k !== 'gibs_imagery' && k !== 'custom_intel').every(([, v]) => v) ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                         </button>
                         <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" onClick={() => setIsMinimized(!isMinimized)}>
                             {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
@@ -363,7 +415,18 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                                         <div key={idx} className="flex flex-col">
                                             <div
                                                 className="flex items-start justify-between group cursor-pointer"
-                                                onClick={() => setActiveLayers((prev: any) => ({ ...prev, [layer.id]: !active }))}
+                                                onClick={() => {
+                                                    if (layer.id === "custom_intel") {
+                                                        if (active) {
+                                                            setActiveLayers((prev: any) => ({ ...prev, custom_intel: false }));
+                                                            onClearCustomIntel?.();
+                                                        } else {
+                                                            onOpenCustomIntelModal?.();
+                                                        }
+                                                        return;
+                                                    }
+                                                    setActiveLayers((prev: any) => ({ ...prev, [layer.id]: !active }));
+                                                }}
                                             >
                                                 <div className="flex gap-3">
                                                     <div className={`mt-1 ${active ? 'text-cyan-400' : 'text-gray-600 group-hover:text-gray-400'} transition-colors`}>
@@ -372,6 +435,11 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                                                     <div className="flex flex-col">
                                                         <span className={`text-sm font-medium ${active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'} tracking-wide`}>{layer.name}</span>
                                                         <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">{layer.source} · {active ? (() => {
+                                                            if (layer.id === "custom_intel") {
+                                                                return customIntelSummary
+                                                                    ? <span className="text-cyan-500/70">{customIntelSummary.events} events</span>
+                                                                    : 'READY';
+                                                            }
                                                             const fKey = FRESHNESS_MAP[layer.id];
                                                             const freshness = fKey && data?.freshness?.[fKey];
                                                             const rt = freshness ? relativeTime(freshness) : '';
@@ -467,6 +535,86 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({ data, active
                     )}
                 </AnimatePresence>
             </div>
+
+            <AnimatePresence>
+                {customIntelModalOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998] pointer-events-auto"
+                            onClick={onCloseCustomIntelModal}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                            transition={{ type: "spring", damping: 24, stiffness: 300 }}
+                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[540px] max-w-[92vw] z-[9999] pointer-events-auto"
+                        >
+                            <div className="bg-[var(--bg-secondary)]/98 border border-cyan-900/50 rounded-xl shadow-[0_0_60px_rgba(0,180,255,0.12)] overflow-hidden">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)]/70 bg-[var(--bg-primary)]/40">
+                                    <div className="flex items-center gap-2">
+                                        <Paperclip size={14} className="text-cyan-400" />
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-mono tracking-[0.18em] text-[var(--text-primary)]">CUSTOM INTEL</span>
+                                            <span className="text-[8px] font-mono tracking-wider text-[var(--text-muted)]">JSON INGEST</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={onCloseCustomIntelModal}
+                                        className="w-7 h-7 rounded-lg border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+
+                                <div className="p-4 flex flex-col gap-3">
+                                    <textarea
+                                        value={customIntelRawInput}
+                                        onChange={(e) => onCustomIntelRawInputChange?.(e.target.value)}
+                                        placeholder={`Paste one story object or an array of stories.\n\nExample:\n{\n  "story_id": "example_story",\n  "title": "Custom Intel Story",\n  "events": [{ "name": "Event", "type": "incident", "location_label": "City", "geo": { "lat": 0, "lng": 0 }, "weight": 2 }],\n  "impact_zones": []\n}`}
+                                        className="w-full h-[220px] bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] rounded-lg px-3 py-2 text-[10px] text-[var(--text-primary)] font-mono leading-relaxed tracking-wide resize-y outline-none focus:border-cyan-500/60 styled-scrollbar"
+                                    />
+
+                                    <div className="text-[8px] font-mono text-[var(--text-muted)] leading-relaxed">
+                                        Supports a single story object or an array of story objects. Each event needs `geo.lat` and `geo.lng`. `weight` defaults to `1`.
+                                    </div>
+
+                                    {customIntelError && (
+                                        <div className="px-3 py-2 rounded border border-red-500/30 bg-red-950/20 text-[9px] font-mono text-red-300">
+                                            {customIntelError}
+                                        </div>
+                                    )}
+
+                                    {customIntelSummary && (
+                                        <div className="px-3 py-2 rounded border border-cyan-500/30 bg-cyan-950/20 text-[9px] font-mono text-cyan-300 flex items-center justify-between">
+                                            <span>stories loaded: {customIntelSummary.stories}</span>
+                                            <span>events loaded: {customIntelSummary.events}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button
+                                            onClick={onClearCustomIntel}
+                                            className="px-3 py-1.5 rounded border border-[var(--border-primary)] text-[9px] font-mono tracking-wider text-[var(--text-muted)] hover:text-red-300 hover:border-red-500/40 transition-colors"
+                                        >
+                                            CLEAR
+                                        </button>
+                                        <button
+                                            onClick={onPopulateCustomIntel}
+                                            className="px-3 py-1.5 rounded border border-cyan-500/40 bg-cyan-950/30 text-[9px] font-mono tracking-wider text-cyan-300 hover:text-cyan-200 hover:border-cyan-400 transition-colors"
+                                        >
+                                            POPULATE INTEL
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 });
