@@ -3,6 +3,7 @@ import type {
   CustomIntelFeatureProperties,
   CustomIntelImpactZone,
   CustomIntelInput,
+  CustomIntelSourceLink,
   CustomIntelStory,
   CustomIntelSummary,
 } from "@/types/dashboard";
@@ -24,6 +25,33 @@ function toStringOrEmpty(v: unknown): string {
 function toWeight(v: unknown): number {
   if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return 1;
   return v;
+}
+
+function toConfidence(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  return v;
+}
+
+function toValidSourceLinks(raw: unknown): CustomIntelSourceLink[] {
+  if (!Array.isArray(raw)) return [];
+
+  const links: CustomIntelSourceLink[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) continue;
+    const name = toStringOrEmpty(item.name);
+    const url = toStringOrEmpty(item.url);
+    if (!name || !url) continue;
+
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) continue;
+      links.push({ name, url: parsed.toString() });
+    } catch {
+      continue;
+    }
+  }
+
+  return links;
 }
 
 function toImpactZones(raw: unknown): CustomIntelImpactZone[] {
@@ -67,6 +95,8 @@ function toEvent(raw: unknown): CustomIntelEvent | null {
     end_date: toStringOrEmpty(raw.end_date) || undefined,
     description: toStringOrEmpty(raw.description) || undefined,
     weight: toWeight(raw.weight),
+    confidence: toConfidence(raw.confidence),
+    sources: toValidSourceLinks(raw.sources),
   };
 }
 
@@ -144,6 +174,9 @@ export function flattenCustomIntelEvents(
           end_date: event.end_date,
           description: event.description,
           weight,
+          confidence: toConfidence(event.confidence),
+          sources: event.sources?.length ? event.sources : undefined,
+          source_count: event.sources?.length ? event.sources.length : undefined,
           lat: event.geo.lat,
           lng: event.geo.lng,
         },
