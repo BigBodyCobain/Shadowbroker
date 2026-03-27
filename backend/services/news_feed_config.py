@@ -1,6 +1,9 @@
 """
 News feed configuration — manages the user-customisable RSS feed list.
-Feeds are stored in backend/config/news_feeds.json and persist across restarts.
+
+Defaults live in backend/config/news_feeds.json.
+Runtime/user-saved feeds are stored in backend/data/news_feeds.json so they
+survive Docker container rebuilds when /app/data is mounted as a volume.
 """
 import json
 import logging
@@ -8,8 +11,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
-MAX_FEEDS = 25
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
+RUNTIME_CONFIG_PATH = Path(__file__).parent.parent / "data" / "news_feeds.json"
+MAX_FEEDS = 50
 
 DEFAULT_FEEDS = [
     {"name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 4},
@@ -35,20 +39,21 @@ DEFAULT_FEEDS = [
 
 
 def get_feeds() -> list[dict]:
-    """Load feeds from config file, falling back to defaults."""
+    """Load runtime feeds first, then checked-in defaults, then constants."""
     try:
-        if CONFIG_PATH.exists():
-            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            feeds = data.get("feeds", []) if isinstance(data, dict) else data
-            if isinstance(feeds, list) and len(feeds) > 0:
-                return feeds
+        for path in (RUNTIME_CONFIG_PATH, DEFAULT_CONFIG_PATH):
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                feeds = data.get("feeds", []) if isinstance(data, dict) else data
+                if isinstance(feeds, list) and len(feeds) > 0:
+                    return feeds
     except (IOError, OSError, json.JSONDecodeError, ValueError) as e:
         logger.warning(f"Failed to read news feed config: {e}")
     return list(DEFAULT_FEEDS)
 
 
 def save_feeds(feeds: list[dict]) -> bool:
-    """Validate and save feeds to config file. Returns True on success."""
+    """Validate and save feeds to the persistent runtime config."""
     if not isinstance(feeds, list):
         return False
     if len(feeds) > MAX_FEEDS:
@@ -69,8 +74,8 @@ def save_feeds(feeds: list[dict]) -> bool:
         f["url"] = url
         f["weight"] = int(weight)
     try:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_PATH.write_text(
+        RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RUNTIME_CONFIG_PATH.write_text(
             json.dumps({"feeds": feeds}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )

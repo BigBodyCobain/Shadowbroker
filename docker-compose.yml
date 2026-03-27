@@ -15,6 +15,7 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-}
     volumes:
       - backend_data:/app/data
+      - ./backend/config:/app/config # Optional: mount local config for easy editing
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/live-data/fast"]

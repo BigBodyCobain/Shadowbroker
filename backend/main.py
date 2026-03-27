@@ -477,7 +477,7 @@ async def api_save_news_feeds(request: Request):
     if ok:
         return {"status": "updated", "count": len(body)}
     return Response(
-        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 20 feeds, each needs name/url/weight 1-5)"}),
+        content=json_mod.dumps({"status": "error", "message": "Validation failed (max 50 feeds, each needs name/url/weight 1-5)"}),
         status_code=400,
         media_type="application/json",
     )

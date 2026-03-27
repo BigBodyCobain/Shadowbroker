@@ -32,7 +32,7 @@ const WEIGHT_COLORS: Record<number, string> = {
     4: "text-orange-400 border-orange-600",
     5: "text-red-400 border-red-600",
 };
-const MAX_FEEDS = 20;
+const MAX_FEEDS = 50;
 
 // Category colors for the tactical UI
 const CATEGORY_COLORS: Record<string, string> = {
