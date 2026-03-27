@@ -35,21 +35,71 @@ DEFAULT_FEEDS = [
     {"name": "Asia Times", "url": "https://asiatimes.com/feed/", "weight": 3},
     {"name": "Defense News", "url": "https://www.defensenews.com/arc/outboundfeeds/rss/", "weight": 3},
     {"name": "Japan Times", "url": "https://www.japantimes.co.jp/feed/", "weight": 3},
+    {"name": "Voice of America", "url": "https://amharic.voanews.com/api/epiqq", "weight": 4},
 ]
 
 
+def _normalize_feed(feed: dict) -> dict | None:
+    """Validate and normalize a single feed entry."""
+    if not isinstance(feed, dict):
+        return None
+
+    name = str(feed.get("name", "")).strip()
+    url = str(feed.get("url", "")).strip()
+    weight = feed.get("weight", 3)
+
+    if not name or not url:
+        return None
+    if not isinstance(weight, (int, float)) or weight < 1 or weight > 5:
+        return None
+
+    return {
+        "name": name,
+        "url": url,
+        "weight": int(weight),
+    }
+
+
+def _merge_feeds(saved_feeds: list[dict]) -> list[dict]:
+    """Keep user-saved feeds first, then append any new defaults by name."""
+    merged: list[dict] = []
+    seen_names: set[str] = set()
+
+    for feed in saved_feeds:
+        normalized = _normalize_feed(feed)
+        if not normalized:
+            continue
+        key = normalized["name"].casefold()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        merged.append(normalized)
+
+    for feed in DEFAULT_FEEDS:
+        normalized = _normalize_feed(feed)
+        if not normalized:
+            continue
+        key = normalized["name"].casefold()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        merged.append(normalized)
+
+    return merged[:MAX_FEEDS]
+
+
 def get_feeds() -> list[dict]:
-    """Load runtime feeds first, then checked-in defaults, then constants."""
+    """Load runtime feeds first, then merge in any missing checked-in defaults."""
     try:
         for path in (RUNTIME_CONFIG_PATH, DEFAULT_CONFIG_PATH):
             if path.exists():
                 data = json.loads(path.read_text(encoding="utf-8"))
                 feeds = data.get("feeds", []) if isinstance(data, dict) else data
                 if isinstance(feeds, list) and len(feeds) > 0:
-                    return feeds
+                    return _merge_feeds(feeds)
     except (IOError, OSError, json.JSONDecodeError, ValueError) as e:
         logger.warning(f"Failed to read news feed config: {e}")
-    return list(DEFAULT_FEEDS)
+    return _merge_feeds(DEFAULT_FEEDS)
 
 
 def save_feeds(feeds: list[dict]) -> bool:
@@ -58,25 +108,21 @@ def save_feeds(feeds: list[dict]) -> bool:
         return False
     if len(feeds) > MAX_FEEDS:
         return False
-    # Validate each feed entry
-    for f in feeds:
-        if not isinstance(f, dict):
+    normalized_feeds: list[dict] = []
+    seen_names: set[str] = set()
+    for feed in feeds:
+        normalized = _normalize_feed(feed)
+        if not normalized:
             return False
-        name = f.get("name", "").strip()
-        url = f.get("url", "").strip()
-        weight = f.get("weight", 3)
-        if not name or not url:
+        key = normalized["name"].casefold()
+        if key in seen_names:
             return False
-        if not isinstance(weight, (int, float)) or weight < 1 or weight > 5:
-            return False
-        # Normalise
-        f["name"] = name
-        f["url"] = url
-        f["weight"] = int(weight)
+        seen_names.add(key)
+        normalized_feeds.append(normalized)
     try:
         RUNTIME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         RUNTIME_CONFIG_PATH.write_text(
-            json.dumps({"feeds": feeds}, indent=2, ensure_ascii=False),
+            json.dumps({"feeds": normalized_feeds}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
         return True

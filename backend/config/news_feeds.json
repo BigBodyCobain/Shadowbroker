@@ -94,6 +94,11 @@
       "name": "Japan Times",
       "url": "https://www.japantimes.co.jp/feed/",
       "weight": 3
+    },
+    {
+      "name": "Voice of America",
+      "url": "https://amharic.voanews.com/api/epiqq",
+      "weight": 4
     }
   ]
 }

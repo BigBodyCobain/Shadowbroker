@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from services.fetchers.news import _resolve_coords
+from services import news_feed_config
 from services.news_feed_config import DEFAULT_FEEDS
 
 
@@ -148,3 +149,29 @@ class TestFeedConfig:
         expected = {"FocusTaiwan", "Kyodo", "SCMP", "The Diplomat", "Stars and Stripes",
                     "Yonhap", "Nikkei Asia", "Taipei Times", "Asia Times", "Defense News", "Japan Times"}
         assert expected.issubset(names)
+
+    def test_runtime_feeds_keep_user_entries_and_append_new_defaults(self, tmp_path, monkeypatch):
+        runtime_path = tmp_path / "news_feeds.runtime.json"
+        default_path = tmp_path / "news_feeds.default.json"
+
+        runtime_path.write_text(
+            json.dumps(
+                {
+                    "feeds": [
+                        {"name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 2},
+                        {"name": "Custom Feed", "url": "https://example.com/rss.xml", "weight": 5},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        default_path.write_text(json.dumps({"feeds": DEFAULT_FEEDS}), encoding="utf-8")
+
+        monkeypatch.setattr(news_feed_config, "RUNTIME_CONFIG_PATH", runtime_path)
+        monkeypatch.setattr(news_feed_config, "DEFAULT_CONFIG_PATH", default_path)
+
+        feeds = news_feed_config.get_feeds()
+        names = [feed["name"] for feed in feeds]
+
+        assert names[:2] == ["NPR", "Custom Feed"]
+        assert "Voice of America" in names
