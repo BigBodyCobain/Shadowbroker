@@ -1,0 +1,4 @@
+[
+  {"id": "KDEN", "name": "Denver Intl", "iata": "DEN", "lat": 39.8561, "lng": -104.6737, "type": "airport"},
+  {"id": "KJFK", "name": "John F Kennedy Intl", "iata": "JFK", "lat": 40.6413, "lng": -73.7781, "type": "airport"}
+]

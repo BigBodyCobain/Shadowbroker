@@ -1,4 +1,5 @@
 """Plane-Alert DB — load and enrich aircraft with tracked metadata."""
+
 import os
 import json
 import logging
@@ -71,9 +72,11 @@ _CATEGORY_COLOR: dict[str, str] = {
     "Radiohead": "purple",
 }
 
+
 def _category_to_color(cat: str) -> str:
     """O(1) exact lookup. Unknown categories default to purple."""
     return _CATEGORY_COLOR.get(cat, "purple")
+
 
 _PLANE_ALERT_DB: dict = {}
 
@@ -81,28 +84,114 @@ _PLANE_ALERT_DB: dict = {}
 # POTUS Fleet — override colors and operator names for presidential aircraft.
 # ---------------------------------------------------------------------------
 _POTUS_FLEET: dict[str, dict] = {
-    "ADFDF8": {"color": "#ff1493", "operator": "Air Force One (82-8000)", "category": "Head of State", "wiki": "Air_Force_One", "fleet": "AF1"},
-    "ADFDF9": {"color": "#ff1493", "operator": "Air Force One (92-9000)", "category": "Head of State", "wiki": "Air_Force_One", "fleet": "AF1"},
-    "ADFEB7": {"color": "blue", "operator": "Air Force Two (98-0001)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "ADFEB8": {"color": "blue", "operator": "Air Force Two (98-0002)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "ADFEB9": {"color": "blue", "operator": "Air Force Two (99-0003)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "ADFEBA": {"color": "blue", "operator": "Air Force Two (99-0004)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "AE4AE6": {"color": "blue", "operator": "Air Force Two (09-0015)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "AE4AE8": {"color": "blue", "operator": "Air Force Two (09-0016)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "AE4AEA": {"color": "blue", "operator": "Air Force Two (09-0017)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "AE4AEC": {"color": "blue", "operator": "Air Force Two (19-0018)", "category": "Governments", "wiki": "Air_Force_Two", "fleet": "AF2"},
-    "AE0865": {"color": "#ff1493", "operator": "Marine One (VH-3D)", "category": "Head of State", "wiki": "Marine_One", "fleet": "M1"},
-    "AE5E76": {"color": "#ff1493", "operator": "Marine One (VH-92A)", "category": "Head of State", "wiki": "Marine_One", "fleet": "M1"},
-    "AE5E77": {"color": "#ff1493", "operator": "Marine One (VH-92A)", "category": "Head of State", "wiki": "Marine_One", "fleet": "M1"},
-    "AE5E79": {"color": "#ff1493", "operator": "Marine One (VH-92A)", "category": "Head of State", "wiki": "Marine_One", "fleet": "M1"},
+    "ADFDF8": {
+        "color": "#ff1493",
+        "operator": "Air Force One (82-8000)",
+        "category": "Head of State",
+        "wiki": "Air_Force_One",
+        "fleet": "AF1",
+    },
+    "ADFDF9": {
+        "color": "#ff1493",
+        "operator": "Air Force One (92-9000)",
+        "category": "Head of State",
+        "wiki": "Air_Force_One",
+        "fleet": "AF1",
+    },
+    "ADFEB7": {
+        "color": "blue",
+        "operator": "Air Force Two (98-0001)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "ADFEB8": {
+        "color": "blue",
+        "operator": "Air Force Two (98-0002)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "ADFEB9": {
+        "color": "blue",
+        "operator": "Air Force Two (99-0003)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "ADFEBA": {
+        "color": "blue",
+        "operator": "Air Force Two (99-0004)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "AE4AE6": {
+        "color": "blue",
+        "operator": "Air Force Two (09-0015)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "AE4AE8": {
+        "color": "blue",
+        "operator": "Air Force Two (09-0016)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "AE4AEA": {
+        "color": "blue",
+        "operator": "Air Force Two (09-0017)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "AE4AEC": {
+        "color": "blue",
+        "operator": "Air Force Two (19-0018)",
+        "category": "Governments",
+        "wiki": "Air_Force_Two",
+        "fleet": "AF2",
+    },
+    "AE0865": {
+        "color": "#ff1493",
+        "operator": "Marine One (VH-3D)",
+        "category": "Head of State",
+        "wiki": "Marine_One",
+        "fleet": "M1",
+    },
+    "AE5E76": {
+        "color": "#ff1493",
+        "operator": "Marine One (VH-92A)",
+        "category": "Head of State",
+        "wiki": "Marine_One",
+        "fleet": "M1",
+    },
+    "AE5E77": {
+        "color": "#ff1493",
+        "operator": "Marine One (VH-92A)",
+        "category": "Head of State",
+        "wiki": "Marine_One",
+        "fleet": "M1",
+    },
+    "AE5E79": {
+        "color": "#ff1493",
+        "operator": "Marine One (VH-92A)",
+        "category": "Head of State",
+        "wiki": "Marine_One",
+        "fleet": "M1",
+    },
 }
+
 
 def _load_plane_alert_db():
     """Load plane_alert_db.json (exported from SQLite) into memory."""
     global _PLANE_ALERT_DB
     json_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "data", "plane_alert_db.json"
+        "data",
+        "plane_alert_db.json",
     )
     if not os.path.exists(json_path):
         logger.warning(f"Plane-Alert DB not found at {json_path}")
@@ -124,7 +213,9 @@ def _load_plane_alert_db():
     except (IOError, OSError, json.JSONDecodeError, ValueError, KeyError) as e:
         logger.error(f"Failed to load Plane-Alert DB: {e}")
 
+
 _load_plane_alert_db()
+
 
 def enrich_with_plane_alert(flight: dict) -> dict:
     """If flight's icao24 is in the Plane-Alert DB, add alert metadata."""
@@ -145,13 +236,16 @@ def enrich_with_plane_alert(flight: dict) -> dict:
             flight["registration"] = info["registration"]
     return flight
 
+
 _TRACKED_NAMES_DB: dict = {}
+
 
 def _load_tracked_names():
     global _TRACKED_NAMES_DB
     json_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "data", "tracked_names.json"
+        "data",
+        "tracked_names.json",
     )
     if not os.path.exists(json_path):
         return
@@ -160,15 +254,21 @@ def _load_tracked_names():
             data = json.load(f)
             for name, info in data.get("details", {}).items():
                 cat = info.get("category", "Other")
+                socials = info.get("socials")
                 for reg in info.get("registrations", []):
                     reg_clean = reg.strip().upper()
                     if reg_clean:
-                        _TRACKED_NAMES_DB[reg_clean] = {"name": name, "category": cat}
+                        entry = {"name": name, "category": cat}
+                        if socials:
+                            entry["socials"] = socials
+                        _TRACKED_NAMES_DB[reg_clean] = entry
         logger.info(f"Tracked Names DB loaded: {len(_TRACKED_NAMES_DB)} registrations")
     except (IOError, OSError, json.JSONDecodeError, ValueError, KeyError) as e:
         logger.error(f"Failed to load Tracked Names DB: {e}")
 
+
 _load_tracked_names()
+
 
 def enrich_with_tracked_names(flight: dict) -> dict:
     """If flight's registration matches our Excel extraction, tag it as tracked."""
@@ -189,11 +289,50 @@ def enrich_with_tracked_names(flight: dict) -> dict:
         name = match["name"]
         flight["alert_operator"] = name
         flight["alert_category"] = match["category"]
+        if match.get("socials"):
+            flight["alert_socials"] = match["socials"]
 
         name_lower = name.lower()
-        is_gov = any(w in name_lower for w in ['state of ', 'government', 'republic', 'ministry', 'department', 'federal', 'cia'])
-        is_law = any(w in name_lower for w in ['police', 'marshal', 'sheriff', 'douane', 'customs', 'patrol', 'gendarmerie', 'guardia', 'law enforcement'])
-        is_med = any(w in name_lower for w in ['fire', 'bomberos', 'ambulance', 'paramedic', 'medevac', 'rescue', 'hospital', 'medical', 'lifeflight'])
+        is_gov = any(
+            w in name_lower
+            for w in [
+                "state of ",
+                "government",
+                "republic",
+                "ministry",
+                "department",
+                "federal",
+                "cia",
+            ]
+        )
+        is_law = any(
+            w in name_lower
+            for w in [
+                "police",
+                "marshal",
+                "sheriff",
+                "douane",
+                "customs",
+                "patrol",
+                "gendarmerie",
+                "guardia",
+                "law enforcement",
+            ]
+        )
+        is_med = any(
+            w in name_lower
+            for w in [
+                "fire",
+                "bomberos",
+                "ambulance",
+                "paramedic",
+                "medevac",
+                "rescue",
+                "hospital",
+                "medical",
+                "lifeflight",
+            ]
+        )
 
         if is_gov or is_law:
             flight["alert_color"] = "blue"

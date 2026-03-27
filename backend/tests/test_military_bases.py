@@ -40,11 +40,33 @@ class TestMilitaryBasesData:
         for entry in raw:
             assert entry["branch"] in known_branches, f"{entry['name']} has unknown branch: {entry['branch']}"
 
-    def test_adversary_bases_present(self):
+    def test_multi_country_bases_present(self):
         raw = json.loads(BASES_PATH.read_text(encoding="utf-8"))
         countries = {entry["country"] for entry in raw}
-        for expected in ("China", "Russia", "North Korea", "Taiwan"):
+        for expected in (
+            "China", "Russia", "North Korea", "Taiwan", "Japan", "Guam",
+            "Israel", "France", "Germany", "India", "Pakistan",
+            "United States", "United Kingdom", "Iran", "Italy",
+            "South Korea", "Australia", "Philippines", "Greece",
+            "Netherlands", "Spain", "Poland",
+        ):
             assert expected in countries, f"Missing bases for {expected}"
+
+    def test_nuclear_sites_present(self):
+        raw = json.loads(BASES_PATH.read_text(encoding="utf-8"))
+        nuclear = [e for e in raw if e["branch"] == "nuclear"]
+        countries_with_nuclear = {e["country"] for e in nuclear}
+        for expected in ("China", "Russia", "North Korea", "Iran", "Israel",
+                         "India", "Pakistan", "United Kingdom", "France"):
+            assert expected in countries_with_nuclear, f"Missing nuclear sites for {expected}"
+
+    def test_missile_sites_present(self):
+        raw = json.loads(BASES_PATH.read_text(encoding="utf-8"))
+        missiles = [e for e in raw if e["branch"] == "missile"]
+        countries_with_missiles = {e["country"] for e in missiles}
+        for expected in ("China", "Russia", "North Korea", "Iran", "Israel",
+                         "India", "Pakistan", "Taiwan", "South Korea", "Poland"):
+            assert expected in countries_with_missiles, f"Missing missile sites for {expected}"
 
     def test_no_duplicate_names(self):
         raw = json.loads(BASES_PATH.read_text(encoding="utf-8"))

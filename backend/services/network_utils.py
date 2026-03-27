@@ -34,6 +34,11 @@ _CIRCUIT_BREAKER_TTL = 120  # 2 minutes
 # Lock protecting _domain_fail_cache and _circuit_breaker mutations
 _cb_lock = threading.Lock()
 
+
+class UpstreamCircuitBreakerError(OSError):
+    """Raised when a domain recently failed hard and is temporarily skipped."""
+
+
 class _DummyResponse:
     """Minimal response object matching requests.Response interface."""
     def __init__(self, status_code, text):
@@ -67,7 +72,9 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None)
     # Circuit breaker: if domain failed completely <2min ago, fail fast
     with _cb_lock:
         if domain in _circuit_breaker and (time.time() - _circuit_breaker[domain]) < _CIRCUIT_BREAKER_TTL:
-            raise Exception(f"Circuit breaker open for {domain} (failed <{_CIRCUIT_BREAKER_TTL}s ago)")
+            raise UpstreamCircuitBreakerError(
+                f"Circuit breaker open for {domain} (failed <{_CIRCUIT_BREAKER_TTL}s ago)"
+            )
 
     # Check if this domain recently failed with requests — skip straight to curl
     with _cb_lock:
@@ -81,6 +88,9 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None)
                 res = _session.post(url, json=json_data, timeout=req_timeout, headers=default_headers)
             else:
                 res = _session.get(url, timeout=req_timeout, headers=default_headers)
+            if res.status_code == 429:
+                logger.warning(f"Upstream rate limit hit for {url}; not bypassing with curl.")
+                return res
             res.raise_for_status()
             # Clear failure caches on success
             with _cb_lock:
@@ -106,9 +116,9 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None)
         stdin_data = json.dumps(json_data) if (method == "POST" and json_data) else None
         res = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout + 5,
-            input=stdin_data
+            input=stdin_data, encoding="utf-8", errors="replace"
         )
-        if res.returncode == 0 and res.stdout.strip():
+        if res.returncode == 0 and (res.stdout or "").strip():
             # Parse HTTP status code from -w output (last line)
             lines = res.stdout.rstrip().rsplit("\n", 1)
             body = lines[0] if len(lines) > 1 else res.stdout

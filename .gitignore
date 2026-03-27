@@ -20,17 +20,51 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.ruff_cache/
+.pytest_cache/
 
 # Next.js build output
 .next/
 out/
 build/
 
-# Application Specific Caches & DBs
+# Deprecated standalone Infonet Terminal skeleton (migrated into frontend/src/components/InfonetTerminal/)
+frontend/infonet-terminal/
+
+# Rust build artifacts (privacy-core)
+target/
+target-test/
+
+# ========================
+# LOCAL-ONLY: extra/ folder
+# ========================
+# All internal docs, planning files, raw data, backups, and dev scratch
+# live here. NEVER commit this folder.
+extra/
+
+# ========================
+# Application caches & runtime DBs (regenerate on startup)
+# ========================
 backend/ais_cache.json
 backend/carrier_cache.json
 backend/cctv.db
+cctv.db
 *.sqlite3
+
+# ========================
+# backend/data/ — blanket ignore, whitelist static reference files
+# ========================
+# Everything in data/ is runtime-generated state (encrypted keys,
+# MLS bindings, relay spools, caches) and MUST NOT be committed.
+# Only static reference datasets that ship with the repo are whitelisted.
+backend/data/*
+!backend/data/datacenters.json
+!backend/data/datacenters_geocoded.json
+!backend/data/military_bases.json
+!backend/data/plan_ccg_vessels.json
+!backend/data/plane_alert_db.json
+!backend/data/tracked_names.json
+!backend/data/yacht_alert_db.json
 
 # OS generated files
 .DS_Store
@@ -53,7 +87,9 @@ Thumbs.db
 # Vercel / Deployment
 .vercel
 
-# Temp files
+# ========================
+# Temp / scratch / debug files
+# ========================
 tmp/
 *.log
 *.tmp
@@ -68,7 +104,7 @@ tmp_fast.json
 diff.txt
 local_diff.txt
 map_diff.txt
-TheAirTraffic Database.xlsx
+TERMINAL
 
 # Debug dumps & release artifacts
 backend/dump.json
@@ -77,26 +113,54 @@ backend/nyc_sample.json
 backend/nyc_full.json
 backend/liveua_test.html
 backend/out_liveua.json
+backend/out.json
+backend/temp.json
+backend/seattle_sample.json
+backend/sgp_sample.json
+backend/wsdot_sample.json
+backend/xlsx_analysis.txt
 frontend/server_logs*.txt
 frontend/cctv.db
+frontend/eslint-report.json
 *.zip
 *.tar.gz
+*.xlsx
+
+# Old backups & repo clones
 .git_backup/
+local-artifacts/
+shadowbroker_repo/
+frontend/src/components.bak/
+frontend/src/components/map/icons/backups/
+
+# Coverage
 coverage/
 .coverage
 dist/
 
-# Test files (may contain hardcoded keys)
+# Test scratch files (not in tests/ folder)
 backend/test_*.py
 backend/services/test_*.py
 
 # Local analysis & dev tools
 backend/analyze_xlsx.py
-backend/xlsx_analysis.txt
 backend/services/ais_cache.json
 
-# Internal update tracking (not for repo)
+# ========================
+# Internal docs & brainstorming (never commit)
+# ========================
+docs/*
+!docs/mesh/
+docs/mesh/*
+!docs/mesh/mesh-canonical-fixtures.json
+!docs/mesh/mesh-merkle-fixtures.json
+.local-docs/
+infonet-economy/
 updatestuff.md
+ROADMAP.md
+UPDATEPROTOCOL.md
+CLAUDE.md
+DOCKER_SECRETS.md
 
 # Misc dev artifacts
 clean_zip.py
@@ -104,12 +168,11 @@ zip_repo.py
 refactor_cesium.py
 jobs.json
 
+# Claude / AI
 .claude
 .mise.local.toml
+.codex-tmp/
+prototype/
 
-# Local-only internal docs (never commit)
-.local-docs/
-ROADMAP.md
-UPDATEPROTOCOL.md
-CLAUDE.md
-DOCKER_SECRETS.md
+# Python UV lock file (regenerated from pyproject.toml)
+uv.lock

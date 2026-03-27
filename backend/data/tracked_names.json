@@ -213,6 +213,22 @@
       "category": "People"
     },
     {
+      "name": "Ron DeSantis",
+      "category": "Government"
+    },
+    {
+      "name": "Oleg Deripaska",
+      "category": "People"
+    },
+    {
+      "name": "Arkady Rotenberg",
+      "category": "People"
+    },
+    {
+      "name": "Albert Avdolyan",
+      "category": "People"
+    },
+    {
       "name": "JR Motorsports",
       "category": "Sports"
     },
@@ -2409,7 +2425,7 @@
       "category": "Business"
     },
     {
-      "name": "Andr\u00e9 Esteves",
+      "name": "André Esteves",
       "category": "People"
     },
     {
@@ -2529,7 +2545,7 @@
       "category": "People"
     },
     {
-      "name": "Pap\u00e9 Machinery",
+      "name": "Papé Machinery",
       "category": "Business"
     },
     {
@@ -2833,7 +2849,7 @@
       "category": "Business"
     },
     {
-      "name": "Alberto Rodr\u00edguez Baldi (Baldi Hot Springs Hotel)",
+      "name": "Alberto Rodríguez Baldi (Baldi Hot Springs Hotel)",
       "category": "People"
     },
     {
@@ -2859,6 +2875,34 @@
     {
       "name": "Jay Penske",
       "category": "People"
+    },
+    {
+      "name": "Travis Scott",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Justin Bieber",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Saudi Royal Flight",
+      "category": "Government"
+    },
+    {
+      "name": "UK Royal Family (RAF)",
+      "category": "Government"
+    },
+    {
+      "name": "France Presidency (COTAM)",
+      "category": "Government"
+    },
+    {
+      "name": "Germany Chancellery (Flugbereitschaft)",
+      "category": "Government"
+    },
+    {
+      "name": "Japan Prime Minister",
+      "category": "Government"
     }
   ],
   "details": {
@@ -2888,8 +2932,16 @@
     "Elon Musk": {
       "category": "People",
       "registrations": [
-        "N628TS"
-      ]
+        "N628TS",
+        "N8628",
+        "N8628T",
+        "N272BG",
+        "N502SX"
+      ],
+      "socials": {
+        "twitter": "elonmusk",
+        "instagram": "elonmusk"
+      }
     },
     "Dallas Mavericks": {
       "category": "Sports",
@@ -2901,7 +2953,11 @@
       "category": "Celebrity",
       "registrations": [
         "N313AR"
-      ]
+      ],
+      "socials": {
+        "twitter": "AROD",
+        "instagram": "arod"
+      }
     },
     "State of Alabama": {
       "category": "State/Law",
@@ -2967,8 +3023,16 @@
       "registrations": [
         "N897GV",
         "N887GV",
-        "N608GV"
-      ]
+        "N608GV",
+        "N887WM",
+        "N194WM",
+        "N754QS",
+        "N769QS"
+      ],
+      "socials": {
+        "twitter": "BillGates",
+        "instagram": "thisisbillgates"
+      }
     },
     "Arizona Cardinals Football": {
       "category": "Sports",
@@ -2981,7 +3045,11 @@
       "category": "Celebrity",
       "registrations": [
         "N703BG"
-      ]
+      ],
+      "socials": {
+        "twitter": "blakeshelton",
+        "instagram": "blakeshelton"
+      }
     },
     "State of Alaska": {
       "category": "State/Law",
@@ -3103,7 +3171,10 @@
       "registrations": [
         "N459WM",
         "N459BL"
-      ]
+      ],
+      "socials": {
+        "instagram": "melindafrenchgates"
+      }
     },
     "Patriots": {
       "category": "Sports",
@@ -3116,7 +3187,11 @@
       "category": "Celebrity",
       "registrations": [
         "N701DB"
-      ]
+      ],
+      "socials": {
+        "twitter": "DanBilzerian",
+        "instagram": "danbilzerian"
+      }
     },
     "State of Arizona": {
       "category": "State/Law",
@@ -3176,8 +3251,12 @@
       "category": "People",
       "registrations": [
         "N817GS",
-        "N417C"
-      ]
+        "N417C",
+        "N1LY"
+      ],
+      "socials": {
+        "twitter": "larryellison"
+      }
     },
     "Colts": {
       "category": "Sports",
@@ -3193,7 +3272,11 @@
       "registrations": [
         "N800JM",
         "N4DP"
-      ]
+      ],
+      "socials": {
+        "twitter": "DrPhil",
+        "instagram": "drphil"
+      }
     },
     "State of Arkansas": {
       "category": "State/Law",
@@ -3252,8 +3335,14 @@
       "category": "People",
       "registrations": [
         "N921MT",
-        "N718MC"
-      ]
+        "N718MC",
+        "N801DM",
+        "N123FT"
+      ],
+      "socials": {
+        "twitter": "mcuban",
+        "instagram": "markcuban"
+      }
     },
     "Dallas Cowboys": {
       "category": "Sports",
@@ -3264,8 +3353,13 @@
     "Taylor Swift": {
       "category": "Celebrity",
       "registrations": [
-        "N621MM"
-      ]
+        "N621MM",
+        "N898TS"
+      ],
+      "socials": {
+        "twitter": "taylorswift13",
+        "instagram": "taylorswift"
+      }
     },
     "State of California": {
       "category": "State/Law",
@@ -3367,6 +3461,37 @@
         "P4-MES",
         "LX-LUX",
         "P4-BDL"
+      ],
+      "socials": {
+        "instagram": "romanabramovich"
+      }
+    },
+    "Ron DeSantis": {
+      "category": "Government",
+      "registrations": [
+        "N943FL"
+      ],
+      "socials": {
+        "twitter": "RonDeSantis",
+        "instagram": "rondesantis"
+      }
+    },
+    "Oleg Deripaska": {
+      "category": "People",
+      "registrations": [
+        "RA-09618"
+      ]
+    },
+    "Arkady Rotenberg": {
+      "category": "People",
+      "registrations": [
+        "RA-73555"
+      ]
+    },
+    "Albert Avdolyan": {
+      "category": "People",
+      "registrations": [
+        "T7-7AA"
       ]
     },
     "JR Motorsports": {
@@ -3383,7 +3508,11 @@
       "registrations": [
         "N767CJ",
         "N757CJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "Drake",
+        "instagram": "champagnepapi"
+      }
     },
     "State of Colorado": {
       "category": "State/Law",
@@ -3521,7 +3650,11 @@
       "category": "Celebrity",
       "registrations": [
         "N305DG"
-      ]
+      ],
+      "socials": {
+        "twitter": "FloydMayweather",
+        "instagram": "floydmayweather"
+      }
     },
     "State of Delaware": {
       "category": "State/Law",
@@ -3622,7 +3755,11 @@
       "category": "Celebrity",
       "registrations": [
         "N810GT"
-      ]
+      ],
+      "socials": {
+        "twitter": "garthbrooks",
+        "instagram": "garthbrooks"
+      }
     },
     "State of Florida": {
       "category": "State/Law",
@@ -3703,7 +3840,10 @@
       "category": "Celebrity",
       "registrations": [
         "N518GS"
-      ]
+      ],
+      "socials": {
+        "instagram": "georgestrait"
+      }
     },
     "State of Georgia": {
       "category": "State/Law",
@@ -3787,7 +3927,11 @@
       "registrations": [
         "N247GC",
         "N880GC"
-      ]
+      ],
+      "socials": {
+        "twitter": "GrantCardone",
+        "instagram": "grantcardone"
+      }
     },
     "Chase Elliot": {
       "category": "Sports",
@@ -3799,7 +3943,10 @@
       "category": "Celebrity",
       "registrations": [
         "N6GU"
-      ]
+      ],
+      "socials": {
+        "instagram": "harrisonford"
+      }
     },
     "DLR - German Aerospace Center": {
       "category": "Other",
@@ -3855,7 +4002,10 @@
         "N138EM",
         "N29UB",
         "N512XA"
-      ]
+      ],
+      "socials": {
+        "twitter": "rooky1"
+      }
     },
     "Brad Keselowski": {
       "category": "Sports",
@@ -3868,7 +4018,11 @@
       "category": "Celebrity",
       "registrations": [
         "N714JB"
-      ]
+      ],
+      "socials": {
+        "twitter": "JBALVIN",
+        "instagram": "jbalvin"
+      }
     },
     "State of Idaho": {
       "category": "State/Law",
@@ -3930,7 +4084,11 @@
       "category": "Celebrity",
       "registrations": [
         "N688JC"
-      ]
+      ],
+      "socials": {
+        "twitter": "EyeOfJackieChan",
+        "instagram": "jackiechan"
+      }
     },
     "State of Illinois": {
       "category": "State/Law",
@@ -4001,7 +4159,10 @@
       "category": "People",
       "registrations": [
         "VP-CZM"
-      ]
+      ],
+      "socials": {
+        "twitter": "jackma"
+      }
     },
     "Dale Earnhardt Family": {
       "category": "Sports",
@@ -4016,7 +4177,11 @@
       "category": "Celebrity",
       "registrations": [
         "N845JS"
-      ]
+      ],
+      "socials": {
+        "twitter": "JerrySeinfeld",
+        "instagram": "jerryseinfeld"
+      }
     },
     "State of Indiana": {
       "category": "State/Law",
@@ -4098,7 +4263,10 @@
       "category": "Celebrity",
       "registrations": [
         "N162JC"
-      ]
+      ],
+      "socials": {
+        "twitter": "JimCarrey"
+      }
     },
     "State of Iowa": {
       "category": "State/Law",
@@ -4153,7 +4321,11 @@
       "category": "People",
       "registrations": [
         "N831FR"
-      ]
+      ],
+      "socials": {
+        "twitter": "kimbal",
+        "instagram": "kimbalmusk"
+      }
     },
     "Denny Hamlin Racing": {
       "category": "Sports",
@@ -4227,7 +4399,10 @@
       "category": "People",
       "registrations": [
         "N113CS"
-      ]
+      ],
+      "socials": {
+        "twitter": "schwarzman"
+      }
     },
     "Hendrick Motorsports": {
       "category": "Sports",
@@ -4246,7 +4421,11 @@
         "N500CE",
         "N905FJ",
         "N327JT"
-      ]
+      ],
+      "socials": {
+        "twitter": "johntravolta",
+        "instagram": "johntravolta"
+      }
     },
     "State of Kentucky": {
       "category": "State/Law",
@@ -4306,7 +4485,10 @@
       "category": "People",
       "registrations": [
         "N102WG"
-      ]
+      ],
+      "socials": {
+        "twitter": "SteveWitkoff"
+      }
     },
     "Stewart-Haas Racing": {
       "category": "Sports",
@@ -4319,7 +4501,10 @@
       "category": "Celebrity",
       "registrations": [
         "N768JJ"
-      ]
+      ],
+      "socials": {
+        "instagram": "julioiglesias"
+      }
     },
     "State of Louisiana": {
       "category": "State/Law",
@@ -4400,7 +4585,10 @@
       "registrations": [
         "N238MH",
         "N138GL"
-      ]
+      ],
+      "socials": {
+        "instagram": "georgehlucas"
+      }
     },
     "Penske Racing": {
       "category": "Sports",
@@ -4412,7 +4600,11 @@
       "category": "Celebrity",
       "registrations": [
         "N510CX"
-      ]
+      ],
+      "socials": {
+        "twitter": "KeithUrban",
+        "instagram": "keithurban"
+      }
     },
     "State of Maine": {
       "category": "State/Law",
@@ -4474,7 +4666,11 @@
       "category": "Celebrity",
       "registrations": [
         "N7KC"
-      ]
+      ],
+      "socials": {
+        "twitter": "kennychesney",
+        "instagram": "kennychesney"
+      }
     },
     "State of Maryland": {
       "category": "State/Law",
@@ -4541,7 +4737,11 @@
       "category": "People",
       "registrations": [
         "N32MJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "MagicJohnson",
+        "instagram": "magicjohnson"
+      }
     },
     "Victory Aviation (NASCAR)": {
       "category": "Sports",
@@ -4562,7 +4762,11 @@
       "category": "Celebrity",
       "registrations": [
         "N71KR"
-      ]
+      ],
+      "socials": {
+        "twitter": "KidRock",
+        "instagram": "kidrock"
+      }
     },
     "State of Massachusetts": {
       "category": "State/Law",
@@ -4624,7 +4828,11 @@
       "category": "Celebrity",
       "registrations": [
         "N1980K"
-      ]
+      ],
+      "socials": {
+        "twitter": "KimKardashian",
+        "instagram": "kimkardashian"
+      }
     },
     "State of Michigan": {
       "category": "State/Law",
@@ -4687,7 +4895,11 @@
       "category": "Celebrity",
       "registrations": [
         "N810KJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "KylieJenner",
+        "instagram": "kyliejenner"
+      }
     },
     "State of Minnesota": {
       "category": "State/Law",
@@ -4762,7 +4974,11 @@
       "category": "Celebrity",
       "registrations": [
         "N69FH"
-      ]
+      ],
+      "socials": {
+        "twitter": "LukeBryanOnline",
+        "instagram": "lukebryan"
+      }
     },
     "State of Mississippi": {
       "category": "State/Law",
@@ -4808,7 +5024,10 @@
       "category": "People",
       "registrations": [
         "N19HT"
-      ]
+      ],
+      "socials": {
+        "instagram": "philhknight"
+      }
     },
     "Las Vegas Golden Knights": {
       "category": "Sports",
@@ -4821,7 +5040,11 @@
       "registrations": [
         "N989DM",
         "N143MW"
-      ]
+      ],
+      "socials": {
+        "twitter": "markwahlberg",
+        "instagram": "markwahlberg"
+      }
     },
     "State of Missouri": {
       "category": "State/Law",
@@ -4878,7 +5101,11 @@
       "category": "People",
       "registrations": [
         "N1759C"
-      ]
+      ],
+      "socials": {
+        "twitter": "RickCaruso",
+        "instagram": "rickcaruso"
+      }
     },
     "Sergio Garcia": {
       "category": "Sports",
@@ -4890,7 +5117,11 @@
       "category": "Celebrity",
       "registrations": [
         "N236MJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "Jumpman23",
+        "instagram": "jumpman23"
+      }
     },
     "State of Montana": {
       "category": "State/Law",
@@ -4929,7 +5160,11 @@
       "registrations": [
         "N88W",
         "N964PP"
-      ]
+      ],
+      "socials": {
+        "twitter": "realMeetKevin",
+        "instagram": "meetkevin"
+      }
     },
     "Caterpillar Inc.": {
       "category": "Business",
@@ -4955,7 +5190,10 @@
         "N785QS",
         "N652WE",
         "N651WE"
-      ]
+      ],
+      "socials": {
+        "twitter": "ericschmidt"
+      }
     },
     "Tennessee Titans": {
       "category": "Sports",
@@ -4967,7 +5205,11 @@
       "category": "Celebrity",
       "registrations": [
         "N540W"
-      ]
+      ],
+      "socials": {
+        "twitter": "Oprah",
+        "instagram": "oprah"
+      }
     },
     "State of Nebraska": {
       "category": "State/Law",
@@ -5014,7 +5256,10 @@
         "N256DV",
         "N257DV",
         "N258DV"
-      ]
+      ],
+      "socials": {
+        "twitter": "BetsyDeVos"
+      }
     },
     "Drew Brees": {
       "category": "Sports",
@@ -5026,7 +5271,11 @@
       "category": "Celebrity",
       "registrations": [
         "N600CK"
-      ]
+      ],
+      "socials": {
+        "twitter": "ozuna_pr",
+        "instagram": "ozuna"
+      }
     },
     "State of Nevada": {
       "category": "State/Law",
@@ -5070,7 +5319,11 @@
       "category": "People",
       "registrations": [
         "N555MZ"
-      ]
+      ],
+      "socials": {
+        "twitter": "yousuck2020",
+        "instagram": "ysknzw"
+      }
     },
     "LA Chargers": {
       "category": "Sports",
@@ -5083,7 +5336,11 @@
       "registrations": [
         "N305PB",
         "N365WW"
-      ]
+      ],
+      "socials": {
+        "twitter": "pitbull",
+        "instagram": "pitbull"
+      }
     },
     "State of New Hampshire": {
       "category": "State/Law",
@@ -5122,7 +5379,11 @@
       "category": "People",
       "registrations": [
         "M-GGAL"
-      ]
+      ],
+      "socials": {
+        "twitter": "richardbranson",
+        "instagram": "richardbranson"
+      }
     },
     "Riley Herbst": {
       "category": "Sports",
@@ -5174,7 +5435,11 @@
       "category": "People",
       "registrations": [
         "N950TR"
-      ]
+      ],
+      "socials": {
+        "twitter": "TonyRobbins",
+        "instagram": "tonyrobbins"
+      }
     },
     "Robert Penske": {
       "category": "Sports",
@@ -5225,7 +5490,11 @@
       "category": "People",
       "registrations": [
         "N517TW"
-      ]
+      ],
+      "socials": {
+        "twitter": "TigerWoods",
+        "instagram": "tigerwoods"
+      }
     },
     "Jim Crane/Houston Astros": {
       "category": "Sports",
@@ -5237,7 +5506,11 @@
       "category": "Celebrity",
       "registrations": [
         "N33055"
-      ]
+      ],
+      "socials": {
+        "twitter": "RickRoss",
+        "instagram": "richforever"
+      }
     },
     "State of New York": {
       "category": "State/Law",
@@ -5307,7 +5580,11 @@
       "category": "Celebrity",
       "registrations": [
         "N220F"
-      ]
+      ],
+      "socials": {
+        "twitter": "rihanna",
+        "instagram": "badgalriri"
+      }
     },
     "State of North Carolina": {
       "category": "State/Law",
@@ -5408,7 +5685,11 @@
       "category": "Celebrity",
       "registrations": [
         "N1013"
-      ]
+      ],
+      "socials": {
+        "twitter": "sammyhagar",
+        "instagram": "sammyhagar"
+      }
     },
     "State of Ohio": {
       "category": "State/Law",
@@ -5460,7 +5741,10 @@
       "category": "People",
       "registrations": [
         "N524EA"
-      ]
+      ],
+      "socials": {
+        "twitter": "DavidMRubenstein"
+      }
     },
     "John Mara/NY Giants": {
       "category": "Sports",
@@ -5473,7 +5757,11 @@
       "category": "Celebrity",
       "registrations": [
         "N877H"
-      ]
+      ],
+      "socials": {
+        "twitter": "SebastianComedy",
+        "instagram": "sebastiancomedy"
+      }
     },
     "State of Oklahoma": {
       "category": "State/Law",
@@ -5516,7 +5804,11 @@
       "category": "Celebrity",
       "registrations": [
         "N3250N"
-      ]
+      ],
+      "socials": {
+        "twitter": "SHAQ",
+        "instagram": "shaq"
+      }
     },
     "State of Oregon": {
       "category": "State/Law",
@@ -5552,7 +5844,11 @@
       "registrations": [
         "N3880",
         "N68885"
-      ]
+      ],
+      "socials": {
+        "twitter": "finkd",
+        "instagram": "zuck"
+      }
     },
     "Ron Fowler/San Diego Padres": {
       "category": "Sports",
@@ -5564,7 +5860,8 @@
       "category": "Celebrity",
       "registrations": [
         "N700KS",
-        "N800KS"
+        "N800KS",
+        "N900KS"
       ]
     },
     "State of Pennsylvania": {
@@ -5602,8 +5899,13 @@
         "N10MV",
         "N6MV",
         "N47EG",
-        "N5MV"
-      ]
+        "N5MV",
+        "N11NY"
+      ],
+      "socials": {
+        "twitter": "MikeBloomberg",
+        "instagram": "mikebloomberg"
+      }
     },
     "John Middleton/Phillies": {
       "category": "Sports",
@@ -5641,13 +5943,21 @@
       "category": "Sports",
       "registrations": [
         "LX-GOL"
-      ]
+      ],
+      "socials": {
+        "twitter": "Cristiano",
+        "instagram": "cristiano"
+      }
     },
     "Tom Cruise": {
       "category": "Celebrity",
       "registrations": [
         "N77VA"
-      ]
+      ],
+      "socials": {
+        "twitter": "TomCruise",
+        "instagram": "tomcruise"
+      }
     },
     "State of South Carolina": {
       "category": "State/Law",
@@ -5753,7 +6063,10 @@
       "category": "People",
       "registrations": [
         "N221DG"
-      ]
+      ],
+      "socials": {
+        "instagram": "davidgeffen"
+      }
     },
     "Jody Allen/Seahawks & Trail Blazers (Paul Allen Estate)": {
       "category": "Sports",
@@ -5768,7 +6081,11 @@
         "N378AP",
         "N387AP",
         "N378TP"
-      ]
+      ],
+      "socials": {
+        "twitter": "tylerperry",
+        "instagram": "tylerperry"
+      }
     },
     "State of South Dakota": {
       "category": "State/Law",
@@ -5812,7 +6129,11 @@
       "category": "Celebrity",
       "registrations": [
         "N446CJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "DierksBentley",
+        "instagram": "dierksbentley"
+      }
     },
     "State of Tennessee": {
       "category": "State/Law",
@@ -5845,7 +6166,11 @@
       "category": "People",
       "registrations": [
         "N711RL"
-      ]
+      ],
+      "socials": {
+        "twitter": "RalphLauren",
+        "instagram": "ralphlauren"
+      }
     },
     "John Elway": {
       "category": "Sports",
@@ -5857,7 +6182,11 @@
       "category": "Celebrity",
       "registrations": [
         "N11PH"
-      ]
+      ],
+      "socials": {
+        "twitter": "ParisHilton",
+        "instagram": "parishilton"
+      }
     },
     "State of Texas": {
       "category": "State/Law",
@@ -5910,7 +6239,10 @@
       "category": "People",
       "registrations": [
         "N173JM"
-      ]
+      ],
+      "socials": {
+        "instagram": "adamweitsman"
+      }
     },
     "Adam Scott": {
       "category": "Sports",
@@ -5922,7 +6254,11 @@
       "category": "Celebrity",
       "registrations": [
         "N2320"
-      ]
+      ],
+      "socials": {
+        "twitter": "djkhaled",
+        "instagram": "djkhaled"
+      }
     },
     "State of Utah": {
       "category": "State/Law",
@@ -6072,7 +6408,10 @@
       "category": "People",
       "registrations": [
         "N74VW"
-      ]
+      ],
+      "socials": {
+        "twitter": "NickWoodman"
+      }
     },
     "Craig Leipold/Minnesota Wild": {
       "category": "Sports",
@@ -6200,13 +6539,21 @@
         "N100GN",
         "N252TF",
         "N650FJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "TilmanFertitta",
+        "instagram": "tilmanfertitta"
+      }
     },
     "Lionel Messi": {
       "category": "Sports",
       "registrations": [
         "LV-IRQ"
-      ]
+      ],
+      "socials": {
+        "twitter": "TeamMessi",
+        "instagram": "leomessi"
+      }
     },
     "Discovery Land Company Real Estate": {
       "category": "Business",
@@ -6228,7 +6575,10 @@
         "N435FG",
         "N335FG",
         "N919FG"
-      ]
+      ],
+      "socials": {
+        "twitter": "shahidkhan"
+      }
     },
     "Disney": {
       "category": "Business",
@@ -6264,7 +6614,10 @@
       "registrations": [
         "VH-CPH",
         "VH-FMG"
-      ]
+      ],
+      "socials": {
+        "twitter": "TwiggyForrest"
+      }
     },
     "Dollar General": {
       "category": "Business",
@@ -6281,8 +6634,12 @@
     "Steve Ballmer": {
       "category": "People",
       "registrations": [
-        "N709DS"
-      ]
+        "N709DS",
+        "N711LS"
+      ],
+      "socials": {
+        "twitter": "Steven_Ballmer"
+      }
     },
     "Dollar Tree": {
       "category": "Business",
@@ -6303,7 +6660,11 @@
       "registrations": [
         "N62LV",
         "N611BF"
-      ]
+      ],
+      "socials": {
+        "twitter": "ArthurBlank",
+        "instagram": "arthurblank"
+      }
     },
     "Domino's": {
       "category": "Business",
@@ -6333,7 +6694,10 @@
       "category": "People",
       "registrations": [
         "N627JW"
-      ]
+      ],
+      "socials": {
+        "twitter": "johnwhenry"
+      }
     },
     "Draft Kings": {
       "category": "Business",
@@ -6355,7 +6719,10 @@
       "category": "People",
       "registrations": [
         "N312JC"
-      ]
+      ],
+      "socials": {
+        "twitter": "JimCrane"
+      }
     },
     "DS Advisors (Equitec)": {
       "category": "Business",
@@ -6377,7 +6744,11 @@
       "category": "People",
       "registrations": [
         "N480JJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "JimmyJohnson",
+        "instagram": "jimmyjohnson"
+      }
     },
     "Duke Energy": {
       "category": "Business",
@@ -6444,7 +6815,10 @@
       "category": "People",
       "registrations": [
         "N814LL"
-      ]
+      ],
+      "socials": {
+        "twitter": "TedLeonsis"
+      }
     },
     "Enterprise Car Rental": {
       "category": "Business",
@@ -6547,8 +6921,15 @@
         "N756LB",
         "N11AF",
         "N7WW",
-        "N2AF"
-      ]
+        "N2AF",
+        "N758PB",
+        "N271DV",
+        "N194PJ"
+      ],
+      "socials": {
+        "twitter": "JeffBezos",
+        "instagram": "jeffbezos"
+      }
     },
     "Five Guys": {
       "category": "Business",
@@ -6575,7 +6956,11 @@
         "N122GA",
         "N721F",
         "N723GD"
-      ]
+      ],
+      "socials": {
+        "twitter": "TilmanFertitta",
+        "instagram": "tilmanfertitta"
+      }
     },
     "Ford": {
       "category": "Business",
@@ -6618,7 +7003,10 @@
       "category": "People",
       "registrations": [
         "N356ML"
-      ]
+      ],
+      "socials": {
+        "twitter": "realMikeLindell"
+      }
     },
     "GAP Inc.": {
       "category": "Business",
@@ -6643,7 +7031,10 @@
       "category": "People",
       "registrations": [
         "N8439E"
-      ]
+      ],
+      "socials": {
+        "twitter": "JoeManchin"
+      }
     },
     "Globus Medical": {
       "category": "Business",
@@ -6671,8 +7062,12 @@
         "N89NC",
         "N988NC",
         "N900NC",
-        "N898NC"
-      ]
+        "N898NC",
+        "N4N"
+      ],
+      "socials": {
+        "twitter": "RupertMurdoch"
+      }
     },
     "Goodyear Tire & Rubber Company": {
       "category": "Business",
@@ -6721,7 +7116,11 @@
       "category": "People",
       "registrations": [
         "N808XX"
-      ]
+      ],
+      "socials": {
+        "twitter": "Benioff",
+        "instagram": "benioff"
+      }
     },
     "Guggenheim Partners": {
       "category": "Business",
@@ -6777,7 +7176,10 @@
       "category": "People",
       "registrations": [
         "N41127"
-      ]
+      ],
+      "socials": {
+        "twitter": "peterthiel"
+      }
     },
     "Hess Corp": {
       "category": "Business",
@@ -6815,7 +7217,10 @@
       "registrations": [
         "N631CD",
         "N631AB"
-      ]
+      ],
+      "socials": {
+        "twitter": "tyler"
+      }
     },
     "Hobby Lobby": {
       "category": "Business",
@@ -6863,8 +7268,14 @@
     "Donald Trump": {
       "category": "People",
       "registrations": [
-        "N757AF"
-      ]
+        "N757AF",
+        "N917XA",
+        "N725DT"
+      ],
+      "socials": {
+        "twitter": "realDonaldTrump",
+        "instagram": "realdonaldtrump"
+      }
     },
     "HP": {
       "category": "Business",
@@ -6909,7 +7320,10 @@
       "category": "People",
       "registrations": [
         "N155TM"
-      ]
+      ],
+      "socials": {
+        "twitter": "nikolatrevor"
+      }
     },
     "Hy-Vee Grocery": {
       "category": "Business",
@@ -6953,7 +7367,10 @@
       "category": "People",
       "registrations": [
         "N97DQ"
-      ]
+      ],
+      "socials": {
+        "twitter": "Druckenmiller"
+      }
     },
     "IBM": {
       "category": "Business",
@@ -6998,7 +7415,11 @@
       "category": "People",
       "registrations": [
         "N858JL"
-      ]
+      ],
+      "socials": {
+        "twitter": "thejoshaltman",
+        "instagram": "thejoshaltman"
+      }
     },
     "Jacksons Food Stores": {
       "category": "Business",
@@ -7092,7 +7513,10 @@
       "category": "People",
       "registrations": [
         "N900VL"
-      ]
+      ],
+      "socials": {
+        "twitter": "DavidSacks"
+      }
     },
     "Johnson & Johnson": {
       "category": "Business",
@@ -7116,7 +7540,11 @@
       "category": "People",
       "registrations": [
         "N818TH"
-      ]
+      ],
+      "socials": {
+        "twitter": "TommyHilfiger",
+        "instagram": "tommyhilfiger"
+      }
     },
     "Johnson Development": {
       "category": "Business",
@@ -7134,7 +7562,11 @@
       "category": "People",
       "registrations": [
         "N206SU"
-      ]
+      ],
+      "socials": {
+        "twitter": "EdwardNorton",
+        "instagram": "edwardnortonofficial"
+      }
     },
     "Johnsonville Brats": {
       "category": "Business",
@@ -7180,7 +7612,11 @@
         "N992DC",
         "N945DC",
         "N1DC"
-      ]
+      ],
+      "socials": {
+        "twitter": "JerryJones",
+        "instagram": "jerryjones"
+      }
     },
     "JRK Property Holdings": {
       "category": "Business",
@@ -7224,7 +7660,10 @@
       "registrations": [
         "M-LDYS",
         "M-DANS"
-      ]
+      ],
+      "socials": {
+        "instagram": "danielsnyder_"
+      }
     },
     "Khosla Ventures": {
       "category": "Business",
@@ -7294,7 +7733,10 @@
       "category": "People",
       "registrations": [
         "N1089"
-      ]
+      ],
+      "socials": {
+        "twitter": "IOHK_Charles"
+      }
     },
     "Koch Industries": {
       "category": "Business",
@@ -7518,7 +7960,10 @@
       "category": "People",
       "registrations": [
         "N117AL"
-      ]
+      ],
+      "socials": {
+        "twitter": "sacca"
+      }
     },
     "Maersk Shipping Company": {
       "category": "Business",
@@ -7628,7 +8073,10 @@
       "category": "People",
       "registrations": [
         "VP-COR"
-      ]
+      ],
+      "socials": {
+        "twitter": "joetsai1969"
+      }
     },
     "Menards": {
       "category": "Business",
@@ -7694,7 +8142,10 @@
       "category": "People",
       "registrations": [
         "N108PB"
-      ]
+      ],
+      "socials": {
+        "twitter": "woodyjohnson4"
+      }
     },
     "Miliken": {
       "category": "Business",
@@ -7742,7 +8193,10 @@
       "category": "People",
       "registrations": [
         "N139MB"
-      ]
+      ],
+      "socials": {
+        "twitter": "MarkBurnettTV"
+      }
     },
     "Morgan and Morgan Law Firm": {
       "category": "Business",
@@ -7750,7 +8204,7 @@
         "N946MM"
       ]
     },
-    "Andr\u00e9 Esteves": {
+    "André Esteves": {
       "category": "People",
       "registrations": [
         "PS-BTG"
@@ -7821,7 +8275,11 @@
       "category": "People",
       "registrations": [
         "N1826K"
-      ]
+      ],
+      "socials": {
+        "twitter": "jaredkushner",
+        "instagram": "jaredckushner"
+      }
     },
     "Netflix": {
       "category": "Business",
@@ -8038,7 +8496,11 @@
       "registrations": [
         "N88W",
         "N964PP"
-      ]
+      ],
+      "socials": {
+        "twitter": "realMeetKevin",
+        "instagram": "meetkevin"
+      }
     },
     "OtterBox": {
       "category": "Business",
@@ -8090,7 +8552,7 @@
         "N888ZF"
       ]
     },
-    "Pap\u00e9 Machinery": {
+    "Papé Machinery": {
       "category": "Business",
       "registrations": [
         "N101PG",
@@ -8140,7 +8602,10 @@
         "N583GD",
         "N582GD",
         "N962GA"
-      ]
+      ],
+      "socials": {
+        "twitter": "GovPritzker"
+      }
     },
     "PayPal": {
       "category": "Business",
@@ -8152,7 +8617,10 @@
       "category": "People",
       "registrations": [
         "N605DA"
-      ]
+      ],
+      "socials": {
+        "twitter": "AlikoDangote"
+      }
     },
     "Penn National Gaming": {
       "category": "Business",
@@ -8166,7 +8634,11 @@
       "registrations": [
         "N84PJ",
         "N83ML"
-      ]
+      ],
+      "socials": {
+        "twitter": "JohnSchnatter",
+        "instagram": "johnhschnatter"
+      }
     },
     "Pepsi": {
       "category": "Business",
@@ -8233,7 +8705,10 @@
       "category": "People",
       "registrations": [
         "N148L"
-      ]
+      ],
+      "socials": {
+        "twitter": "lefkofsky"
+      }
     },
     "Precision Castparts": {
       "category": "Business",
@@ -8273,7 +8748,11 @@
       "category": "People",
       "registrations": [
         "N3877"
-      ]
+      ],
+      "socials": {
+        "twitter": "saylor",
+        "instagram": "michael_saylor"
+      }
     },
     "Proctor & Gamble": {
       "category": "Business",
@@ -8390,7 +8869,11 @@
       "category": "People",
       "registrations": [
         "N188FJ"
-      ]
+      ],
+      "socials": {
+        "twitter": "KrisKrohn",
+        "instagram": "kriskrohn"
+      }
     },
     "Quest Diagnostics (PC12)": {
       "category": "Business",
@@ -8428,7 +8911,10 @@
       "category": "People",
       "registrations": [
         "N131EP"
-      ]
+      ],
+      "socials": {
+        "twitter": "realErikPrince"
+      }
     },
     "RealPage Real Estate": {
       "category": "Business",
@@ -8454,7 +8940,10 @@
       "category": "People",
       "registrations": [
         "N171EX"
-      ]
+      ],
+      "socials": {
+        "twitter": "pierre"
+      }
     },
     "Resturant Brands Intl.": {
       "category": "Business",
@@ -8555,7 +9044,11 @@
       "category": "People",
       "registrations": [
         "N616RH"
-      ]
+      ],
+      "socials": {
+        "twitter": "robertherjavec",
+        "instagram": "robertherjavec"
+      }
     },
     "ScottsMiracle-Gro": {
       "category": "Business",
@@ -8600,7 +9093,10 @@
       "category": "People",
       "registrations": [
         "N12MW"
-      ]
+      ],
+      "socials": {
+        "twitter": "SteveRattner"
+      }
     },
     "Simon Property Group (Malls)": {
       "category": "Business",
@@ -8621,7 +9117,7 @@
         "N3E"
       ]
     },
-    "Alberto Rodr\u00edguez Baldi (Baldi Hot Springs Hotel)": {
+    "Alberto Rodríguez Baldi (Baldi Hot Springs Hotel)": {
       "category": "People",
       "registrations": [
         "N908BH"
@@ -8672,6 +9168,57 @@
       "category": "People",
       "registrations": [
         "N7JP"
+      ]
+    },
+    "Travis Scott": {
+      "category": "Celebrity",
+      "registrations": [
+        "N713TS"
+      ],
+      "socials": {
+        "twitter": "traborjamaicav",
+        "instagram": "travisscott"
+      }
+    },
+    "Justin Bieber": {
+      "category": "Celebrity",
+      "registrations": [
+        "N776RB"
+      ],
+      "socials": {
+        "twitter": "justinbieber",
+        "instagram": "justinbieber"
+      }
+    },
+    "Saudi Royal Flight": {
+      "category": "Government",
+      "registrations": [
+        "HZ-HM1",
+        "HZ-AS99"
+      ]
+    },
+    "UK Royal Family (RAF)": {
+      "category": "Government",
+      "registrations": [
+        "G-XWBG"
+      ]
+    },
+    "France Presidency (COTAM)": {
+      "category": "Government",
+      "registrations": [
+        "F-RARF"
+      ]
+    },
+    "Germany Chancellery (Flugbereitschaft)": {
+      "category": "Government",
+      "registrations": [
+        "10+01"
+      ]
+    },
+    "Japan Prime Minister": {
+      "category": "Government",
+      "registrations": [
+        "80-1111"
       ]
     }
   }

@@ -11,6 +11,7 @@ export interface FlightBase {
   lng: number;
   alt: number;
   heading: number;
+  true_track?: number;
   speed_knots: number | null;
   registration: string;
   model: string;
@@ -25,30 +26,31 @@ export interface FlightBase {
   dest_name?: string;
   trail?: Array<{ lat: number; lng: number; alt?: number; ts?: number }>;
   holding?: boolean;
+  emissions?: { fuel_gph: number; co2_kg_per_hour: number };
 }
 
 export interface CommercialFlight extends FlightBase {
-  type: "commercial_flight";
+  type: 'commercial_flight';
   airline_code?: string;
   supplemental_source?: string;
 }
 
 export interface PrivateFlight extends FlightBase {
-  type: "private_ga" | "private_flight";
+  type: 'private_ga' | 'private_flight';
 }
 
 export interface PrivateJet extends FlightBase {
-  type: "private_jet";
+  type: 'private_jet';
 }
 
 export interface MilitaryFlight extends FlightBase {
-  type: "military_flight";
-  military_type?: "heli" | "fighter" | "bomber" | "tanker" | "cargo" | "recon" | "default";
+  type: 'military_flight';
+  military_type?: 'heli' | 'fighter' | 'bomber' | 'tanker' | 'cargo' | 'recon' | 'default';
   force?: string;
 }
 
 export interface TrackedFlight extends FlightBase {
-  type: "tracked_flight";
+  type: 'tracked_flight';
   alert_category?: string;
   alert_operator?: string;
   alert_special?: string;
@@ -58,6 +60,7 @@ export interface TrackedFlight extends FlightBase {
   alert_type?: string;
   alert_tags?: string[];
   alert_link?: string;
+  alert_socials?: { twitter?: string; instagram?: string };
   tracked_name?: string;
   operator?: string;
   owner?: string;
@@ -65,21 +68,36 @@ export interface TrackedFlight extends FlightBase {
 }
 
 export interface UAV extends FlightBase {
-  type: "uav";
+  type: 'uav';
   uav_type?: string;
   aircraft_model?: string;
   wiki?: string;
   force?: string;
+  id?: string | number;
 }
 
-export type Flight = CommercialFlight | PrivateFlight | PrivateJet | MilitaryFlight | TrackedFlight | UAV;
+export type Flight =
+  | CommercialFlight
+  | PrivateFlight
+  | PrivateJet
+  | MilitaryFlight
+  | TrackedFlight
+  | UAV;
 
 // ─── SHIPS / MARITIME ───────────────────────────────────────────────────────
 
 export interface Ship {
   mmsi: number;
   name: string;
-  type: "carrier" | "military_vessel" | "tanker" | "cargo" | "passenger" | "yacht" | "other" | "unknown";
+  type:
+    | 'carrier'
+    | 'military_vessel'
+    | 'tanker'
+    | 'cargo'
+    | 'passenger'
+    | 'yacht'
+    | 'other'
+    | 'unknown';
   lat: number;
   lng: number;
   heading: number;
@@ -126,9 +144,16 @@ export interface Ship {
 // ─── SATELLITES ─────────────────────────────────────────────────────────────
 
 export type SatelliteMission =
-  | "military_recon" | "military_sar" | "military_ew"
-  | "sar" | "commercial_imaging" | "navigation"
-  | "early_warning" | "space_station" | "sigint" | "general";
+  | 'military_recon'
+  | 'military_sar'
+  | 'military_ew'
+  | 'sar'
+  | 'commercial_imaging'
+  | 'navigation'
+  | 'early_warning'
+  | 'space_station'
+  | 'sigint'
+  | 'general';
 
 export interface Satellite {
   id: number;
@@ -160,7 +185,7 @@ export interface Earthquake {
 export interface GPSJammingZone {
   lat: number;
   lng: number;
-  severity: "high" | "medium" | "low";
+  severity: 'high' | 'medium' | 'low';
   ratio: number;
   degraded: number;
   total: number;
@@ -179,6 +204,25 @@ export interface FireHotspot {
   acq_time: string;
 }
 
+// ─── TRAINS ────────────────────────────────────────────────────────────
+
+export interface Train {
+  id: string;
+  name: string;
+  number: string;
+  source: 'amtrak' | 'digitraffic' | string;
+  source_label?: string;
+  operator?: string;
+  country?: string;
+  telemetry_quality?: string;
+  lat: number;
+  lng: number;
+  speed_kmh: number | null;
+  heading: number | null;
+  status: string;
+  route: string;
+}
+
 // ─── CCTV CAMERAS ───────────────────────────────────────────────────────────
 
 export interface CCTVCamera {
@@ -188,7 +232,7 @@ export interface CCTVCamera {
   direction_facing?: string;
   source_agency?: string;
   media_url?: string;
-  media_type?: "image" | "hls" | "mjpeg";
+  media_type?: 'image' | 'hls' | 'mjpeg';
 }
 
 // ─── KIWISDR RECEIVERS ─────────────────────────────────────────────────────
@@ -203,6 +247,117 @@ export interface KiwiSDR {
   bands?: string;
   antenna?: string;
   location?: string;
+}
+
+// ─── PSK REPORTER SPOTS ─────────────────────────────────────────────────────
+
+export interface PSKSpot {
+  lat: number;
+  lon: number;
+  sender: string;
+  receiver: string;
+  frequency: number;
+  mode: string;
+  snr: number;
+  time: string;
+}
+
+// ─── SATNOGS GROUND STATIONS ────────────────────────────────────────────────
+
+export interface SatNOGSStation {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  altitude?: number;
+  antenna?: string;
+  observations?: number;
+  status?: number;
+  last_seen?: string;
+}
+
+export interface SatNOGSObservation {
+  id: number;
+  satellite_name: string;
+  norad_id?: number;
+  station_name: string;
+  lat: number;
+  lng: number;
+  start?: string;
+  end?: string;
+  frequency?: number;
+  mode?: string;
+  waterfall?: string;
+  audio?: string;
+  status?: string;
+}
+
+// ─── TINYGS LORA SATELLITES ─────────────────────────────────────────────────
+
+export interface TinyGSSatellite {
+  name: string;
+  lat: number;
+  lng: number;
+  heading?: number;
+  speed_knots?: number;
+  alt_km?: number;
+  status?: string;
+  modulation?: string;
+  frequency?: string;
+  sgp4_propagated?: boolean;
+  tinygs_confirmed?: boolean;
+}
+
+// ─── POLICE SCANNERS (OpenMHZ) ──────────────────────────────────────────────
+
+export interface Scanner {
+  shortName: string;
+  name: string;
+  lat: number;
+  lng: number;
+  city: string;
+  state: string;
+  clientCount: number;
+  description: string;
+}
+
+// ─── SIGINT (APRS / Meshtastic / JS8Call) ───────────────────────────────────
+
+export interface SigintSignal {
+  callsign?: string;
+  lat?: number;
+  lng?: number;
+  source?: 'aprs' | 'meshtastic' | 'js8call' | string;
+  region?: string;
+  root?: string;
+  channel?: string;
+  confidence?: number;
+  timestamp?: string;
+  position_updated_at?: string;
+  raw_message?: string;
+  status?: string;
+  comment?: string;
+  station_type?: string;
+  emergency?: boolean;
+  emergency_keyword?: string;
+  long_name?: string;
+  short_name?: string;
+  hardware?: string;
+  role?: string;
+  battery_level?: number;
+  voltage?: number | string | null;
+  altitude?: number | null;
+  from_api?: boolean;
+  snr?: number;
+  frequency?: string | number;
+  grid?: string;
+  symbol?: string;
+  altitude_ft?: number;
+  speed_knots?: number;
+  course?: number;
+  battery_v?: number;
+  power_watts?: number;
+  geometry?: { coordinates?: [number, number] };
 }
 
 // ─── INTERNET OUTAGES (IODA) ────────────────────────────────────────────────
@@ -242,6 +397,14 @@ export interface PowerPlant {
   lng: number;
 }
 
+export interface VIIRSChangeNode {
+  lat: number;
+  lng: number;
+  mean_change_pct: number;
+  severity: 'severe' | 'high' | 'moderate' | 'growth' | 'rapid_growth';
+  aoi_name: string;
+}
+
 export interface MilitaryBase {
   name: string;
   country: string;
@@ -249,6 +412,74 @@ export interface MilitaryBase {
   branch: string;
   lat: number;
   lng: number;
+}
+
+export interface UkraineAlert {
+  id: number;
+  alert_type: string;
+  location_title: string;
+  location_uid: string;
+  name_en: string;
+  started_at: string;
+  color: string;
+  geometry: GeoJSON.Geometry;
+}
+
+export interface WeatherAlert {
+  id: string;
+  event: string;
+  severity: string;
+  certainty: string;
+  urgency: string;
+  headline: string;
+  description: string;
+  expires: string;
+  geometry: GeoJSON.Geometry;
+}
+
+export interface AirQualityStation {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  pm25: number;
+  aqi: number;
+  country: string;
+}
+
+export interface Volcano {
+  name: string;
+  type: string;
+  country: string;
+  region: string;
+  elevation: number;
+  last_eruption_year: number | null;
+  lat: number;
+  lng: number;
+}
+
+export interface FishingEvent {
+  id: string;
+  type: string;
+  lat: number;
+  lng: number;
+  start: string;
+  end: string;
+  vessel_name: string;
+  vessel_flag: string;
+  duration_hrs: number;
+}
+
+// ─── CORRELATION ALERTS ────────────────────────────────────────────────────
+
+export interface CorrelationAlert {
+  lat: number;
+  lng: number;
+  type: 'rf_anomaly' | 'military_buildup' | 'infra_cascade';
+  severity: 'high' | 'medium' | 'low';
+  score: number;
+  drivers: string[];
+  cell_size: number;
 }
 
 // ─── NEWS / GLOBAL INCIDENTS ────────────────────────────────────────────────
@@ -266,16 +497,33 @@ export interface NewsArticle {
   region?: string;
   coords?: [number, number];
   machine_assessment?: string;
+  oracle_score?: number;
+  sentiment?: number;
+  breaking?: boolean;
+  prediction_odds?: {
+    title: string;
+    polymarket_pct: number | null;
+    kalshi_pct: number | null;
+    consensus_pct: number | null;
+    match_score: number;
+  } | null;
+}
+
+export interface ThreatLevel {
+  score: number;
+  level: 'GREEN' | 'GUARDED' | 'ELEVATED' | 'HIGH' | 'SEVERE';
+  color: string;
+  drivers: string[];
 }
 
 // ─── UKRAINE FRONTLINE ──────────────────────────────────────────────────────
 
 export interface FrontlineGeoJSON {
-  type: "FeatureCollection";
+  type: 'FeatureCollection';
   features: Array<{
-    type: "Feature";
+    type: 'Feature';
     geometry: {
-      type: "Polygon";
+      type: 'Polygon';
       coordinates: [number, number][][];
     };
     properties: {
@@ -288,9 +536,9 @@ export interface FrontlineGeoJSON {
 // ─── GDELT INCIDENTS ────────────────────────────────────────────────────────
 
 export interface GDELTIncident {
-  type: "Feature";
+  type: 'Feature';
   geometry: {
-    type: "Point";
+    type: 'Point';
     coordinates: [number, number];
   };
   properties: {
@@ -357,7 +605,7 @@ export interface Airport {
   iata: string;
   lat: number;
   lng: number;
-  type: "airport";
+  type: 'airport';
 }
 
 // ─── RADIO FEEDS ────────────────────────────────────────────────────────────
@@ -396,6 +644,32 @@ export interface RegionDossier {
 
 export type FreshnessMap = Record<string, string>;
 
+// ─── FIMI DISINFORMATION ────────────────────────────────────────────────────
+
+export interface FimiNarrative {
+  title: string;
+  link: string;
+  published: string;
+  snippet: string;
+  claims: Array<{ url: string; title: string }>;
+  actors: string[];
+  targets: string[];
+  disinfo_keywords: string[];
+}
+
+export interface FimiData {
+  narratives: FimiNarrative[];
+  claims: Array<{ url: string; title: string }>;
+  threat_actors: Record<string, number>;
+  targets: Record<string, number>;
+  disinfo_keywords: string[];
+  major_wave: boolean;
+  major_wave_target: string | null;
+  last_fetched: string;
+  source: string;
+  source_url: string;
+}
+
 // ─── ROOT DATA OBJECT ───────────────────────────────────────────────────────
 
 export interface DashboardData {
@@ -403,6 +677,18 @@ export interface DashboardData {
   last_updated?: string | null;
   freshness?: FreshnessMap;
   satellite_source?: string;
+  financial_source?: string;
+  cctv_total?: number;
+  satnogs_total?: number;
+  tinygs_total?: number;
+  sigint_totals?: {
+    total?: number;
+    meshtastic?: number;
+    meshtastic_live?: number;
+    meshtastic_map?: number;
+    aprs?: number;
+    js8call?: number;
+  };
 
   // Fast tier
   commercial_flights?: CommercialFlight[];
@@ -416,23 +702,61 @@ export interface DashboardData {
   liveuamap?: LiveUAmapIncident[];
   gps_jamming?: GPSJammingZone[];
   satellites?: Satellite[];
+  sigint?: SigintSignal[];
+  trains?: Train[];
 
   // Slow tier
+  threat_level?: ThreatLevel;
+  trending_markets?: Array<{
+    title: string;
+    consensus_pct: number | null;
+    polymarket_pct: number | null;
+    kalshi_pct: number | null;
+    delta_pct: number | null;
+    volume: number;
+    volume_24h: number;
+    category: string;
+    sources: Array<{ name: string; pct: number }>;
+    slug: string;
+    outcomes?: Array<{ name: string; pct: number }>;
+  }>;
   news?: NewsArticle[];
   stocks?: StocksData;
   oil?: OilData;
+  unusual_whales?: {
+    congress_trades?: import('@/types/unusualWhales').CongressTrade[];
+    insider_transactions?: import('@/types/unusualWhales').InsiderTransaction[];
+    quotes?: Record<string, { price: number; change_percent: number; up: boolean }>;
+  };
   weather?: Weather | null;
   earthquakes?: Earthquake[];
   frontlines?: FrontlineGeoJSON | null;
   gdelt?: GDELTIncident[];
   airports?: Airport[];
   kiwisdr?: KiwiSDR[];
+  psk_reporter?: PSKSpot[];
+  satnogs_stations?: SatNOGSStation[];
+  satnogs_observations?: SatNOGSObservation[];
+  tinygs_satellites?: TinyGSSatellite[];
+  scanners?: Scanner[];
   space_weather?: SpaceWeather | null;
   internet_outages?: InternetOutage[];
   firms_fires?: FireHotspot[];
   datacenters?: DataCenter[];
   military_bases?: MilitaryBase[];
   power_plants?: PowerPlant[];
+  viirs_change_nodes?: VIIRSChangeNode[];
+  ukraine_alerts?: UkraineAlert[];
+  weather_alerts?: WeatherAlert[];
+  air_quality?: AirQualityStation[];
+  volcanoes?: Volcano[];
+  fishing_activity?: FishingEvent[];
+
+  // Cross-layer correlations
+  correlations?: CorrelationAlert[];
+
+  // FIMI disinformation
+  fimi?: FimiData;
 }
 
 // ─── COMPONENT PROPS ────────────────────────────────────────────────────────
@@ -458,11 +782,27 @@ export interface ActiveLayers {
   gibs_imagery: boolean;
   highres_satellite: boolean;
   kiwisdr: boolean;
+  psk_reporter: boolean;
+  satnogs: boolean;
+  tinygs: boolean;
+  scanners: boolean;
   firms: boolean;
   internet_outages: boolean;
   datacenters: boolean;
   military_bases: boolean;
   power_plants: boolean;
+  sigint_meshtastic: boolean;
+  sigint_aprs: boolean;
+  ukraine_alerts: boolean;
+  weather_alerts: boolean;
+  air_quality: boolean;
+  volcanoes: boolean;
+  fishing_activity: boolean;
+  sentinel_hub: boolean;
+  trains: boolean;
+  shodan_overlay: boolean;
+  viirs_nightlights: boolean;
+  correlations: boolean;
 }
 
 export interface SelectedEntity {
@@ -503,10 +843,22 @@ export interface MaplibreViewerProps {
   measurePoints: MeasurePoint[];
   gibsDate: string;
   gibsOpacity: number;
+  sentinelDate?: string;
+  sentinelOpacity?: number;
+  sentinelPreset?: string;
   isEavesdropping?: boolean;
   onEavesdropClick?: (coords: { lat: number; lng: number }) => void;
   onCameraMove?: (coords: { lat: number; lng: number }) => void;
-  viewBoundsRef?: React.RefObject<{ south: number; west: number; north: number; east: number } | null>;
+  viewBoundsRef?: React.RefObject<{
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  } | null>;
   trackedSdr?: KiwiSDR | null;
   setTrackedSdr?: (sdr: KiwiSDR | null) => void;
+  trackedScanner?: Scanner | null;
+  setTrackedScanner?: (scanner: Scanner | null) => void;
+  shodanResults?: import('@/types/shodan').ShodanSearchMatch[];
+  shodanStyle?: import('@/types/shodan').ShodanStyleConfig;
 }

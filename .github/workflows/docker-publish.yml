@@ -13,7 +13,12 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  ci-gate:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
   build-frontend:
+    needs: ci-gate
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -128,6 +133,7 @@ jobs:
             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
 
   build-backend:
+    needs: ci-gate
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ShadowBroker Desktop Shell",
+  "version": "0.1.0",
+  "identifier": "com.shadowbroker.desktop",
+  "build": {
+    "frontendDist": "../../frontend/.next",
+    "devUrl": "http://127.0.0.1:3000"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ShadowBroker",
+        "width": 1600,
+        "height": 1000,
+        "resizable": true
+      }
+    ]
+  }
+}

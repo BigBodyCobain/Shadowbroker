@@ -1,77 +1,113 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import type { MapRef } from "react-map-gl/maplibre";
+import { useEffect, useRef, useState } from 'react';
+import type { MapRef } from 'react-map-gl/maplibre';
+import type { MapGeoJSONFeature } from 'maplibre-gl';
 
 export interface ClusterItem {
-    lng: number;
-    lat: number;
-    count: string | number;
-    id: number;
+  lng: number;
+  lat: number;
+  count: string | number;
+  id: number;
 }
 
 /**
  * Extracts cluster label positions from a MapLibre clustered source.
- * Listens for moveend/sourcedata events to keep labels in sync.
+ * Queries only rendered cluster features for a given cluster layer to avoid
+ * scanning the full clustered source on every update.
  *
  * @param mapRef - React ref to the MapLibre map instance
- * @param sourceId - The source ID to query clusters from (e.g. "ships", "earthquakes")
+ * @param layerId - The rendered cluster layer ID to query (e.g. "ships-clusters-layer")
  * @param geoJSON - The GeoJSON data driving the source (null = no clusters)
  */
 export function useClusterLabels(
-    mapRef: React.RefObject<MapRef | null>,
-    sourceId: string,
-    geoJSON: unknown | null
+  mapRef: React.RefObject<MapRef | null>,
+  layerId: string,
+  geoJSON: unknown | null,
 ): ClusterItem[] {
-    const [clusters, setClusters] = useState<ClusterItem[]>([]);
-    const handlerRef = useRef<(() => void) | null>(null);
+  const [clusters, setClusters] = useState<ClusterItem[]>([]);
+  const handlerRef = useRef<(() => void) | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const signatureRef = useRef('');
 
-    useEffect(() => {
-        const map = mapRef.current?.getMap();
-        if (!map || !geoJSON) {
-            setClusters([]);
-            return;
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !geoJSON) {
+      setClusters([]);
+      return;
+    }
+
+    // Remove previous handler if it exists
+    if (handlerRef.current) {
+      map.off('moveend', handlerRef.current);
+      map.off('idle', handlerRef.current);
+    }
+
+    const runUpdate = () => {
+      try {
+        if (!map.getLayer(layerId)) {
+          setClusters([]);
+          signatureRef.current = '';
+          return;
         }
-
-        // Remove previous handler if it exists
-        if (handlerRef.current) {
-            map.off("moveend", handlerRef.current);
-            map.off("sourcedata", handlerRef.current);
+        const features = map.queryRenderedFeatures(undefined, {
+          layers: [layerId],
+        }) as MapGeoJSONFeature[];
+        const raw = features
+          .filter((f) => f.properties?.cluster)
+          .map((f) => {
+            const point = f.geometry as GeoJSON.Point;
+            return {
+              lng: point.coordinates[0],
+              lat: point.coordinates[1],
+              count: f.properties?.point_count_abbreviated ?? f.properties?.point_count ?? 0,
+              id: Number(f.properties?.cluster_id ?? 0),
+            };
+          });
+        const seen = new Set<number>();
+        const unique = raw.filter((c) => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        });
+        const signature = unique
+          .map((c) => `${c.id}:${c.count}:${c.lng.toFixed(3)}:${c.lat.toFixed(3)}`)
+          .join('|');
+        if (signature !== signatureRef.current) {
+          signatureRef.current = signature;
+          setClusters(unique);
         }
+      } catch {
+        if (signatureRef.current !== '') {
+          signatureRef.current = '';
+          setClusters([]);
+        }
+      }
+    };
+    const scheduleUpdate = () => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        runUpdate();
+      });
+    };
+    handlerRef.current = scheduleUpdate;
 
-        const update = () => {
-            try {
-                const features = map.querySourceFeatures(sourceId);
-                const raw = features
-                    .filter((f: any) => f.properties?.cluster)
-                    .map((f: any) => ({
-                        lng: (f.geometry as any).coordinates[0],
-                        lat: (f.geometry as any).coordinates[1],
-                        count: f.properties.point_count_abbreviated || f.properties.point_count,
-                        id: f.properties.cluster_id,
-                    }));
-                const seen = new Set<number>();
-                const unique = raw.filter((c) => {
-                    if (seen.has(c.id)) return false;
-                    seen.add(c.id);
-                    return true;
-                });
-                setClusters(unique);
-            } catch {
-                setClusters([]);
-            }
-        };
-        handlerRef.current = update;
+    map.on('moveend', scheduleUpdate);
+    map.on('idle', scheduleUpdate);
+    scheduleUpdate();
 
-        map.on("moveend", update);
-        map.on("sourcedata", update);
-        setTimeout(update, 500);
+    return () => {
+      map.off('moveend', scheduleUpdate);
+      map.off('idle', scheduleUpdate);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [geoJSON, layerId, mapRef]);
 
-        return () => {
-            map.off("moveend", update);
-            map.off("sourcedata", update);
-        };
-    }, [geoJSON, sourceId]);
-
-    return clusters;
+  return clusters;
 }

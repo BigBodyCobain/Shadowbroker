@@ -1,0 +1,23 @@
+# Exclude build artifacts, caches, and large directories from Docker context
+.git/
+.git_backup/
+node_modules/
+.next/
+__pycache__/
+*.pyc
+venv/
+.venv/
+.ruff_cache/
+
+# privacy-core build caches (source is needed, artifacts are not)
+privacy-core/target/
+privacy-core/target-test/
+privacy-core/.codex-tmp/
+
+# Large data/cache files
+*.db
+*.sqlite
+*.xlsx
+*.log
+extra/
+prototype/

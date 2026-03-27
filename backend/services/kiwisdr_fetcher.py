@@ -16,13 +16,13 @@ kiwisdr_cache = TTLCache(maxsize=1, ttl=600)  # 10-minute cache
 
 def _parse_comment(html: str, field: str) -> str:
     """Extract a field value from HTML comment like <!-- field=value -->"""
-    m = re.search(rf'<!--\s*{field}=(.*?)\s*-->', html)
+    m = re.search(rf"<!--\s*{field}=(.*?)\s*-->", html)
     return m.group(1).strip() if m else ""
 
 
 def _parse_gps(html: str):
     """Extract lat/lon from <!-- gps=(lat, lon) --> comment."""
-    m = re.search(r'<!--\s*gps=\(([^,]+),\s*([^)]+)\)\s*-->', html)
+    m = re.search(r"<!--\s*gps=\(([^,]+),\s*([^)]+)\)\s*-->", html)
     if m:
         try:
             return float(m.group(1)), float(m.group(2))
@@ -78,17 +78,19 @@ def fetch_kiwisdr_nodes() -> list[dict]:
             except ValueError:
                 users_max = 0
 
-            nodes.append({
-                "name": name[:120],  # Truncate long names
-                "lat": round(lat, 5),
-                "lon": round(lon, 5),
-                "url": url,
-                "users": users,
-                "users_max": users_max,
-                "bands": bands,
-                "antenna": antenna[:200] if antenna else "",
-                "location": location[:100] if location else "",
-            })
+            nodes.append(
+                {
+                    "name": name[:120],  # Truncate long names
+                    "lat": round(lat, 5),
+                    "lon": round(lon, 5),
+                    "url": url,
+                    "users": users,
+                    "users_max": users_max,
+                    "bands": bands,
+                    "antenna": antenna[:200] if antenna else "",
+                    "location": location[:100] if location else "",
+                }
+            )
 
         logger.info(f"KiwiSDR: parsed {len(nodes)} online receivers")
         return nodes

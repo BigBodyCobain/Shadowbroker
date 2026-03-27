@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Theme = "dark" | "light";
-type HudColor = "cyan" | "matrix";
+type Theme = 'dark' | 'light';
+type HudColor = 'cyan' | 'matrix';
 
 const ThemeContext = createContext<{
   theme: Theme;
@@ -11,41 +11,41 @@ const ThemeContext = createContext<{
   hudColor: HudColor;
   cycleHudColor: () => void;
 }>({
-  theme: "dark",
+  theme: 'dark',
   toggleTheme: () => {},
-  hudColor: "cyan",
+  hudColor: 'cyan',
   cycleHudColor: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [hudColor, setHudColor] = useState<HudColor>("cyan");
+  const [theme, setTheme] = useState<Theme>('dark');
+  const [hudColor, setHudColor] = useState<HudColor>('cyan');
 
   useEffect(() => {
-    const saved = localStorage.getItem("sb-theme") as Theme | null;
-    if (saved === "light" || saved === "dark") {
+    const saved = localStorage.getItem('sb-theme') as Theme | null;
+    if (saved === 'light' || saved === 'dark') {
       setTheme(saved);
-      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.setAttribute('data-theme', saved);
     }
-    const savedHud = localStorage.getItem("sb-hud-color") as HudColor | null;
-    if (savedHud === "cyan" || savedHud === "matrix") {
+    const savedHud = localStorage.getItem('sb-hud-color') as HudColor | null;
+    if (savedHud === 'cyan' || savedHud === 'matrix') {
       setHudColor(savedHud);
-      document.documentElement.setAttribute("data-hud", savedHud);
+      document.documentElement.setAttribute('data-hud', savedHud);
     }
   }, []);
 
   const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
+    const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    localStorage.setItem("sb-theme", next);
-    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem('sb-theme', next);
+    document.documentElement.setAttribute('data-theme', next);
   };
 
   const cycleHudColor = () => {
-    const next = hudColor === "cyan" ? "matrix" : "cyan";
+    const next = hudColor === 'cyan' ? 'matrix' : 'cyan';
     setHudColor(next);
-    localStorage.setItem("sb-hud-color", next);
-    document.documentElement.setAttribute("data-hud", next);
+    localStorage.setItem('sb-hud-color', next);
+    document.documentElement.setAttribute('data-hud', next);
   };
 
   return (

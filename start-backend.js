@@ -1,4 +1,4 @@
-const { execSync } = require("child_process");
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
@@ -13,8 +13,35 @@ if (!fs.existsSync(venvBin)) {
   process.exit(1);
 }
 
-console.log(`[*] Starting backend with: ${venvBin}`);
-execSync(`"${venvBin}" -m uvicorn main:app --reload`, {
+const backendArgs = ["-m", "uvicorn", "main:app", "--timeout-keep-alive", "120"];
+if (["1", "true", "yes"].includes(String(process.env.BACKEND_RELOAD || "").toLowerCase())) {
+  backendArgs.push("--reload");
+}
+
+console.log(`[*] Starting backend with: ${venvBin} ${backendArgs.join(" ")}`);
+const backendProc = spawn(venvBin, backendArgs, {
   cwd: backendDir,
   stdio: "inherit",
+  env: process.env,
+});
+
+const cleanupAll = () => {
+  if (backendProc && !backendProc.killed) {
+    backendProc.kill();
+  }
+};
+
+process.on("exit", cleanupAll);
+process.on("SIGINT", () => {
+  cleanupAll();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  cleanupAll();
+  process.exit(0);
+});
+
+backendProc.on("exit", (code) => {
+  cleanupAll();
+  process.exit(code ?? 0);
 });

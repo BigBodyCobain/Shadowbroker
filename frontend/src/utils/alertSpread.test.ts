@@ -18,20 +18,14 @@ describe('spreadAlertItems', () => {
   });
 
   it('filters out items without coords', () => {
-    const items = [
-      { title: 'No coords', alert_level: 1 },
-      makeAlert('Has coords', 40, -74),
-    ];
+    const items = [{ title: 'No coords', alert_level: 1 }, makeAlert('Has coords', 40, -74)];
     const result = spreadAlertItems(items, 4, new Set());
     expect(result.length).toBe(1);
     expect(result[0].title).toBe('Has coords');
   });
 
   it('filters dismissed alerts by alertKey', () => {
-    const items = [
-      makeAlert('Fire in NYC', 40.7, -74.0),
-      makeAlert('Floods in LA', 34.0, -118.2),
-    ];
+    const items = [makeAlert('Fire in NYC', 40.7, -74.0), makeAlert('Floods in LA', 34.0, -118.2)];
     const dismissed = new Set(['Fire in NYC|40.7,-74']);
     const result = spreadAlertItems(items, 4, dismissed);
     expect(result.length).toBe(1);
@@ -59,12 +53,10 @@ describe('spreadAlertItems', () => {
 
   it('spreads overlapping alerts apart (offsets are non-zero for stacked items)', () => {
     // Place 5 alerts at the exact same location — they should be spread apart
-    const items = Array.from({ length: 5 }, (_, i) =>
-      makeAlert(`Alert ${i}`, 40.0, -74.0)
-    );
+    const items = Array.from({ length: 5 }, (_, i) => makeAlert(`Alert ${i}`, 40.0, -74.0));
     const result = spreadAlertItems(items, 8, new Set()); // zoom 8 = close enough to overlap
     const hasNonZeroOffset = result.some(
-      (r: any) => Math.abs(r.offsetX) > 1 || Math.abs(r.offsetY) > 1
+      (r: any) => Math.abs(r.offsetX) > 1 || Math.abs(r.offsetY) > 1,
     );
     expect(hasNonZeroOffset).toBe(true);
   });

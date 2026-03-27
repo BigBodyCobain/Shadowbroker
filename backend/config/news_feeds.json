@@ -1,6 +1,16 @@
 {
   "feeds": [
     {
+      "name": "Reuters",
+      "url": "https://www.reutersagency.com/feed/?best-topics=world",
+      "weight": 5
+    },
+    {
+      "name": "AP News",
+      "url": "https://rsshub.app/apnews/topics/world-news",
+      "weight": 5
+    },
+    {
       "name": "NPR",
       "url": "https://feeds.npr.org/1004/rss.xml",
       "weight": 4
@@ -26,29 +36,39 @@
       "weight": 5
     },
     {
-      "name": "NHK",
-      "url": "https://www3.nhk.or.jp/nhkworld/rss/world.xml",
+      "name": "The War Zone",
+      "url": "https://www.twz.com/feed",
+      "weight": 4
+    },
+    {
+      "name": "Bellingcat",
+      "url": "https://www.bellingcat.com/feed/",
+      "weight": 4
+    },
+    {
+      "name": "Guardian",
+      "url": "https://www.theguardian.com/world/rss",
       "weight": 3
     },
     {
+      "name": "TASS",
+      "url": "https://tass.com/rss/v2.xml",
+      "weight": 2
+    },
+    {
+      "name": "Xinhua",
+      "url": "http://www.news.cn/english/rss/worldrss.xml",
+      "weight": 2
+    },
+    {
       "name": "CNA",
-      "url": "https://www.channelnewsasia.com/rssfeed/8395986",
+      "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
       "weight": 3
     },
     {
       "name": "Mercopress",
       "url": "https://en.mercopress.com/rss/",
       "weight": 3
-    },
-    {
-      "name": "FocusTaiwan",
-      "url": "https://focustaiwan.tw/rss",
-      "weight": 5
-    },
-    {
-      "name": "Kyodo",
-      "url": "https://english.kyodonews.net/rss/news.xml",
-      "weight": 4
     },
     {
       "name": "SCMP",
@@ -61,23 +81,8 @@
       "weight": 4
     },
     {
-      "name": "Stars and Stripes",
-      "url": "https://www.stripes.com/feeds/pacific.rss",
-      "weight": 4
-    },
-    {
       "name": "Yonhap",
       "url": "https://en.yna.co.kr/RSS/news.xml",
-      "weight": 4
-    },
-    {
-      "name": "Nikkei Asia",
-      "url": "https://asia.nikkei.com/rss",
-      "weight": 3
-    },
-    {
-      "name": "Taipei Times",
-      "url": "https://www.taipeitimes.com/xml/pda.rss",
       "weight": 4
     },
     {

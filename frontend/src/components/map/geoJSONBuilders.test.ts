@@ -2,22 +2,42 @@ import { describe, it, expect } from 'vitest';
 import {
   buildEarthquakesGeoJSON,
   buildFirmsGeoJSON,
-  buildInternetOutagesGeoJSON,
-  buildDataCentersGeoJSON,
   buildShipsGeoJSON,
   buildCarriersGeoJSON,
 } from '@/components/map/geoJSONBuilders';
-import type { Earthquake, FireHotspot, InternetOutage, DataCenter, Ship, ActiveLayers } from '@/types/dashboard';
+import type {
+  Earthquake,
+  FireHotspot,
+  Ship,
+  ActiveLayers,
+} from '@/types/dashboard';
 
 // Default active layers for ship tests
 const allShipLayers: ActiveLayers = {
-  flights: true, private: true, jets: true, military: true, tracked: true,
-  satellites: true, earthquakes: true, cctv: false, ukraine_frontline: true,
-  global_incidents: true, firms_fires: true, jamming: true, internet_outages: true,
-  datacenters: true, gdelt: false, liveuamap: true, weather: true, uav: true,
+  flights: true,
+  private: true,
+  jets: true,
+  military: true,
+  tracked: true,
+  satellites: true,
+  earthquakes: true,
+  cctv: false,
+  ukraine_frontline: true,
+  global_incidents: true,
+  firms_fires: true,
+  jamming: true,
+  internet_outages: true,
+  datacenters: true,
+  gdelt: false,
+  liveuamap: true,
+  weather: true,
+  uav: true,
   kiwisdr: false,
-  ships_military: true, ships_cargo: true, ships_civilian: true,
-  ships_passenger: true, ships_tracked_yachts: true,
+  ships_military: true,
+  ships_cargo: true,
+  ships_civilian: true,
+  ships_passenger: true,
+  ships_tracked_yachts: true,
 };
 
 describe('buildEarthquakesGeoJSON', () => {
@@ -59,10 +79,46 @@ describe('buildFirmsGeoJSON', () => {
 
   it('assigns correct icon by FRP intensity', () => {
     const fires: FireHotspot[] = [
-      { lat: 10, lng: 20, frp: 2, brightness: 300, confidence: 'high', daynight: 'D', acq_date: '2025-01-01', acq_time: '1200' },    // yellow
-      { lat: 10, lng: 21, frp: 10, brightness: 350, confidence: 'high', daynight: 'D', acq_date: '2025-01-01', acq_time: '1200' },   // orange
-      { lat: 10, lng: 22, frp: 50, brightness: 400, confidence: 'high', daynight: 'N', acq_date: '2025-01-01', acq_time: '0000' },   // red
-      { lat: 10, lng: 23, frp: 200, brightness: 500, confidence: 'high', daynight: 'N', acq_date: '2025-01-01', acq_time: '0000' },  // darkred
+      {
+        lat: 10,
+        lng: 20,
+        frp: 2,
+        brightness: 300,
+        confidence: 'high',
+        daynight: 'D',
+        acq_date: '2025-01-01',
+        acq_time: '1200',
+      }, // yellow
+      {
+        lat: 10,
+        lng: 21,
+        frp: 10,
+        brightness: 350,
+        confidence: 'high',
+        daynight: 'D',
+        acq_date: '2025-01-01',
+        acq_time: '1200',
+      }, // orange
+      {
+        lat: 10,
+        lng: 22,
+        frp: 50,
+        brightness: 400,
+        confidence: 'high',
+        daynight: 'N',
+        acq_date: '2025-01-01',
+        acq_time: '0000',
+      }, // red
+      {
+        lat: 10,
+        lng: 23,
+        frp: 200,
+        brightness: 500,
+        confidence: 'high',
+        daynight: 'N',
+        acq_date: '2025-01-01',
+        acq_time: '0000',
+      }, // darkred
     ];
     const result = buildFirmsGeoJSON(fires)!;
     expect(result.features[0].properties?.iconId).toBe('fire-yellow');
@@ -77,7 +133,14 @@ describe('buildShipsGeoJSON', () => {
   const interpIdentity = (s: Ship): [number, number] => [s.lng!, s.lat!];
 
   it('returns null when all ship layers are off', () => {
-    const layers = { ...allShipLayers, ships_military: false, ships_cargo: false, ships_civilian: false, ships_passenger: false, ships_tracked_yachts: false };
+    const layers = {
+      ...allShipLayers,
+      ships_military: false,
+      ships_cargo: false,
+      ships_civilian: false,
+      ships_passenger: false,
+      ships_tracked_yachts: false,
+    };
     const ships: Ship[] = [{ name: 'Test', lat: 10, lng: 20, type: 'cargo' } as Ship];
     expect(buildShipsGeoJSON(ships, layers, alwaysInView, interpIdentity)).toBeNull();
   });
@@ -101,7 +164,7 @@ describe('buildShipsGeoJSON', () => {
     const result = buildShipsGeoJSON(ships, allShipLayers, alwaysInView, interpIdentity)!;
     expect(result.features[0].properties?.iconId).toBe('svgShipRed');
     expect(result.features[1].properties?.iconId).toBe('svgShipWhite');
-    expect(result.features[2].properties?.iconId).toBe('svgShipYellow');
+    expect(result.features[2].properties?.iconId).toBe('svgShipAmber');
   });
 });
 

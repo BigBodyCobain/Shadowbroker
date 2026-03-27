@@ -40,9 +40,51 @@ if %errorlevel% neq 0 (
 
 for /f "tokens=1 delims= " %%v in ('node --version 2^>^&1') do echo [*] Found Node.js %%v
 
+:: ── AGGRESSIVE ZOMBIE CLEANUP ──────────────────────────────────────
+:: Kill ANY process holding ports 8000 or 3000 (LISTENING, TIME_WAIT,
+:: ESTABLISHED — all states). Also kill orphaned uvicorn/ais_proxy
+:: processes that might be lingering from a previous crashed session.
+echo.
+echo [*] Clearing zombie processes...
+
+:: Kill by port — catches processes in ANY state, not just LISTENING
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000 "') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000 "') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+:: Note: wmic zombie-kill removed — hangs on Win11. Port-based kill above
+:: already catches any process holding 8000/3000.
+
+:: Brief pause to let OS release the ports
+timeout /t 1 /nobreak >nul
+
+:: Verify ports are actually free
+netstat -ano | findstr ":8000 " | findstr "LISTENING" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [!] WARNING: Port 8000 is still occupied! Waiting 3s for OS cleanup...
+    timeout /t 3 /nobreak >nul
+)
+netstat -ano | findstr ":3000 " | findstr "LISTENING" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [!] WARNING: Port 3000 is still occupied! Waiting 3s for OS cleanup...
+    timeout /t 3 /nobreak >nul
+)
+
+echo [*] Ports clear.
+:: ────────────────────────────────────────────────────────────────────
+
 echo.
 echo [*] Setting up backend...
 cd backend
+
+:: Check if UV is available (preferred, much faster installs)
+where uv >nul 2>&1
+if %errorlevel% neq 0 goto :use_pip
+
+echo [*] Using UV for Python dependency management.
 if not exist "venv\" (
     echo [*] Creating Python virtual environment...
     uv venv
@@ -53,20 +95,45 @@ if not exist "venv\" (
     )
 )
 call venv\Scripts\activate.bat
-echo [*] Installing Python dependencies (this may take a minute)...
-uv sync --frozen
-if %errorlevel% neq 0 (
-    echo.
-    echo [!] ERROR: pip install failed. See errors above.
-    echo [!] If you see Rust/cargo errors, your Python version may be too new.
-    echo [!] Recommended: Python 3.10, 3.11, or 3.12.
-    echo.
-    pause
-    exit /b 1
+echo [*] Installing Python dependencies via UV (fast)...
+cd ..
+uv sync --frozen --no-dev
+if %errorlevel% neq 0 goto :dep_fail
+cd backend
+goto :deps_ok
+
+:use_pip
+echo [*] UV not found, using pip (install UV for faster installs: https://docs.astral.sh/uv/)
+if not exist "venv\" (
+    echo [*] Creating Python virtual environment...
+    python -m venv venv
+    if %errorlevel% neq 0 (
+        echo [!] ERROR: Failed to create virtual environment.
+        pause
+        exit /b 1
+    )
 )
+call venv\Scripts\activate.bat
+echo [*] Installing Python dependencies (this may take a minute)...
+pip install -q -r requirements.txt
+if %errorlevel% neq 0 goto :dep_fail
+goto :deps_ok
+
+:dep_fail
+echo.
+echo [!] ERROR: Python dependency install failed. See errors above.
+echo [!] If you see Rust/cargo errors, your Python version may be too new.
+echo [!] Recommended: Python 3.10, 3.11, or 3.12.
+echo.
+pause
+exit /b 1
+
+:deps_ok
 echo [*] Backend dependencies OK.
-echo [*] Installing backend Node.js dependencies...
-call npm install --silent
+if not exist "node_modules\ws" (
+    echo [*] Installing backend Node.js dependencies...
+    call npm ci --omit=dev --silent
+)
 echo [*] Backend Node.js dependencies OK.
 cd ..
 
@@ -89,6 +156,8 @@ echo ===================================================
 echo   Starting services...
 echo   Dashboard: http://localhost:3000
 echo   Keep this window open! Initial load takes ~10s.
+echo   This is the hardened web/local runtime, not the final native shell.
+echo   Security work must not come at the cost of unusable map responsiveness.
 echo ===================================================
 echo   (Press Ctrl+C to stop)
 echo.

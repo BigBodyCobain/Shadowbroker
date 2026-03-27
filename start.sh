@@ -36,47 +36,87 @@ if [ "$PY_MINOR" -ge 13 ] 2>/dev/null; then
     echo ""
 fi
 
-# Setup UV (Python package manager)
-if ! command -v uv &> /dev/null; then
-    echo "[*] UV not found. Installing UV (Python package manager)..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    if [ $? -ne 0 ]; then
-        echo "[!] ERROR: Failed to install UV."
-        exit 1
-    fi
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "[*] UV installed successfully."
-fi
-
 # Get the directory where this script lives
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ── Zombie cleanup ─────────────────────────────────────────────────
+# Kill leftover processes from a previous crashed session.
+echo ""
+echo "[*] Clearing zombie processes..."
+
+# Kill anything listening on ports 8000 or 3000
+for PORT in 8000 3000; do
+    if command -v lsof &> /dev/null; then
+        PIDS=$(lsof -ti :$PORT 2>/dev/null)
+    elif command -v ss &> /dev/null; then
+        PIDS=$(ss -tlnp "sport = :$PORT" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
+    elif command -v fuser &> /dev/null; then
+        PIDS=$(fuser $PORT/tcp 2>/dev/null)
+    else
+        PIDS=""
+    fi
+    for P in $PIDS; do
+        kill -9 "$P" 2>/dev/null
+    done
+done
+
+# Kill orphaned uvicorn and ais_proxy processes
+pkill -9 -f "uvicorn.*main:app" 2>/dev/null
+pkill -9 -f "ais_proxy" 2>/dev/null
+
+# Brief pause for OS to release ports
+sleep 1
+
+echo "[*] Ports clear."
+# ───────────────────────────────────────────────────────────────────
 
 echo ""
 echo "[*] Setting up backend..."
 cd "$SCRIPT_DIR/backend"
-if [ ! -d "venv" ]; then
-    echo "[*] Creating Python virtual environment..."
-    uv venv
-    if [ $? -ne 0 ]; then
-        echo "[!] ERROR: Failed to create virtual environment."
-        exit 1
-    fi
-fi
 
-source venv/bin/activate
-echo "[*] Installing Python dependencies (this may take a minute)..."
-uv sync --frozen
+# Check if UV is available (preferred, much faster installs)
+if command -v uv &> /dev/null; then
+    echo "[*] Using UV for Python dependency management."
+    if [ ! -d "venv" ]; then
+        echo "[*] Creating Python virtual environment..."
+        uv venv
+        if [ $? -ne 0 ]; then
+            echo "[!] ERROR: Failed to create virtual environment."
+            exit 1
+        fi
+    fi
+    source venv/bin/activate
+    echo "[*] Installing Python dependencies via UV (fast)..."
+    cd "$SCRIPT_DIR"
+    uv sync --frozen --no-dev
+    cd "$SCRIPT_DIR/backend"
+else
+    echo "[*] UV not found, using pip (install UV for faster installs: https://docs.astral.sh/uv/)"
+    if [ ! -d "venv" ]; then
+        echo "[*] Creating Python virtual environment..."
+        $PYTHON_CMD -m venv venv
+        if [ $? -ne 0 ]; then
+            echo "[!] ERROR: Failed to create virtual environment."
+            exit 1
+        fi
+    fi
+    source venv/bin/activate
+    echo "[*] Installing Python dependencies (this may take a minute)..."
+    pip install -q -r requirements.txt
+fi
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[!] ERROR: pip install failed. See errors above."
+    echo "[!] ERROR: Python dependency install failed. See errors above."
     echo "[!] If you see Rust/cargo errors, your Python version may be too new."
     echo "[!] Recommended: Python 3.10, 3.11, or 3.12."
     exit 1
 fi
 echo "[*] Backend dependencies OK."
 deactivate
-echo "[*] Installing backend Node.js dependencies..."
-npm install --silent
+if [ ! -d "node_modules/ws" ]; then
+    echo "[*] Installing backend Node.js dependencies..."
+    npm ci --omit=dev --silent
+fi
 echo "[*] Backend Node.js dependencies OK."
 
 cd "$SCRIPT_DIR"

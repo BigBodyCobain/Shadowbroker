@@ -1,11 +1,13 @@
 [project]
 name = "backend"
-version = "0.9.5"
+version = "0.9.6"
 requires-python = ">=3.10"
 dependencies = [
     "apscheduler==3.10.3",
+    "beautifulsoup4>=4.9.0",
     "cachetools==5.5.2",
     "cloudscraper==1.2.71",
+    "cryptography>=41.0.0",
     "fastapi==0.115.12",
     "feedparser==6.0.10",
     "httpx==0.28.1",
@@ -14,14 +16,19 @@ dependencies = [
     "pydantic==2.11.1",
     "pydantic-settings==2.8.1",
     "pystac-client==0.8.6",
-    "python-dotenv==1.0.1",
+    "python-dotenv==1.2.2",
     "requests==2.31.0",
     "reverse-geocoder==1.5.1",
     "sgp4==2.23",
+    "meshtastic>=2.5.0",
+    "orjson>=3.10.0",
+    "paho-mqtt>=1.6.0,<2.0.0",
+    "PyNaCl>=1.5.0",
     "slowapi==0.1.9",
+    "vaderSentiment>=3.3.0",
     "uvicorn==0.34.0",
     "yfinance==0.2.54",
 ]
 
 [dependency-groups]
-test = ["pytest>=8.3.4", "pytest-asyncio==0.25.0"]
+dev = ["pytest>=8.3.4", "pytest-asyncio==0.25.0", "ruff>=0.9.0", "black>=24.0.0"]

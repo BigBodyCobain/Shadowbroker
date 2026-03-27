@@ -1,4 +1,5 @@
 """Military flight tracking and UAV detection from ADS-B data."""
+
 import json
 import logging
 import requests
@@ -13,7 +14,21 @@ logger = logging.getLogger("services.data_fetcher")
 # ---------------------------------------------------------------------------
 _UAV_TYPE_CODES = {"Q9", "R4", "TB2", "MALE", "HALE", "HERM", "HRON"}
 _UAV_CALLSIGN_PREFIXES = ("FORTE", "GHAWK", "REAP", "BAMS", "UAV", "UAS")
-_UAV_MODEL_KEYWORDS = ("RQ-", "MQ-", "RQ4", "MQ9", "MQ4", "MQ1", "REAPER", "GLOBALHAWK", "TRITON", "PREDATOR", "HERMES", "HERON", "BAYRAKTAR")
+_UAV_MODEL_KEYWORDS = (
+    "RQ-",
+    "MQ-",
+    "RQ4",
+    "MQ9",
+    "MQ4",
+    "MQ1",
+    "REAPER",
+    "GLOBALHAWK",
+    "TRITON",
+    "PREDATOR",
+    "HERMES",
+    "HERON",
+    "BAYRAKTAR",
+)
 _UAV_WIKI = {
     "RQ4": "https://en.wikipedia.org/wiki/Northrop_Grumman_RQ-4_Global_Hawk",
     "RQ-4": "https://en.wikipedia.org/wiki/Northrop_Grumman_RQ-4_Global_Hawk",
@@ -137,13 +152,41 @@ def _classify_uav(model: str, callsign: str):
 
 
 def fetch_military_flights():
+    from services.fetchers._store import is_any_active
+
+    if not is_any_active("military"):
+        return
     military_flights = []
     detected_uavs = []
+    # Fetch from primary + supplemental military endpoints
+    all_mil_ac = []
+    seen_hex = set()
     try:
         url = "https://api.adsb.lol/v2/mil"
         response = fetch_with_curl(url, timeout=10)
         if response.status_code == 200:
-            ac = response.json().get('ac', [])
+            for a in response.json().get("ac", []):
+                h = a.get("hex", "").lower()
+                if h and h not in seen_hex:
+                    seen_hex.add(h)
+                    all_mil_ac.append(a)
+    except Exception as e:
+        logger.warning(f"adsb.lol mil fetch failed: {e}")
+    # Supplemental: airplanes.live military endpoint
+    try:
+        resp2 = fetch_with_curl("https://api.airplanes.live/v2/mil", timeout=10)
+        if resp2.status_code == 200:
+            for a in resp2.json().get("ac", []):
+                h = a.get("hex", "").lower()
+                if h and h not in seen_hex:
+                    seen_hex.add(h)
+                    all_mil_ac.append(a)
+            logger.info(f"airplanes.live mil: +{len(resp2.json().get('ac', []))} raw, {len(all_mil_ac)} total unique")
+    except Exception as e:
+        logger.debug(f"airplanes.live mil supplemental failed: {e}")
+    try:
+        if all_mil_ac:
+            ac = all_mil_ac
             for f in ac:
                 try:
                     lat = f.get("lat")
@@ -218,18 +261,25 @@ def fetch_military_flights():
                 except Exception as loop_e:
                     logger.error(f"Mil flight interpolation error: {loop_e}")
                     continue
-    except Exception as e:
+    except (
+        requests.RequestException,
+        ConnectionError,
+        TimeoutError,
+        OSError,
+        ValueError,
+        KeyError,
+    ) as e:
         logger.error(f"Error fetching military flights: {e}")
 
     if not military_flights and not detected_uavs:
         logger.warning("No military flights retrieved — keeping previous data if available")
         with _data_lock:
-            if latest_data.get('military_flights'):
+            if latest_data.get("military_flights"):
                 return
 
     with _data_lock:
-        latest_data['military_flights'] = military_flights
-        latest_data['uavs'] = detected_uavs
+        latest_data["military_flights"] = military_flights
+        latest_data["uavs"] = detected_uavs
     _mark_fresh("military_flights", "uavs")
     logger.info(f"UAVs: {len(detected_uavs)} real drones detected via ADS-B")
 
@@ -238,30 +288,30 @@ def fetch_military_flights():
     remaining_mil = []
     for mf in military_flights:
         enrich_with_plane_alert(mf)
-        if mf.get('alert_category'):
-            mf['type'] = 'tracked_flight'
+        if mf.get("alert_category"):
+            mf["type"] = "tracked_flight"
             tracked_mil.append(mf)
         else:
             remaining_mil.append(mf)
     with _data_lock:
-        latest_data['military_flights'] = remaining_mil
+        latest_data["military_flights"] = remaining_mil
 
     # Store tracked military flights — update positions for existing entries
     with _data_lock:
-        existing_tracked = list(latest_data.get('tracked_flights', []))
+        existing_tracked = list(latest_data.get("tracked_flights", []))
     fresh_mil_map = {}
     for t in tracked_mil:
-        icao = t.get('icao24', '').upper()
+        icao = t.get("icao24", "").upper()
         if icao:
             fresh_mil_map[icao] = t
 
     updated_tracked = []
     seen_icaos = set()
     for old_t in existing_tracked:
-        icao = old_t.get('icao24', '').upper()
+        icao = old_t.get("icao24", "").upper()
         if icao in fresh_mil_map:
             fresh = fresh_mil_map[icao]
-            for key in ('alert_category', 'alert_operator', 'alert_special', 'alert_flag'):
+            for key in ("alert_category", "alert_operator", "alert_special", "alert_flag"):
                 if key in old_t and key not in fresh:
                     fresh[key] = old_t[key]
             updated_tracked.append(fresh)
@@ -273,5 +323,5 @@ def fetch_military_flights():
         if icao not in seen_icaos:
             updated_tracked.append(t)
     with _data_lock:
-        latest_data['tracked_flights'] = updated_tracked
+        latest_data["tracked_flights"] = updated_tracked
     logger.info(f"Tracked flights: {len(updated_tracked)} total ({len(tracked_mil)} from military)")
