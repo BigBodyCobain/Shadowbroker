@@ -58,15 +58,36 @@ MLS_GATE_FORMAT = "mls1"
 _GATE_ENVELOPE_DOMAIN = "gate_persona"
 
 
-def _gate_envelope_key() -> bytes:
-    """Return the 256-bit AES key for gate envelope encryption."""
-    from services.mesh.mesh_secure_storage import _load_domain_key  # type: ignore[attr-defined]
-    return _load_domain_key(_GATE_ENVELOPE_DOMAIN)
+def _gate_envelope_key_shared(gate_id: str) -> bytes:
+    """Derive a 256-bit AES key from the gate ID via HKDF.
+
+    Every node that knows the gate name derives the same key, enabling
+    cross-node decryption of gate_envelope payloads.
+    """
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+
+    ikm = gate_id.strip().lower().encode("utf-8")
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"shadowbroker-gate-envelope-v1",
+        info=b"gate_envelope_aes256gcm",
+    ).derive(ikm)
+
+
+def _gate_envelope_key_legacy() -> bytes | None:
+    """Return the old node-local domain key, or None if unavailable."""
+    try:
+        from services.mesh.mesh_secure_storage import _load_domain_key  # type: ignore[attr-defined]
+        return _load_domain_key(_GATE_ENVELOPE_DOMAIN)
+    except Exception:
+        return None
 
 
 def _gate_envelope_encrypt(gate_id: str, plaintext: str) -> str:
-    """Encrypt plaintext under the gate domain key.  Returns base64."""
-    key = _gate_envelope_key()
+    """Encrypt plaintext under the shared gate-derived key.  Returns base64."""
+    key = _gate_envelope_key_shared(gate_id)
     nonce = _os.urandom(12)
     aad = f"gate_envelope|{gate_id}".encode("utf-8")
     ct = _AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), aad)
@@ -74,15 +95,24 @@ def _gate_envelope_encrypt(gate_id: str, plaintext: str) -> str:
 
 
 def _gate_envelope_decrypt(gate_id: str, token: str) -> str | None:
-    """Decrypt a gate envelope token.  Returns plaintext or None on failure."""
+    """Decrypt a gate envelope token.  Tries the shared key first, then
+    falls back to the legacy node-local key for old messages."""
     try:
         raw = base64.b64decode(token)
         if len(raw) < 13:
             return None
         nonce, ct = raw[:12], raw[12:]
-        key = _gate_envelope_key()
         aad = f"gate_envelope|{gate_id}".encode("utf-8")
-        return _AESGCM(key).decrypt(nonce, ct, aad).decode("utf-8")
+        # Try shared (cross-node) key first
+        try:
+            return _AESGCM(_gate_envelope_key_shared(gate_id)).decrypt(nonce, ct, aad).decode("utf-8")
+        except Exception:
+            pass
+        # Fall back to legacy node-local key for pre-migration messages
+        legacy_key = _gate_envelope_key_legacy()
+        if legacy_key:
+            return _AESGCM(legacy_key).decrypt(nonce, ct, aad).decode("utf-8")
+        return None
     except Exception:
         return None
 # Self-echo plaintext cache: MLS cannot decrypt messages authored by the same

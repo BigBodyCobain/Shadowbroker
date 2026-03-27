@@ -876,13 +876,13 @@ export default function TopRightControls({
               onClick={closeTerminalLauncher}
               className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
             />
-            <div className="relative z-[1201] w-full max-w-[560px] border border-cyan-700/40 bg-[var(--bg-primary)]/96 backdrop-blur-sm shadow-[0_0_32px_rgba(0,255,255,0.12)]">
+            <div className="relative z-[1201] w-full max-w-[640px] border border-cyan-700/40 bg-[var(--bg-primary)]/96 backdrop-blur-sm shadow-[0_0_32px_rgba(0,255,255,0.12)]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/30">
                 <div>
-                  <div className="text-[10px] font-mono tracking-[0.24em] text-cyan-300">
+                  <div className="text-[13px] font-mono tracking-[0.24em] text-cyan-300">
                     INFONET TERMINAL
                   </div>
-                  <div className={`mt-1 text-[9px] font-mono ${terminalStatusTone}`}>
+                  <div className={`mt-1 text-[11px] font-mono ${terminalStatusTone}`}>
                     {terminalStatusLabel} • {terminalTransportTier}
                   </div>
                 </div>
@@ -892,26 +892,26 @@ export default function TopRightControls({
                   className="text-[var(--text-muted)] hover:text-cyan-300 transition-colors"
                   title="Close terminal launcher"
                 >
-                  <X size={13} />
+                  <X size={16} />
                 </button>
               </div>
               <div className="px-5 py-5 space-y-4">
-                <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[10px] font-mono text-cyan-100 leading-[1.8]">
+                <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[13px] font-mono text-cyan-100 leading-[1.8]">
                   {terminalPrivateReady
                     ? 'Enter the Wormhole-facing terminal and sync with the obfuscated Infonet commons?'
                     : 'The terminal runs through Wormhole for obfuscated gates, inbox, and experimental comms.'}
-                  <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal">
+                  <div className="mt-2 text-[12px] text-cyan-200/70 normal-case tracking-normal">
                     {terminalPrivateReady
                       ? 'Your obfuscated identity is already provisioned. Entering now keeps the obfuscated lane separate from the public node sync path.'
                       : 'This turns Wormhole on and opens the obfuscated lane. If you already have a Wormhole identity, it reuses it. If you do not, it bootstraps one once and then keeps using it.'}
                   </div>
                 </div>
                 {terminalLaunchError && (
-                  <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
+                  <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[12px] font-mono text-amber-200 leading-[1.7]">
                     {terminalLaunchError}
                   </div>
                 )}
-                <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[9px] font-mono text-slate-200 leading-[1.85]">
+                <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[12px] font-mono text-slate-200 leading-[1.85]">
                   <div className="text-cyan-300 tracking-[0.18em]">BEFORE YOU ENTER:</div>
                   <ul className="mt-3 space-y-2 list-disc pl-5">
                     <li>The terminal is for Wormhole, gates, and experimental mail.</li>
@@ -919,7 +919,7 @@ export default function TopRightControls({
                     <li>Mesh remains the public perimeter. Wormhole is the obfuscated commons.</li>
                   </ul>
                 </div>
-                <div className="border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-[9px] font-mono text-amber-200/80 leading-[1.85]">
+                <div className="border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-[12px] font-mono text-amber-200/80 leading-[1.85]">
                   <div className="text-amber-300 tracking-[0.18em]">WORMHOLE CLEANUP:</div>
                   <div className="mt-2">
                     Closing the Infonet terminal will shut down Wormhole automatically. If you force-close
@@ -934,7 +934,7 @@ export default function TopRightControls({
                     type="button"
                     onClick={() => void activateWormholeAndLaunchTerminal()}
                     disabled={terminalLaunchBusy}
-                    className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 disabled:opacity-50 text-[11px] font-mono text-cyan-300 tracking-[0.16em]"
+                    className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 disabled:opacity-50 text-[13px] font-mono text-cyan-300 tracking-[0.16em]"
                   >
                     {terminalLaunchBusy
                       ? 'ENTERING...'
@@ -949,7 +949,7 @@ export default function TopRightControls({
                       onMeshChatNavigate?.('meshtastic');
                     }}
                     disabled={terminalLaunchBusy}
-                    className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[11px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
+                    className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[13px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
                   >
                     GO TO MESH
                   </button>
@@ -957,7 +957,7 @@ export default function TopRightControls({
                     type="button"
                     onClick={closeTerminalLauncher}
                     disabled={terminalLaunchBusy}
-                    className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[11px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
+                    className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[13px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
                   >
                     CANCEL
                   </button>

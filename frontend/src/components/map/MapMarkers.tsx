@@ -106,7 +106,7 @@ export function TrackedFlightLabels({
               style={{
                 ...LABEL_BASE,
                 color: labelColor,
-                fontSize: '10px',
+                fontSize: `${Math.max(10, Math.min(16, 10 + (zoom - 5) * 1.2))}px`,
                 textShadow: LABEL_SHADOW_EXTRA,
                 whiteSpace: 'nowrap',
               }}
@@ -212,9 +212,11 @@ export function TrackedYachtLabels({ ships, inView, interpShip }: TrackedYachtLa
 interface UavLabelsProps {
   uavs: UAV[];
   inView: (lat: number, lng: number) => boolean;
+  zoom?: number;
 }
 
-export function UavLabels({ uavs, inView }: UavLabelsProps) {
+export function UavLabels({ uavs, inView, zoom = 5 }: UavLabelsProps) {
+  const labelSize = `${Math.max(10, Math.min(16, 10 + (zoom - 5) * 1.2))}px`;
   return (
     <>
       {uavs.map((uav, i) => {
@@ -234,7 +236,7 @@ export function UavLabels({ uavs, inView }: UavLabelsProps) {
               style={{
                 ...LABEL_BASE,
                 color: '#ff8c00',
-                fontSize: '10px',
+                fontSize: labelSize,
                 textShadow: LABEL_SHADOW_EXTRA,
                 whiteSpace: 'nowrap',
               }}

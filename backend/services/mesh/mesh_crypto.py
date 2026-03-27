@@ -83,6 +83,11 @@ def build_signature_payload(
     payload: dict[str, Any],
 ) -> str:
     normalized = normalize_payload(event_type, payload)
+    # gate_envelope and reply_to ride alongside the signed payload — they are
+    # added after the message is signed so must be excluded from verification.
+    if event_type == "gate_message":
+        for _unsig in ("gate_envelope", "reply_to"):
+            normalized.pop(_unsig, None)
     payload_json = canonical_json(normalized)
     return "|".join(
         [PROTOCOL_VERSION, NETWORK_ID, event_type, node_id, str(sequence), payload_json]

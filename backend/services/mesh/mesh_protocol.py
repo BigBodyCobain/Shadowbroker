@@ -49,6 +49,15 @@ def normalize_gate_message_payload(payload: dict[str, Any]) -> dict[str, Any]:
     epoch = _safe_int(payload.get("epoch", 0), 0)
     if epoch > 0:
         normalized["epoch"] = epoch
+    # gate_envelope carries cross-node decryptable ciphertext — preserve it
+    # on-chain so receiving nodes can decrypt without MLS key exchange.
+    gate_envelope = str(payload.get("gate_envelope", "") or "").strip()
+    if gate_envelope:
+        normalized["gate_envelope"] = gate_envelope
+    # reply_to is a display-only parent message reference.
+    reply_to = str(payload.get("reply_to", "") or "").strip()
+    if reply_to:
+        normalized["reply_to"] = reply_to
     return normalized
 
 

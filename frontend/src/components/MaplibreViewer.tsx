@@ -3234,7 +3234,7 @@ const MaplibreViewer = ({
             type="symbol"
             layout={{
               'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
               'icon-rotation-alignment': 'map',
@@ -3249,7 +3249,7 @@ const MaplibreViewer = ({
             type="symbol"
             layout={{
               'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
               'icon-rotation-alignment': 'map',
@@ -3264,7 +3264,7 @@ const MaplibreViewer = ({
             type="symbol"
             layout={{
               'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
               'icon-rotation-alignment': 'map',
@@ -3279,7 +3279,7 @@ const MaplibreViewer = ({
             type="symbol"
             layout={{
               'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
               'icon-rotation-alignment': 'map',
@@ -3469,7 +3469,7 @@ const MaplibreViewer = ({
               ['==', ['get', 'iconId'], 'svgPotusHeli'],
             ]}
             paint={{
-              'circle-radius': 18,
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 18, 8, 22, 12, 40],
               'circle-color': 'transparent',
               'circle-stroke-width': 2,
               'circle-stroke-color': 'gold',
@@ -3483,12 +3483,22 @@ const MaplibreViewer = ({
             layout={{
               'icon-image': ['get', 'iconId'],
               'icon-size': [
-                'case',
-                ['==', ['get', 'iconId'], 'svgPotusPlane'],
-                1.3,
-                ['==', ['get', 'iconId'], 'svgPotusHeli'],
-                1.3,
-                0.8,
+                'interpolate', ['linear'], ['zoom'],
+                5, ['case',
+                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 1.3,
+                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 1.3,
+                  0.8,
+                ],
+                8, ['case',
+                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 1.6,
+                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 1.6,
+                  1.0,
+                ],
+                12, ['case',
+                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 2.6,
+                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 2.6,
+                  2.0,
+                ],
               ],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
@@ -3504,7 +3514,7 @@ const MaplibreViewer = ({
             type="symbol"
             layout={{
               'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
               'icon-allow-overlap': true,
               'icon-rotate': ['get', 'rotation'],
               'icon-rotation-alignment': 'map',
@@ -3545,7 +3555,7 @@ const MaplibreViewer = ({
 
         {/* HTML labels for UAVs (orange names) */}
         {uavGeoJSON && !selectedEntity && !isMapInteracting && data?.uavs && (
-          <UavLabels uavs={data.uavs} inView={inView} />
+          <UavLabels uavs={data.uavs} inView={inView} zoom={zoom} />
         )}
 
         {/* HTML labels for earthquakes (yellow) - only show when zoomed in (~2000 miles = zoom ~5) */}

@@ -3944,7 +3944,7 @@ const MeshChat = React.memo(function MeshChat({
                     setActiveTab(tab.key);
                     if (tab.key === 'dms') setDmView('contacts');
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-sm font-mono tracking-wider transition-colors ${
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[12px] font-mono tracking-wider transition-colors ${
                     activeTab === tab.key
                       ? 'text-cyan-300 bg-cyan-950/50 font-bold border-b border-cyan-500/50'
                       : 'text-[var(--text-muted)] hover:text-cyan-600 border-b border-cyan-900/20'
@@ -4536,7 +4536,7 @@ const MeshChat = React.memo(function MeshChat({
                       value={meshRegion}
                       onChange={(e) => setMeshRegion(e.target.value)}
                       title="Meshtastic MQTT root"
-                      className="bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none focus:border-cyan-700/50"
+                      className="bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-[12px] font-mono text-cyan-300 px-2 py-1 outline-none focus:border-cyan-700/50"
                       style={{ width: '132px' }}
                     >
                       {meshRoots.map((r) => (
@@ -4548,7 +4548,7 @@ const MeshChat = React.memo(function MeshChat({
                     <select
                       value={meshChannel}
                       onChange={(e) => setMeshChannel(e.target.value)}
-                      className="flex-1 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-green-400 px-2 py-1 outline-none focus:border-cyan-700/50"
+                      className="flex-1 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-[12px] font-mono text-green-400 px-2 py-1 outline-none focus:border-cyan-700/50"
                     >
                       {meshChannels.map((ch) => (
                         <option key={ch} value={ch}>
@@ -4561,7 +4561,7 @@ const MeshChat = React.memo(function MeshChat({
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setMeshView('channel')}
-                        className={`px-2 py-0.5 text-[13px] font-mono tracking-wider border transition-colors ${
+                        className={`px-2 py-0.5 text-[11px] font-mono tracking-wider border transition-colors ${
                           meshView === 'channel'
                             ? 'border-green-500/40 text-green-300 bg-green-950/30'
                             : 'border-[var(--border-primary)]/40 text-[var(--text-muted)] hover:text-green-300'
@@ -4571,7 +4571,7 @@ const MeshChat = React.memo(function MeshChat({
                       </button>
                       <button
                         onClick={() => setMeshView('inbox')}
-                        className={`px-2 py-0.5 text-[13px] font-mono tracking-wider border transition-colors ${
+                        className={`px-2 py-0.5 text-[11px] font-mono tracking-wider border transition-colors ${
                           meshView === 'inbox'
                             ? 'border-amber-500/40 text-amber-300 bg-amber-950/20'
                             : 'border-[var(--border-primary)]/40 text-[var(--text-muted)] hover:text-amber-300'
@@ -4580,31 +4580,31 @@ const MeshChat = React.memo(function MeshChat({
                         INBOX
                       </button>
                     </div>
-                    <div className="text-[12px] font-mono text-[var(--text-muted)] truncate">
+                    <div className="text-[10px] font-mono text-[var(--text-muted)] truncate">
                       {publicMeshAddress ? `ADDR ${publicMeshAddress.toUpperCase()}` : 'NO PUBLIC MESH ADDRESS'}
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto styled-scrollbar px-3 py-1.5 border-l-2 border-cyan-800/25">
                     {meshView === 'channel' && filteredMeshMessages.length === 0 && (
-                      <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
+                      <div className="text-[12px] font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
                         No messages from {meshRegion} / {meshChannel}
                       </div>
                     )}
                     {meshView === 'inbox' && (
                       <>
                         {!publicMeshAddress && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
+                          <div className="text-[12px] font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
                             Create or load a public mesh identity to see direct Meshtastic traffic.
                           </div>
                         )}
                         {publicMeshAddress && meshInboxMessages.length === 0 && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
+                          <div className="text-[12px] font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
                             No public direct messages addressed to {publicMeshAddress.toUpperCase()} yet.
                           </div>
                         )}
                         {meshInboxMessages.map((m, i) => (
                           <div key={`${m.timestamp}-${i}`} className="py-0.5 leading-[1.65]">
-                            <div className="flex items-start gap-1.5 text-sm font-mono">
+                            <div className="flex items-start gap-1.5 text-[12px] font-mono">
                               <button
                                 onClick={(e) => handleSenderClick(m.from, e, 'meshtastic')}
                                 className="text-amber-300 shrink-0 hover:text-amber-200 hover:underline cursor-pointer"
@@ -4612,14 +4612,14 @@ const MeshChat = React.memo(function MeshChat({
                                 {displayPublicMeshSender(m.from)}
                               </button>
                               <div className="flex-1 min-w-0">
-                                <div className="text-[12px] text-amber-200/70 mb-0.5">
+                                <div className="text-[10px] text-amber-200/70 mb-0.5">
                                   TO {publicMeshAddress.toUpperCase()}
                                 </div>
                                 <div className="break-words whitespace-pre-wrap text-amber-100/90">
                                   {m.text}
                                 </div>
                               </div>
-                              <span className="text-[var(--text-muted)] shrink-0 text-[13px]">
+                              <span className="text-[var(--text-muted)] shrink-0 text-[11px]">
                                 {timeAgo(
                                   typeof m.timestamp === 'number'
                                     ? m.timestamp
@@ -4634,7 +4634,7 @@ const MeshChat = React.memo(function MeshChat({
                     {meshView === 'channel' &&
                       filteredMeshMessages.map((m, i) => (
                         <div key={`${m.timestamp}-${i}`} className="py-0.5 leading-[1.65]">
-                          <div className="flex gap-1.5 text-sm font-mono">
+                          <div className="flex gap-1.5 text-[12px] font-mono">
                             <button
                               onClick={(e) => handleSenderClick(m.from, e, 'meshtastic')}
                               className="text-green-400 shrink-0 hover:text-green-300 hover:underline cursor-pointer"
@@ -4646,7 +4646,7 @@ const MeshChat = React.memo(function MeshChat({
                             >
                               {m.text}
                             </span>
-                            <span className="text-[var(--text-muted)] shrink-0 text-[13px]">
+                            <span className="text-[var(--text-muted)] shrink-0 text-[11px]">
                               {timeAgo(
                                 typeof m.timestamp === 'number'
                                   ? m.timestamp

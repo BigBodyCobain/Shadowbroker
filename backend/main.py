@@ -3825,11 +3825,10 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
     # — doing so would pre-advance the counter and cause append() to reject
     # the event as a replay, silently dropping the message.
     #
-    # The chain payload must match the signed payload exactly.  The message
-    # was signed WITHOUT the `epoch` field (compose_encrypted_gate_message
-    # excludes it from the signing payload), so we must strip it here too —
-    # otherwise infonet.append() re-verifies the signature against a payload
-    # that includes epoch and gets a mismatch → "invalid signature".
+    # Strip `epoch` — the message was signed without it so including it
+    # would cause a signature mismatch.  `gate_envelope` and `reply_to`
+    # are kept in the payload for cross-node decryption; signature
+    # verification in build_signature_payload() strips them automatically.
     chain_payload = {k: v for k, v in gate_payload.items() if k != "epoch"}
     chain_event_id = ""
     try:
