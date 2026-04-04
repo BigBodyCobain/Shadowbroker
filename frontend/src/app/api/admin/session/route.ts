@@ -12,11 +12,17 @@ const NO_STORE_HEADERS = {
   Pragma: 'no-cache',
 };
 
-function cookieOptions() {
+function isLoopback(req: NextRequest): boolean {
+  const host = req.headers.get('host') || '';
+  const hostname = host.split(':')[0];
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+function cookieOptions(req: NextRequest) {
   return {
     httpOnly: true,
     sameSite: 'strict' as const,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && !isLoopback(req),
     path: '/',
     maxAge: COOKIE_MAX_AGE,
   };
@@ -80,7 +86,7 @@ export async function POST(req: NextRequest) {
   }
   const sessionToken = createAdminSessionToken(adminKey, COOKIE_MAX_AGE);
   const res = NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
-  res.cookies.set(COOKIE_NAME, sessionToken, cookieOptions());
+  res.cookies.set(COOKIE_NAME, sessionToken, cookieOptions(req));
   return res;
 }
 
@@ -91,7 +97,7 @@ export async function DELETE(req: NextRequest) {
   }
   const res = NextResponse.json({ ok: true }, { headers: NO_STORE_HEADERS });
   res.cookies.set(COOKIE_NAME, '', {
-    ...cookieOptions(),
+    ...cookieOptions(req),
     maxAge: 0,
   });
   return res;
