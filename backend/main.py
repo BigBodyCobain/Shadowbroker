@@ -74,7 +74,10 @@ import uvicorn
 import hashlib
 import math
 import json as json_mod
-import orjson
+try:
+    import orjson
+except ImportError:
+    orjson = None
 import socket
 from cachetools import TTLCache
 import threading
@@ -2643,7 +2646,7 @@ async def live_data_fast(
         "freshness": freshness,
     }
     return Response(
-        content=orjson.dumps(_sanitize_payload(payload)),
+        content=orjson.dumps(_sanitize_payload(payload)) if orjson else json_mod.dumps(_sanitize_payload(payload)).encode(),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -2747,7 +2750,7 @@ async def live_data_slow(
             _sanitize_payload(payload),
             default=str,
             option=orjson.OPT_NON_STR_KEYS,
-        ),
+        ) if orjson else json_mod.dumps(_sanitize_payload(payload), default=str).encode(),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
