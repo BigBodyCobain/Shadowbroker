@@ -1,0 +1,152 @@
+[
+  {
+    "name": "message-basic",
+    "event_type": "message",
+    "node_id": "!sb_abc12345",
+    "sequence": 1,
+    "payload": {
+      "message": "Hello",
+      "destination": "broadcast",
+      "channel": "LongFast",
+      "priority": "normal",
+      "ephemeral": false
+    },
+    "expected": "infonet/2|sb-testnet-0|message|!sb_abc12345|1|{\"channel\":\"LongFast\",\"destination\":\"broadcast\",\"ephemeral\":false,\"message\":\"Hello\",\"priority\":\"normal\"}"
+  },
+  {
+    "name": "gate-message",
+    "event_type": "gate_message",
+    "node_id": "!sb_abc12345",
+    "sequence": 2,
+    "payload": {
+      "gate": "Alpha",
+      "epoch": 2,
+      "ciphertext": "opaque-gate-payload",
+      "nonce": "gate-nonce-2",
+      "sender_ref": "persona-alpha-1",
+      "format": "g1"
+    },
+    "expected": "infonet/2|sb-testnet-0|gate_message|!sb_abc12345|2|{\"ciphertext\":\"opaque-gate-payload\",\"epoch\":2,\"format\":\"g1\",\"gate\":\"alpha\",\"nonce\":\"gate-nonce-2\",\"sender_ref\":\"persona-alpha-1\"}"
+  },
+  {
+    "name": "vote-up",
+    "event_type": "vote",
+    "node_id": "!sb_voter1",
+    "sequence": 3,
+    "payload": {
+      "target_id": "!sb_target1",
+      "vote": "1",
+      "gate": "Alpha"
+    },
+    "expected": "infonet/2|sb-testnet-0|vote|!sb_voter1|3|{\"gate\":\"Alpha\",\"target_id\":\"!sb_target1\",\"vote\":1}"
+  },
+  {
+    "name": "gate-create",
+    "event_type": "gate_create",
+    "node_id": "!sb_creator1",
+    "sequence": 4,
+    "payload": {
+      "gate_id": "AlphaGate",
+      "display_name": "Alpha Gate",
+      "rules": {
+        "min_overall_rep": 3
+      }
+    },
+    "expected": "infonet/2|sb-testnet-0|gate_create|!sb_creator1|4|{\"display_name\":\"Alpha Gate\",\"gate_id\":\"alphagate\",\"rules\":{\"min_overall_rep\":3}}"
+  },
+  {
+    "name": "prediction",
+    "event_type": "prediction",
+    "node_id": "!sb_oracle1",
+    "sequence": 5,
+    "payload": {
+      "market_title": "BTC>100k",
+      "side": "yes",
+      "stake_amount": "0.5"
+    },
+    "expected": "infonet/2|sb-testnet-0|prediction|!sb_oracle1|5|{\"market_title\":\"BTC>100k\",\"side\":\"yes\",\"stake_amount\":0.5}"
+  },
+  {
+    "name": "stake",
+    "event_type": "stake",
+    "node_id": "!sb_staker1",
+    "sequence": 6,
+    "payload": {
+      "message_id": "m1",
+      "poster_id": "",
+      "side": "truth",
+      "amount": "2.0",
+      "duration_days": "7"
+    },
+    "expected": "infonet/2|sb-testnet-0|stake|!sb_staker1|6|{\"amount\":2,\"duration_days\":7,\"message_id\":\"m1\",\"poster_id\":\"\",\"side\":\"truth\"}"
+  },
+  {
+    "name": "dm-key",
+    "event_type": "dm_key",
+    "node_id": "!sb_dm1",
+    "sequence": 0,
+    "payload": {
+      "dh_pub_key": "abcd",
+      "dh_algo": "X25519",
+      "timestamp": "1700000000"
+    },
+    "expected": "infonet/2|sb-testnet-0|dm_key|!sb_dm1|0|{\"dh_algo\":\"X25519\",\"dh_pub_key\":\"abcd\",\"timestamp\":1700000000}"
+  },
+  {
+    "name": "dm-message",
+    "event_type": "dm_message",
+    "node_id": "!sb_dm1",
+    "sequence": 7,
+    "payload": {
+      "recipient_id": "!sb_dm2",
+      "delivery_class": "shared",
+      "recipient_token": "sharedtoken123",
+      "ciphertext": "deadbeef",
+      "format": "dm1",
+      "msg_id": "dm_1",
+      "timestamp": 1700000001
+    },
+    "expected": "infonet/2|sb-testnet-0|dm_message|!sb_dm1|7|{\"ciphertext\":\"deadbeef\",\"delivery_class\":\"shared\",\"format\":\"dm1\",\"msg_id\":\"dm_1\",\"recipient_id\":\"!sb_dm2\",\"recipient_token\":\"sharedtoken123\",\"timestamp\":1700000001}"
+  },
+  {
+    "name": "dm-block",
+    "event_type": "dm_block",
+    "node_id": "!sb_dm1",
+    "sequence": 8,
+    "payload": {
+      "blocked_id": "!sb_spam",
+      "action": "BLOCK"
+    },
+    "expected": "infonet/2|sb-testnet-0|dm_block|!sb_dm1|8|{\"action\":\"block\",\"blocked_id\":\"!sb_spam\"}"
+  },
+  {
+    "name": "key-rotate",
+    "event_type": "key_rotate",
+    "node_id": "!sb_old",
+    "sequence": 1,
+    "payload": {
+      "old_node_id": "!sb_old",
+      "old_public_key": "oldkey",
+      "old_public_key_algo": "Ed25519",
+      "new_public_key": "newkey",
+      "new_public_key_algo": "Ed25519",
+      "timestamp": 1700000002,
+      "old_signature": "abcdef"
+    },
+    "expected": "infonet/2|sb-testnet-0|key_rotate|!sb_old|1|{\"new_public_key\":\"newkey\",\"new_public_key_algo\":\"Ed25519\",\"old_node_id\":\"!sb_old\",\"old_public_key\":\"oldkey\",\"old_public_key_algo\":\"Ed25519\",\"old_signature\":\"abcdef\",\"timestamp\":1700000002}"
+  },
+  {
+    "name": "key-revoke",
+    "event_type": "key_revoke",
+    "node_id": "!sb_revoker",
+    "sequence": 9,
+    "payload": {
+      "revoked_public_key": "revkey",
+      "revoked_public_key_algo": "Ed25519",
+      "revoked_at": 1700000100,
+      "grace_until": 1700003700,
+      "reason": "compromised"
+    },
+    "expected": "infonet/2|sb-testnet-0|key_revoke|!sb_revoker|9|{\"grace_until\":1700003700,\"reason\":\"compromised\",\"revoked_at\":1700000100,\"revoked_public_key\":\"revkey\",\"revoked_public_key_algo\":\"Ed25519\"}"
+  }
+]

@@ -70,7 +70,8 @@ describe('computeNightPolygon', () => {
       .filter(([lng]: number[]) => lng >= -180 && lng <= 180)
       .slice(0, 361)
       .map(([, lat]: number[]) => lat);
-    const avgLat = terminatorLats.reduce((a: number, b: number) => a + b, 0) / terminatorLats.length;
+    const avgLat =
+      terminatorLats.reduce((a: number, b: number) => a + b, 0) / terminatorLats.length;
     expect(avgLat).toBeLessThan(15);
   });
 

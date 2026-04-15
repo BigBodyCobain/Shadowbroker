@@ -2,6 +2,7 @@
 API Settings management — serves the API key registry and allows updates.
 Keys are stored in the backend .env file and loaded via python-dotenv.
 """
+
 import os
 import re
 from pathlib import Path
@@ -121,6 +122,24 @@ API_REGISTRY = [
         "url": "https://openmhz.com/",
         "required": False,
     },
+    {
+        "id": "shodan_api_key",
+        "env_key": "SHODAN_API_KEY",
+        "name": "Shodan — Operator API Key",
+        "description": "Paid Shodan API key for local operator-driven searches and temporary map overlays. Results are attributed to Shodan and are not merged into ShadowBroker core feeds.",
+        "category": "Reconnaissance",
+        "url": "https://account.shodan.io/billing",
+        "required": False,
+    },
+    {
+        "id": "finnhub_api_key",
+        "env_key": "FINNHUB_API_KEY",
+        "name": "Finnhub — API Key",
+        "description": "Free market data API. Defense stock quotes, congressional trading disclosures, and insider transactions. 60 calls/min free tier.",
+        "category": "Financial",
+        "url": "https://finnhub.io/register",
+        "required": False,
+    },
 ]
 
 
@@ -160,7 +179,7 @@ def update_api_key(env_key: str, new_value: str) -> bool:
     valid_keys = {api["env_key"] for api in API_REGISTRY if api.get("env_key")}
     if env_key not in valid_keys:
         return False
-        
+
     if not isinstance(new_value, str):
         return False
     if "\n" in new_value or "\r" in new_value:

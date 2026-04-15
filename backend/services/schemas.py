@@ -4,6 +4,7 @@ from typing import Optional, Dict, List, Any, Literal
 
 class HealthResponse(BaseModel):
     status: str
+    version: str = ""
     last_updated: Optional[str] = None
     sources: Dict[str, int]
     freshness: Dict[str, str]

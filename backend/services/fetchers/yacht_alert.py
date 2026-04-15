@@ -1,4 +1,5 @@
 """Yacht-Alert DB — load and enrich AIS vessels with tracked yacht metadata."""
+
 import os
 import json
 import logging
@@ -26,7 +27,8 @@ def _load_yacht_alert_db():
     global _YACHT_ALERT_DB
     json_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "data", "yacht_alert_db.json"
+        "data",
+        "yacht_alert_db.json",
     )
     if not os.path.exists(json_path):
         logger.warning(f"Yacht-Alert DB not found at {json_path}")

@@ -1,0 +1,40 @@
+{
+  "leaves": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e"
+  ],
+  "root": "3615e586768e706351e326736e446554c49123d0e24c169d3ecf9b791a82636b",
+  "proofs": {
+    "2": [
+      {
+        "hash": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4",
+        "side": "right"
+      },
+      {
+        "hash": "62af5c3cb8da3e4f25061e829ebeea5c7513c54949115b1acc225930a90154da",
+        "side": "left"
+      },
+      {
+        "hash": "463bb9d8f7fe77a1f4ea68498899ecec274cdf238783a42cb448ce1e2d8cbb6a",
+        "side": "right"
+      }
+    ],
+    "4": [
+      {
+        "hash": "3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea",
+        "side": "right"
+      },
+      {
+        "hash": "1a98a2105977d77929b907710dfad6b5f9cdae2abbcaa989a9387ed62c706cd1",
+        "side": "right"
+      },
+      {
+        "hash": "58c89d709329eb37285837b042ab6ff72c7c8f74de0446b091b6a0131c102cfd",
+        "side": "left"
+      }
+    ]
+  }
+}

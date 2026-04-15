@@ -45,6 +45,27 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
+# Detect stale compose file from pre-migration clones (before March 2026).
+# The current compose file uses "image:" to pull pre-built images from GHCR.
+# Old versions had "build:" directives that compile from local source — much
+# slower and will NOT pick up new releases.
+if grep -q '^\s*build:' "$COMPOSE_FILE" 2>/dev/null; then
+    echo ""
+    echo "================================================================"
+    echo "  [!] WARNING: Your docker-compose.yml is outdated."
+    echo ""
+    echo "  It contains 'build:' directives, which means Docker is"
+    echo "  compiling from local source instead of pulling pre-built"
+    echo "  images. You will NOT receive updates this way."
+    echo ""
+    echo "  Fix: re-clone the repository:"
+    echo "    cd .. && rm -rf $(basename "$SCRIPT_DIR")"
+    echo "    git clone https://github.com/BigBodyCobain/Shadowbroker.git"
+    echo "    cd Shadowbroker && docker compose pull && docker compose up -d"
+    echo "================================================================"
+    echo ""
+fi
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --engine)

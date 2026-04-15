@@ -93,7 +93,7 @@
     "operator": "USAF 36th Wing",
     "branch": "air_force",
     "lat": 13.584,
-    "lng": 144.930
+    "lng": 144.93
   },
   {
     "name": "Naval Base Guam",
@@ -108,8 +108,8 @@
     "country": "South Korea",
     "operator": "USAF 51st Fighter Wing",
     "branch": "air_force",
-    "lat": 37.090,
-    "lng": 127.030
+    "lat": 37.09,
+    "lng": 127.03
   },
   {
     "name": "Camp Humphreys",
@@ -196,7 +196,7 @@
     "country": "Japan",
     "operator": "ASDF Air Defense Command",
     "branch": "asdf",
-    "lat": 34.750,
+    "lat": 34.75,
     "lng": 137.703
   },
   {
@@ -212,7 +212,7 @@
     "country": "Japan",
     "operator": "MSDF Fleet HQ",
     "branch": "msdf",
-    "lat": 35.290,
+    "lat": 35.29,
     "lng": 139.665
   },
   {
@@ -348,7 +348,7 @@
     "country": "China",
     "operator": "PLAAF",
     "branch": "air_force",
-    "lat": 30.500,
+    "lat": 30.5,
     "lng": 114.211
   },
   {
@@ -365,7 +365,7 @@
     "operator": "PLAAF",
     "branch": "air_force",
     "lat": 40.296,
-    "lng": 99.750
+    "lng": 99.75
   },
   {
     "name": "Hotan Air Base",
@@ -396,7 +396,7 @@
     "country": "China",
     "operator": "PLAN Southern Theater",
     "branch": "navy",
-    "lat": 21.190,
+    "lat": 21.19,
     "lng": 110.405
   },
   {
@@ -404,7 +404,7 @@
     "country": "China",
     "operator": "PLAN Northern Theater",
     "branch": "navy",
-    "lat": 36.100,
+    "lat": 36.1,
     "lng": 120.272
   },
   {
@@ -452,7 +452,7 @@
     "country": "China",
     "operator": "PLAN Eastern Theater",
     "branch": "navy",
-    "lat": 29.480,
+    "lat": 29.48,
     "lng": 121.933
   },
   {
@@ -468,7 +468,7 @@
     "country": "China",
     "operator": "PLA (SCS outpost)",
     "branch": "air_force",
-    "lat": 9.550,
+    "lat": 9.55,
     "lng": 112.892
   },
   {
@@ -508,7 +508,7 @@
     "country": "China",
     "operator": "PLARF 61 Base",
     "branch": "missile",
-    "lat": 29.480,
+    "lat": 29.48,
     "lng": 119.281
   },
   {
@@ -548,7 +548,7 @@
     "country": "China",
     "operator": "PLARF 63 Base",
     "branch": "missile",
-    "lat": 34.620,
+    "lat": 34.62,
     "lng": 112.454
   },
   {
@@ -564,10 +564,9 @@
     "country": "China",
     "operator": "PLARF 66 Base",
     "branch": "missile",
-    "lat": 40.200,
-    "lng": 113.200
+    "lat": 40.2,
+    "lng": 113.2
   },
-
   {
     "name": "Vladivostok (Pacific Fleet HQ)",
     "country": "Russia",
@@ -605,8 +604,8 @@
     "country": "Russia",
     "operator": "Russian VKS Long-Range Aviation",
     "branch": "air_force",
-    "lat": 51.170,
-    "lng": 128.400
+    "lat": 51.17,
+    "lng": 128.4
   },
   {
     "name": "Fokino Naval Base",
@@ -640,7 +639,6 @@
     "lat": 44.927,
     "lng": 147.863
   },
-
   {
     "name": "Yongbyon Nuclear Complex",
     "country": "North Korea",
@@ -670,7 +668,7 @@
     "country": "North Korea",
     "operator": "DPRK NADA",
     "branch": "missile",
-    "lat": 39.660,
+    "lat": 39.66,
     "lng": 124.705
   },
   {
@@ -687,7 +685,7 @@
     "operator": "KPAF",
     "branch": "air_force",
     "lat": 39.752,
-    "lng": 125.890
+    "lng": 125.89
   },
   {
     "name": "Wonsan-Kalma Air Base",
@@ -718,10 +716,9 @@
     "country": "North Korea",
     "operator": "KPA Artillery Corps",
     "branch": "army",
-    "lat": 38.330,
+    "lat": 38.33,
     "lng": 126.586
   },
-
   {
     "name": "Hualien Air Force Base (Jiashan)",
     "country": "Taiwan",
@@ -786,7 +783,6 @@
     "lat": 22.793,
     "lng": 121.182
   },
-
   {
     "name": "Subic Bay (EDCA site)",
     "country": "Philippines",
@@ -801,7 +797,7 @@
     "operator": "Philippine Air Force / US EDCA",
     "branch": "air_force",
     "lat": 15.186,
-    "lng": 120.560
+    "lng": 120.56
   },
   {
     "name": "Basa Air Base",
@@ -824,7 +820,7 @@
     "country": "Philippines",
     "operator": "Philippine Army / US EDCA",
     "branch": "army",
-    "lat": 18.200,
+    "lat": 18.2,
     "lng": 121.659
   },
   {
@@ -835,7 +831,6 @@
     "lat": 7.986,
     "lng": 117.062
   },
-
   {
     "name": "RAAF Base Darwin",
     "country": "Australia",
@@ -867,5 +862,4317 @@
     "branch": "army",
     "lat": -23.799,
     "lng": 133.737
+  },
+  {
+    "name": "Ream Naval Base",
+    "country": "China",
+    "operator": "China",
+    "branch": "army",
+    "lat": 10.503,
+    "lng": 103.609
+  },
+  {
+    "name": "Chinese PLA Support Base",
+    "country": "China",
+    "operator": "China",
+    "branch": "navy",
+    "lat": 11.591,
+    "lng": 43.06
+  },
+  {
+    "name": "Chinese Naval Intelligence Base",
+    "country": "China",
+    "operator": "China",
+    "branch": "army",
+    "lat": 14.146,
+    "lng": 93.359
+  },
+  {
+    "name": "PLA Outpost (Tajik Border)",
+    "country": "China",
+    "operator": "China",
+    "branch": "army",
+    "lat": 37.438,
+    "lng": 74.913
+  },
+  {
+    "name": "N'Djamena Air Force Base",
+    "country": "France",
+    "operator": "France",
+    "branch": "air_force",
+    "lat": 12.134,
+    "lng": 15.034
+  },
+  {
+    "name": "Naval base of Heron",
+    "country": "France",
+    "operator": "France",
+    "branch": "navy",
+    "lat": 11.557,
+    "lng": 43.144
+  },
+  {
+    "name": "Les elements francais au Gabon",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 0.42,
+    "lng": 9.438
+  },
+  {
+    "name": "Fassberg Air Base",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 52.919,
+    "lng": 10.189
+  },
+  {
+    "name": "Les forces francaises en Cote d'Ivoire (FFCI)",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 7.504,
+    "lng": -5.549
+  },
+  {
+    "name": "Rayak Air Base",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 33.852,
+    "lng": 35.99
+  },
+  {
+    "name": "Niamey Air Force Base",
+    "country": "France",
+    "operator": "France",
+    "branch": "air_force",
+    "lat": 13.482,
+    "lng": 2.17
+  },
+  {
+    "name": "French Outpost (Manbij, Syria)",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 36.891,
+    "lng": 38.354
+  },
+  {
+    "name": "French Outpost (Ain Issa, Syria)",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 36.587,
+    "lng": 38.3
+  },
+  {
+    "name": "French Outpost (Raqqa, Syria)",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 36.385,
+    "lng": 38.859
+  },
+  {
+    "name": "Abu Dhabi Base",
+    "country": "France",
+    "operator": "France",
+    "branch": "army",
+    "lat": 24.522,
+    "lng": 54.396
+  },
+  {
+    "name": "Indian military training team",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 27.36,
+    "lng": 89.302
+  },
+  {
+    "name": "Port of Shahid Beheshti",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 25.298,
+    "lng": 60.611
+  },
+  {
+    "name": "Port of Sittwe",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 20.139,
+    "lng": 92.9
+  },
+  {
+    "name": "Ras al Hadd Listening post",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 22.533,
+    "lng": 59.798
+  },
+  {
+    "name": "Muscat naval base",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 23.588,
+    "lng": 58.279
+  },
+  {
+    "name": "Duqm port",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 19.666,
+    "lng": 57.726
+  },
+  {
+    "name": "Naval Facilities, Coastal Surveillance Radar (CSR) station",
+    "country": "India",
+    "operator": "India",
+    "branch": "navy",
+    "lat": -9.737,
+    "lng": 46.511
+  },
+  {
+    "name": "Farkhor air base",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 37.47,
+    "lng": 69.381
+  },
+  {
+    "name": "Berth rights and right to station its troops in Qatar",
+    "country": "India",
+    "operator": "India",
+    "branch": "army",
+    "lat": 25.308,
+    "lng": 51.209
+  },
+  {
+    "name": "Ahmad al-Jaber Air Base",
+    "country": "Italy",
+    "operator": "Italy",
+    "branch": "air_force",
+    "lat": 28.935,
+    "lng": 47.792
+  },
+  {
+    "name": "Libya Military Base",
+    "country": "Italy",
+    "operator": "Italy",
+    "branch": "army",
+    "lat": 24.96,
+    "lng": 10.177
+  },
+  {
+    "name": "Al Minhad air base",
+    "country": "Italy",
+    "operator": "Italy",
+    "branch": "air_force",
+    "lat": 25.027,
+    "lng": 55.366
+  },
+  {
+    "name": "Russian 102nd Military Base",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 40.79,
+    "lng": 43.825
+  },
+  {
+    "name": "Russian 3624th Airbase",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "air_force",
+    "lat": 40.128,
+    "lng": 44.472
+  },
+  {
+    "name": "Vileyka VLF transmitter",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "navy",
+    "lat": 54.464,
+    "lng": 26.778
+  },
+  {
+    "name": "Hantsavichy Radar Station",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 52.857,
+    "lng": 26.481
+  },
+  {
+    "name": "7th Krasnodar base",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 43.101,
+    "lng": 40.624
+  },
+  {
+    "name": "Russian 4th Military Base",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 42.39,
+    "lng": 43.922
+  },
+  {
+    "name": "Baikonur Cosmodrome",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 45.964,
+    "lng": 63.305
+  },
+  {
+    "name": "Sary Shagan",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 46.383,
+    "lng": 72.866
+  },
+  {
+    "name": "Balkhash Radar Station",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 46.603,
+    "lng": 74.53
+  },
+  {
+    "name": "Kant (air base)",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 42.853,
+    "lng": 74.846
+  },
+  {
+    "name": "Russian forces in Moldova",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 46.84,
+    "lng": 29.643
+  },
+  {
+    "name": "Khmeimim Air Base",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 35.411,
+    "lng": 35.945
+  },
+  {
+    "name": "Tiyas Military Airbase",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "air_force",
+    "lat": 34.523,
+    "lng": 37.63
+  },
+  {
+    "name": "Shayrat Airbase",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "air_force",
+    "lat": 34.49,
+    "lng": 36.909
+  },
+  {
+    "name": "Russian 201st Military Base",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 38.536,
+    "lng": 68.78
+  },
+  {
+    "name": "Military headquarters",
+    "country": "Russia",
+    "operator": "Russia",
+    "branch": "army",
+    "lat": 11.798,
+    "lng": -66.151
+  },
+  {
+    "name": "Rothera Research Station",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": -67.568,
+    "lng": -68.126
+  },
+  {
+    "name": "HMS Jufair",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 26.205,
+    "lng": 50.615
+  },
+  {
+    "name": "RAF Belize",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 17.544,
+    "lng": -88.305
+  },
+  {
+    "name": "British Army Jungle Warfare Training School",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 4.608,
+    "lng": 114.325
+  },
+  {
+    "name": "Sittang Camp",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 4.829,
+    "lng": 114.668
+  },
+  {
+    "name": "British Army Training Unit Suffield",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 50.273,
+    "lng": -111.175
+  },
+  {
+    "name": "RAF Troodos",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 34.912,
+    "lng": 32.883
+  },
+  {
+    "name": "RAF Akrotiri",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 34.59,
+    "lng": 32.987
+  },
+  {
+    "name": "Ayios Nikolaos Station",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 35.093,
+    "lng": 33.886
+  },
+  {
+    "name": "Westfalen Garrison",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 51.778,
+    "lng": 8.72
+  },
+  {
+    "name": "Wulfen barracks",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 51.705,
+    "lng": 6.999
+  },
+  {
+    "name": "Ayrshire barracks",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 51.171,
+    "lng": 6.393
+  },
+  {
+    "name": "RAF Gibraltar",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 36.152,
+    "lng": -5.344
+  },
+  {
+    "name": "British Gurkha Dharan",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 26.807,
+    "lng": 87.269
+  },
+  {
+    "name": "Headquarters British Gurkhas Nepal",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 27.668,
+    "lng": 85.317
+  },
+  {
+    "name": "Bardufoss Air Station",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 69.052,
+    "lng": 18.517
+  },
+  {
+    "name": "Omani-British Joint Training Area",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 19.014,
+    "lng": 57.749
+  },
+  {
+    "name": "Seeb, Overseas Processing Centre",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 23.675,
+    "lng": 58.121
+  },
+  {
+    "name": "RAF Al Udeid",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 25.11,
+    "lng": 51.319
+  },
+  {
+    "name": "British naval facility, base",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 1.464,
+    "lng": 103.826
+  },
+  {
+    "name": "RAF Mount Pleasant",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": -51.822,
+    "lng": -58.447
+  },
+  {
+    "name": "RAF Ascension",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": -7.969,
+    "lng": -14.393
+  },
+  {
+    "name": "Warwick Camp",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 32.257,
+    "lng": -64.815
+  },
+  {
+    "name": "Cayman Islands Regiment",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 19.293,
+    "lng": -81.378
+  },
+  {
+    "name": "RRH, an early warning and airspace control network",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": -52.153,
+    "lng": -60.598
+  },
+  {
+    "name": "Port Stanley Airport",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": -51.699,
+    "lng": -57.842
+  },
+  {
+    "name": "Jersey Field Squadron",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 49.175,
+    "lng": -2.108
+  },
+  {
+    "name": "Royal Montserrat Defence Force Headquarters",
+    "country": "United Kingdom",
+    "operator": "United Kingdoms",
+    "branch": "army",
+    "lat": 16.794,
+    "lng": -62.211
+  },
+  {
+    "name": "Robertson Barracks",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "marines",
+    "lat": -12.44,
+    "lng": 130.97
+  },
+  {
+    "name": "Isa Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 25.912,
+    "lng": 50.593
+  },
+  {
+    "name": "USAG Brussels",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 50.85,
+    "lng": 4.349
+  },
+  {
+    "name": "Aitos Logistics Center",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 42.7,
+    "lng": 27.25
+  },
+  {
+    "name": "Bezmer",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 42.483,
+    "lng": 26.5
+  },
+  {
+    "name": "Graf Ignatievo",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 42.15,
+    "lng": 24.75
+  },
+  {
+    "name": "Contingency Location Garoua",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 9.333,
+    "lng": 13.372
+  },
+  {
+    "name": "Guantanamo",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 20.144,
+    "lng": -75.209
+  },
+  {
+    "name": "RAF Lakenheath",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 52.417,
+    "lng": 0.522
+  },
+  {
+    "name": "Royal Air Force Alconbury",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 52.369,
+    "lng": -0.26
+  },
+  {
+    "name": "Royal Air Force Croughton",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 52.25,
+    "lng": -0.833
+  },
+  {
+    "name": "RAF Mildenhall",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 51.426,
+    "lng": -1.7
+  },
+  {
+    "name": "Campbell Barracks",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.408,
+    "lng": 8.691
+  },
+  {
+    "name": "Landstuhl Medical Center",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.413,
+    "lng": 7.57
+  },
+  {
+    "name": "USAG Ansbach",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.3,
+    "lng": 10.583
+  },
+  {
+    "name": "USAG Bamberg",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.899,
+    "lng": 10.901
+  },
+  {
+    "name": "USAG Baumholder",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.617,
+    "lng": 7.334
+  },
+  {
+    "name": "USAG Garmisch",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 47.495,
+    "lng": 11.108
+  },
+  {
+    "name": "USAG Grafenwoehr",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.717,
+    "lng": 11.906
+  },
+  {
+    "name": "USAF Hessen",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 50.134,
+    "lng": 8.914
+  },
+  {
+    "name": "USAG Kaiserslautern",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 49.443,
+    "lng": 7.772
+  },
+  {
+    "name": "USAG Schweinfurt",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 50.049,
+    "lng": 10.222
+  },
+  {
+    "name": "USAG Stuttgart",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 48.782,
+    "lng": 9.177
+  },
+  {
+    "name": "USAG Wiesbaden",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 50.083,
+    "lng": 8.249
+  },
+  {
+    "name": "Spangdahlem",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 49.756,
+    "lng": 6.639
+  },
+  {
+    "name": "Panzer Kaserne",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "marines",
+    "lat": 48.685,
+    "lng": 9.03
+  },
+  {
+    "name": "NSA Gaeta",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 41.214,
+    "lng": 13.571
+  },
+  {
+    "name": "Naval Support Activity",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 41.214,
+    "lng": 9.408
+  },
+  {
+    "name": "Camp Darby",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 43.627,
+    "lng": 10.292
+  },
+  {
+    "name": "Caserma Ederle",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 45.557,
+    "lng": 11.541
+  },
+  {
+    "name": "Aviano",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 46.071,
+    "lng": 12.595
+  },
+  {
+    "name": "Camp Fuji",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "marines",
+    "lat": 35.317,
+    "lng": 138.933
+  },
+  {
+    "name": "Camp Bondsteel",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 42.367,
+    "lng": 21.133
+  },
+  {
+    "name": "Ali Al Salem Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 29.349,
+    "lng": 47.523
+  },
+  {
+    "name": "Camp Arifjan",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 28.875,
+    "lng": 48.159
+  },
+  {
+    "name": "Camp Buehring",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 29.695,
+    "lng": 47.421
+  },
+  {
+    "name": "Kuwait Naval Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 28.864,
+    "lng": 48.278
+  },
+  {
+    "name": "USAG Schinnen",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 50.943,
+    "lng": 5.889
+  },
+  {
+    "name": "Niger Air Base 201",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 16.921,
+    "lng": 8.026
+  },
+  {
+    "name": "Masirah Aira Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 20.667,
+    "lng": 58.897
+  },
+  {
+    "name": "RAFO Thumrait",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 17.664,
+    "lng": 54.026
+  },
+  {
+    "name": "Fort Magsaysay",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 15.435,
+    "lng": 121.091
+  },
+  {
+    "name": "Lumbia Airfield",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 8.405,
+    "lng": 124.61
+  },
+  {
+    "name": "Mactan-Benito Ebuen Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 10.313,
+    "lng": 123.978
+  },
+  {
+    "name": "Lajes Field",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 38.383,
+    "lng": -28.267
+  },
+  {
+    "name": "Camp Santiago",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 17.977,
+    "lng": -66.298
+  },
+  {
+    "name": "Al Udeid",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 25.279,
+    "lng": 51.522
+  },
+  {
+    "name": "Prince Sultan Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 24.077,
+    "lng": 47.564
+  },
+  {
+    "name": "COMLOG Westpac",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 1.29,
+    "lng": 103.85
+  },
+  {
+    "name": "Fleet Actvities Chinhae",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 35.103,
+    "lng": 129.04
+  },
+  {
+    "name": "Camp Red Cloud",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 37.742,
+    "lng": 127.047
+  },
+  {
+    "name": "USAG Daegu",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 35.87,
+    "lng": 128.591
+  },
+  {
+    "name": "K-16 Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 37.438,
+    "lng": 127.109
+  },
+  {
+    "name": "USAG Yongsan",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 37.533,
+    "lng": 126.983
+  },
+  {
+    "name": "U.S. Army Garrison CASEY",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 37.884,
+    "lng": 127.05
+  },
+  {
+    "name": "Naval Station",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 36.622,
+    "lng": -6.359
+  },
+  {
+    "name": "Izmir",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "air_force",
+    "lat": 38.413,
+    "lng": 27.138
+  },
+  {
+    "name": "Al Dhafra Air Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 24.24,
+    "lng": 54.551
+  },
+  {
+    "name": "Port of Jebel Ali",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "army",
+    "lat": 25.025,
+    "lng": 55.04
+  },
+  {
+    "name": "Fujairah Naval Base",
+    "country": "United States",
+    "operator": "United States",
+    "branch": "navy",
+    "lat": 25.252,
+    "lng": 56.365
+  },
+  {
+    "name": "PLA Forward Base (Central Asia)",
+    "country": "China",
+    "operator": "PLA",
+    "branch": "army",
+    "lat": 38.27,
+    "lng": 64.3
+  },
+  {
+    "name": "Ahmadaben Moses Training Garrison",
+    "country": "Iran",
+    "operator": "IRGC",
+    "branch": "army",
+    "lat": 32.66,
+    "lng": 51.67
+  },
+  {
+    "name": "Lesser Tunb Island Garrison",
+    "country": "Iran",
+    "operator": "IRGC Navy",
+    "branch": "navy",
+    "lat": 26.27,
+    "lng": 55.14
+  },
+  {
+    "name": "Abu Musa Island Garrison",
+    "country": "Iran",
+    "operator": "IRGC Navy",
+    "branch": "navy",
+    "lat": 25.876,
+    "lng": 55.033
+  },
+  {
+    "name": "S-300VM SAM Battery (38th AAM Brigade)",
+    "country": "Russia",
+    "operator": "VKS / 38th AAM",
+    "branch": "missile",
+    "lat": 34.76,
+    "lng": 36.89
+  },
+  {
+    "name": "Privolzhskiy Radar Station",
+    "country": "Russia",
+    "operator": "VKS",
+    "branch": "missile",
+    "lat": 50.38,
+    "lng": 45.37
+  },
+  {
+    "name": "Anti-Aircraft Artillery Officer Academy",
+    "country": "North Korea",
+    "operator": "KPA",
+    "branch": "army",
+    "lat": 38.975,
+    "lng": 125.716
+  },
+  {
+    "name": "SRBM Base (Underground)",
+    "country": "North Korea",
+    "operator": "KPA Strategic Force",
+    "branch": "missile",
+    "lat": 39.21,
+    "lng": 125.98
+  },
+  {
+    "name": "Dimona Radar Facility",
+    "country": "United States",
+    "operator": "US / IDF",
+    "branch": "army",
+    "lat": 31.022,
+    "lng": 35.198
+  },
+  {
+    "name": "Hatzerim Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 31.233,
+    "lng": 34.663
+  },
+  {
+    "name": "Nevatim Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 31.208,
+    "lng": 35.012
+  },
+  {
+    "name": "Ramat David Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 32.665,
+    "lng": 35.184
+  },
+  {
+    "name": "Tel Nof Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 31.839,
+    "lng": 34.822
+  },
+  {
+    "name": "Hatzor Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 31.762,
+    "lng": 34.727
+  },
+  {
+    "name": "Palmachim Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 31.897,
+    "lng": 34.691
+  },
+  {
+    "name": "Ramon Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 30.776,
+    "lng": 34.667
+  },
+  {
+    "name": "Ovda Air Force Base",
+    "country": "Israel",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 29.94,
+    "lng": 34.935
+  },
+  {
+    "name": "Haifa Naval Base",
+    "country": "Israel",
+    "operator": "Israeli Navy",
+    "branch": "navy",
+    "lat": 32.821,
+    "lng": 34.979
+  },
+  {
+    "name": "Atlit Naval Base",
+    "country": "Israel",
+    "operator": "Israeli Navy / Shayetet 13",
+    "branch": "navy",
+    "lat": 32.695,
+    "lng": 34.937
+  },
+  {
+    "name": "Camp Rabin (Tel HaShomer)",
+    "country": "Israel",
+    "operator": "IDF",
+    "branch": "army",
+    "lat": 32.052,
+    "lng": 34.843
+  },
+  {
+    "name": "Glilot Intelligence Campus",
+    "country": "Israel",
+    "operator": "IDF Unit 8200",
+    "branch": "army",
+    "lat": 32.146,
+    "lng": 34.788
+  },
+  {
+    "name": "Base navale de Toulon",
+    "country": "France",
+    "operator": "Marine Nationale",
+    "branch": "navy",
+    "lat": 43.117,
+    "lng": 5.928
+  },
+  {
+    "name": "Ile Longue SSBN Base",
+    "country": "France",
+    "operator": "Marine Nationale",
+    "branch": "navy",
+    "lat": 48.312,
+    "lng": -4.592
+  },
+  {
+    "name": "BA 113 Saint-Dizier",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 48.636,
+    "lng": 4.899
+  },
+  {
+    "name": "BA 118 Mont-de-Marsan",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 43.912,
+    "lng": -0.507
+  },
+  {
+    "name": "BA 125 Istres-Le Tube",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 43.523,
+    "lng": 4.924
+  },
+  {
+    "name": "BA 942 Lyon-Mont Verdun",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 45.851,
+    "lng": 4.765
+  },
+  {
+    "name": "BAN Landivisiau",
+    "country": "France",
+    "operator": "Marine Nationale",
+    "branch": "navy",
+    "lat": 48.531,
+    "lng": -4.152
+  },
+  {
+    "name": "Buchel Air Base",
+    "country": "Germany",
+    "operator": "Luftwaffe / NATO",
+    "branch": "air_force",
+    "lat": 50.174,
+    "lng": 7.063
+  },
+  {
+    "name": "Norvenich Air Base",
+    "country": "Germany",
+    "operator": "Luftwaffe",
+    "branch": "air_force",
+    "lat": 50.831,
+    "lng": 6.658
+  },
+  {
+    "name": "Laage Air Base",
+    "country": "Germany",
+    "operator": "Luftwaffe",
+    "branch": "air_force",
+    "lat": 53.919,
+    "lng": 12.277
+  },
+  {
+    "name": "Kiel Naval Base",
+    "country": "Germany",
+    "operator": "Deutsche Marine",
+    "branch": "navy",
+    "lat": 54.328,
+    "lng": 10.163
+  },
+  {
+    "name": "Wilhelmshaven Naval Base",
+    "country": "Germany",
+    "operator": "Deutsche Marine",
+    "branch": "navy",
+    "lat": 53.514,
+    "lng": 8.149
+  },
+  {
+    "name": "Ghedi Air Base",
+    "country": "Italy",
+    "operator": "AMI / NATO",
+    "branch": "air_force",
+    "lat": 45.432,
+    "lng": 10.277
+  },
+  {
+    "name": "Gioia del Colle Air Base",
+    "country": "Italy",
+    "operator": "AMI",
+    "branch": "air_force",
+    "lat": 40.768,
+    "lng": 16.933
+  },
+  {
+    "name": "La Spezia Naval Base",
+    "country": "Italy",
+    "operator": "Marina Militare",
+    "branch": "navy",
+    "lat": 44.103,
+    "lng": 9.837
+  },
+  {
+    "name": "Taranto Naval Base",
+    "country": "Italy",
+    "operator": "Marina Militare",
+    "branch": "navy",
+    "lat": 40.474,
+    "lng": 17.234
+  },
+  {
+    "name": "Moron Air Base",
+    "country": "Spain",
+    "operator": "Ejercito del Aire / USAF",
+    "branch": "air_force",
+    "lat": 37.175,
+    "lng": -5.616
+  },
+  {
+    "name": "Zaragoza Air Base",
+    "country": "Spain",
+    "operator": "Ejercito del Aire",
+    "branch": "air_force",
+    "lat": 41.666,
+    "lng": -1.042
+  },
+  {
+    "name": "Lask Air Base",
+    "country": "Poland",
+    "operator": "Polish Air Force",
+    "branch": "air_force",
+    "lat": 51.551,
+    "lng": 19.179
+  },
+  {
+    "name": "Powidz Air Base",
+    "country": "Poland",
+    "operator": "Polish Air Force",
+    "branch": "air_force",
+    "lat": 52.38,
+    "lng": 17.854
+  },
+  {
+    "name": "Redzikowo (Aegis Ashore BMD)",
+    "country": "Poland",
+    "operator": "US Navy / NATO",
+    "branch": "missile",
+    "lat": 54.479,
+    "lng": 17.099
+  },
+  {
+    "name": "Larissa Air Base",
+    "country": "Greece",
+    "operator": "HAF",
+    "branch": "air_force",
+    "lat": 39.635,
+    "lng": 22.465
+  },
+  {
+    "name": "Souda Bay Naval Base",
+    "country": "Greece",
+    "operator": "Hellenic Navy / NATO",
+    "branch": "navy",
+    "lat": 35.483,
+    "lng": 24.125
+  },
+  {
+    "name": "Volkel Air Base",
+    "country": "Netherlands",
+    "operator": "RNLAF / NATO",
+    "branch": "air_force",
+    "lat": 51.657,
+    "lng": 5.707
+  },
+  {
+    "name": "Den Helder Naval Base",
+    "country": "Netherlands",
+    "operator": "RNLN",
+    "branch": "navy",
+    "lat": 52.953,
+    "lng": 4.786
+  },
+  {
+    "name": "INS Vikramaditya Home Port (Karwar)",
+    "country": "India",
+    "operator": "Indian Navy",
+    "branch": "navy",
+    "lat": 14.82,
+    "lng": 74.124
+  },
+  {
+    "name": "Visakhapatnam Naval Base",
+    "country": "India",
+    "operator": "Indian Navy Eastern Command",
+    "branch": "navy",
+    "lat": 17.686,
+    "lng": 83.297
+  },
+  {
+    "name": "Mumbai Naval Dockyard",
+    "country": "India",
+    "operator": "Indian Navy Western Command",
+    "branch": "navy",
+    "lat": 18.924,
+    "lng": 72.842
+  },
+  {
+    "name": "INS Rajali (Arakkonam)",
+    "country": "India",
+    "operator": "Indian Navy",
+    "branch": "navy",
+    "lat": 13.073,
+    "lng": 79.693
+  },
+  {
+    "name": "Ambala Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 30.368,
+    "lng": 76.817
+  },
+  {
+    "name": "Hashimara Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 26.698,
+    "lng": 89.379
+  },
+  {
+    "name": "Thanjavur Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 10.724,
+    "lng": 79.101
+  },
+  {
+    "name": "Kalaikunda Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 22.339,
+    "lng": 87.221
+  },
+  {
+    "name": "Agra Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 27.158,
+    "lng": 77.961
+  },
+  {
+    "name": "Pune Air Force Station",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 18.582,
+    "lng": 73.919
+  },
+  {
+    "name": "Leh Air Force Base",
+    "country": "India",
+    "operator": "IAF",
+    "branch": "air_force",
+    "lat": 34.136,
+    "lng": 77.546
+  },
+  {
+    "name": "Kahuta Research Laboratories",
+    "country": "Pakistan",
+    "operator": "KRL / SPD",
+    "branch": "nuclear",
+    "lat": 33.606,
+    "lng": 73.386
+  },
+  {
+    "name": "Kamra Air Complex (PAC)",
+    "country": "Pakistan",
+    "operator": "PAF / SPD",
+    "branch": "air_force",
+    "lat": 33.87,
+    "lng": 72.405
+  },
+  {
+    "name": "PAF Base Masroor",
+    "country": "Pakistan",
+    "operator": "PAF",
+    "branch": "air_force",
+    "lat": 24.894,
+    "lng": 66.939
+  },
+  {
+    "name": "PAF Base Sargodha",
+    "country": "Pakistan",
+    "operator": "PAF",
+    "branch": "air_force",
+    "lat": 32.049,
+    "lng": 72.671
+  },
+  {
+    "name": "PAF Base Shahbaz",
+    "country": "Pakistan",
+    "operator": "PAF",
+    "branch": "air_force",
+    "lat": 28.284,
+    "lng": 68.45
+  },
+  {
+    "name": "Rawalpindi GHQ",
+    "country": "Pakistan",
+    "operator": "Pakistan Army",
+    "branch": "army",
+    "lat": 33.597,
+    "lng": 73.048
+  },
+  {
+    "name": "Wah Cantonment Ordnance",
+    "country": "Pakistan",
+    "operator": "Pakistan Army",
+    "branch": "army",
+    "lat": 33.782,
+    "lng": 72.747
+  },
+  {
+    "name": "Gwadar Naval Base",
+    "country": "Pakistan",
+    "operator": "Pakistan Navy",
+    "branch": "navy",
+    "lat": 25.13,
+    "lng": 62.33
+  },
+  {
+    "name": "Ormara Naval Base",
+    "country": "Pakistan",
+    "operator": "Pakistan Navy",
+    "branch": "navy",
+    "lat": 25.21,
+    "lng": 64.64
+  },
+  {
+    "name": "Natanz Uranium Enrichment Facility",
+    "country": "Iran",
+    "operator": "AEOI",
+    "branch": "nuclear",
+    "lat": 33.724,
+    "lng": 51.727
+  },
+  {
+    "name": "Fordow Underground Enrichment Plant",
+    "country": "Iran",
+    "operator": "AEOI",
+    "branch": "nuclear",
+    "lat": 34.876,
+    "lng": 51.602
+  },
+  {
+    "name": "Bushehr Nuclear Power Plant",
+    "country": "Iran",
+    "operator": "AEOI",
+    "branch": "nuclear",
+    "lat": 28.83,
+    "lng": 50.886
+  },
+  {
+    "name": "Parchin Military Complex",
+    "country": "Iran",
+    "operator": "MoD / SPND",
+    "branch": "nuclear",
+    "lat": 35.518,
+    "lng": 51.773
+  },
+  {
+    "name": "Arak Heavy Water Reactor (IR-40)",
+    "country": "Iran",
+    "operator": "AEOI",
+    "branch": "nuclear",
+    "lat": 34.046,
+    "lng": 49.242
+  },
+  {
+    "name": "Behjatabad-Abyek Enrichment Facility (Site 311)",
+    "country": "Iran",
+    "operator": "AEOI",
+    "branch": "nuclear",
+    "lat": 36.045,
+    "lng": 50.508
+  },
+  {
+    "name": "Shahrud Missile Test Site",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 36.428,
+    "lng": 55.059
+  },
+  {
+    "name": "Semnan Space Launch Center",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 35.235,
+    "lng": 53.921
+  },
+  {
+    "name": "Imam Ali Missile Base (Khorramabad)",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 33.442,
+    "lng": 48.331
+  },
+  {
+    "name": "Tabriz Missile Base",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 38.065,
+    "lng": 46.405
+  },
+  {
+    "name": "Kermanshah Missile Base",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 34.388,
+    "lng": 47.074
+  },
+  {
+    "name": "Bid Kaneh Missile Base",
+    "country": "Iran",
+    "operator": "IRGC Aerospace",
+    "branch": "missile",
+    "lat": 33.727,
+    "lng": 47.424
+  },
+  {
+    "name": "Khatam al-Anbiya AD HQ (Tehran)",
+    "country": "Iran",
+    "operator": "IRGC Air Defense Force",
+    "branch": "missile",
+    "lat": 35.7,
+    "lng": 51.424
+  },
+  {
+    "name": "TAB 1 Mehrabad Air Base (Tehran)",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 35.689,
+    "lng": 51.313
+  },
+  {
+    "name": "TAB 3 Nojeh Air Base (Hamadan)",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 34.874,
+    "lng": 48.654
+  },
+  {
+    "name": "TAB 4 Dezful Air Base",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 32.434,
+    "lng": 48.398
+  },
+  {
+    "name": "TAB 6 Bushehr Air Base",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 28.949,
+    "lng": 50.835
+  },
+  {
+    "name": "TAB 7 Shiraz Air Base",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 29.54,
+    "lng": 52.589
+  },
+  {
+    "name": "TAB 8 Khatami Air Base (Isfahan)",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 32.751,
+    "lng": 51.862
+  },
+  {
+    "name": "TAB 9 Bandar Abbas Air Base",
+    "country": "Iran",
+    "operator": "IRIAF",
+    "branch": "air_force",
+    "lat": 27.217,
+    "lng": 56.179
+  },
+  {
+    "name": "Jask Naval Base",
+    "country": "Iran",
+    "operator": "IRIN",
+    "branch": "navy",
+    "lat": 25.641,
+    "lng": 57.772
+  },
+  {
+    "name": "Bandar-e Anzali Naval Base",
+    "country": "Iran",
+    "operator": "IRIN",
+    "branch": "navy",
+    "lat": 37.462,
+    "lng": 49.477
+  },
+  {
+    "name": "Sdot Micha Missile Base",
+    "country": "Israel",
+    "operator": "IAF / Strategic Forces",
+    "branch": "missile",
+    "lat": 31.73,
+    "lng": 34.934
+  },
+  {
+    "name": "Arrow Battery (Ein Shemer)",
+    "country": "Israel",
+    "operator": "IAF Air Defense",
+    "branch": "missile",
+    "lat": 32.43,
+    "lng": 34.93
+  },
+  {
+    "name": "Iron Dome Battery (Sderot)",
+    "country": "Israel",
+    "operator": "IAF Air Defense",
+    "branch": "missile",
+    "lat": 31.524,
+    "lng": 34.596
+  },
+  {
+    "name": "Mount Hermon Intelligence Station",
+    "country": "Israel",
+    "operator": "IDF Intelligence",
+    "branch": "army",
+    "lat": 33.416,
+    "lng": 35.857
+  },
+  {
+    "name": "Bhabha Atomic Research Centre (BARC)",
+    "country": "India",
+    "operator": "DAE",
+    "branch": "nuclear",
+    "lat": 19.012,
+    "lng": 72.921
+  },
+  {
+    "name": "Indira Gandhi CARS (Kalpakkam)",
+    "country": "India",
+    "operator": "DAE",
+    "branch": "nuclear",
+    "lat": 12.556,
+    "lng": 80.176
+  },
+  {
+    "name": "Pokhran Nuclear Test Range",
+    "country": "India",
+    "operator": "DRDO / DAE",
+    "branch": "nuclear",
+    "lat": 26.731,
+    "lng": 71.091
+  },
+  {
+    "name": "Abdul Kalam Island (Wheeler Island)",
+    "country": "India",
+    "operator": "DRDO",
+    "branch": "missile",
+    "lat": 20.748,
+    "lng": 87.075
+  },
+  {
+    "name": "Chandipur ITR (Integrated Test Range)",
+    "country": "India",
+    "operator": "DRDO",
+    "branch": "missile",
+    "lat": 21.452,
+    "lng": 87.012
+  },
+  {
+    "name": "Agni Missile Complex (Secunderabad)",
+    "country": "India",
+    "operator": "SFC",
+    "branch": "missile",
+    "lat": 17.439,
+    "lng": 78.498
+  },
+  {
+    "name": "BrahMos Aerospace (Hyderabad)",
+    "country": "India",
+    "operator": "BrahMos / DRDO",
+    "branch": "missile",
+    "lat": 17.472,
+    "lng": 78.579
+  },
+  {
+    "name": "INS Arihant Base (Rambilli)",
+    "country": "India",
+    "operator": "Indian Navy SFC",
+    "branch": "nuclear",
+    "lat": 17.579,
+    "lng": 83.262
+  },
+  {
+    "name": "Nuclear Fuel Complex (Hyderabad)",
+    "country": "India",
+    "operator": "DAE",
+    "branch": "nuclear",
+    "lat": 17.503,
+    "lng": 78.392
+  },
+  {
+    "name": "Rare Materials Plant (Mysore)",
+    "country": "India",
+    "operator": "DAE",
+    "branch": "nuclear",
+    "lat": 12.277,
+    "lng": 76.636
+  },
+  {
+    "name": "Challakere Nuclear City",
+    "country": "India",
+    "operator": "DAE / DRDO",
+    "branch": "nuclear",
+    "lat": 14.318,
+    "lng": 76.655
+  },
+  {
+    "name": "Sukhna Cantonment (Strike Corps HQ)",
+    "country": "India",
+    "operator": "Indian Army",
+    "branch": "army",
+    "lat": 30.853,
+    "lng": 76.862
+  },
+  {
+    "name": "Khushab Nuclear Complex",
+    "country": "Pakistan",
+    "operator": "PAEC",
+    "branch": "nuclear",
+    "lat": 32.025,
+    "lng": 72.231
+  },
+  {
+    "name": "Chagai Nuclear Test Site",
+    "country": "Pakistan",
+    "operator": "PAEC",
+    "branch": "nuclear",
+    "lat": 28.979,
+    "lng": 64.946
+  },
+  {
+    "name": "National Defence Complex (Fateh Jang)",
+    "country": "Pakistan",
+    "operator": "NDC / SPD",
+    "branch": "missile",
+    "lat": 33.559,
+    "lng": 72.371
+  },
+  {
+    "name": "Tilla Ranges (Missile Test)",
+    "country": "Pakistan",
+    "operator": "Pakistan Army SPD",
+    "branch": "missile",
+    "lat": 32.834,
+    "lng": 72.751
+  },
+  {
+    "name": "Sonmiani Test Range",
+    "country": "Pakistan",
+    "operator": "SUPARCO / SPD",
+    "branch": "missile",
+    "lat": 25.413,
+    "lng": 66.665
+  },
+  {
+    "name": "Hatf Missile Garrison (Gujranwala)",
+    "country": "Pakistan",
+    "operator": "Pakistan Army SPD",
+    "branch": "missile",
+    "lat": 32.161,
+    "lng": 74.187
+  },
+  {
+    "name": "Pakistan Ordnance Factories (POF)",
+    "country": "Pakistan",
+    "operator": "Ministry of Defence",
+    "branch": "army",
+    "lat": 33.782,
+    "lng": 72.447
+  },
+  {
+    "name": "HMNB Clyde (Faslane) SSBN Base",
+    "country": "United Kingdom",
+    "operator": "Royal Navy",
+    "branch": "navy",
+    "lat": 56.067,
+    "lng": -4.822
+  },
+  {
+    "name": "AWE Aldermaston (Warhead Factory)",
+    "country": "United Kingdom",
+    "operator": "AWE / MoD",
+    "branch": "nuclear",
+    "lat": 51.362,
+    "lng": -1.152
+  },
+  {
+    "name": "HMNB Devonport",
+    "country": "United Kingdom",
+    "operator": "Royal Navy",
+    "branch": "navy",
+    "lat": 50.383,
+    "lng": -4.184
+  },
+  {
+    "name": "HMNB Portsmouth",
+    "country": "United Kingdom",
+    "operator": "Royal Navy",
+    "branch": "navy",
+    "lat": 50.8,
+    "lng": -1.104
+  },
+  {
+    "name": "GCHQ Cheltenham",
+    "country": "United Kingdom",
+    "operator": "GCHQ / MoD",
+    "branch": "army",
+    "lat": 51.899,
+    "lng": -2.124
+  },
+  {
+    "name": "RAF Fylingdales (BMD Radar)",
+    "country": "United Kingdom",
+    "operator": "RAF / US Space Force",
+    "branch": "air_force",
+    "lat": 54.361,
+    "lng": -0.669
+  },
+  {
+    "name": "RAF Coningsby (Typhoon QRA)",
+    "country": "United Kingdom",
+    "operator": "RAF",
+    "branch": "air_force",
+    "lat": 53.093,
+    "lng": -0.166
+  },
+  {
+    "name": "RAF Waddington (ISTAR)",
+    "country": "United Kingdom",
+    "operator": "RAF",
+    "branch": "air_force",
+    "lat": 53.166,
+    "lng": -0.521
+  },
+  {
+    "name": "RAF Brize Norton (Airlift Hub)",
+    "country": "United Kingdom",
+    "operator": "RAF",
+    "branch": "air_force",
+    "lat": 51.749,
+    "lng": -1.583
+  },
+  {
+    "name": "BAE Barrow Submarine Yard",
+    "country": "United Kingdom",
+    "operator": "BAE Systems / MoD",
+    "branch": "navy",
+    "lat": 54.107,
+    "lng": -3.225
+  },
+  {
+    "name": "Menwith Hill Station (NSA/GCHQ)",
+    "country": "United Kingdom",
+    "operator": "NSA / GCHQ",
+    "branch": "army",
+    "lat": 54.015,
+    "lng": -1.688
+  },
+  {
+    "name": "Engels Air Base (Tu-160 Bombers)",
+    "country": "Russia",
+    "operator": "VKS Long Range Aviation",
+    "branch": "air_force",
+    "lat": 51.475,
+    "lng": 46.215
+  },
+  {
+    "name": "Kozelsk ICBM Base (SS-27 Topol-M)",
+    "country": "Russia",
+    "operator": "RVSN",
+    "branch": "missile",
+    "lat": 54.05,
+    "lng": 36.017
+  },
+  {
+    "name": "Tatishchevo ICBM Base (SS-27)",
+    "country": "Russia",
+    "operator": "RVSN",
+    "branch": "missile",
+    "lat": 51.73,
+    "lng": 45.717
+  },
+  {
+    "name": "Dombarovsky ICBM Base (SS-18 Satan)",
+    "country": "Russia",
+    "operator": "RVSN",
+    "branch": "missile",
+    "lat": 50.757,
+    "lng": 59.523
+  },
+  {
+    "name": "Uzhur ICBM Base (SS-18)",
+    "country": "Russia",
+    "operator": "RVSN",
+    "branch": "missile",
+    "lat": 55.317,
+    "lng": 89.783
+  },
+  {
+    "name": "Novosibirsk ICBM Base (SS-25)",
+    "country": "Russia",
+    "operator": "RVSN",
+    "branch": "missile",
+    "lat": 54.853,
+    "lng": 83.117
+  },
+  {
+    "name": "Plesetsk Cosmodrome (ICBM/Space)",
+    "country": "Russia",
+    "operator": "VKS / RVSN",
+    "branch": "missile",
+    "lat": 62.926,
+    "lng": 40.577
+  },
+  {
+    "name": "Gadzhiyevo SSBN Base (Delta/Borei)",
+    "country": "Russia",
+    "operator": "Russian Navy",
+    "branch": "navy",
+    "lat": 69.253,
+    "lng": 33.315
+  },
+  {
+    "name": "Novaya Zemlya Nuclear Test Site",
+    "country": "Russia",
+    "operator": "12th GUMO",
+    "branch": "nuclear",
+    "lat": 73.37,
+    "lng": 54.97
+  },
+  {
+    "name": "Sarov (VNIIEF Nuclear Design Lab)",
+    "country": "Russia",
+    "operator": "Rosatom",
+    "branch": "nuclear",
+    "lat": 54.933,
+    "lng": 43.317
+  },
+  {
+    "name": "Kaliningrad (Baltic Fleet / Iskander)",
+    "country": "Russia",
+    "operator": "Russian Navy / Army",
+    "branch": "missile",
+    "lat": 54.71,
+    "lng": 20.51
+  },
+  {
+    "name": "Murmansk-150 / Vidyayevo (SSBN)",
+    "country": "Russia",
+    "operator": "Russian Navy",
+    "branch": "navy",
+    "lat": 69.317,
+    "lng": 32.95
+  },
+  {
+    "name": "Lida Air Base (Belarus, Su-30SM)",
+    "country": "Russia",
+    "operator": "VKS / Belarus AF",
+    "branch": "air_force",
+    "lat": 53.88,
+    "lng": 25.3
+  },
+  {
+    "name": "Chernyakhovsk Air Base (Kaliningrad)",
+    "country": "Russia",
+    "operator": "VKS",
+    "branch": "air_force",
+    "lat": 54.6,
+    "lng": 21.8
+  },
+  {
+    "name": "CEA DAM Ile-de-France (Warhead Design)",
+    "country": "France",
+    "operator": "CEA / MoD",
+    "branch": "nuclear",
+    "lat": 48.736,
+    "lng": 2.15
+  },
+  {
+    "name": "FOST Brest (SSBN Command)",
+    "country": "France",
+    "operator": "Marine Nationale",
+    "branch": "navy",
+    "lat": 48.382,
+    "lng": -4.495
+  },
+  {
+    "name": "CEL Biscarrosse (Missile Test Range)",
+    "country": "France",
+    "operator": "DGA",
+    "branch": "missile",
+    "lat": 44.378,
+    "lng": -1.232
+  },
+  {
+    "name": "BA 120 Cazaux (Weapons Test)",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 44.533,
+    "lng": -1.125
+  },
+  {
+    "name": "BA 116 Luxeuil (Rafale Nuclear Strike)",
+    "country": "France",
+    "operator": "Armee de l'Air",
+    "branch": "air_force",
+    "lat": 47.788,
+    "lng": 6.359
+  },
+  {
+    "name": "BN Cherbourg (Submarine Construction)",
+    "country": "France",
+    "operator": "Naval Group",
+    "branch": "navy",
+    "lat": 49.635,
+    "lng": -1.617
+  },
+  {
+    "name": "Mianyang (CAEP Nuclear Weapons Lab)",
+    "country": "China",
+    "operator": "CAEP / CMC",
+    "branch": "nuclear",
+    "lat": 31.464,
+    "lng": 104.741
+  },
+  {
+    "name": "Xichang Satellite Launch Center",
+    "country": "China",
+    "operator": "PLA SSF",
+    "branch": "missile",
+    "lat": 28.246,
+    "lng": 102.027
+  },
+  {
+    "name": "Jiuquan Launch Center",
+    "country": "China",
+    "operator": "PLA SSF",
+    "branch": "missile",
+    "lat": 40.958,
+    "lng": 100.291
+  },
+  {
+    "name": "Wenchang Spacecraft Launch Site",
+    "country": "China",
+    "operator": "PLA SSF",
+    "branch": "missile",
+    "lat": 19.614,
+    "lng": 110.951
+  },
+  {
+    "name": "Delingha PLARF Base (DF-31)",
+    "country": "China",
+    "operator": "PLARF",
+    "branch": "missile",
+    "lat": 37.37,
+    "lng": 97.37
+  },
+  {
+    "name": "Datong PLARF Base (DF-41)",
+    "country": "China",
+    "operator": "PLARF",
+    "branch": "missile",
+    "lat": 40.092,
+    "lng": 113.291
+  },
+  {
+    "name": "Jilantai Missile Training Area",
+    "country": "China",
+    "operator": "PLARF",
+    "branch": "missile",
+    "lat": 39.81,
+    "lng": 105.59
+  },
+  {
+    "name": "Huludao Submarine Shipyard",
+    "country": "China",
+    "operator": "PLAN",
+    "branch": "navy",
+    "lat": 40.739,
+    "lng": 120.853
+  },
+  {
+    "name": "Yumen Nuclear Fuel Facility",
+    "country": "China",
+    "operator": "CNNC",
+    "branch": "nuclear",
+    "lat": 39.833,
+    "lng": 97.033
+  },
+  {
+    "name": "Yongdoktong Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Force",
+    "branch": "missile",
+    "lat": 39.95,
+    "lng": 126.65
+  },
+  {
+    "name": "Sakkanmol Missile Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Force",
+    "branch": "missile",
+    "lat": 38.28,
+    "lng": 126.0
+  },
+  {
+    "name": "Sino-ri Missile Operating Base",
+    "country": "North Korea",
+    "operator": "KPA Strategic Force",
+    "branch": "missile",
+    "lat": 39.649,
+    "lng": 125.866
+  },
+  {
+    "name": "Hamhung Chemical Complex",
+    "country": "North Korea",
+    "operator": "KPA / 2nd Economic Committee",
+    "branch": "nuclear",
+    "lat": 39.931,
+    "lng": 127.544
+  },
+  {
+    "name": "Hsiung Feng Missile Battery (Keelung)",
+    "country": "Taiwan",
+    "operator": "ROCN",
+    "branch": "missile",
+    "lat": 25.149,
+    "lng": 121.743
+  },
+  {
+    "name": "Tien Kung SAM Site (Taipei)",
+    "country": "Taiwan",
+    "operator": "ROCAF",
+    "branch": "missile",
+    "lat": 25.074,
+    "lng": 121.558
+  },
+  {
+    "name": "Chungshan Institute of Science (NCSIST)",
+    "country": "Taiwan",
+    "operator": "MND / NCSIST",
+    "branch": "missile",
+    "lat": 24.851,
+    "lng": 121.213
+  },
+  {
+    "name": "Leshan Radar Station (PAVE PAWS)",
+    "country": "Taiwan",
+    "operator": "ROCAF",
+    "branch": "air_force",
+    "lat": 23.526,
+    "lng": 120.401
+  },
+  {
+    "name": "Gyeryongdae Military Complex (Joint HQ)",
+    "country": "South Korea",
+    "operator": "ROK JCS",
+    "branch": "army",
+    "lat": 36.272,
+    "lng": 127.054
+  },
+  {
+    "name": "Jinhae Naval Base (ROKN HQ)",
+    "country": "South Korea",
+    "operator": "ROKN",
+    "branch": "navy",
+    "lat": 35.147,
+    "lng": 128.698
+  },
+  {
+    "name": "Hyunmu Missile Site (Wonju)",
+    "country": "South Korea",
+    "operator": "ROK Army Missile Command",
+    "branch": "missile",
+    "lat": 37.332,
+    "lng": 127.92
+  },
+  {
+    "name": "ADD Daejeon (Weapons R&D)",
+    "country": "South Korea",
+    "operator": "Agency for Defense Development",
+    "branch": "missile",
+    "lat": 36.385,
+    "lng": 127.372
+  },
+  {
+    "name": "Exmouth (Naval Communications Station)",
+    "country": "Australia",
+    "operator": "ADF / USN",
+    "branch": "navy",
+    "lat": -21.816,
+    "lng": 114.166
+  },
+  {
+    "name": "RAAF Base Amberley",
+    "country": "Australia",
+    "operator": "RAAF",
+    "branch": "air_force",
+    "lat": -27.637,
+    "lng": 152.711
+  },
+  {
+    "name": "RAAF Base Williamtown",
+    "country": "Australia",
+    "operator": "RAAF",
+    "branch": "air_force",
+    "lat": -32.793,
+    "lng": 151.837
+  },
+  {
+    "name": "Jagel Air Base (Eurofighter)",
+    "country": "Germany",
+    "operator": "Luftwaffe",
+    "branch": "air_force",
+    "lat": 54.46,
+    "lng": 9.52
+  },
+  {
+    "name": "Sigonella NAS (NATO AGS)",
+    "country": "Italy",
+    "operator": "USN / NATO",
+    "branch": "navy",
+    "lat": 37.401,
+    "lng": 14.922
+  },
+  {
+    "name": "Amendola Air Base (F-35)",
+    "country": "Italy",
+    "operator": "AMI",
+    "branch": "air_force",
+    "lat": 41.541,
+    "lng": 15.718
+  },
+  {
+    "name": "Base Naval de Ferrol",
+    "country": "Spain",
+    "operator": "Armada Espanola",
+    "branch": "navy",
+    "lat": 43.483,
+    "lng": -8.233
+  },
+  {
+    "name": "Eindhoven Air Base (KDC-10)",
+    "country": "Netherlands",
+    "operator": "RNLAF",
+    "branch": "air_force",
+    "lat": 51.449,
+    "lng": 5.374
+  },
+  {
+    "name": "Leeuwarden Air Base (F-35)",
+    "country": "Netherlands",
+    "operator": "RNLAF",
+    "branch": "air_force",
+    "lat": 53.228,
+    "lng": 5.76
+  },
+  {
+    "name": "Araxos Air Base (Nuclear Storage)",
+    "country": "Greece",
+    "operator": "HAF / NATO",
+    "branch": "air_force",
+    "lat": 38.151,
+    "lng": 21.425
+  },
+  {
+    "name": "Salamis Naval Base (HN HQ)",
+    "country": "Greece",
+    "operator": "Hellenic Navy",
+    "branch": "navy",
+    "lat": 37.942,
+    "lng": 23.498
+  },
+  {
+    "name": "Negev Nuclear Research Center (Dimona)",
+    "country": "Israel",
+    "operator": "IAEC",
+    "branch": "nuclear",
+    "lat": 31.001,
+    "lng": 35.145
+  },
+  {
+    "name": "Soreq Nuclear Research Center",
+    "country": "Israel",
+    "operator": "IAEC",
+    "branch": "nuclear",
+    "lat": 31.767,
+    "lng": 34.892
+  },
+  {
+    "name": "American Samoa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -14.165,
+    "lng": -170.42
+  },
+  {
+    "name": "Alice Springs",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -25.274,
+    "lng": 133.775
+  },
+  {
+    "name": "Andros Island",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 24.706,
+    "lng": -78.02
+  },
+  {
+    "name": "Chievres",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.586,
+    "lng": 3.806
+  },
+  {
+    "name": "Florennes",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.251,
+    "lng": 4.605
+  },
+  {
+    "name": "Kleine-Brogel",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.133,
+    "lng": 5.454
+  },
+  {
+    "name": "Mons",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.454,
+    "lng": 3.957
+  },
+  {
+    "name": "Novo Selo Training Area",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 42.72,
+    "lng": 26.592
+  },
+  {
+    "name": "Navy Med Research Unit 2, Pnom Pehn",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 11.55,
+    "lng": 104.917
+  },
+  {
+    "name": "Guantanamo Bay\tCuba",
+    "country": "United States",
+    "operator": "USN",
+    "branch": "navy",
+    "lat": 20.021,
+    "lng": -75.114
+  },
+  {
+    "name": "Comalapa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.441,
+    "lng": -89.056
+  },
+  {
+    "name": "Thule\tGreenland",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 77.483,
+    "lng": -69.345
+  },
+  {
+    "name": "Soto Cano/Palmerola",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.382,
+    "lng": -87.617
+  },
+  {
+    "name": "Grindavik\tIceland",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 63.846,
+    "lng": -22.445
+  },
+  {
+    "name": "Green Zone, Baghdad",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 33.308,
+    "lng": 44.39
+  },
+  {
+    "name": "Catania",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.508,
+    "lng": 15.083
+  },
+  {
+    "name": "Naples",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 40.852,
+    "lng": 14.268
+  },
+  {
+    "name": "Coltano",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 43.619,
+    "lng": 10.404
+  },
+  {
+    "name": "Pordenone",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 45.963,
+    "lng": 12.655
+  },
+  {
+    "name": "Brescia",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 45.541,
+    "lng": 10.219
+  },
+  {
+    "name": "Maniago",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 46.165,
+    "lng": 12.707
+  },
+  {
+    "name": "Pisa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 43.723,
+    "lng": 10.402
+  },
+  {
+    "name": "San Vito Normanni",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 40.658,
+    "lng": 17.706
+  },
+  {
+    "name": "Niscemi  Sicily",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.15,
+    "lng": 14.383
+  },
+  {
+    "name": "Tokyo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.689,
+    "lng": 139.692
+  },
+  {
+    "name": "Akizuki",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 33.47,
+    "lng": 130.691
+  },
+  {
+    "name": "Henoko Okinawa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 26.523,
+    "lng": 128.032
+  },
+  {
+    "name": "Sagamihara",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.571,
+    "lng": 139.373
+  },
+  {
+    "name": "Okinawa Island",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 26.501,
+    "lng": 127.945
+  },
+  {
+    "name": "Hachinohe",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 40.512,
+    "lng": 141.488
+  },
+  {
+    "name": "Fukuoka",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 33.59,
+    "lng": 130.402
+  },
+  {
+    "name": "Iwo Jima",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 24.774,
+    "lng": 141.327
+  },
+  {
+    "name": "Kami Seya",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.638,
+    "lng": 135.187
+  },
+  {
+    "name": "Higashi-Hiroshima",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 34.395,
+    "lng": 132.482
+  },
+  {
+    "name": "Kisarazu",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.376,
+    "lng": 139.917
+  },
+  {
+    "name": "Yokohama",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.444,
+    "lng": 139.638
+  },
+  {
+    "name": "Koza",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.374,
+    "lng": 139.391
+  },
+  {
+    "name": "Waco City",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.781,
+    "lng": 139.606
+  },
+  {
+    "name": "Totsuka",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.893,
+    "lng": 140.418
+  },
+  {
+    "name": "Japan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.205,
+    "lng": 138.253
+  },
+  {
+    "name": "Mombasa\tKenya",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -4.043,
+    "lng": 39.668
+  },
+  {
+    "name": "Chechon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.124,
+    "lng": 128.133
+  },
+  {
+    "name": "Inchon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.456,
+    "lng": 126.705
+  },
+  {
+    "name": "Kimhae",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.229,
+    "lng": 128.889
+  },
+  {
+    "name": "Kunsan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.968,
+    "lng": 126.737
+  },
+  {
+    "name": "Kwangju",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.16,
+    "lng": 126.853
+  },
+  {
+    "name": "Masan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.214,
+    "lng": 128.581
+  },
+  {
+    "name": "Munsan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.89,
+    "lng": 126.699
+  },
+  {
+    "name": "Paju",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.76,
+    "lng": 126.78
+  },
+  {
+    "name": "Pochon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.895,
+    "lng": 127.2
+  },
+  {
+    "name": "Pohang\t(Camp Mujuk)",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.019,
+    "lng": 129.343
+  },
+  {
+    "name": "Pyeongtaek",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.992,
+    "lng": 127.113
+  },
+  {
+    "name": "Suwon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.264,
+    "lng": 127.029
+  },
+  {
+    "name": "Taepeak",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.164,
+    "lng": 128.986
+  },
+  {
+    "name": "Waegwan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.989,
+    "lng": 128.398
+  },
+  {
+    "name": "Yechon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.658,
+    "lng": 128.453
+  },
+  {
+    "name": "Yongpyong",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 34.182,
+    "lng": 126.674
+  },
+  {
+    "name": "Al Mubarak Ab @ Kuwait City Iap",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 29.227,
+    "lng": 47.98
+  },
+  {
+    "name": "Khabari/Kheybari Military Crossing",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 29.9,
+    "lng": 47.183
+  },
+  {
+    "name": "Kwajalein R.Reagan Test Site",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 8.72,
+    "lng": 167.733
+  },
+  {
+    "name": "Brunssum",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.949,
+    "lng": 5.972
+  },
+  {
+    "name": "Tinian",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.0,
+    "lng": 145.633
+  },
+  {
+    "name": "Saipan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.183,
+    "lng": 145.75
+  },
+  {
+    "name": "Farallon De Medinilla",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.017,
+    "lng": 146.059
+  },
+  {
+    "name": "Norway",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 67.271,
+    "lng": 14.383
+  },
+  {
+    "name": "Sur Masirah",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 20.421,
+    "lng": 58.73
+  },
+  {
+    "name": "Salalah",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 17.014,
+    "lng": 54.092
+  },
+  {
+    "name": "Mina Qabus, Muscat",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 23.628,
+    "lng": 58.568
+  },
+  {
+    "name": "Raysat",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.934,
+    "lng": 53.992
+  },
+  {
+    "name": "Al Mussanah Ab",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 23.627,
+    "lng": 57.491
+  },
+  {
+    "name": "Lima\tPeru",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -12.048,
+    "lng": -77.062
+  },
+  {
+    "name": "Lajesfield\tAzores",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 38.762,
+    "lng": -27.095
+  },
+  {
+    "name": "Portugal",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 39.4,
+    "lng": -8.224
+  },
+  {
+    "name": "As Sayliyah",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 25.188,
+    "lng": 51.412
+  },
+  {
+    "name": "Umm Said",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 24.98,
+    "lng": 51.55
+  },
+  {
+    "name": "Falcon-78 Asp",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 25.256,
+    "lng": 50.958
+  },
+  {
+    "name": "Mihail Kogalniceanu (Mk) Ab",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 44.362,
+    "lng": 28.488
+  },
+  {
+    "name": "Deveselu",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 44.083,
+    "lng": 24.383
+  },
+  {
+    "name": "Babadag Training Base",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 44.898,
+    "lng": 28.742
+  },
+  {
+    "name": "Ankara",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 39.921,
+    "lng": 32.854
+  },
+  {
+    "name": "Batman",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 37.881,
+    "lng": 41.135
+  },
+  {
+    "name": "Incirlik Ab, Adana",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 37.0,
+    "lng": 35.321
+  },
+  {
+    "name": "Yumurzalik",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 36.775,
+    "lng": 35.788
+  },
+  {
+    "name": "Fujairah",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 25.1,
+    "lng": 56.21
+  },
+  {
+    "name": "Barford St John",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.996,
+    "lng": -1.362
+  },
+  {
+    "name": "Bicester",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.9,
+    "lng": -1.154
+  },
+  {
+    "name": "Blenheim Crescent",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.569,
+    "lng": -0.434
+  },
+  {
+    "name": "Cambridge",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.205,
+    "lng": 0.122
+  },
+  {
+    "name": "Menwith Hill, Harrogate",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 53.992,
+    "lng": -1.542
+  },
+  {
+    "name": "Croughton",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.998,
+    "lng": -1.211
+  },
+  {
+    "name": "Ely",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.4,
+    "lng": 0.262
+  },
+  {
+    "name": "Fairford",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 51.708,
+    "lng": -1.785
+  },
+  {
+    "name": "Welford",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.415,
+    "lng": -1.056
+  },
+  {
+    "name": "St. Croix",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 17.728,
+    "lng": -64.824
+  },
+  {
+    "name": "Fort Buchanan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 18.413,
+    "lng": -66.122
+  },
+  {
+    "name": "Amberg",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.44,
+    "lng": 11.863
+  },
+  {
+    "name": "Bann",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.737,
+    "lng": 7.098
+  },
+  {
+    "name": "Darmstadt",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.878,
+    "lng": 8.652
+  },
+  {
+    "name": "Dexheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.846,
+    "lng": 8.316
+  },
+  {
+    "name": "Einsiedlerhof",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.441,
+    "lng": 7.666
+  },
+  {
+    "name": "Geilenkirchen",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.967,
+    "lng": 6.117
+  },
+  {
+    "name": "Germersheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.214,
+    "lng": 8.367
+  },
+  {
+    "name": "Giessen",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.587,
+    "lng": 8.691
+  },
+  {
+    "name": "Gruenstadt",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.563,
+    "lng": 8.168
+  },
+  {
+    "name": "Hof",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.314,
+    "lng": 11.913
+  },
+  {
+    "name": "Hohenfels",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.203,
+    "lng": 11.849
+  },
+  {
+    "name": "Illesheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.475,
+    "lng": 10.385
+  },
+  {
+    "name": "Kornwestheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 48.863,
+    "lng": 9.181
+  },
+  {
+    "name": "Lampertheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.6,
+    "lng": 8.467
+  },
+  {
+    "name": "Landshut",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 48.539,
+    "lng": 12.146
+  },
+  {
+    "name": "Langen",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.991,
+    "lng": 8.663
+  },
+  {
+    "name": "Mainz",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.993,
+    "lng": 8.247
+  },
+  {
+    "name": "Mannheim",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.487,
+    "lng": 8.466
+  },
+  {
+    "name": "Miesau",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.405,
+    "lng": 7.437
+  },
+  {
+    "name": "Pirmasens",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.202,
+    "lng": 7.6
+  },
+  {
+    "name": "Schwetzingen",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.385,
+    "lng": 8.572
+  },
+  {
+    "name": "Sembach",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.511,
+    "lng": 7.865
+  },
+  {
+    "name": "Lamu/Manda Bay",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -2.28,
+    "lng": 40.891
+  },
+  {
+    "name": "McMurdo Station",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -77.85,
+    "lng": 166.667
+  },
+  {
+    "name": "Aruba",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.521,
+    "lng": -69.968
+  },
+  {
+    "name": "Kojarena, near Geraldton MUOS, ECHELON Intel and Communications Site",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -28.695,
+    "lng": 114.842
+  },
+  {
+    "name": "Zutendaal",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 50.933,
+    "lng": 5.567
+  },
+  {
+    "name": "Gabrone",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -24.55,
+    "lng": 25.927
+  },
+  {
+    "name": "Bezmer Air Base",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 42.455,
+    "lng": 26.352
+  },
+  {
+    "name": "Ouagadougou International Airport",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 12.353,
+    "lng": -1.512
+  },
+  {
+    "name": "Bujumbura (?)",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -3.383,
+    "lng": 29.367
+  },
+  {
+    "name": "Bangui",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 4.367,
+    "lng": 18.583
+  },
+  {
+    "name": "Djema",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.05,
+    "lng": 25.317
+  },
+  {
+    "name": "Palanquero AB/Cpt German Olano Moreno AB",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 5.484,
+    "lng": -74.657
+  },
+  {
+    "name": "Tolemaida AB",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 4.245,
+    "lng": -74.65
+  },
+  {
+    "name": "Larandia",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 1.479,
+    "lng": -75.487
+  },
+  {
+    "name": "Bahia de Malaga",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 4.1,
+    "lng": -77.35
+  },
+  {
+    "name": "Karap\tDenmark",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 56.298,
+    "lng": 9.099
+  },
+  {
+    "name": "Cairo\tEgypt",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 30.044,
+    "lng": 31.236
+  },
+  {
+    "name": "Egypt",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 26.821,
+    "lng": 30.802
+  },
+  {
+    "name": "Dire Dawa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 9.6,
+    "lng": 41.867
+  },
+  {
+    "name": "Krtsanisi Training Centre, nr. Tblisi",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 41.717,
+    "lng": 44.783
+  },
+  {
+    "name": "Greece",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 39.074,
+    "lng": 21.824
+  },
+  {
+    "name": "Mocoron Tropics Region Testing Center",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.039,
+    "lng": -84.275
+  },
+  {
+    "name": "Papa AB, Papa",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 47.363,
+    "lng": 17.501
+  },
+  {
+    "name": "Shannon Airport",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 52.702,
+    "lng": -8.925
+  },
+  {
+    "name": "Dimona Radar Base",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 31.067,
+    "lng": 35.033
+  },
+  {
+    "name": "Site 51, IS [loc. Is random in Negev]",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 30.772,
+    "lng": 34.978
+  },
+  {
+    "name": "outside Amman",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 31.98,
+    "lng": 36.005
+  },
+  {
+    "name": "Garissa",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -0.024,
+    "lng": 37.906
+  },
+  {
+    "name": "Monrovia and surrounding",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.292,
+    "lng": -10.756
+  },
+  {
+    "name": "Nuakchott (Air Force)",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 18.101,
+    "lng": -15.952
+  },
+  {
+    "name": "Coevorden, NL",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.667,
+    "lng": 6.75
+  },
+  {
+    "name": "Rotterdam\tNetherlands",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 51.924,
+    "lng": 4.482
+  },
+  {
+    "name": "Complex Vriezenveen, Almelo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.412,
+    "lng": 6.626
+  },
+  {
+    "name": "Curacao\tNetherlands Antilles",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.122,
+    "lng": -68.882
+  },
+  {
+    "name": "Rota",
+    "country": "United States",
+    "operator": "USN",
+    "branch": "navy",
+    "lat": 14.154,
+    "lng": 145.203
+  },
+  {
+    "name": "Chaklala",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 30.309,
+    "lng": 72.5
+  },
+  {
+    "name": "Tarbela",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 34.089,
+    "lng": 72.699
+  },
+  {
+    "name": "Peshawar",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 34.015,
+    "lng": 71.571
+  },
+  {
+    "name": "Dalbandin",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 28.887,
+    "lng": 64.399
+  },
+  {
+    "name": "Pasni",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 25.295,
+    "lng": 63.347
+  },
+  {
+    "name": "Islamabad",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 33.703,
+    "lng": 73.084
+  },
+  {
+    "name": "IMF Santa Rosa, Iquitos",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -3.744,
+    "lng": -73.261
+  },
+  {
+    "name": "Camp Navarro, Zamboanga City , Mindanao (JSOTF-P)",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.952,
+    "lng": 122.126
+  },
+  {
+    "name": "SF FOB Jolo, Sulu (CSL)",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.056,
+    "lng": 121.013
+  },
+  {
+    "name": "Camp inside Camp Aguinaldo, Manila",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.583,
+    "lng": 120.967
+  },
+  {
+    "name": "Camp Malagutay, Basilan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.626,
+    "lng": 121.942
+  },
+  {
+    "name": "Cincu Training Base",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 45.917,
+    "lng": 24.8
+  },
+  {
+    "name": "Smardan Training base",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 45.483,
+    "lng": 27.933
+  },
+  {
+    "name": "Eskan Village, Saudi Arabia",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 24.567,
+    "lng": 46.85
+  },
+  {
+    "name": "Drone base in east, near Yemen",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 18.921,
+    "lng": 49.838
+  },
+  {
+    "name": "Dakar",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.728,
+    "lng": -17.457
+  },
+  {
+    "name": "Baledogle Airfield",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "air_force",
+    "lat": 2.671,
+    "lng": 44.793
+  },
+  {
+    "name": "Kismayo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -0.355,
+    "lng": 42.546
+  },
+  {
+    "name": "Nzara",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 4.633,
+    "lng": 28.255
+  },
+  {
+    "name": "Spain",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 40.464,
+    "lng": -3.749
+  },
+  {
+    "name": "U-Tapao",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.682,
+    "lng": 100.998
+  },
+  {
+    "name": "naval base [loc?]",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 12.244,
+    "lng": 102.393
+  },
+  {
+    "name": "CK: Mount Chaambi, Kasserine",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 35.218,
+    "lng": 8.749
+  },
+  {
+    "name": "Incirlik?",
+    "country": "United States",
+    "operator": "USAF",
+    "branch": "air_force",
+    "lat": 37.002,
+    "lng": 35.425
+  },
+  {
+    "name": "Entebbe",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 0.047,
+    "lng": 32.446
+  },
+  {
+    "name": "Singo Training School",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -0.8,
+    "lng": 31.498
+  },
+  {
+    "name": "Thetford\tUnited Kingdom",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 52.413,
+    "lng": 0.752
+  },
+  {
+    "name": "St. Thomas?",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 18.2,
+    "lng": -64.55
+  },
+  {
+    "name": "Wake Island",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 19.18,
+    "lng": 166.38
+  },
+  {
+    "name": "Dungu",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 3.626,
+    "lng": 28.561
+  },
+  {
+    "name": "Vilseck Germany",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.61,
+    "lng": 11.806
+  },
+  {
+    "name": "Wackernheim Germany",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.974,
+    "lng": 8.118
+  },
+  {
+    "name": "Weisskirchen Germany",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 49.556,
+    "lng": 6.819
+  },
+  {
+    "name": "Chaco",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -27.451,
+    "lng": -58.987
+  },
+  {
+    "name": "Hunting Caye",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.146,
+    "lng": -88.281
+  },
+  {
+    "name": "Hattieville",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 17.45,
+    "lng": -88.383
+  },
+  {
+    "name": "Big Creek FOS",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.514,
+    "lng": -88.404
+  },
+  {
+    "name": "San Pedro Caye",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 17.921,
+    "lng": -87.961
+  },
+  {
+    "name": "Belize City",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 17.505,
+    "lng": -88.187
+  },
+  {
+    "name": "Ambergris Caye",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 18.014,
+    "lng": -87.931
+  },
+  {
+    "name": "Naval Support Detachment Sao Paulo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": -23.55,
+    "lng": -46.633
+  },
+  {
+    "name": "Fuerte Aguayo NB, Conc\u00d1n",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -32.947,
+    "lng": -71.452
+  },
+  {
+    "name": "Tres Esquinas AB",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "navy",
+    "lat": 0.746,
+    "lng": -75.234
+  },
+  {
+    "name": "Caldera",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 9.912,
+    "lng": -84.714
+  },
+  {
+    "name": "Liberia",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 10.633,
+    "lng": -85.433
+  },
+  {
+    "name": "Colorado",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 10.692,
+    "lng": -83.72
+  },
+  {
+    "name": "Flamingo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 10.434,
+    "lng": -85.792
+  },
+  {
+    "name": "Saona Island",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 18.156,
+    "lng": -68.699
+  },
+  {
+    "name": "Lita, Carchi",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 0.942,
+    "lng": -78.553
+  },
+  {
+    "name": "Miraflores",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.423,
+    "lng": -88.085
+  },
+  {
+    "name": "CEOPAZ Base, Lourdes, Colon",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.717,
+    "lng": -89.367
+  },
+  {
+    "name": "La Union",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.337,
+    "lng": -87.844
+  },
+  {
+    "name": "Cuscatlan",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.673,
+    "lng": -89.241
+  },
+  {
+    "name": "Arba Minch",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 6.04,
+    "lng": 37.59
+  },
+  {
+    "name": "Puerto San Jose",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.92,
+    "lng": -90.811
+  },
+  {
+    "name": "Poptun",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.328,
+    "lng": -89.408
+  },
+  {
+    "name": "Champerico",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.294,
+    "lng": -91.913
+  },
+  {
+    "name": "Coban",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.471,
+    "lng": -90.404
+  },
+  {
+    "name": "Santa Ana de Berlin",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.7,
+    "lng": -91.883
+  },
+  {
+    "name": "Las Mantanitas",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.856,
+    "lng": -90.387
+  },
+  {
+    "name": "Tecun Uman",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 14.673,
+    "lng": -92.132
+  },
+  {
+    "name": "Puerto Barrios",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.719,
+    "lng": -88.601
+  },
+  {
+    "name": "Guanaja",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.444,
+    "lng": -85.902
+  },
+  {
+    "name": "Puerto Castilla",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 16.011,
+    "lng": -85.951
+  },
+  {
+    "name": "La Venta",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.795,
+    "lng": -87.29
+  },
+  {
+    "name": "El Aguacate",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 13.95,
+    "lng": -87.132
+  },
+  {
+    "name": "Puerto Lempira",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.268,
+    "lng": -83.771
+  },
+  {
+    "name": "La Brea",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 15.793,
+    "lng": -85.965
+  },
+  {
+    "name": "El Bluff",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.0,
+    "lng": -83.683
+  },
+  {
+    "name": "Corn Island",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.167,
+    "lng": -83.033
+  },
+  {
+    "name": "Corinto",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 12.483,
+    "lng": -87.183
+  },
+  {
+    "name": "Summit",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 9.046,
+    "lng": -79.513
+  },
+  {
+    "name": "Puerto Obaldia",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 8.688,
+    "lng": -77.513
+  },
+  {
+    "name": "Puerto Pina",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 7.583,
+    "lng": -78.18
+  },
+  {
+    "name": "Isla Grande",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 9.593,
+    "lng": -79.555
+  },
+  {
+    "name": "Punta Coco",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 9.3,
+    "lng": -82.267
+  },
+  {
+    "name": "La Palma",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": 8.407,
+    "lng": -78.142
+  },
+  {
+    "name": "Tarapoto",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -6.497,
+    "lng": -76.372
+  },
+  {
+    "name": "Puno",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -15.848,
+    "lng": -70.019
+  },
+  {
+    "name": "14th Battalion, Toledo",
+    "country": "United States",
+    "operator": "US Military",
+    "branch": "army",
+    "lat": -34.741,
+    "lng": -56.096
   }
 ]

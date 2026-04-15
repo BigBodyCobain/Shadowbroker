@@ -1,4 +1,5 @@
 """Tests for the shared in-memory data store."""
+
 import threading
 import time
 import pytest
@@ -10,19 +11,46 @@ class TestLatestDataStructure:
 
     def test_has_all_required_keys(self):
         expected_keys = {
-            "last_updated", "news", "stocks", "oil", "flights", "ships",
-            "military_flights", "tracked_flights", "cctv", "weather",
-            "earthquakes", "uavs", "frontlines", "gdelt", "liveuamap",
-            "kiwisdr", "space_weather", "internet_outages", "firms_fires",
-            "datacenters"
+            "last_updated",
+            "news",
+            "stocks",
+            "oil",
+            "flights",
+            "ships",
+            "military_flights",
+            "tracked_flights",
+            "cctv",
+            "weather",
+            "earthquakes",
+            "uavs",
+            "frontlines",
+            "gdelt",
+            "liveuamap",
+            "kiwisdr",
+            "space_weather",
+            "internet_outages",
+            "firms_fires",
+            "datacenters",
         }
         assert expected_keys.issubset(set(latest_data.keys()))
 
     def test_list_keys_default_to_empty_list(self):
-        list_keys = ["news", "flights", "ships", "military_flights",
-                     "tracked_flights", "cctv", "earthquakes", "uavs",
-                     "gdelt", "liveuamap", "kiwisdr", "internet_outages",
-                     "firms_fires", "datacenters"]
+        list_keys = [
+            "news",
+            "flights",
+            "ships",
+            "military_flights",
+            "tracked_flights",
+            "cctv",
+            "earthquakes",
+            "uavs",
+            "gdelt",
+            "liveuamap",
+            "kiwisdr",
+            "internet_outages",
+            "firms_fires",
+            "datacenters",
+        ]
         for key in list_keys:
             assert isinstance(latest_data[key], list), f"{key} should default to list"
 

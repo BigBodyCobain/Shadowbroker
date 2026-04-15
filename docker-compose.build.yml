@@ -1,0 +1,11 @@
+# Developer override — build images from source instead of pulling from GHCR.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.build.yml build
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+
+  frontend:
+    build:
+      context: ./frontend

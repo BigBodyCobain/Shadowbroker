@@ -1,45 +1,14 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import React, { useEffect, useRef, useCallback } from 'react';
-import Hls from 'hls.js';
 import WikiImage from '@/components/WikiImage';
-import type { DashboardData, SelectedEntity, RegionDossier } from "@/types/dashboard";
-
-// HLS video player — uses hls.js on Chrome/Firefox, native on Safari
-function HlsVideo({ url, className }: { url: string; className?: string }) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video || !url) return;
-
-        let hls: Hls | null = null;
-
-        if (Hls.isSupported()) {
-            hls = new Hls({ enableWorker: false, lowLatencyMode: true });
-            hls.loadSource(url);
-            hls.attachMedia(video);
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            // Safari native HLS
-            video.src = url;
-        }
-
-        return () => { hls?.destroy(); };
-    }, [url]);
-
-    return (
-        <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            className={className}
-        />
-    );
-}
+import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
+import { useDataKeys } from '@/hooks/useDataStore';
+import { lookupShodanHost } from '@/lib/shodanClient';
+import type { ShodanHost } from '@/types/shodan';
 
 // Format time from pubish string "Tue, 24 Feb 2026 15:30:00 GMT" to "15:30"
 function formatTime(pubDate: string) {
@@ -155,9 +124,15 @@ const VESSEL_TYPE_WIKI: Record<string, string> = {
     'military_vessel': 'https://en.wikipedia.org/wiki/Warship',
 };
 
-function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoading }: { data: DashboardData, selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean }) {
+function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, onArticleClick }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number) => void }) {
+    const data = useDataKeys([
+      'news', 'fimi', 'commercial_flights', 'private_flights', 'private_jets',
+      'military_flights', 'tracked_flights', 'ships', 'gdelt', 'liveuamap',
+      'airports', 'last_updated', 'threat_level',
+    ] as const);
     const [isMinimized, setIsMinimized] = useState(false);
     const [expandedIndexes, setExpandedIndexes] = useState<number[]>([]);
+    const [fimiExpanded, setFimiExpanded] = useState(false);
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     // Intentionally omitting map click triggers for expanding
@@ -172,6 +147,15 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
     }
 
     const news = data?.news || [];
+    const fimi: FimiData | undefined = data?.fimi;
+
+    // Cross-reference: check if a news article title matches any FIMI disinfo keywords
+    const fimiKeywords = useMemo(() => fimi?.disinfo_keywords || [], [fimi?.disinfo_keywords]);
+    const checkDisinfoLinked = useCallback((title: string): boolean => {
+        if (fimiKeywords.length === 0) return false;
+        const titleLower = title.toLowerCase();
+        return fimiKeywords.some(kw => titleLower.includes(kw));
+    }, [fimiKeywords]);
 
     // Determine the selected flight's model for Wikipedia thumbnail lookup
     // (must call hook unconditionally — React rules of hooks)
@@ -187,6 +171,45 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
         return flight?.model;
     })();
     const { imgUrl: aircraftImgUrl, wikiUrl: aircraftWikiUrl, loading: aircraftImgLoading } = useAircraftImage(selectedFlightModel);
+    const [shodanDetail, setShodanDetail] = useState<ShodanHost | null>(null);
+    const [shodanLoading, setShodanLoading] = useState(false);
+    const [shodanError, setShodanError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        const host = (selectedEntity?.extra || {}) as Record<string, any>;
+        const ip = selectedEntity?.type === 'shodan_host' ? String(host.ip || '').trim() : '';
+        if (!ip) {
+            setShodanDetail(null);
+            setShodanLoading(false);
+            setShodanError(null);
+            return;
+        }
+        if (Array.isArray(host.services) && host.services.length > 0) {
+            setShodanDetail(host as unknown as ShodanHost);
+            setShodanLoading(false);
+            setShodanError(null);
+            return;
+        }
+        setShodanLoading(true);
+        setShodanError(null);
+        lookupShodanHost(ip)
+            .then((resp) => {
+                if (cancelled) return;
+                setShodanDetail(resp.host);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setShodanError(err instanceof Error ? err.message : 'Failed to load host detail');
+            })
+            .finally(() => {
+                if (cancelled) return;
+                setShodanLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedEntity]);
 
     // Region Dossier (right-click intelligence)
     if (selectedEntity?.type === 'region_dossier') {
@@ -196,7 +219,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                 initial={{ y: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.4 }}
-                className="w-full bg-black/60 backdrop-blur-md border border-emerald-800 rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,255,128,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
+                className="w-full bg-black/60 backdrop-blur-sm border border-emerald-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,255,128,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
             >
                 <div className="p-3 border-b border-emerald-500/30 bg-emerald-950/40 flex justify-between items-center">
                     <h2 className="text-xs tracking-widest font-bold text-emerald-400">REGION DOSSIER</h2>
@@ -206,10 +229,15 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                 </div>
                 {regionDossierLoading ? (
                     <div className="p-6 flex items-center justify-center">
-                        <span className="text-emerald-400 text-[10px] font-mono animate-pulse tracking-widest">COMPILING INTELLIGENCE...</span>
+                        <span className="text-emerald-400 text-[10px] font-mono tracking-widest">COMPILING INTELLIGENCE...</span>
                     </div>
                 ) : d && !d.error ? (
                     <div className="p-3 flex flex-col gap-1.5 max-h-[500px] overflow-y-auto styled-scrollbar text-[10px]">
+                        {d.warning && (
+                            <div className="mb-2 p-2 bg-amber-950/40 border border-amber-800/50 text-[9px] text-amber-300 leading-relaxed">
+                                {d.warning}
+                            </div>
+                        )}
                         {/* COUNTRY */}
                         <div className="text-[9px] text-emerald-500 tracking-widest font-bold border-b border-emerald-900/50 pb-1">COUNTRY LEVEL {d.country?.flag_emoji || ''}</div>
                         <div className="flex justify-between"><span className="text-[var(--text-muted)]">COUNTRY</span><span className="text-[var(--text-primary)] font-bold">{d.country?.name}</span></div>
@@ -237,7 +265,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                 {d.local.state && <div className="flex justify-between"><span className="text-[var(--text-muted)]">STATE/PROVINCE</span><span className="text-[var(--text-primary)] font-bold">{d.local.state}</span></div>}
                                 {d.local.description && <div className="flex justify-between"><span className="text-[var(--text-muted)]">TYPE</span><span className="text-[var(--text-secondary)]">{d.local.description}</span></div>}
                                 {d.local.summary && (
-                                    <div className="mt-1 p-2 bg-black/60 border border-emerald-800/50 rounded text-[9px] text-[var(--text-secondary)] leading-relaxed">
+                                    <div className="mt-1 p-2 bg-black/60 border border-emerald-800/50 text-[9px] text-[var(--text-secondary)] leading-relaxed">
                                         <span className="text-emerald-400 font-bold">&gt;_ INTEL: </span>
                                         {d.local.summary.length > 500 ? d.local.summary.substring(0, 500) + '...' : d.local.summary}
                                     </div>
@@ -252,6 +280,103 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                 ) : (
                     <div className="p-4 text-red-400 text-[10px]">INTEL UNAVAILABLE</div>
                 )}
+            </motion.div>
+        );
+    }
+
+    if (selectedEntity?.type === 'shodan_host') {
+        const baseHost = (selectedEntity.extra || {}) as Record<string, any>;
+        const host = (shodanDetail || baseHost) as Record<string, any>;
+        const portLabel = host.port ? `${host.ip}:${host.port}` : (host.ip || selectedEntity.name || 'UNKNOWN HOST');
+        return (
+            <motion.div
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.4 }}
+                className="w-full bg-black/60 backdrop-blur-sm border border-green-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(34,197,94,0.16)] pointer-events-auto overflow-hidden flex-shrink-0"
+            >
+                <div className="p-3 border-b border-green-500/30 bg-green-950/30 flex justify-between items-center">
+                    <h2 className="text-xs tracking-widest font-bold text-green-400 flex items-center gap-2">
+                        SHODAN HOST DOSSIER
+                    </h2>
+                    <span className="text-[10px] text-green-300 font-mono">{portLabel}</span>
+                </div>
+
+                <div className="p-4 flex flex-col gap-2 text-[10px]">
+                    <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1">
+                        ATTRIBUTION
+                    </div>
+                    <div className="text-green-300/90">
+                        Data from Shodan · Operator-supplied API key · Local session overlay
+                    </div>
+                    {shodanLoading && (
+                        <div className="mt-2 text-green-500/80">Loading full host detail...</div>
+                    )}
+                    {shodanError && (
+                        <div className="mt-2 border border-red-900/40 bg-red-950/20 p-2 text-red-300">
+                            {shodanError}
+                        </div>
+                    )}
+
+                    <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
+                        HOST
+                    </div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">IP</span><span className="text-green-300 font-bold">{host.ip || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">PORT</span><span className="text-[var(--text-primary)]">{host.port || host.ports?.[0] || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">ORG</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.org || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">ASN</span><span className="text-[var(--text-primary)]">{host.asn || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">ISP</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.isp || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">OS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.os || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">PRODUCT</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.product || host.transport || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">SEEN</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.timestamp || host.services?.[0]?.timestamp || 'UNKNOWN'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">LOCATION</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.location_label || host.country_name || 'UNMAPPED'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">COORDS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.lat != null && host.lng != null ? `${Number(host.lat).toFixed(4)}, ${Number(host.lng).toFixed(4)}` : 'UNMAPPED'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">HOSTNAMES</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.hostnames?.length ? host.hostnames.join(', ') : 'NONE'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">DOMAINS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.domains?.length ? host.domains.join(', ') : 'NONE'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">TAGS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.tags?.length ? host.tags.join(', ') : 'NONE'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">VULNS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.vulns?.length ? host.vulns.join(', ') : 'NONE'}</span></div>
+                    {Array.isArray(host.ports) && host.ports.length > 0 && (
+                        <div className="flex justify-between"><span className="text-[var(--text-muted)]">ALL PORTS</span><span className="text-[var(--text-primary)] text-right max-w-[190px]">{host.ports.slice(0, 20).join(', ')}</span></div>
+                    )}
+                    {Array.isArray(host.services) && host.services.length > 0 && (
+                        <>
+                            <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
+                                SERVICES
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                {host.services.slice(0, 8).map((service: Record<string, any>, idx: number) => (
+                                    <div key={`${service.port || 'svc'}-${idx}`} className="border border-green-900/40 bg-black/40 p-2">
+                                        <div className="flex justify-between text-[10px]">
+                                            <span className="text-green-300 font-bold">
+                                                {service.port || '?'} / {service.transport || 'tcp'}
+                                            </span>
+                                            <span className="text-[var(--text-muted)]">{service.timestamp || 'UNKNOWN'}</span>
+                                        </div>
+                                        <div className="mt-1 text-[var(--text-primary)]">
+                                            {service.product || 'Unknown service'}
+                                        </div>
+                                        {service.tags?.length > 0 && (
+                                            <div className="mt-1 text-[9px] text-green-500/80">
+                                                TAGS: {service.tags.join(', ')}
+                                            </div>
+                                        )}
+                                        {service.banner_excerpt && (
+                                            <div className="mt-1 text-[9px] text-green-300/90 leading-relaxed">
+                                                {service.banner_excerpt}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                    {host.data_snippet && (
+                        <div className="mt-2 border border-green-900/50 bg-black/50 p-2 text-[9px] text-green-300/90 leading-relaxed">
+                            <span className="text-green-400 font-bold">&gt;_ BANNER: </span>
+                            {host.data_snippet}
+                        </div>
+                    )}
+                </div>
             </motion.div>
         );
     }
@@ -294,7 +419,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className={`w-full bg-black/60 backdrop-blur-md border ${(ac === 'pink' || ac === '#ff1493') ? 'border-[#ff1493]' : ac === 'red' ? 'border-red-800' : ac === 'yellow' ? 'border-yellow-800' : ac === 'blue' ? 'border-blue-800' : ac === 'orange' ? 'border-orange-800' : ac === '#32cd32' ? 'border-lime-800' : ac === 'purple' ? 'border-purple-800' : 'border-[var(--border-secondary)]'} rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_${shadowColor}] pointer-events-auto overflow-hidden flex-shrink-0`}
+                    className={`w-full bg-black/60 backdrop-blur-sm border ${(ac === 'pink' || ac === '#ff1493') ? 'border-[#ff1493]' : ac === 'red' ? 'border-red-800' : ac === 'yellow' ? 'border-yellow-800' : ac === 'blue' ? 'border-blue-800' : ac === 'orange' ? 'border-orange-800' : ac === '#32cd32' ? 'border-lime-800' : ac === 'purple' ? 'border-purple-800' : 'border-[var(--border-secondary)]'} flex flex-col z-10 font-mono shadow-[0_4px_30px_${shadowColor}] pointer-events-auto overflow-hidden flex-shrink-0`}
                 >
                     <div className={`p-3 border-b ${borderColor} ${bgColor} flex justify-between items-center`}>
                         <h2 className={`text-xs tracking-widest font-bold ${headerColor} flex items-center gap-2`}>
@@ -309,13 +434,14 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             {flight.alert_operator && flight.alert_operator !== "UNKNOWN" ? (() => {
                                 const wikiSlug = flight.alert_wiki || flight.alert_operator.replace(/\s*\(.*?\)\s*/g, '').trim().replace(/ /g, '_');
                                 const wikiHref = `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiSlug)}`;
+                                const operatorHref = flight.alert_link || wikiHref;
                                 return (
                                     <a
-                                        href={wikiHref}
+                                        href={operatorHref}
                                         target="_blank"
                                         rel="noreferrer"
                                         className={`text-xs font-bold underline ${headerColor} hover:opacity-80 transition-opacity`}
-                                        title={`Search Wikipedia for ${flight.alert_operator}`}
+                                        title={flight.alert_link ? `View reference for ${flight.alert_operator}` : `Search Wikipedia for ${flight.alert_operator}`}
                                     >
                                         {flight.alert_operator}
                                     </a>
@@ -346,7 +472,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                     <img
                                         src={aircraftImgUrl}
                                         alt={AIRCRAFT_WIKI[flight.model] || flight.model}
-                                        className={`w-full h-auto max-h-28 object-cover rounded border border-[var(--border-primary)]/50 ${ac === 'pink' ? 'hover:border-pink-500/50' : 'hover:border-cyan-500/50'} transition-colors`}
+                                        className={`w-full h-auto max-h-28 object-cover border border-[var(--border-primary)]/50 ${ac === 'pink' ? 'hover:border-pink-500/50' : 'hover:border-cyan-500/50'} transition-colors`}
                                     />
                                 </a>
                                 {aircraftWikiUrl && (
@@ -393,12 +519,46 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                 <span className={`text-xs font-bold ${flight.squawk === '7700' ? 'text-red-400 animate-pulse' : flight.squawk === '7600' ? 'text-yellow-400' : 'text-[var(--text-primary)]'}`}>{flight.squawk}{flight.squawk === '7700' ? ' ⚠ EMERGENCY' : flight.squawk === '7600' ? ' COMMS LOST' : ''}</span>
                             </div>
                         )}
+                        <div className="border-b border-[var(--border-primary)] pb-2">
+                            <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">EMISSIONS ESTIMATE</span>
+                            <div className="flex gap-3">
+                                <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
+                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
+                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[8px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
+                                </div>
+                                <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
+                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
+                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[8px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
+                                </div>
+                            </div>
+                        </div>
                         {flight.alert_link && (
                             <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                                 <span className="text-[var(--text-muted)] text-[10px]">REFERENCE</span>
                                 <a href={flight.alert_link} target="_blank" rel="noreferrer" className={`text-xs font-bold underline ${headerColor} hover:opacity-80`}>
                                     View Intel Source
                                 </a>
+                            </div>
+                        )}
+                        {flight.alert_socials && (flight.alert_socials.twitter || flight.alert_socials.instagram) && (
+                            <div className="border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">SOCIALS</span>
+                                <div className="flex gap-2">
+                                    {flight.alert_socials.twitter && (
+                                        <a href={`https://x.com/${flight.alert_socials.twitter}`} target="_blank" rel="noreferrer"
+                                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono border border-[var(--border-primary)] hover:border-cyan-500/50 hover:bg-cyan-950/30 text-cyan-400 transition-colors">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                            @{flight.alert_socials.twitter}
+                                        </a>
+                                    )}
+                                    {flight.alert_socials.instagram && (
+                                        <a href={`https://instagram.com/${flight.alert_socials.instagram}`} target="_blank" rel="noreferrer"
+                                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-mono border border-[var(--border-primary)] hover:border-pink-500/50 hover:bg-pink-950/30 text-pink-400 transition-colors">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>
+                                            @{flight.alert_socials.instagram}
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         )}
                         {flight.icao24 && (
@@ -461,7 +621,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-[var(--border-primary)] flex flex-col z-10 font-mono pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-[var(--border-primary)]/30 bg-[var(--bg-secondary)]/40 flex justify-between items-center">
                         <h2 className={`text-xs tracking-widest font-bold ${selectedEntity.type === 'military_flight' ? 'text-red-400' : selectedEntity.type === 'private_flight' ? 'text-orange-400' : selectedEntity.type === 'private_jet' ? 'text-purple-400' : 'text-cyan-400'} flex items-center gap-2`}>
@@ -487,14 +647,14 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                         {(aircraftImgUrl || aircraftImgLoading || aircraftWikiUrl) && (
                             <div className="border-b border-[var(--border-primary)] pb-3">
                                 {aircraftImgLoading && (
-                                    <div className="w-full h-24 rounded bg-[var(--bg-tertiary)]/60 animate-pulse" />
+                                    <div className="w-full h-24 bg-[var(--bg-tertiary)]/60" />
                                 )}
                                 {aircraftImgUrl && (
                                     <a href={aircraftWikiUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
                                         <img
                                             src={aircraftImgUrl}
                                             alt={AIRCRAFT_WIKI[flight.model] || flight.model}
-                                            className="w-full h-auto max-h-32 object-cover rounded border border-[var(--border-primary)]/50 hover:border-cyan-500/50 transition-colors"
+                                            className="w-full h-auto max-h-32 object-cover border border-[var(--border-primary)]/50 hover:border-cyan-500/50 transition-colors"
                                             style={{ imageRendering: 'auto' }}
                                         />
                                     </a>
@@ -528,6 +688,19 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">ROUTE</span>
                             <span className="text-cyan-400 text-xs font-bold">{flight.origin_name !== "UNKNOWN" ? `[${flight.origin_name}] → [${flight.dest_name}]` : "UNKNOWN"}</span>
+                        </div>
+                        <div className="border-b border-[var(--border-primary)] pb-2">
+                            <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">EMISSIONS ESTIMATE</span>
+                            <div className="flex gap-3">
+                                <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
+                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
+                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[8px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
+                                </div>
+                                <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
+                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
+                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[8px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
+                                </div>
+                            </div>
                         </div>
                         {flight.icao24 && (
                             <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
@@ -581,7 +754,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-[var(--border-primary)] flex flex-col z-10 font-mono pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-[var(--border-primary)]/30 bg-[var(--bg-secondary)]/40 flex justify-between items-center">
                         <h2 className={`text-xs tracking-widest font-bold ${headerColor} flex items-center gap-2`}>
@@ -661,7 +834,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-orange-800 rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,140,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-orange-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,140,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-orange-500/30 bg-orange-950/40 flex justify-between items-center">
                         <h2 className="text-xs tracking-widest font-bold text-orange-400 flex items-center gap-2">
@@ -724,7 +897,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-yellow-800 rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,255,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-yellow-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,255,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-yellow-500/30 bg-yellow-950/40 flex justify-between items-center">
                         <h2 className="text-xs tracking-widest font-bold text-yellow-400 flex items-center gap-2">
@@ -768,7 +941,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-red-800 rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,0,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-red-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(255,0,0,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-red-500/30 bg-red-950/40 flex justify-between items-center">
                         <h2 className="text-xs tracking-widest font-bold text-red-400 flex items-center gap-2">
@@ -786,6 +959,35 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             <span className="text-[var(--text-muted)] text-[10px]">HEADLINE</span>
                             <span className="text-red-400 text-xs font-bold leading-tight">{item.title}</span>
                         </div>
+                        {item.oracle_score != null && (
+                            <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px]">ORACLE SCORE</span>
+                                <span className={`text-xs font-bold ${item.oracle_score >= 7 ? 'text-red-400' : item.oracle_score >= 4 ? 'text-yellow-400' : 'text-green-400'}`}>
+                                    {item.oracle_score}/10 [{item.oracle_score >= 7 ? 'CRITICAL' : item.oracle_score >= 4 ? 'ELEVATED' : 'ROUTINE'}]
+                                </span>
+                            </div>
+                        )}
+                        {item.sentiment != null && (
+                            <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px]">SENTIMENT</span>
+                                <span className={`text-xs font-bold ${item.sentiment <= -0.05 ? 'text-red-400' : item.sentiment >= 0.05 ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {item.sentiment > 0 ? '+' : ''}{item.sentiment.toFixed(2)} [{item.sentiment <= -0.05 ? 'NEGATIVE' : item.sentiment >= 0.05 ? 'POSITIVE' : 'NEUTRAL'}]
+                                </span>
+                            </div>
+                        )}
+                        {item.prediction_odds && item.prediction_odds.consensus_pct != null && (
+                            <div className="border-b border-[var(--border-primary)] pb-2">
+                                <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">MARKET CORRELATION</span>
+                                <div className="p-2 bg-purple-950/30 border border-purple-500/30 rounded-sm">
+                                    <div className="text-[10px] text-purple-300 font-bold leading-tight mb-1">{item.prediction_odds.title}</div>
+                                    <div className="flex items-center gap-3 text-[9px] font-mono">
+                                        <span className="text-white font-bold">CONSENSUS: {item.prediction_odds.consensus_pct}%</span>
+                                        {item.prediction_odds.polymarket_pct != null && <span className="text-cyan-400">Polymarket {item.prediction_odds.polymarket_pct}%</span>}
+                                        {item.prediction_odds.kalshi_pct != null && <span className="text-orange-400">Kalshi {item.prediction_odds.kalshi_pct}%</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {item.machine_assessment && (
                             <div className="mt-2 p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[9px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
                                 <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
@@ -815,7 +1017,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.4 }}
-                    className="w-full bg-black/60 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden flex-shrink-0"
+                    className="w-full bg-black/85 border border-[var(--border-primary)] flex flex-col z-10 font-mono pointer-events-auto overflow-hidden flex-shrink-0"
                 >
                     <div className="p-3 border-b border-[var(--border-primary)]/30 bg-[var(--bg-secondary)]/40 flex justify-between items-center">
                         <h2 className="text-xs tracking-widest font-bold text-cyan-400 flex items-center gap-2">
@@ -835,7 +1037,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                         </div>
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">STATUS</span>
-                            <span className="text-green-400 animate-pulse text-xs font-bold">OPERATIONAL</span>
+                            <span className="text-green-400 text-xs font-bold">OPERATIONAL</span>
                         </div>
                     </div>
                 </motion.div>
@@ -843,107 +1045,15 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
         }
     }
 
-    if (selectedEntity?.type === 'cctv') {
-        return (
-            <motion.div
-                initial={{ y: 50, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.4 }}
-                className="w-full bg-black/60 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden flex-shrink-0"
-            >
-                <div className="p-3 border-b border-[var(--border-primary)]/30 bg-[var(--bg-secondary)]/40 flex justify-between items-center">
-                    <h2 className="text-xs tracking-widest font-bold text-cyan-400 flex items-center gap-2">
-                        <AlertTriangle size={14} className="text-red-400" /> {selectedEntity.extra?.last_updated
-                            ? new Date(selectedEntity.extra.last_updated + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZoneName: 'short' }).toUpperCase() + ' — OPTIC INTERCEPT'
-                            : 'OPTIC INTERCEPT'}
-                    </h2>
-                    <span className="text-[10px] text-[var(--text-muted)] font-mono">ID: {selectedEntity.id}{selectedEntity.extra?.source_agency ? ` | ${selectedEntity.extra.source_agency}` : ''}</span>
-                </div>
-                <div className="relative w-full h-48 bg-black flex items-center justify-center p-1">
-                    {(() => {
-                        const url = selectedEntity.media_url || '';
-                        const mt = selectedEntity.extra?.media_type || (
-                            url.includes('.mp4') || url.includes('.webm') ? 'video' :
-                                url.includes('.m3u8') || url.includes('hls') ? 'hls' :
-                                    url.includes('.mjpg') || url.includes('.mjpeg') || url.includes('mjpg') ? 'mjpeg' :
-                                        url.includes('embed') || url.includes('maps/embed') ? 'embed' :
-                                            url.includes('mapbox.com') ? 'satellite' : 'image'
-                        );
-
-                        if (mt === 'video') return (
-                            <video
-                                src={url}
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-full h-full object-cover border border-cyan-900/50 rounded-sm filter contrast-125 saturate-50"
-                            />
-                        );
-                        if (mt === 'hls') return (
-                            <HlsVideo
-                                url={url}
-                                className="w-full h-full object-cover border border-cyan-900/50 rounded-sm filter contrast-125 saturate-50"
-                            />
-                        );
-                        if (mt === 'embed') return (
-                            <iframe
-                                src={url}
-                                allowFullScreen
-                                loading="lazy"
-                                className="w-full h-full object-cover border border-cyan-900/50 rounded-sm filter contrast-125 saturate-50"
-                            />
-                        );
-                        if (mt === 'mjpeg') return (
-                            <img
-                                src={url}
-                                alt="MJPEG Feed"
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover border border-cyan-900/50 rounded-sm filter contrast-125 saturate-50"
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23111' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2306b6d4' font-family='monospace' font-size='14'%3EFEED UNAVAILABLE%3C/text%3E%3C/svg%3E";
-                                }}
-                            />
-                        );
-                        // satellite / image
-                        return (
-                            <img
-                                src={url}
-                                alt="CCTV Feed"
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover border border-cyan-900/50 rounded-sm filter contrast-125 saturate-50"
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23111' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2306b6d4' font-family='monospace' font-size='14'%3ENO SIGNAL%3C/text%3E%3C/svg%3E";
-                                }}
-                            />
-                        );
-                    })()}
-
-                    {/* Retro UI Overlay for the camera feed */}
-                    <div className="absolute top-2 left-2 text-[8px] text-cyan-500 bg-black/50 px-1 py-0.5 rounded">
-                        REC // 00:00:00:00
-                    </div>
-                </div>
-                <div className="p-3 bg-black/40 text-[9px] text-cyan-500/70 font-mono tracking-widest flex justify-between items-center">
-                    <span>{selectedEntity.name?.toUpperCase() || 'UNKNOWN MOUNT'}</span>
-                    <span className="text-red-500 text-right">
-                        {selectedEntity.extra?.last_updated
-                            ? new Date(selectedEntity.extra.last_updated + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZoneName: 'short' })
-                            : ''}
-                    </span>
-                </div>
-            </motion.div>
-        );
-    }
+    /* CCTV is now handled by the fullscreen OPTIC INTERCEPT modal in MaplibreViewer */
+    if (selectedEntity?.type === 'cctv') return null;
 
     return (
         <motion.div
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className={`w-full bg-[var(--bg-primary)]/40 backdrop-blur-md border border-[var(--border-primary)] rounded-xl flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,0,0,0.5)] pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[50px] flex-shrink-0' : 'flex-1 min-h-0'}`}
+            className={`w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col z-10 font-mono pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[50px] flex-shrink-0' : 'flex-1 min-h-0'}`}
         >
             <div
                 className="p-3 border-b border-[var(--border-primary)]/50 relative overflow-hidden cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
@@ -964,7 +1074,7 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="text-[9px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10"
+                            className="text-[10px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10"
                         >
                             <span className="px-1 border border-cyan-500/30">SYS.STATUS: MONITORING</span>
                             <span className="flex items-center gap-1"><Clock size={10} /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
@@ -972,6 +1082,202 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Threat Level Indicator */}
+            <AnimatePresence>
+                {!isMinimized && data?.threat_level && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="px-3 pt-2 pb-1"
+                    >
+                        <div
+                            className={`flex items-center gap-2 px-2 py-1.5 border rounded-sm font-mono ${
+                                data.threat_level.level === 'SEVERE' ? 'bg-red-950/40 border-red-500/50' :
+                                data.threat_level.level === 'HIGH' ? 'bg-orange-950/40 border-orange-500/50' :
+                                data.threat_level.level === 'ELEVATED' ? 'bg-yellow-950/40 border-yellow-500/50' :
+                                data.threat_level.level === 'GUARDED' ? 'bg-blue-950/40 border-blue-500/50' :
+                                'bg-green-950/40 border-green-500/50'
+                            }`}
+                        >
+                            <div className={`w-2 h-2 rounded-full ${
+                                data.threat_level.level === 'SEVERE' || data.threat_level.level === 'HIGH' ? 'animate-pulse' : ''
+                            }`} style={{ backgroundColor: data.threat_level.color }} />
+                            <span className="text-[9px] font-bold tracking-wider" style={{ color: data.threat_level.color }}>
+                                THREAT: {data.threat_level.level}
+                            </span>
+                            <span className="text-[9px] text-[var(--text-muted)] ml-auto">
+                                {data.threat_level.score}/100
+                            </span>
+                        </div>
+                        {data.threat_level.drivers.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1 mb-1">
+                                {data.threat_level.drivers.map((d: string, i: number) => (
+                                    <span key={i} className="text-[7px] px-1 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-muted)] rounded-sm">
+                                        {d}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* DISINFORMATION INDEX — compact bar or major alert takeover */}
+            <AnimatePresence>
+                {!isMinimized && fimi && fimi.narratives && fimi.narratives.length > 0 && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="px-3 pt-1 pb-1"
+                    >
+                        {/* Compact bar */}
+                        <button
+                            onClick={() => setFimiExpanded(!fimiExpanded)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 border rounded-sm font-mono cursor-pointer transition-colors ${
+                                fimi.major_wave
+                                    ? 'bg-amber-950/50 border-amber-500/60 hover:bg-amber-950/70'
+                                    : 'bg-purple-950/30 border-purple-500/30 hover:bg-purple-950/50'
+                            }`}
+                        >
+                            <div className={`w-2 h-2 rounded-full ${
+                                fimi.major_wave ? 'bg-amber-400 animate-pulse' : 'bg-purple-400'
+                            }`} />
+                            <span className={`text-[9px] font-bold tracking-wider ${
+                                fimi.major_wave ? 'text-amber-400' : 'text-purple-400'
+                            }`}>
+                                {fimi.major_wave
+                                    ? `⚠ MAJOR DISINFORMATION ALERT${fimi.major_wave_target ? ` — ${fimi.major_wave_target.toUpperCase()}` : ''}`
+                                    : '⚠ DISINFORMATION INDEX'
+                                }
+                            </span>
+                            <span className="text-[8px] text-[var(--text-muted)] ml-auto flex items-center gap-1">
+                                {Object.keys(fimi.threat_actors).length > 0 && (
+                                    <span className="text-red-400">
+                                        {Object.keys(fimi.threat_actors)[0]}
+                                    </span>
+                                )}
+                                <span>{fimi.narratives.length} NARR</span>
+                                {fimiExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                            </span>
+                        </button>
+
+                        {/* Expanded weekly report */}
+                        <AnimatePresence>
+                            {fimiExpanded && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="mt-1 border border-purple-500/20 bg-black/40 rounded-sm overflow-hidden"
+                                >
+                                    {/* Threat Actor Bar */}
+                                    {Object.keys(fimi.threat_actors).length > 0 && (
+                                        <div className="px-2 py-1.5 border-b border-purple-500/10">
+                                            <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">THREAT ACTORS</div>
+                                            <div className="flex gap-1 h-2 rounded-sm overflow-hidden">
+                                                {(() => {
+                                                    const total = Object.values(fimi.threat_actors).reduce((a, b) => a + b, 0);
+                                                    const actorColors: Record<string, string> = {
+                                                        'Russia': 'bg-red-500', 'China': 'bg-amber-500',
+                                                        'Iran': 'bg-purple-500', 'North Korea': 'bg-pink-500',
+                                                        'Belarus': 'bg-orange-500',
+                                                    };
+                                                    return Object.entries(fimi.threat_actors).map(([actor, count]) => (
+                                                        <div
+                                                            key={actor}
+                                                            className={`${actorColors[actor] || 'bg-gray-500'} transition-all`}
+                                                            style={{ width: `${(count / total) * 100}%` }}
+                                                            title={`${actor}: ${count} mentions`}
+                                                        />
+                                                    ));
+                                                })()}
+                                            </div>
+                                            <div className="flex gap-2 mt-1 flex-wrap">
+                                                {Object.entries(fimi.threat_actors).map(([actor, count]) => (
+                                                    <span key={actor} className="text-[7px] text-[var(--text-muted)]">
+                                                        <span className={`font-bold ${
+                                                            actor === 'Russia' ? 'text-red-400' :
+                                                            actor === 'China' ? 'text-amber-400' :
+                                                            actor === 'Iran' ? 'text-purple-400' :
+                                                            'text-gray-400'
+                                                        }`}>{actor}</span> {count}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Top Narratives */}
+                                    <div className="px-2 py-1.5 border-b border-purple-500/10">
+                                        <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">LATEST NARRATIVES</div>
+                                        <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto styled-scrollbar">
+                                            {fimi.narratives.slice(0, 5).map((n, i) => (
+                                                <a
+                                                    key={i}
+                                                    href={n.link}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-[9px] text-[var(--text-secondary)] hover:text-purple-300 transition-colors leading-tight flex items-start gap-1"
+                                                >
+                                                    <ExternalLink size={8} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                                                    <span className="flex-1">{n.title}</span>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Debunked Claims */}
+                                    {fimi.claims.length > 0 && (
+                                        <div className="px-2 py-1.5 border-b border-purple-500/10">
+                                            <div className="text-[8px] text-red-400 tracking-widest font-bold mb-1">DEBUNKED CLAIMS ({fimi.claims.length})</div>
+                                            <div className="flex flex-col gap-0.5 max-h-[80px] overflow-y-auto styled-scrollbar">
+                                                {fimi.claims.slice(0, 5).map((c, i) => (
+                                                    <a
+                                                        key={i}
+                                                        href={c.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-[8px] text-red-300/70 hover:text-red-300 transition-colors truncate"
+                                                    >
+                                                        ✕ {c.title}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Target Countries */}
+                                    {Object.keys(fimi.targets).length > 0 && (
+                                        <div className="px-2 py-1.5">
+                                            <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">TARGETS</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {Object.entries(fimi.targets).slice(0, 10).map(([target, count]) => (
+                                                    <span key={target} className="text-[7px] px-1 py-0.5 bg-purple-950/50 border border-purple-500/20 text-purple-300 rounded-sm">
+                                                        {target} ({count})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Source attribution */}
+                                    <div className="px-2 py-1 border-t border-purple-500/10 flex justify-between items-center">
+                                        <a href={fimi.source_url} target="_blank" rel="noreferrer" className="text-[7px] text-purple-500 hover:text-purple-300 transition-colors">
+                                            Source: {fimi.source}
+                                        </a>
+                                        <span className="text-[7px] text-[var(--text-muted)]">
+                                            {fimi.last_fetched ? new Date(fimi.last_fetched).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </span>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {!isMinimized && (
@@ -983,21 +1289,26 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                     >
                         {news.map((item: any, idx: number) => {
                             let bgClass, titleClass, badgeClass;
-                            if (item.risk_score >= 9) {
-                                bgClass = "bg-red-950/20 border-red-500/30";
+                            const isBreaking = item.breaking === true;
+                            if (isBreaking) {
+                                bgClass = "bg-red-950/30 border-red-500/60";
                                 titleClass = "text-red-300 font-bold";
+                                badgeClass = "bg-red-500/20 text-red-300 border-red-400/50";
+                            } else if (item.risk_score >= 9) {
+                                bgClass = "bg-red-950/20 border-red-500/30";
+                                titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-red-500/10 text-red-400 border-red-500/30";
                             } else if (item.risk_score >= 7) {
                                 bgClass = "bg-orange-950/20 border-orange-500/30";
-                                titleClass = "text-orange-300 font-bold";
+                                titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-orange-500/10 text-orange-400 border-orange-500/30";
                             } else if (item.risk_score >= 4) {
                                 bgClass = "bg-yellow-950/20 border-yellow-500/30";
-                                titleClass = "text-yellow-300 font-bold";
+                                titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-yellow-500/10 text-yellow-500 border-yellow-500/30";
                             } else {
                                 bgClass = "bg-green-950/20 border-green-500/30";
-                                titleClass = "text-green-300 font-medium";
+                                titleClass = "text-cyan-300 font-medium";
                                 badgeClass = "bg-green-500/10 text-green-400 border-green-500/30";
                             }
                             const isExpanded = expandedIndexes.includes(idx);
@@ -1012,15 +1323,19 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                     className={`p-2 rounded-sm border-l-[2px] border-r border-t border-b ${bgClass} flex flex-col gap-1 relative group shrink-0`}
                                 >
                                     <div className="flex items-center justify-between text-[8px] text-[var(--text-secondary)] uppercase tracking-widest">
-                                        <span className="font-bold flex items-center gap-1 text-cyan-600">
+                                        <span className="font-bold flex items-center gap-1 text-white">
+                                            {isBreaking && <span className="text-red-400 mr-1">BREAKING</span>}
                                             &gt;_ {item.source}
                                         </span>
                                         <span>[{item.published ? formatTime(item.published) : ''}]</span>
                                     </div>
 
-                                    <a href={item.link} target="_blank" rel="noreferrer" className={`text-[11px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight`}>
+                                    <button 
+                                        onClick={() => onArticleClick?.(idx, item.coords?.[0], item.coords?.[1])}
+                                        className={`text-left text-[11px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight cursor-pointer`}
+                                    >
                                         {item.title}
-                                    </a>
+                                    </button>
 
                                     {item.machine_assessment && (
                                         <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[8.5px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
@@ -1029,23 +1344,52 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                             <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
                                         </div>
                                     )}
-
-                                    <div className="flex justify-between items-end mt-1 relative z-10">
-                                        <span className={`text-[8px] font-bold px-1 rounded-sm border ${badgeClass}`}>
-                                            LVL: {item.risk_score}/10
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            {item.cluster_count > 1 && (
-                                                <button onClick={() => toggleExpand(idx)} className="text-[8px] font-bold text-cyan-500 bg-[var(--bg-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)] border border-cyan-500/30 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer">
-                                                    {isExpanded ? '[- COLLAPSE]' : `[+${item.cluster_count - 1} SOURCES]`}
-                                                </button>
-                                            )}
-                                            {item.coords && (
-                                                <span className="text-[8px] text-[var(--text-muted)] font-mono tracking-tighter">
-                                                    {item.coords[0].toFixed(2)}, {item.coords[1].toFixed(2)}
-                                                </span>
-                                            )}
+                                    {item.prediction_odds && item.prediction_odds.consensus_pct != null && (
+                                        <div className="mt-1 px-1.5 py-1 bg-purple-950/30 border border-purple-500/30 rounded-sm text-[8px] font-mono flex items-center gap-1.5">
+                                            <span className="text-purple-400 font-bold">MKT</span>
+                                            <span className="text-purple-300 truncate flex-1" title={item.prediction_odds.title}>{item.prediction_odds.title}</span>
+                                            <span className="text-white font-bold whitespace-nowrap">{item.prediction_odds.consensus_pct}%</span>
                                         </div>
+                                    )}
+
+                                    <div className="flex items-center gap-1.5 mt-1 relative z-10 flex-wrap">
+                                        <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${badgeClass}`}>
+                                            {isBreaking ? 'BREAKING' : `LVL: ${item.risk_score}/10`}
+                                        </span>
+                                        {item.sentiment != null && (
+                                            <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
+                                                item.sentiment < -0.1 ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                                                item.sentiment > 0.1 ? 'bg-green-500/10 text-green-400 border-green-500/30' :
+                                                'bg-gray-500/10 text-gray-400 border-gray-500/30'
+                                            }`}>
+                                                {item.sentiment < -0.1 ? '▼' : item.sentiment > 0.1 ? '▲' : '—'}{' '}
+                                                {item.sentiment > 0 ? '+' : ''}{item.sentiment.toFixed(2)}
+                                            </span>
+                                        )}
+                                        {item.oracle_score != null && (
+                                            <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
+                                                item.oracle_score >= 7 ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' :
+                                                item.oracle_score >= 4 ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' :
+                                                'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                                            }`}>
+                                                ⚡ {item.oracle_score.toFixed(1)}
+                                            </span>
+                                        )}
+                                        {checkDisinfoLinked(item.title) && (
+                                            <span className="text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border bg-amber-500/15 text-amber-400 border-amber-500/40 animate-pulse" title="This article echoes known disinformation narratives tracked by EUvsDisinfo">
+                                                ⚠ DISINFORMATION-LINKED
+                                            </span>
+                                        )}
+                                        {item.cluster_count > 1 && (
+                                            <button onClick={() => toggleExpand(idx)} className="text-[8px] font-bold font-mono text-cyan-500 bg-[var(--bg-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)] border border-cyan-500/30 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer">
+                                                {isExpanded ? '- COLLAPSE' : `+${item.cluster_count - 1} SOURCES`}
+                                            </button>
+                                        )}
+                                        {item.coords && (
+                                            <span className="text-[8px] text-[var(--text-muted)] font-mono tracking-tighter ml-auto">
+                                                {item.coords[0].toFixed(2)}, {item.coords[1].toFixed(2)}
+                                            </span>
+                                        )}
                                     </div>
 
                                     <AnimatePresence>
@@ -1058,8 +1402,8 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                                             >
                                                 {item.articles.slice(1).map((subItem: any, subIdx: number) => (
                                                     <div key={subIdx} className="flex flex-col gap-0.5 pl-2 border-l border-cyan-500/20">
-                                                        <div className="flex items-center justify-between text-[7.5px] text-[var(--text-muted)] uppercase font-bold">
-                                                            <span>&gt;_ {subItem.source}</span>
+                                                        <div className="flex items-center justify-between text-[7.5px] uppercase font-bold">
+                                                            <span className="text-white">&gt;_ {subItem.source}</span>
                                                             <span className={
                                                                 subItem.risk_score >= 9 ? 'text-red-400' :
                                                                     subItem.risk_score >= 7 ? 'text-orange-400' :
@@ -1079,8 +1423,11 @@ function NewsFeedInner({ data, selectedEntity, regionDossier, regionDossierLoadi
                             )
                         })}
                         {news.length === 0 && (
-                            <div className="text-cyan-500/50 text-[10px] tracking-widest font-bold text-center mt-6 animate-pulse">
-                                INITIALIZING SECURE HANDSHAKE...
+                            <div className="text-cyan-500/50 text-[10px] tracking-widest font-bold text-center mt-6">
+                                NO NEWS ITEMS LOADED
+                                <div className="mt-2 text-[9px] font-normal tracking-normal text-cyan-600/80">
+                                    Feed ingest is empty or still warming up.
+                                </div>
                             </div>
                         )}
                     </motion.div>

@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: ./backend/Dockerfile
+    image: ghcr.io/bigbodycobain/shadowbroker-backend:latest
     container_name: shadowbroker-backend
     ports:
       - "${BIND:-127.0.0.1}:8000:8000"
@@ -11,17 +9,23 @@ services:
       - OPENSKY_CLIENT_ID=${OPENSKY_CLIENT_ID}
       - OPENSKY_CLIENT_SECRET=${OPENSKY_CLIENT_SECRET}
       - LTA_ACCOUNT_KEY=${LTA_ACCOUNT_KEY}
+      - ADMIN_KEY=${ADMIN_KEY:-}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       # Override allowed CORS origins (comma-separated). Auto-detects LAN IPs if empty.
       - CORS_ORIGINS=${CORS_ORIGINS:-}
+      # Default Infonet relay peer so fresh installs can sync immediately.
+      - MESH_RELAY_PEERS=${MESH_RELAY_PEERS:-http://cipher0.shadowbroker.info:8000}
+      # Shared transport auth for mesh peer push (default matches baked-in testnet secret).
+      - MESH_PEER_PUSH_SECRET=${MESH_PEER_PUSH_SECRET:-Mv63UvLfwqOEVWeRBXjA8MtFl2nEkkhUlLYVHiX1Zzo}
     volumes:
       - backend_data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/live-data/fast"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 90s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -29,8 +33,7 @@ services:
           cpus: '2'
 
   frontend:
-    build:
-      context: ./frontend
+    image: ghcr.io/bigbodycobain/shadowbroker-frontend:latest
     container_name: shadowbroker-frontend
     ports:
       - "${BIND:-127.0.0.1}:3000:3000"

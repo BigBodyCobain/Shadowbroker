@@ -15,6 +15,7 @@ import json
 import time
 import logging
 import threading
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -34,108 +35,127 @@ CARRIER_REGISTRY: Dict[str, dict] = {
         "name": "USS Nimitz (CVN-68)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Nimitz",
         "homeport": "Bremerton, WA",
-        "homeport_lat": 47.5535, "homeport_lng": -122.6400,
-        "fallback_lat": 47.5535, "fallback_lng": -122.6400,
+        "homeport_lat": 47.5535,
+        "homeport_lng": -122.6400,
+        "fallback_lat": 47.5535,
+        "fallback_lng": -122.6400,
         "fallback_heading": 90,
-        "fallback_desc": "Bremerton, WA (Maintenance)"
+        "fallback_desc": "Bremerton, WA (Maintenance)",
     },
     "CVN-76": {
         "name": "USS Ronald Reagan (CVN-76)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Ronald_Reagan",
         "homeport": "Bremerton, WA",
-        "homeport_lat": 47.5580, "homeport_lng": -122.6360,
-        "fallback_lat": 47.5580, "fallback_lng": -122.6360,
+        "homeport_lat": 47.5580,
+        "homeport_lng": -122.6360,
+        "fallback_lat": 47.5580,
+        "fallback_lng": -122.6360,
         "fallback_heading": 90,
-        "fallback_desc": "Bremerton, WA (Decommissioning)"
+        "fallback_desc": "Bremerton, WA (Decommissioning)",
     },
-
     # --- Norfolk, VA (Naval Station Norfolk) ---
     # Piers run N-S along Willoughby Bay; each carrier gets a distinct berth
     "CVN-69": {
         "name": "USS Dwight D. Eisenhower (CVN-69)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Dwight_D._Eisenhower",
         "homeport": "Norfolk, VA",
-        "homeport_lat": 36.9465, "homeport_lng": -76.3265,
-        "fallback_lat": 36.9465, "fallback_lng": -76.3265,
+        "homeport_lat": 36.9465,
+        "homeport_lng": -76.3265,
+        "fallback_lat": 36.9465,
+        "fallback_lng": -76.3265,
         "fallback_heading": 0,
-        "fallback_desc": "Norfolk, VA (Post-deployment maintenance)"
+        "fallback_desc": "Norfolk, VA (Post-deployment maintenance)",
     },
     "CVN-78": {
         "name": "USS Gerald R. Ford (CVN-78)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Gerald_R._Ford",
         "homeport": "Norfolk, VA",
-        "homeport_lat": 36.9505, "homeport_lng": -76.3250,
-        "fallback_lat": 18.0, "fallback_lng": 39.5,
+        "homeport_lat": 36.9505,
+        "homeport_lng": -76.3250,
+        "fallback_lat": 18.0,
+        "fallback_lng": 39.5,
         "fallback_heading": 0,
-        "fallback_desc": "Red Sea — Operation Epic Fury (USNI Mar 9)"
+        "fallback_desc": "Red Sea — Operation Epic Fury (USNI Mar 9)",
     },
     "CVN-74": {
         "name": "USS John C. Stennis (CVN-74)",
         "wiki": "https://en.wikipedia.org/wiki/USS_John_C._Stennis",
         "homeport": "Norfolk, VA",
-        "homeport_lat": 36.9540, "homeport_lng": -76.3235,
-        "fallback_lat": 36.98, "fallback_lng": -76.43,
+        "homeport_lat": 36.9540,
+        "homeport_lng": -76.3235,
+        "fallback_lat": 36.98,
+        "fallback_lng": -76.43,
         "fallback_heading": 0,
-        "fallback_desc": "Newport News, VA (RCOH refueling overhaul)"
+        "fallback_desc": "Newport News, VA (RCOH refueling overhaul)",
     },
     "CVN-75": {
         "name": "USS Harry S. Truman (CVN-75)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Harry_S._Truman",
         "homeport": "Norfolk, VA",
-        "homeport_lat": 36.9580, "homeport_lng": -76.3220,
-        "fallback_lat": 36.0, "fallback_lng": 15.0,
+        "homeport_lat": 36.9580,
+        "homeport_lng": -76.3220,
+        "fallback_lat": 36.0,
+        "fallback_lng": 15.0,
         "fallback_heading": 0,
-        "fallback_desc": "Mediterranean Sea deployment (USNI Mar 9)"
+        "fallback_desc": "Mediterranean Sea deployment (USNI Mar 9)",
     },
     "CVN-77": {
         "name": "USS George H.W. Bush (CVN-77)",
         "wiki": "https://en.wikipedia.org/wiki/USS_George_H.W._Bush",
         "homeport": "Norfolk, VA",
-        "homeport_lat": 36.9620, "homeport_lng": -76.3210,
-        "fallback_lat": 36.5, "fallback_lng": -74.0,
+        "homeport_lat": 36.9620,
+        "homeport_lng": -76.3210,
+        "fallback_lat": 36.5,
+        "fallback_lng": -74.0,
         "fallback_heading": 0,
-        "fallback_desc": "Atlantic — Pre-deployment workups (USNI Mar 9)"
+        "fallback_desc": "Atlantic — Pre-deployment workups (USNI Mar 9)",
     },
-
     # --- San Diego, CA (Naval Base San Diego) ---
     # Carrier piers along the east shore of San Diego Bay, spread N-S
     "CVN-70": {
         "name": "USS Carl Vinson (CVN-70)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Carl_Vinson",
         "homeport": "San Diego, CA",
-        "homeport_lat": 32.6840, "homeport_lng": -117.1290,
-        "fallback_lat": 32.6840, "fallback_lng": -117.1290,
+        "homeport_lat": 32.6840,
+        "homeport_lng": -117.1290,
+        "fallback_lat": 32.6840,
+        "fallback_lng": -117.1290,
         "fallback_heading": 180,
-        "fallback_desc": "San Diego, CA (Homeport)"
+        "fallback_desc": "San Diego, CA (Homeport)",
     },
     "CVN-71": {
         "name": "USS Theodore Roosevelt (CVN-71)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Theodore_Roosevelt_(CVN-71)",
         "homeport": "San Diego, CA",
-        "homeport_lat": 32.6885, "homeport_lng": -117.1280,
-        "fallback_lat": 32.6885, "fallback_lng": -117.1280,
+        "homeport_lat": 32.6885,
+        "homeport_lng": -117.1280,
+        "fallback_lat": 32.6885,
+        "fallback_lng": -117.1280,
         "fallback_heading": 180,
-        "fallback_desc": "San Diego, CA (Maintenance)"
+        "fallback_desc": "San Diego, CA (Maintenance)",
     },
     "CVN-72": {
         "name": "USS Abraham Lincoln (CVN-72)",
         "wiki": "https://en.wikipedia.org/wiki/USS_Abraham_Lincoln_(CVN-72)",
         "homeport": "San Diego, CA",
-        "homeport_lat": 32.6925, "homeport_lng": -117.1275,
-        "fallback_lat": 20.0, "fallback_lng": 64.0,
+        "homeport_lat": 32.6925,
+        "homeport_lng": -117.1275,
+        "fallback_lat": 20.0,
+        "fallback_lng": 64.0,
         "fallback_heading": 0,
-        "fallback_desc": "Arabian Sea — Operation Epic Fury (USNI Mar 9)"
+        "fallback_desc": "Arabian Sea — Operation Epic Fury (USNI Mar 9)",
     },
-
     # --- Yokosuka, Japan (CFAY) ---
     "CVN-73": {
         "name": "USS George Washington (CVN-73)",
         "wiki": "https://en.wikipedia.org/wiki/USS_George_Washington_(CVN-73)",
         "homeport": "Yokosuka, Japan",
-        "homeport_lat": 35.2830, "homeport_lng": 139.6700,
-        "fallback_lat": 35.2830, "fallback_lng": 139.6700,
+        "homeport_lat": 35.2830,
+        "homeport_lng": 139.6700,
+        "fallback_lat": 35.2830,
+        "fallback_lng": 139.6700,
         "fallback_heading": 180,
-        "fallback_desc": "Yokosuka, Japan (Forward deployed)"
+        "fallback_desc": "Yokosuka, Japan (Forward deployed)",
     },
 }
 
@@ -175,7 +195,6 @@ REGION_COORDS: Dict[str, tuple] = {
     "coral sea": (-18.0, 155.0),
     "gulf of mexico": (25.0, -90.0),
     "caribbean": (15.0, -75.0),
-
     # Specific bases / ports
     "norfolk": (36.95, -76.33),
     "san diego": (32.68, -117.15),
@@ -188,7 +207,6 @@ REGION_COORDS: Dict[str, tuple] = {
     "bremerton": (47.56, -122.63),
     "puget sound": (47.56, -122.63),
     "newport news": (36.98, -76.43),
-
     # Areas of operation
     "centcom": (25.0, 55.0),
     "indopacom": (20.0, 130.0),
@@ -209,6 +227,11 @@ CACHE_FILE = Path(__file__).parent.parent / "carrier_cache.json"
 _carrier_positions: Dict[str, dict] = {}
 _positions_lock = threading.Lock()
 _last_update: Optional[datetime] = None
+_last_gdelt_fetch_at = 0.0
+_cached_gdelt_articles: List[dict] = []
+_GDELT_FETCH_INTERVAL_SECONDS = 1800
+_GDELT_REQUEST_DELAY_SECONDS = 1.25
+_GDELT_REQUEST_JITTER_SECONDS = 0.35
 
 
 def _load_cache() -> Dict[str, dict]:
@@ -260,22 +283,41 @@ def _match_carrier(text: str) -> Optional[str]:
 
 def _fetch_gdelt_carrier_news() -> List[dict]:
     """Search GDELT for recent carrier movement news."""
+    global _last_gdelt_fetch_at, _cached_gdelt_articles
+
+    now = time.time()
+    if _cached_gdelt_articles and (now - _last_gdelt_fetch_at) < _GDELT_FETCH_INTERVAL_SECONDS:
+        logger.info("Carrier OSINT: using cached GDELT article set to avoid startup bursts")
+        return list(_cached_gdelt_articles)
+
     results = []
     search_terms = [
         "aircraft+carrier+deployed",
         "carrier+strike+group+navy",
-        "USS+Nimitz+carrier", "USS+Ford+carrier", "USS+Eisenhower+carrier",
-        "USS+Vinson+carrier", "USS+Roosevelt+carrier+navy",
-        "USS+Lincoln+carrier", "USS+Truman+carrier",
-        "USS+Reagan+carrier", "USS+Washington+carrier+navy",
-        "USS+Bush+carrier", "USS+Stennis+carrier",
+        "USS+Nimitz+carrier",
+        "USS+Ford+carrier",
+        "USS+Eisenhower+carrier",
+        "USS+Vinson+carrier",
+        "USS+Roosevelt+carrier+navy",
+        "USS+Lincoln+carrier",
+        "USS+Truman+carrier",
+        "USS+Reagan+carrier",
+        "USS+Washington+carrier+navy",
+        "USS+Bush+carrier",
+        "USS+Stennis+carrier",
     ]
 
-    for term in search_terms:
+    for idx, term in enumerate(search_terms):
         try:
             url = f"https://api.gdeltproject.org/api/v2/doc/doc?query={term}&mode=artlist&maxrecords=5&format=json&timespan=14d"
             raw = fetch_with_curl(url, timeout=8)
-            if not raw or not hasattr(raw, 'text'):
+            if getattr(raw, "status_code", 500) == 429:
+                logger.warning(
+                    "GDELT returned 429 for '%s'; preserving cached carrier OSINT results",
+                    term,
+                )
+                continue
+            if not raw or not hasattr(raw, "text"):
                 continue
             data = raw.json()
             articles = data.get("articles", [])
@@ -286,7 +328,14 @@ def _fetch_gdelt_carrier_news() -> List[dict]:
         except (ConnectionError, TimeoutError, ValueError, KeyError, OSError) as e:
             logger.debug(f"GDELT search failed for '{term}': {e}")
             continue
+        if idx < len(search_terms) - 1:
+            time.sleep(
+                _GDELT_REQUEST_DELAY_SECONDS
+                + random.uniform(0.0, _GDELT_REQUEST_JITTER_SECONDS)
+            )
 
+    _cached_gdelt_articles = list(results)
+    _last_gdelt_fetch_at = time.time()
     logger.info(f"Carrier OSINT: found {len(results)} GDELT articles")
     return results
 
@@ -316,9 +365,11 @@ def _parse_carrier_positions_from_news(articles: List[dict]) -> Dict[str, dict]:
                 "desc": title[:100],
                 "source": "GDELT News API",
                 "source_url": article.get("url", "https://api.gdeltproject.org"),
-                "updated": datetime.now(timezone.utc).isoformat()
+                "updated": datetime.now(timezone.utc).isoformat(),
             }
-            logger.info(f"Carrier update: {CARRIER_REGISTRY[hull]['name']} → {coords} (from: {title[:80]})")
+            logger.info(
+                f"Carrier update: {CARRIER_REGISTRY[hull]['name']} → {coords} (from: {title[:80]})"
+            )
 
     return updates
 
@@ -336,21 +387,25 @@ def _load_carrier_fallbacks() -> Dict[str, dict]:
             "wiki": info["wiki"],
             "source": "USNI News Fleet & Marine Tracker",
             "source_url": "https://news.usni.org/category/fleet-tracker",
-            "updated": datetime.now(timezone.utc).isoformat()
+            "updated": datetime.now(timezone.utc).isoformat(),
         }
 
     # Overlay cached positions from previous runs (may have GDELT data)
     cached = _load_cache()
     for hull, cached_pos in cached.items():
         if hull in positions:
-            if cached_pos.get("source", "").startswith("GDELT") or cached_pos.get("source", "").startswith("News"):
-                positions[hull].update({
-                    "lat": cached_pos["lat"],
-                    "lng": cached_pos["lng"],
-                    "desc": cached_pos.get("desc", positions[hull]["desc"]),
-                    "source": cached_pos.get("source", "Cached OSINT"),
-                    "updated": cached_pos.get("updated", "")
-                })
+            if cached_pos.get("source", "").startswith("GDELT") or cached_pos.get(
+                "source", ""
+            ).startswith("News"):
+                positions[hull].update(
+                    {
+                        "lat": cached_pos["lat"],
+                        "lng": cached_pos["lng"],
+                        "desc": cached_pos.get("desc", positions[hull]["desc"]),
+                        "source": cached_pos.get("source", "Cached OSINT"),
+                        "updated": cached_pos.get("updated", ""),
+                    }
+                )
     return positions
 
 
@@ -371,7 +426,9 @@ def update_carrier_positions():
         if not _carrier_positions:
             _carrier_positions.update(positions)
             _last_update = datetime.now(timezone.utc)
-    logger.info(f"Carrier tracker: {len(positions)} carriers loaded from fallback/cache (GDELT enrichment starting...)")
+    logger.info(
+        f"Carrier tracker: {len(positions)} carriers loaded from fallback/cache (GDELT enrichment starting...)"
+    )
 
     # --- Phase 2: slow GDELT enrichment ---
     try:
@@ -408,6 +465,7 @@ def _deconflict_positions(result: List[dict]) -> List[dict]:
     """
     # Group by rounded lat/lng (within ~0.01° ≈ 1km = same spot)
     from collections import defaultdict
+
     groups: dict[str, list[int]] = defaultdict(list)
     for i, c in enumerate(result):
         key = f"{round(c['lat'], 2)},{round(c['lng'], 2)}"
@@ -454,22 +512,26 @@ def get_carrier_positions() -> List[dict]:
         result = []
         for hull, pos in _carrier_positions.items():
             info = CARRIER_REGISTRY.get(hull, {})
-            result.append({
-                "name": pos.get("name", info.get("name", hull)),
-                "type": "carrier",
-                "lat": pos["lat"],
-                "lng": pos["lng"],
-                "heading": None,  # Heading unknown for carriers — OSINT cannot determine true heading
-                "sog": 0,
-                "cog": 0,
-                "country": "United States",
-                "desc": pos.get("desc", ""),
-                "wiki": pos.get("wiki", info.get("wiki", "")),
-                "estimated": True,
-                "source": pos.get("source", "OSINT estimated position"),
-                "source_url": pos.get("source_url", "https://news.usni.org/category/fleet-tracker"),
-                "last_osint_update": pos.get("updated", "")
-            })
+            result.append(
+                {
+                    "name": pos.get("name", info.get("name", hull)),
+                    "type": "carrier",
+                    "lat": pos["lat"],
+                    "lng": pos["lng"],
+                    "heading": None,  # Heading unknown for carriers — OSINT cannot determine true heading
+                    "sog": 0,
+                    "cog": 0,
+                    "country": "United States",
+                    "desc": pos.get("desc", ""),
+                    "wiki": pos.get("wiki", info.get("wiki", "")),
+                    "estimated": True,
+                    "source": pos.get("source", "OSINT estimated position"),
+                    "source_url": pos.get(
+                        "source_url", "https://news.usni.org/category/fleet-tracker"
+                    ),
+                    "last_osint_update": pos.get("updated", ""),
+                }
+            )
         return _deconflict_positions(result)
 
 
@@ -500,10 +562,13 @@ def _scheduler_loop():
         next_run = now.replace(hour=next_hour % 24, minute=0, second=0, microsecond=0)
         if next_hour == 24:
             from datetime import timedelta
+
             next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
         wait_seconds = (next_run - now).total_seconds()
-        logger.info(f"Carrier tracker: next update at {next_run.isoformat()} ({wait_seconds/3600:.1f}h)")
+        logger.info(
+            f"Carrier tracker: next update at {next_run.isoformat()} ({wait_seconds/3600:.1f}h)"
+        )
 
         # Wait until next scheduled time, or until stop event
         if _scheduler_stop.wait(timeout=wait_seconds):
@@ -521,7 +586,9 @@ def start_carrier_tracker():
     if _scheduler_thread and _scheduler_thread.is_alive():
         return
     _scheduler_stop.clear()
-    _scheduler_thread = threading.Thread(target=_scheduler_loop, daemon=True, name="carrier-tracker")
+    _scheduler_thread = threading.Thread(
+        target=_scheduler_loop, daemon=True, name="carrier-tracker"
+    )
     _scheduler_thread.start()
     logger.info("Carrier tracker started")
 

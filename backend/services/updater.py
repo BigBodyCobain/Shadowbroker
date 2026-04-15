@@ -5,6 +5,7 @@ Public API:
     perform_update(project_root)  -> dict   (download + backup + extract)
     schedule_restart(project_root)           (spawn detached start script, then exit)
 """
+
 import os
 import sys
 import logging
@@ -13,6 +14,8 @@ import subprocess
 import tempfile
 import time
 import zipfile
+import hashlib
+from urllib.parse import urlparse
 from datetime import datetime
 from pathlib import Path
 
@@ -21,17 +24,56 @@ import requests
 logger = logging.getLogger(__name__)
 
 GITHUB_RELEASES_URL = "https://api.github.com/repos/BigBodyCobain/Shadowbroker/releases/latest"
+GITHUB_RELEASES_PAGE_URL = "https://github.com/BigBodyCobain/Shadowbroker/releases/latest"
+DOCKER_UPDATE_COMMANDS = (
+    "docker compose pull && docker compose up -d"
+)
+
+
+def _is_docker() -> bool:
+    """Detect if we're running inside a Docker container."""
+    if os.path.isfile("/.dockerenv"):
+        return True
+    try:
+        with open("/proc/1/cgroup", "r") as f:
+            return "docker" in f.read()
+    except (FileNotFoundError, PermissionError):
+        pass
+    return os.environ.get("container") == "docker"
+_EXPECTED_SHA256 = os.environ.get("MESH_UPDATE_SHA256", "").strip().lower()
+_ALLOWED_UPDATE_HOSTS = {
+    "api.github.com",
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "github-releases.githubusercontent.com",
+}
 
 # ---------------------------------------------------------------------------
 # Protected patterns — files/dirs that must NEVER be overwritten during update
 # ---------------------------------------------------------------------------
-_PROTECTED_DIRS = {"venv", "node_modules", ".next", "__pycache__", ".git", ".github", ".claude"}
-_PROTECTED_EXTENSIONS = {".db", ".sqlite"}
+_PROTECTED_DIRS = {
+    "venv", "node_modules", ".next", "__pycache__", ".git", ".github", ".claude",
+    "_domain_keys", "node-local", "gate_persona", "gate_session", "dm_alias",
+    "root", "transport", "reputation",
+}
+_PROTECTED_EXTENSIONS = {".db", ".sqlite", ".key", ".pem", ".bin"}
 _PROTECTED_NAMES = {
     ".env",
     "ais_cache.json",
     "carrier_cache.json",
     "geocode_cache.json",
+    "infonet.json",
+    "infonet.json.bak",
+    "peer_store.json",
+    "node.json",
+    "wormhole.json",
+    "wormhole_status.json",
+    "wormhole_secure_store.key",
+    "dm_token_pepper.key",
+    "voter_blind_salt.bin",
+    "reputation_ledger.json",
+    "gates.json",
 }
 
 
@@ -55,19 +97,39 @@ def _is_protected(rel_path: str) -> bool:
     return False
 
 
+def _validate_update_url(url: str, *, allow_release_page: bool = False) -> str:
+    parsed = urlparse(str(url or "").strip())
+    host = (parsed.hostname or "").strip().lower()
+    if parsed.scheme != "https":
+        raise RuntimeError("Updater refused a non-HTTPS release URL")
+    if parsed.username or parsed.password:
+        raise RuntimeError("Updater refused a credentialed release URL")
+    if not host or host not in _ALLOWED_UPDATE_HOSTS:
+        raise RuntimeError(f"Updater refused an untrusted release host: {host or 'unknown'}")
+    if parsed.port not in (None, 443):
+        raise RuntimeError("Updater refused a non-standard release port")
+    if not allow_release_page and host == "github.com" and "/releases/" not in parsed.path:
+        raise RuntimeError("Updater refused a non-release GitHub URL")
+    return parsed.geturl()
+
+
 # ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
 def _download_release(temp_dir: str) -> tuple:
     """Fetch latest release info and download the zip asset.
-    Returns (zip_path, version_tag, download_url).
+    Returns (zip_path, version_tag, download_url, release_url).
     """
     logger.info("Fetching latest release info from GitHub...")
+    _validate_update_url(GITHUB_RELEASES_URL)
     resp = requests.get(GITHUB_RELEASES_URL, timeout=15)
     resp.raise_for_status()
+    _validate_update_url(resp.url)
     release = resp.json()
 
     tag = release.get("tag_name", "unknown")
+    release_url = str(release.get("html_url") or GITHUB_RELEASES_PAGE_URL).strip()
+    _validate_update_url(release_url, allow_release_page=True)
     assets = release.get("assets", [])
 
     # Find the .zip asset
@@ -80,11 +142,13 @@ def _download_release(temp_dir: str) -> tuple:
 
     if not zip_url:
         raise RuntimeError("No .zip asset found in the latest release")
+    _validate_update_url(zip_url)
 
     logger.info(f"Downloading {zip_url} ...")
     zip_path = os.path.join(temp_dir, "update.zip")
     with requests.get(zip_url, stream=True, timeout=120) as dl:
         dl.raise_for_status()
+        _validate_update_url(dl.url)
         with open(zip_path, "wb") as f:
             for chunk in dl.iter_content(chunk_size=1024 * 64):
                 f.write(chunk)
@@ -94,7 +158,19 @@ def _download_release(temp_dir: str) -> tuple:
 
     size_mb = os.path.getsize(zip_path) / (1024 * 1024)
     logger.info(f"Downloaded {size_mb:.1f} MB — ZIP validated OK")
-    return zip_path, tag, zip_url
+    return zip_path, tag, zip_url, release_url
+
+
+def _validate_zip_hash(zip_path: str) -> None:
+    if not _EXPECTED_SHA256:
+        return
+    h = hashlib.sha256()
+    with open(zip_path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 128), b""):
+            h.update(chunk)
+    digest = h.hexdigest().lower()
+    if digest != _EXPECTED_SHA256:
+        raise RuntimeError("Update SHA-256 mismatch")
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +218,16 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
     extract_dir = os.path.join(temp_dir, "extracted")
     logger.info("Extracting update zip...")
     with zipfile.ZipFile(zip_path, "r") as zf:
+        extract_root = Path(extract_dir).resolve()
+        for member in zf.infolist():
+            try:
+                target = (extract_root / member.filename).resolve()
+            except OSError as exc:
+                raise RuntimeError(f"Updater refused archive entry {member.filename}: {exc}") from exc
+            try:
+                target.relative_to(extract_root)
+            except ValueError:
+                raise RuntimeError(f"Updater refused archive path traversal entry: {member.filename}")
         zf.extractall(extract_dir)
 
     # Detect wrapper folder: if extracted root has a single directory that
@@ -243,10 +329,33 @@ def perform_update(project_root: str) -> dict:
     Returns a dict with status info on success, or {"status": "error", "message": ...}
     on failure.  Does NOT trigger restart — caller should call schedule_restart()
     separately after the HTTP response has been sent.
+
+    In Docker, file extraction is skipped because containers run from immutable
+    images.  Instead the response tells the frontend to show pull instructions.
     """
+    in_docker = _is_docker()
     temp_dir = tempfile.mkdtemp(prefix="sb_update_")
+    manual_url = GITHUB_RELEASES_PAGE_URL
     try:
-        zip_path, version, url = _download_release(temp_dir)
+        zip_path, version, url, release_url = _download_release(temp_dir)
+        manual_url = release_url or manual_url
+
+        if in_docker:
+            logger.info("Docker detected — skipping file extraction")
+            return {
+                "status": "docker",
+                "version": version,
+                "manual_url": manual_url,
+                "release_url": release_url,
+                "download_url": url,
+                "docker_commands": DOCKER_UPDATE_COMMANDS,
+                "message": (
+                    f"Version {version} is available. "
+                    "Docker containers must be updated by pulling the new images."
+                ),
+            }
+
+        _validate_zip_hash(zip_path)
         backup_path = _backup_current(project_root, temp_dir)
         copied = _extract_and_copy(zip_path, project_root, temp_dir)
 
@@ -255,6 +364,9 @@ def perform_update(project_root: str) -> dict:
             "version": version,
             "files_updated": copied,
             "backup_path": backup_path,
+            "manual_url": manual_url,
+            "release_url": release_url,
+            "download_url": url,
             "message": f"Updated to {version} — {copied} files replaced. Restarting...",
         }
     except Exception as e:
@@ -262,4 +374,5 @@ def perform_update(project_root: str) -> dict:
         return {
             "status": "error",
             "message": str(e),
+            "manual_url": manual_url,
         }

@@ -1,0 +1,17 @@
+[package]
+name = "privacy-core"
+version = "0.1.0"
+edition = "2021"
+description = "Rust privacy core for ShadowBroker / Infonet private messaging primitives"
+license = "MIT"
+publish = false
+
+[lib]
+name = "privacy_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mls-rs = { git = "https://github.com/awslabs/mls-rs", rev = "027d9051437f88b81f4214c5a0a3a8fd7bbb8501", package = "mls-rs", default-features = false, features = ["std", "private_message"] }
+mls-rs-crypto-rustcrypto = { git = "https://github.com/awslabs/mls-rs", rev = "027d9051437f88b81f4214c5a0a3a8fd7bbb8501", package = "mls-rs-crypto-rustcrypto", default-features = false, features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

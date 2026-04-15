@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAircraft, HELI_TYPES, TURBOPROP_TYPES, BIZJET_TYPES } from '@/utils/aircraftClassification';
+import {
+  classifyAircraft,
+  HELI_TYPES,
+  TURBOPROP_TYPES,
+  BIZJET_TYPES,
+} from '@/utils/aircraftClassification';
 
 describe('classifyAircraft', () => {
   // ─── Helicopter classification ────────────────────────────────────────────

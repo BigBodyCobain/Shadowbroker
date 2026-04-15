@@ -1,8 +1,15 @@
 """Tests for network_utils — fetch_with_curl, circuit breaker, domain fail cache."""
+
 import time
 import pytest
 from unittest.mock import patch, MagicMock
-from services.network_utils import fetch_with_curl, _circuit_breaker, _domain_fail_cache, _cb_lock, _DummyResponse
+from services.network_utils import (
+    fetch_with_curl,
+    _circuit_breaker,
+    _domain_fail_cache,
+    _cb_lock,
+    _DummyResponse,
+)
 
 
 class TestDummyResponse:
@@ -81,7 +88,7 @@ class TestCircuitBreaker:
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = '{"data": true}\n200'
-        mock_result.stderr = ''
+        mock_result.stderr = ""
 
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             result = fetch_with_curl("https://skip-to-curl.com/api")
@@ -138,8 +145,9 @@ class TestFetchWithCurl:
 
         with patch("services.network_utils._session") as mock_session:
             mock_session.post.return_value = mock_resp
-            result = fetch_with_curl("https://api.example.com/create",
-                                     method="POST", json_data={"name": "test"})
+            result = fetch_with_curl(
+                "https://api.example.com/create", method="POST", json_data={"name": "test"}
+            )
             assert result.status_code == 200
             mock_session.post.assert_called_once()
 
@@ -151,8 +159,9 @@ class TestFetchWithCurl:
 
         with patch("services.network_utils._session") as mock_session:
             mock_session.get.return_value = mock_resp
-            fetch_with_curl("https://api.example.com/data",
-                           headers={"Authorization": "Bearer token123"})
+            fetch_with_curl(
+                "https://api.example.com/data", headers={"Authorization": "Bearer token123"}
+            )
             call_args = mock_session.get.call_args
             headers = call_args.kwargs.get("headers", {})
             assert "Authorization" in headers

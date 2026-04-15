@@ -7,6 +7,7 @@ import feedparser
 from services.network_utils import fetch_with_curl
 from services.fetchers._store import latest_data, _data_lock, _mark_fresh
 from services.fetchers.retry import with_retry
+from services.oracle_service import enrich_news_items, compute_global_threat_level, detect_breaking_events
 
 logger = logging.getLogger("services.data_fetcher")
 
@@ -170,7 +171,7 @@ def fetch_news():
             logger.warning(f"Feed {source_name} failed: {e}")
             return source_name, None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(feeds)) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(feeds), 6)) as pool:
         feed_results = list(pool.map(_fetch_feed, feeds.items()))
 
     for source_name, feed in feed_results:
@@ -191,7 +192,14 @@ def fetch_news():
                 elif alert_level == "Orange": risk_score = 7
                 else: risk_score = 4
             else:
-                risk_keywords = ['war', 'missile', 'strike', 'attack', 'crisis', 'tension', 'military', 'conflict', 'defense', 'clash', 'nuclear']
+                risk_keywords = [
+                    'war', 'missile', 'strike', 'attack', 'crisis', 'tension',
+                    'military', 'conflict', 'defense', 'clash', 'nuclear',
+                    'sanctions', 'ceasefire', 'invasion', 'drone', 'artillery',
+                    'blockade', 'escalation', 'casualties', 'airspace',
+                    'mobilization', 'proxy', 'insurgent', 'coup',
+                    'assassination', 'bioweapon', 'chemical',
+                ]
                 text = (title + " " + summary).lower()
 
                 risk_score = 1
@@ -268,6 +276,36 @@ def fetch_news():
         })
 
     news_items.sort(key=lambda x: x['risk_score'], reverse=True)
+
+    # Oracle enrichment: sentiment, oracle scores, prediction market odds
+    try:
+        with _data_lock:
+            markets = list(latest_data.get("prediction_markets", []))
+        enrich_news_items(news_items, source_weights, markets)
+        detect_breaking_events(news_items)
+    except Exception as e:
+        logger.warning(f"Oracle enrichment failed (news still usable): {e}")
+
+    # Global threat level computation (fuses news + markets + military + jamming)
+    try:
+        with _data_lock:
+            markets = list(latest_data.get("prediction_markets", []))
+            mil_flights = list(latest_data.get("military_flights", []))
+            jam_zones = list(latest_data.get("gps_jamming", []))
+            ships = list(latest_data.get("ships", []))
+            corr_alerts = list(latest_data.get("correlations", []))
+        threat_level = compute_global_threat_level(
+            news_items, markets,
+            military_flights=mil_flights,
+            gps_jamming=jam_zones,
+            ships=ships,
+            correlations=corr_alerts,
+        )
+    except Exception as e:
+        logger.warning(f"Threat level computation failed: {e}")
+        threat_level = {"score": 0, "level": "GREEN", "color": "#22c55e", "drivers": []}
+
     with _data_lock:
         latest_data['news'] = news_items
+        latest_data['threat_level'] = threat_level
     _mark_fresh("news")

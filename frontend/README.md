@@ -19,14 +19,14 @@ The frontend needs to reach the backend (default port `8000`). Resolution order:
 
 ### Common scenarios
 
-| Scenario | Action needed |
-|----------|---------------|
-| Local dev (`localhost:3000` + `localhost:8000`) | None — auto-detected |
-| LAN access (`192.168.x.x:3000`) | None — auto-detected from browser hostname |
-| Public deploy (same host, port 8000) | None — auto-detected |
-| Backend on different port (e.g. `9096`) | Set `NEXT_PUBLIC_API_URL=http://host:9096` before build |
-| Backend on different host | Set `NEXT_PUBLIC_API_URL=http://backend-host:8000` before build |
-| Behind reverse proxy (e.g. `/api` path) | Set `NEXT_PUBLIC_API_URL=https://yourdomain.com` before build |
+| Scenario                                        | Action needed                                                   |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| Local dev (`localhost:3000` + `localhost:8000`) | None — auto-detected                                            |
+| LAN access (`192.168.x.x:3000`)                 | None — auto-detected from browser hostname                      |
+| Public deploy (same host, port 8000)            | None — auto-detected                                            |
+| Backend on different port (e.g. `9096`)         | Set `NEXT_PUBLIC_API_URL=http://host:9096` before build         |
+| Backend on different host                       | Set `NEXT_PUBLIC_API_URL=http://backend-host:8000` before build |
+| Behind reverse proxy (e.g. `/api` path)         | Set `NEXT_PUBLIC_API_URL=https://yourdomain.com` before build   |
 
 ### Setting the variable
 
