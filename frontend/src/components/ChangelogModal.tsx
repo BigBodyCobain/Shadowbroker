@@ -110,7 +110,7 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
                                     </h2>
                                 </div>
                                 <p className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest mt-1">
-                                    SHADOWBROKER INTELLIGENCE PLATFORM UPDATE
+                                    PUBLICDATALAKE INTELLIGENCE PLATFORM UPDATE
                                 </p>
                             </div>
                             <button
