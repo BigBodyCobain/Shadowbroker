@@ -2,40 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio } from "lucide-react";
+import { X, Shield, Globe, Radar, Satellite, Ship, Radio } from "lucide-react";
 
 const STORAGE_KEY = "shadowbroker_onboarding_complete";
-
-const API_GUIDES = [
-    {
-        name: "OpenSky Network",
-        icon: <Radar size={14} className="text-cyan-400" />,
-        required: true,
-        description: "Flight tracking with global ADS-B coverage. Provides real-time aircraft positions.",
-        steps: [
-            "Create a free account at opensky-network.org",
-            "Go to Dashboard → OAuth → Create Client",
-            "Copy your Client ID and Client Secret",
-            "Paste both into Settings → Aviation",
-        ],
-        url: "https://opensky-network.org/index.php?option=com_users&view=registration",
-        color: "cyan",
-    },
-    {
-        name: "AIS Stream",
-        icon: <Ship size={14} className="text-blue-400" />,
-        required: true,
-        description: "Real-time vessel tracking via AIS (Automatic Identification System).",
-        steps: [
-            "Register at aisstream.io",
-            "Navigate to your API Keys page",
-            "Generate a new API key",
-            "Paste it into Settings → Maritime",
-        ],
-        url: "https://aisstream.io/authenticate",
-        color: "blue",
-    },
-];
 
 const FREE_SOURCES = [
     { name: "ADS-B Exchange", desc: "Military & general aviation", icon: <Radar size={12} /> },
@@ -46,6 +15,7 @@ const FREE_SOURCES = [
     { name: "OpenMHz", desc: "Radio scanner feeds", icon: <Radio size={12} /> },
     { name: "RSS Feeds", desc: "NPR, BBC, Reuters, AP", icon: <Globe size={12} /> },
     { name: "Yahoo Finance", desc: "Defense stocks & oil", icon: <Globe size={12} /> },
+    { name: "AIS Stream", desc: "Global vessel tracking", icon: <Ship size={12} /> },
 ];
 
 interface OnboardingModalProps {
@@ -53,18 +23,12 @@ interface OnboardingModalProps {
     onOpenSettings: () => void;
 }
 
-const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSettings }: OnboardingModalProps) {
+const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSettings: _ }: OnboardingModalProps) {
     const [step, setStep] = useState(0);
 
     const handleDismiss = () => {
         localStorage.setItem(STORAGE_KEY, "true");
         onClose();
-    };
-
-    const handleOpenSettings = () => {
-        localStorage.setItem(STORAGE_KEY, "true");
-        onClose();
-        onOpenSettings();
     };
 
     return (
@@ -115,7 +79,7 @@ const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSet
 
                     {/* Step Indicators */}
                     <div className="flex gap-2 px-6 pt-4">
-                        {["Welcome", "API Keys", "Free Sources"].map((label, i) => (
+                        {["Welcome", "Data Sources"].map((label, i) => (
                             <button
                                 key={label}
                                 onClick={() => setStep(i)}
@@ -144,26 +108,13 @@ const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSet
                                     </p>
                                 </div>
 
-                                <div className="bg-yellow-950/20 border border-yellow-500/20 rounded-lg p-4">
-                                    <div className="flex items-start gap-2">
-                                        <Key size={14} className="text-yellow-500 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-[11px] text-yellow-400 font-mono font-bold mb-1">API Keys Required</p>
-                                            <p className="text-[10px] text-[var(--text-secondary)] font-mono leading-relaxed">
-                                                Two API keys are needed for full functionality: <span className="text-cyan-400">OpenSky Network</span> (flights) and <span className="text-blue-400">AIS Stream</span> (ships).
-                                                Both are free. Without them, some panels will show no data.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div className="bg-green-950/20 border border-green-500/20 rounded-lg p-4">
                                     <div className="flex items-start gap-2">
                                         <Globe size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
                                         <div>
-                                            <p className="text-[11px] text-green-400 font-mono font-bold mb-1">8 Sources Work Immediately</p>
+                                            <p className="text-[11px] text-green-400 font-mono font-bold mb-1">Ready to Use</p>
                                             <p className="text-[10px] text-[var(--text-secondary)] font-mono leading-relaxed">
-                                                Military aircraft, satellites, earthquakes, global conflicts, weather radar, radio scanners, news, and market data all work out of the box — no keys needed.
+                                                All data sources are pre-configured. Enable layers from the left panel to start exploring — no setup required.
                                             </p>
                                         </div>
                                     </div>
@@ -172,50 +123,9 @@ const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSet
                         )}
 
                         {step === 1 && (
-                            <div className="space-y-4">
-                                {API_GUIDES.map((api) => (
-                                    <div key={api.name} className={`rounded-lg border border-${api.color}-900/30 bg-${api.color}-950/10 p-4`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                {api.icon}
-                                                <span className="text-xs font-mono text-white font-bold">{api.name}</span>
-                                                <span className="text-[8px] font-mono px-1.5 py-0.5 rounded border border-yellow-500/30 text-yellow-400 bg-yellow-950/20">REQUIRED</span>
-                                            </div>
-                                            <a
-                                                href={api.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className={`text-[10px] font-mono text-${api.color}-400 hover:text-${api.color}-300 flex items-center gap-1 transition-colors`}
-                                            >
-                                                GET KEY <ExternalLink size={10} />
-                                            </a>
-                                        </div>
-                                        <p className="text-[10px] text-[var(--text-secondary)] font-mono mb-3">{api.description}</p>
-                                        <ol className="space-y-1.5">
-                                            {api.steps.map((s, i) => (
-                                                <li key={i} className="flex items-start gap-2">
-                                                    <span className={`text-[9px] font-mono text-${api.color}-500 font-bold mt-0.5 w-3 flex-shrink-0`}>{i + 1}.</span>
-                                                    <span className="text-[10px] text-gray-300 font-mono">{s}</span>
-                                                </li>
-                                            ))}
-                                        </ol>
-                                    </div>
-                                ))}
-
-                                <button
-                                    onClick={handleOpenSettings}
-                                    className="w-full py-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition-colors text-[11px] font-mono tracking-widest flex items-center justify-center gap-2"
-                                >
-                                    <Key size={14} />
-                                    OPEN SETTINGS TO ENTER KEYS
-                                </button>
-                            </div>
-                        )}
-
-                        {step === 2 && (
                             <div className="space-y-3">
                                 <p className="text-[10px] text-[var(--text-secondary)] font-mono mb-3">
-                                    These data sources are completely free and require no API keys. They activate automatically on launch.
+                                    These data sources activate automatically when you enable their layer.
                                 </p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {FREE_SOURCES.map((src) => (
@@ -247,12 +157,12 @@ const OnboardingModal = React.memo(function OnboardingModal({ onClose, onOpenSet
                         </button>
 
                         <div className="flex gap-1.5">
-                            {[0, 1, 2].map((i) => (
+                            {[0, 1].map((i) => (
                                 <div key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${step === i ? "bg-cyan-400" : "bg-[var(--border-primary)]"}`} />
                             ))}
                         </div>
 
-                        {step < 2 ? (
+                        {step < 1 ? (
                             <button
                                 onClick={() => setStep(step + 1)}
                                 className="px-4 py-2 rounded border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-[10px] font-mono tracking-widest transition-all"
