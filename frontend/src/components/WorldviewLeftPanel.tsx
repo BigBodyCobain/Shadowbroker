@@ -531,7 +531,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onMinimizedChange?: (minimized: boolean) => void;
 }) {
   const data = useDataSnapshot() as import('@/types/dashboard').DashboardData;
-  const [internalMinimized, setInternalMinimized] = useState(true);
+  const [internalMinimized, setInternalMinimized] = useState(false);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
   const setIsMinimized = (val: boolean | ((prev: boolean) => boolean)) => {
     const newVal = typeof val === 'function' ? val(isMinimized) : val;
@@ -1019,7 +1019,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     sections.forEach((s) => {
-      initial[s.label] = false;
+      initial[s.label] = true;
     });
     return initial;
   });
