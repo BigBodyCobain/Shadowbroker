@@ -1024,6 +1024,16 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     return initial;
   });
 
+  const [ppExpanded, setPpExpanded] = useState(false);
+  const [isRiskMinimized, setIsRiskMinimized] = useState(true);
+
+  const ppSubLayers = [
+    { id: 'power_plants_nuclear',   name: 'Nuclear',   color: '#e879f9' },
+    { id: 'power_plants_fossil',    name: 'Fossil',    color: '#fb923c' },
+    { id: 'power_plants_renewable', name: 'Renewable', color: '#4ade80' },
+    { id: 'power_plants_other',     name: 'Other',     color: '#94a3b8' },
+  ];
+
   const shipIcon = (
     <svg
       width="16"
@@ -1601,6 +1611,58 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       </div>
                                     </div>
                                   )}
+                                {/* Power Plant sub-type accordion */}
+                                {layer.id === 'power_plants' && (
+                                  <div className="ml-7 mt-2" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      className="flex items-center gap-1 text-[8px] font-mono text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
+                                      onClick={() => setPpExpanded((p) => !p)}
+                                    >
+                                      {ppExpanded ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+                                      FILTER BY TYPE
+                                    </button>
+                                    {ppExpanded && (
+                                      <div className="flex flex-col gap-2 mt-2 pl-2 border-l border-[var(--border-primary)]/30">
+                                        {ppSubLayers.map((sub) => {
+                                          const subActive = activeLayers[sub.id as keyof ActiveLayers] || false;
+                                          return (
+                                            <div
+                                              key={sub.id}
+                                              className="flex items-center justify-between cursor-pointer"
+                                              onClick={() =>
+                                                setActiveLayers((prev: ActiveLayers) => ({
+                                                  ...prev,
+                                                  [sub.id]: !subActive,
+                                                }))
+                                              }
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <div
+                                                  className="w-2 h-2 rounded-full flex-shrink-0"
+                                                  style={{ backgroundColor: sub.color }}
+                                                />
+                                                <span
+                                                  className={`text-[11px] font-mono ${subActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}
+                                                >
+                                                  {sub.name}
+                                                </span>
+                                              </div>
+                                              <div
+                                                className={`text-[8px] font-mono px-1.5 py-0.5 rounded-full border ${
+                                                  subActive
+                                                    ? 'border-cyan-500/50 text-cyan-400 bg-cyan-950/30'
+                                                    : 'border-[var(--border-primary)] text-[var(--text-muted)]'
+                                                }`}
+                                              >
+                                                {subActive ? 'ON' : 'OFF'}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -1638,6 +1700,96 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                     </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Risk Layers Box */}
+      <div className="bg-[#0a0a0a]/90 backdrop-blur-sm border border-amber-900/40 pointer-events-auto flex flex-col relative overflow-hidden flex-shrink-0 mt-3">
+        {/* Header / Toggle */}
+        <div
+          className="flex justify-between items-center p-4 cursor-pointer hover:bg-amber-950/20 transition-colors border-b border-amber-900/30"
+          onClick={() => setIsRiskMinimized(!isRiskMinimized)}
+        >
+          <span className="text-[12px] text-amber-600/80 font-mono tracking-widest">
+            RISK LAYERS
+          </span>
+          <button className="text-amber-700/60 hover:text-amber-500 transition-colors">
+            {isRiskMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {!isRiskMinimized && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+            >
+              <div className="flex flex-col gap-3 p-4">
+                {/* Hyperscalers */}
+                {(() => {
+                  const active = activeLayers['hyperscalers' as keyof ActiveLayers] || false;
+                  return (
+                    <div
+                      className="flex items-start justify-between group cursor-pointer"
+                      onClick={() =>
+                        setActiveLayers((prev: ActiveLayers) => ({
+                          ...prev,
+                          hyperscalers: !active,
+                        }))
+                      }
+                    >
+                      <div className="flex gap-3">
+                        <div className={`mt-0.5 transition-colors ${active ? 'text-amber-400' : 'text-gray-600 group-hover:text-gray-400'}`}>
+                          <Server size={14} strokeWidth={1.5} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[12px] font-medium tracking-wide ${active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
+                            Hyperscalers
+                          </span>
+                          <span className="text-[8px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">
+                            DC Map · AWS / Azure / GCP / Oracle
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        className={`text-[8px] font-mono tracking-wider px-1.5 py-0.5 rounded-full border ${
+                          active
+                            ? 'border-amber-500/50 text-amber-400 bg-amber-950/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]'
+                            : 'border-[var(--border-primary)] text-[var(--text-muted)] bg-transparent'
+                        }`}
+                      >
+                        {active ? 'ON' : 'OFF'}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* DC Risk Score legend */}
+                <div className="border-t border-amber-900/30 pt-3 mt-1">
+                  <span className="text-[8px] font-mono tracking-widest text-amber-700/60 block mb-2">
+                    DC RISK SCORING
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    {[
+                      { label: 'NAT CAT', desc: 'INFORM 2023 natural hazard score' },
+                      { label: 'GRID',    desc: 'Grid reliability / outage exposure' },
+                      { label: 'CONC',    desc: 'Hyperscaler geographic concentration' },
+                    ].map(({ label, desc }) => (
+                      <div key={label} className="flex items-start gap-2">
+                        <span className="text-[8px] font-mono text-amber-600/70 w-10 flex-shrink-0 mt-0.5">
+                          {label}
+                        </span>
+                        <span className="text-[8px] text-[var(--text-muted)] font-mono leading-tight">
+                          {desc}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
