@@ -599,6 +599,7 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
         kiwisdrGeoJSON && 'kiwisdr-clusters',
         kiwisdrGeoJSON && 'kiwisdr-layer',
         internetOutagesGeoJSON && 'internet-outages-layer',
+        dataCentersGeoJSON && 'datacenters-risk-halo',
         dataCentersGeoJSON && 'datacenters-layer',
         powerPlantsGeoJSON && 'power-plants-layer',
         militaryBasesGeoJSON && 'military-bases-layer',
@@ -1452,6 +1453,30 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                                 'text-color': '#e9d5ff',
                             }}
                         />
+                        {/* Risk halo — colour/size driven by risk_score */}
+                        <Layer
+                            id="datacenters-risk-halo"
+                            type="circle"
+                            filter={['!', ['has', 'point_count']]}
+                            paint={{
+                                'circle-radius': [
+                                    'interpolate', ['linear'],
+                                    ['coalesce', ['get', 'risk_score'], 0],
+                                    0, 4, 50, 8, 100, 14
+                                ],
+                                'circle-color': [
+                                    'interpolate', ['linear'],
+                                    ['coalesce', ['get', 'risk_score'], 0],
+                                    0, '#a855f7',
+                                    25, '#22c55e',
+                                    50, '#f59e0b',
+                                    75, '#ef4444',
+                                    100, '#dc2626'
+                                ],
+                                'circle-opacity': 0.55,
+                                'circle-blur': 0.4,
+                            }}
+                        />
                         {/* Individual DC icons */}
                         <Layer
                             id="datacenters-layer"
@@ -1912,18 +1937,13 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                             className="threat-popup"
                             maxWidth="280px"
                         >
-                            <div className="map-popup bg-[#1a1035] border border-violet-400/40 text-[#e9d5ff] min-w-[200px]">
+                            <div className="map-popup bg-[#1a1035] border border-violet-400/40 text-[#e9d5ff] min-w-[220px]">
                                 <div className="map-popup-title text-violet-400 border-b border-violet-400/20 pb-1">
                                     {dc.name}
                                 </div>
                                 {dc.company && (
                                     <div className="map-popup-row">
                                         Operator: <span className="text-[#c4b5fd]">{dc.company}</span>
-                                    </div>
-                                )}
-                                {dc.street && (
-                                    <div className="map-popup-row">
-                                        Address: <span className="text-white">{dc.street}{dc.zip ? ` ${dc.zip}` : ''}</span>
                                     </div>
                                 )}
                                 {dc.city && (
@@ -1936,14 +1956,59 @@ const MaplibreViewer = ({ data, activeLayers, onEntityClick, flyToLocation, sele
                                         Country: <span className="text-white">{dc.country}</span>
                                     </div>
                                 )}
+
+                                {/* Risk score section */}
+                                {dc.risk_score != null && dc.risk_score > 0 && (
+                                    <div className="mt-2 border-t border-violet-400/20 pt-1.5">
+                                        <div className="text-[9px] text-violet-500 tracking-widest mb-1">RISK ASSESSMENT</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] text-violet-300 w-16 shrink-0">Composite</span>
+                                            <div className="flex-1 bg-[#0d0820] rounded-full h-1.5">
+                                                <div
+                                                    className="h-1.5 rounded-full"
+                                                    style={{
+                                                        width: `${dc.risk_score}%`,
+                                                        backgroundColor: dc.risk_score > 75 ? '#ef4444' : dc.risk_score > 50 ? '#f59e0b' : dc.risk_score > 25 ? '#22c55e' : '#a855f7',
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] text-white w-6 text-right">{dc.risk_score}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] text-violet-300 w-16 shrink-0">Nat Cat</span>
+                                            <div className="flex-1 bg-[#0d0820] rounded-full h-1.5">
+                                                <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${dc.nat_cat_score ?? 0}%` }} />
+                                            </div>
+                                            <span className="text-[10px] text-white w-6 text-right">{dc.nat_cat_score ?? 0}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] text-violet-300 w-16 shrink-0">Grid</span>
+                                            <div className="flex-1 bg-[#0d0820] rounded-full h-1.5">
+                                                <div className="h-1.5 rounded-full bg-yellow-400" style={{ width: `${dc.grid_score ?? 0}%` }} />
+                                            </div>
+                                            <span className="text-[10px] text-white w-6 text-right">{dc.grid_score ?? 0}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] text-violet-300 w-16 shrink-0">Density</span>
+                                            <div className="flex-1 bg-[#0d0820] rounded-full h-1.5">
+                                                <div className="h-1.5 rounded-full bg-blue-400" style={{ width: `${dc.concentration_score ?? 0}%` }} />
+                                            </div>
+                                            <span className="text-[10px] text-white w-6 text-right">{dc.dc_density_50km ?? 0} nearby</span>
+                                        </div>
+                                        {dc.nearest_plant_km != null && (
+                                            <div className="map-popup-row mt-0.5">
+                                                Grid supply: <span className="text-white">{dc.nearest_plant_fuel || '?'} @ {dc.nearest_plant_km} km</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {outagesInCountry.length > 0 && (
                                     <div className="mt-1.5 px-2 py-1 bg-red-500/15 border border-red-400/40 rounded text-[10px] text-[#ff6b6b]">
                                         OUTAGE IN REGION — {outagesInCountry.map((o: any) => `${o.region_name} (${o.severity}%)`).join(', ')}
                                     </div>
                                 )}
-                                <div className="mt-1.5 text-[9px] text-violet-600 tracking-wider">
-                                    DATA CENTER
-                                </div>
+                                <div className="mt-1.5 text-[9px] text-violet-600 tracking-wider">DATA CENTER</div>
                             </div>
                         </Popup>
                     );
