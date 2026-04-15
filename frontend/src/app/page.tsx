@@ -698,23 +698,6 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* 3. SHODAN CONNECTOR (Bottom) */}
-              <div className="contents" style={{ direction: 'ltr' }}>
-                <ShodanPanel
-                  currentResults={shodanResults}
-                  onOpenSettings={() => setSettingsOpen(true)}
-                  settingsOpen={settingsOpen}
-                  onResultsChange={(results, queryLabel) => {
-                    setShodanResults(results);
-                    setShodanQueryLabel(queryLabel);
-                    setActiveLayers((prev) => ({ ...prev, shodan_overlay: results.length > 0 }));
-                  }}
-                  onSelectEntity={setSelectedEntity}
-                  onStyleChange={setShodanStyle}
-                  isMinimized={leftShodanMinimized}
-                  onMinimizedChange={setLeftShodanMinimized}
-                />
-              </div>
             </motion.div>
 
             {/* LEFT SIDEBAR TOGGLE TAB — aligns with Data Layers section */}
