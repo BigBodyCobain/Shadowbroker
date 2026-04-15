@@ -1207,7 +1207,12 @@ const MaplibreViewer = ({
   const staticFirmsFires = activeLayers.firms ? data?.firms_fires : undefined;
   const staticInternetOutages = activeLayers.internet_outages ? data?.internet_outages : undefined;
   const staticDatacenters = activeLayers.datacenters ? data?.datacenters : undefined;
-  const staticPowerPlants = activeLayers.power_plants ? data?.power_plants : undefined;
+  // Generic clustered power-plant layer: only active when power_plants is on AND no typed
+  // sub-layers are on. When typed sub-layers are on, the per-fuel-group typed source takes
+  // over with coloured icons, so suppress the generic layer to avoid double-rendering.
+  const anyTypedPpActive = activeLayers.power_plants_nuclear || activeLayers.power_plants_fossil ||
+    activeLayers.power_plants_renewable || activeLayers.power_plants_other;
+  const staticPowerPlants = (activeLayers.power_plants && !anyTypedPpActive) ? data?.power_plants : undefined;
   const staticViirsChangeNodes = activeLayers.viirs_nightlights ? data?.viirs_change_nodes : undefined;
   const staticMilitaryBases = activeLayers.military_bases ? data?.military_bases : undefined;
   const staticGdelt = globalIncidentsEnabled ? data?.gdelt : undefined;
