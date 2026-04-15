@@ -115,10 +115,10 @@ def build_power_tree(power_plants: list[dict]) -> tuple[cKDTree, list[dict]]:
 
 def nearest_plant(lat: float, lng: float, tree: cKDTree, plants: list[dict]) -> tuple[float, str]:
     pt = np.radians([[lat, lng]])
-    dist_rad, idx = tree.query(pt, k=1)
-    dist_km = float(dist_rad[0]) * _EARTH_RADIUS_KM
-    fuel = plants[int(idx[0])]["fuel_type"]
-    return round(dist_km, 1), fuel
+    _dist_rad, idx = tree.query(pt, k=1)
+    nearest = plants[int(idx[0])]
+    dist_km = _haversine_km(lat, lng, nearest["lat"], nearest["lng"])
+    return round(dist_km, 1), nearest["fuel_type"]
 
 
 def grid_score_from_plant(dist_km: float, fuel_type: str) -> int:
@@ -144,7 +144,7 @@ def concentration_score(dc_count: int) -> int:
 
 
 def nat_cat_score(hazard_scores: dict[str, int]) -> int:
-    return max(hazard_scores.values())
+    return max(hazard_scores.values(), default=0)
 
 
 def composite_risk_score(nat_cat: int, grid: int, concentration: int) -> float:
@@ -156,7 +156,7 @@ def enrich(dc_path: Path = DC_PATH, pp_path: Path = PP_PATH) -> list[dict]:
     dcs = json.loads(dc_path.read_text(encoding="utf-8"))
     plants = json.loads(pp_path.read_text(encoding="utf-8"))
 
-    valid_dcs = [d for d in dcs if d.get("lat") and d.get("lng")]
+    valid_dcs = [d for d in dcs if d.get("lat") is not None and d.get("lng") is not None]
     logger.info(f"DCs with coordinates: {len(valid_dcs)}")
 
     unique_countries = set(d.get("country", "") for d in valid_dcs)
@@ -204,8 +204,21 @@ def enrich(dc_path: Path = DC_PATH, pp_path: Path = PP_PATH) -> list[dict]:
         if i % 500 == 499:
             logger.info(f"Enriched {i+1}/{len(valid_dcs)} DCs")
 
+    _DEFAULT_RISK = {
+        "hazard_eq": 0, "hazard_flood": 0, "hazard_cyclone": 0, "hazard_fire": 0,
+        "nearest_plant_km": None, "nearest_plant_fuel": "",
+        "grid_score": 0, "dc_density_50km": 0, "concentration_score": 0,
+        "nat_cat_score": 0, "risk_score": 0.0,
+    }
+    for dc in dcs:
+        if "risk_score" not in dc:
+            dc.update(_DEFAULT_RISK)
+
     logger.info(f"Writing enriched data to {dc_path}...")
-    dc_path.write_text(json.dumps(dcs, ensure_ascii=False), encoding="utf-8")
+    import os
+    tmp_path = dc_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(dcs, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp_path, dc_path)
     logger.info("Done.")
     return dcs
 
