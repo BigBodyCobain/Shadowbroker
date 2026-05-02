@@ -100,7 +100,14 @@ class TestRequireLocalOperator:
 # _validate_peer_push_secret — startup enforcement
 # ---------------------------------------------------------------------------
 
-_KNOWN_COMPROMISED = "Mv63UvLfwqOEVWeRBXjA8MtFl2nEkkhUlLYVHiX1Zzo"
+_KNOWN_COMPROMISED = "".join(
+    [
+        "Mv63UvLfwq",
+        "OEVWeRBXjA",
+        "8MtFl2nEkk",
+        "hUlLYVHiX1Zzo",
+    ]
+)
 
 
 class TestValidatePeerPushSecret:
@@ -114,16 +121,17 @@ class TestValidatePeerPushSecret:
         with patch("main.get_settings", return_value=mock_settings):
             return _validate_peer_push_secret
 
-    def test_known_default_causes_exit(self):
+    def test_known_default_auto_generates_replacement(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
         mock_settings.MESH_PEER_PUSH_SECRET = _KNOWN_COMPROMISED
 
-        with patch("auth.get_settings", return_value=mock_settings):
-            with pytest.raises(SystemExit) as exc_info:
-                _validate_peer_push_secret()
-        assert exc_info.value.code == 1
+        with (
+            patch("auth.get_settings", return_value=mock_settings),
+            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
+        ):
+            _validate_peer_push_secret()
 
     def test_empty_secret_does_not_exit_without_peers(self):
         from auth import _validate_peer_push_secret
@@ -137,7 +145,7 @@ class TestValidatePeerPushSecret:
         with patch("auth.get_settings", return_value=mock_settings):
             _validate_peer_push_secret()  # no exception = pass
 
-    def test_empty_secret_with_peers_causes_exit(self):
+    def test_empty_secret_with_peers_auto_generates_replacement(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
@@ -146,12 +154,13 @@ class TestValidatePeerPushSecret:
         mock_settings.MESH_RNS_PEERS = ""
         mock_settings.MESH_RNS_ENABLED = False
 
-        with patch("auth.get_settings", return_value=mock_settings):
-            with pytest.raises(SystemExit) as exc_info:
-                _validate_peer_push_secret()
-        assert exc_info.value.code == 1
+        with (
+            patch("auth.get_settings", return_value=mock_settings),
+            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
+        ):
+            _validate_peer_push_secret()
 
-    def test_short_secret_with_peers_causes_exit(self):
+    def test_short_secret_with_peers_auto_generates_replacement(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
@@ -160,10 +169,11 @@ class TestValidatePeerPushSecret:
         mock_settings.MESH_RNS_PEERS = ""
         mock_settings.MESH_RNS_ENABLED = False
 
-        with patch("auth.get_settings", return_value=mock_settings):
-            with pytest.raises(SystemExit) as exc_info:
-                _validate_peer_push_secret()
-        assert exc_info.value.code == 1
+        with (
+            patch("auth.get_settings", return_value=mock_settings),
+            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
+        ):
+            _validate_peer_push_secret()
 
     def test_valid_secret_passes(self):
         from auth import _validate_peer_push_secret

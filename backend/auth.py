@@ -402,7 +402,9 @@ async def require_openclaw_or_local(request: Request):
 # Startup validators
 # ---------------------------------------------------------------------------
 
-_KNOWN_COMPROMISED_PEER_PUSH_SECRET = "Mv63UvLfwqOEVWeRBXjA8MtFl2nEkkhUlLYVHiX1Zzo"
+_KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256 = (
+    "be05bc75350d6e5d2e154e969c4dfc14bab1e48a9661c64ab7a331e0aa96aea7"
+)
 
 
 def _validate_admin_startup() -> None:
@@ -492,7 +494,11 @@ def _validate_peer_push_secret() -> None:
         secret = os.environ.get("MESH_PEER_PUSH_SECRET", "").strip()
 
     # Replace the known-compromised testnet default automatically
-    if secret == _KNOWN_COMPROMISED_PEER_PUSH_SECRET:
+    if (
+        secret
+        and _hashlib_mod.sha256(secret.encode("utf-8")).hexdigest()
+        == _KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256
+    ):
         logger.warning(
             "MESH_PEER_PUSH_SECRET was the publicly-known testnet default — "
             "auto-generating a secure replacement."
