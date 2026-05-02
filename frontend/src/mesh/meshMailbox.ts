@@ -31,13 +31,17 @@ export function currentMailboxEpoch(tsSeconds?: number): number {
 export async function mailboxClaimToken(
   claimType: 'requests' | 'self',
   nodeId: string,
+  epoch?: number,
 ): Promise<string> {
   const normalizedNodeId = String(nodeId || '').trim();
   if (!normalizedNodeId) {
     throw new Error('nodeId required for mailbox claim token');
   }
   const key = await getOrCreateMailboxClaimKey();
-  const message = new TextEncoder().encode(`sb_mailbox_claim|v1|${claimType}|${normalizedNodeId}`);
+  const bucket = currentMailboxEpoch(epoch);
+  const message = new TextEncoder().encode(
+    `sb_mailbox_claim|v2|${claimType}|${bucket}|${normalizedNodeId}`,
+  );
   const digest = await crypto.subtle.sign('HMAC', key, message);
   return bufToHex(digest);
 }

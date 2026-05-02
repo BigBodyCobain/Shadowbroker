@@ -176,11 +176,11 @@ def test_private_gate_timestamp_is_stably_jittered_backward(monkeypatch):
 
     assert first["timestamp"] == second["timestamp"]
     assert 60.0 <= float(first["timestamp"]) < 120.0
-    assert first["public_key"] == ""
-    assert first["node_id"] == ""
+    assert "public_key" not in first
+    assert "node_id" not in first
 
 
-def test_gate_identity_redaction_keeps_gate_member_visible_fields():
+def test_gate_identity_redaction_keeps_member_payload_fields_only():
     event = {
         "event_id": "gate-event-visible-fields",
         "event_type": "gate_message",
@@ -202,14 +202,14 @@ def test_gate_identity_redaction_keeps_gate_member_visible_fields():
 
     stripped = main._strip_gate_identity(event)
 
-    assert stripped["node_id"] == "!sb_gate_member"
-    assert stripped["public_key"] == "pub"
-    assert stripped["public_key_algo"] == "Ed25519"
-    assert stripped["sequence"] == 7
-    assert stripped["signature"] == "sig"
     assert stripped["protocol_version"] == "infonet/2"
     assert stripped["payload"]["nonce"] == "nonce-1"
     assert stripped["payload"]["sender_ref"] == "sender-ref-1"
+    assert "node_id" not in stripped
+    assert "public_key" not in stripped
+    assert "public_key_algo" not in stripped
+    assert "sequence" not in stripped
+    assert "signature" not in stripped
 
 
 class _FakePublicInfonet:
@@ -332,7 +332,8 @@ def test_gate_store_accepts_verified_peer_events_and_persists_sanitized_shape(tm
     monkeypatch.setattr(mesh_reputation, "gate_manager", _GateManager(), raising=False)
     store = GateMessageStore(data_dir=str(tmp_path / "gate_messages"))
 
-    result = store.ingest_peer_events("finance", [_signed_gate_event("finance")])
+    signed = _signed_gate_event("finance")
+    result = store.ingest_peer_events("finance", [signed])
 
     assert result == {"accepted": 1, "duplicates": 0, "rejected": 0}
     stored = store.get_messages("finance", limit=1)[0]
@@ -343,9 +344,11 @@ def test_gate_store_accepts_verified_peer_events_and_persists_sanitized_shape(tm
         "sender_ref": "sender-ref-1",
         "format": "mls1",
     }
-    assert "node_id" not in stored
-    assert "signature" not in stored
-    assert "sequence" not in stored
+    assert stored["node_id"] == signed["node_id"]
+    assert stored["public_key"] == signed["public_key"]
+    assert stored["public_key_algo"] == signed["public_key_algo"]
+    assert stored["signature"] == signed["signature"]
+    assert stored["sequence"] == signed["sequence"]
 
 
 def test_gate_store_rejects_verified_peer_events_from_unauthorized_authors(tmp_path, monkeypatch):
@@ -447,6 +450,7 @@ def test_mesh_status_public_hides_private_activity_volume(monkeypatch):
         "sigint_grid",
         type("FakeSigintGrid", (), {"get_all_signals": staticmethod(lambda: [])})(),
     )
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
     response = asyncio.run(main.mesh_status(_request("/api/mesh/status")))
 
@@ -506,6 +510,7 @@ def test_public_oracle_profile_hides_behavioral_lists(monkeypatch):
         type("FakeOracleLedger", (), {"get_oracle_profile": staticmethod(lambda *_args, **_kwargs: dict(fake_profile))})(),
         raising=False,
     )
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
     response = asyncio.run(main.oracle_profile(_request("/api/mesh/oracle/profile"), node_id="!oracle"))
 
@@ -533,6 +538,7 @@ def test_public_oracle_predictions_hide_active_positions(monkeypatch):
         )(),
         raising=False,
     )
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
     response = asyncio.run(
         main.oracle_predictions(_request("/api/mesh/oracle/predictions"), node_id="!oracle")
@@ -563,6 +569,7 @@ def test_public_oracle_stakes_hide_staker_lists(monkeypatch):
         )(),
         raising=False,
     )
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
     response = asyncio.run(
         main.oracle_stakes_for_message(_request("/api/mesh/oracle/stakes/msg-1"), message_id="msg-1")
@@ -649,6 +656,8 @@ def test_public_privacy_profile_hides_transport_metadata(monkeypatch):
 
 
 def test_public_settings_wormhole_status_uses_redacted_shape(monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+
     monkeypatch.setattr(
         main,
         "get_wormhole_state",
@@ -666,7 +675,12 @@ def test_public_settings_wormhole_status_uses_redacted_shape(monkeypatch):
     monkeypatch.setattr(main, "_check_scoped_auth", lambda *_args, **_kwargs: (False, "no"))
     monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
-    response = asyncio.run(main.api_get_wormhole_status(_request("/api/settings/wormhole-status")))
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.get("/api/settings/wormhole-status")
+            return response.json()
+
+    response = asyncio.run(_run())
 
     assert response == {
         "installed": True,
@@ -674,6 +688,289 @@ def test_public_settings_wormhole_status_uses_redacted_shape(monkeypatch):
         "running": True,
         "ready": True,
     }
+
+
+def test_authenticated_settings_wormhole_status_includes_privacy_core_attestation(monkeypatch):
+    import auth
+    from httpx import ASGITransport, AsyncClient
+    from services.config import get_settings
+
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "block")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_NODE_ID_COMPAT", "true")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_AGENT_ID_LOOKUP", "true")
+    monkeypatch.setenv("MESH_ALLOW_COMPAT_DM_INVITE_IMPORT", "false")
+    monkeypatch.setenv("MESH_RELEASE_DM_RELAY_SECURITY_SUITE_GREEN", "true")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        auth,
+        "_anonymous_mode_state",
+        lambda: {
+            "enabled": True,
+            "wormhole_enabled": True,
+            "ready": True,
+            "effective_transport": "tor_arti",
+        },
+    )
+    monkeypatch.setattr(
+        auth,
+        "_external_assurance_status_snapshot",
+        lambda: {
+            "current": True,
+            "configured": True,
+            "state": "current_external",
+            "detail": "configured external assurance is current",
+            "witness_state": "current",
+            "transparency_state": "current",
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "get_wormhole_state",
+        lambda: {
+            "installed": True,
+            "configured": True,
+            "running": True,
+            "ready": True,
+        },
+    )
+    monkeypatch.setattr(main, "_current_private_lane_tier", lambda *_args, **_kwargs: "private_strong")
+    monkeypatch.setattr(main, "_scoped_view_authenticated", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        main,
+        "_privacy_core_status",
+        lambda: {
+            "available": True,
+            "version": "privacy-core-test",
+            "library_path": "C:/privacy-core/target/release/privacy_core.dll",
+            "library_sha256": "ab" * 32,
+            "policy_ok": True,
+        },
+    )
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.get("/api/settings/wormhole-status")
+            return response.json()
+
+    response = asyncio.run(_run())
+
+    assert response["transport_tier"] == "private_strong"
+    assert response["strong_claims"]["allowed"] is True
+    assert response["privacy_core"]["available"] is True
+    assert response["privacy_core"]["version"] == "privacy-core-test"
+    assert response["privacy_core"]["library_sha256"] == "ab" * 32
+    assert response["release_gate"]["ready"] is True
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["ok"] is True
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["source"] == "env"
+    assert response["release_gate"]["criteria"]["privacy_core_pinned"]["ok"] is True
+    assert response["release_gate"]["criteria"]["external_assurance_current"]["ok"] is True
+    assert response["release_gate"]["threat_model_reference"] == "docs/mesh/threat-model.md"
+    get_settings.cache_clear()
+
+
+def test_authenticated_settings_wormhole_status_prefers_release_attestation_file(
+    monkeypatch, tmp_path
+):
+    import auth
+    from httpx import ASGITransport, AsyncClient
+    from services.config import get_settings
+
+    attestation_path = tmp_path / "release_attestation.json"
+    attestation_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-14T18:30:00Z",
+                "commit": "abc1234",
+                "threat_model_reference": "docs/mesh/threat-model.md",
+                "dm_relay_security_suite": {
+                    "name": "dm_relay_security",
+                    "green": True,
+                    "detail": "CI attestation confirms the DM relay security suite is green",
+                    "report": "artifacts/dm-relay-security-report.txt",
+                },
+                "ci": {
+                    "workflow": "CI",
+                    "run_id": "12345",
+                    "run_attempt": "2",
+                    "ref": "refs/heads/main",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "block")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_NODE_ID_COMPAT", "true")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_AGENT_ID_LOOKUP", "true")
+    monkeypatch.setenv("MESH_RELEASE_ATTESTATION_PATH", str(attestation_path))
+    monkeypatch.setenv("MESH_RELEASE_DM_RELAY_SECURITY_SUITE_GREEN", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        auth,
+        "_anonymous_mode_state",
+        lambda: {
+            "enabled": True,
+            "wormhole_enabled": True,
+            "ready": True,
+            "effective_transport": "tor_arti",
+        },
+    )
+    monkeypatch.setattr(
+        auth,
+        "_external_assurance_status_snapshot",
+        lambda: {
+            "current": True,
+            "configured": True,
+            "state": "current_external",
+            "detail": "configured external assurance is current",
+            "witness_state": "current",
+            "transparency_state": "current",
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "get_wormhole_state",
+        lambda: {
+            "installed": True,
+            "configured": True,
+            "running": True,
+            "ready": True,
+        },
+    )
+    monkeypatch.setattr(main, "_current_private_lane_tier", lambda *_args, **_kwargs: "private_strong")
+    monkeypatch.setattr(main, "_scoped_view_authenticated", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        main,
+        "_privacy_core_status",
+        lambda: {
+            "available": True,
+            "version": "privacy-core-test",
+            "library_path": "C:/privacy-core/target/release/privacy_core.dll",
+            "library_sha256": "ab" * 32,
+            "policy_ok": True,
+        },
+    )
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.get("/api/settings/wormhole-status")
+            return response.json()
+
+    response = asyncio.run(_run())
+
+    assert response["release_gate"]["ready"] is True
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["ok"] is True
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["source"] == "file"
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["commit"] == "abc1234"
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["suite_report"] == "artifacts/dm-relay-security-report.txt"
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["workflow"] == "CI"
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["run_id"] == "12345"
+    assert response["release_gate"]["attestation"]["path"] == str(attestation_path)
+    get_settings.cache_clear()
+
+
+def test_authenticated_settings_wormhole_status_fails_closed_for_missing_explicit_release_attestation(
+    monkeypatch, tmp_path
+):
+    import auth
+    from httpx import ASGITransport, AsyncClient
+    from services.config import get_settings
+
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "block")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_NODE_ID_COMPAT", "true")
+    monkeypatch.setenv("MESH_BLOCK_LEGACY_AGENT_ID_LOOKUP", "true")
+    monkeypatch.setenv("MESH_RELEASE_ATTESTATION_PATH", str(tmp_path / "missing_release_attestation.json"))
+    monkeypatch.setenv("MESH_RELEASE_DM_RELAY_SECURITY_SUITE_GREEN", "true")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        auth,
+        "_anonymous_mode_state",
+        lambda: {
+            "enabled": True,
+            "wormhole_enabled": True,
+            "ready": True,
+            "effective_transport": "tor_arti",
+        },
+    )
+    monkeypatch.setattr(
+        auth,
+        "_external_assurance_status_snapshot",
+        lambda: {
+            "current": True,
+            "configured": True,
+            "state": "current_external",
+            "detail": "configured external assurance is current",
+            "witness_state": "current",
+            "transparency_state": "current",
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "get_wormhole_state",
+        lambda: {
+            "installed": True,
+            "configured": True,
+            "running": True,
+            "ready": True,
+        },
+    )
+    monkeypatch.setattr(main, "_current_private_lane_tier", lambda *_args, **_kwargs: "private_strong")
+    monkeypatch.setattr(main, "_scoped_view_authenticated", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        main,
+        "_privacy_core_status",
+        lambda: {
+            "available": True,
+            "version": "privacy-core-test",
+            "library_path": "C:/privacy-core/target/release/privacy_core.dll",
+            "library_sha256": "ab" * 32,
+            "policy_ok": True,
+        },
+    )
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.get("/api/settings/wormhole-status")
+            return response.json()
+
+    response = asyncio.run(_run())
+
+    assert response["release_gate"]["ready"] is False
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["ok"] is False
+    assert response["release_gate"]["criteria"]["dm_relay_security_suite_green"]["source"] == "file_missing"
+    assert response["release_gate"]["blocking_reasons"][0] == "dm_relay_security_suite_green"
+    get_settings.cache_clear()
+
+
+def test_public_wormhole_status_hides_privacy_core_attestation(monkeypatch):
+    monkeypatch.setattr(
+        main,
+        "get_wormhole_state",
+        lambda: {
+            "installed": True,
+            "configured": True,
+            "running": True,
+            "ready": True,
+        },
+    )
+    monkeypatch.setattr(main, "_check_scoped_auth", lambda *_args, **_kwargs: (False, "no"))
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        main,
+        "_privacy_core_status",
+        lambda: {
+            "available": True,
+            "version": "privacy-core-test",
+            "library_path": "C:/privacy-core/target/release/privacy_core.dll",
+            "library_sha256": "ab" * 32,
+        },
+    )
+
+    response = asyncio.run(main.api_wormhole_status(_request("/api/wormhole/status")))
+
+    assert "privacy_core" not in response
+    assert "strong_claims" not in response
+    assert "legacy_compatibility" not in response
+    assert "release_gate" not in response
 
 
 def test_public_infonet_status_hides_private_lane_policy(monkeypatch):
@@ -805,12 +1102,9 @@ def test_audit_dm_witness_keeps_graph_details(monkeypatch):
     }
 
 
-def test_public_gate_compose_redacts_signer_fields(monkeypatch):
-    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(
-        main,
-        "compose_encrypted_gate_message",
-        lambda **_kwargs: {
+def test_gate_compose_redaction_helper_hides_signer_fields():
+    response = main._redact_composed_gate_message(
+        {
             "ok": True,
             "gate_id": "finance",
             "identity_scope": "gate_persona",
@@ -826,14 +1120,7 @@ def test_public_gate_compose_redacts_signer_fields(monkeypatch):
             "format": "mls1",
             "timestamp": 123.0,
             "epoch": 3,
-        },
-    )
-
-    response = asyncio.run(
-        main.api_wormhole_gate_message_compose(
-            _request("/api/wormhole/gate/message/compose", method="POST"),
-            main.WormholeGateComposeRequest(gate_id="finance", plaintext="hello"),
-        )
+        }
     )
 
     assert response == {
@@ -861,6 +1148,7 @@ def test_dm_relay_auto_msg_id_omits_sender_suffix(tmp_path, monkeypatch):
         recipient_id="!bob",
         ciphertext="ciphertext",
         delivery_class="request",
+        sender_token_hash="sender-token-hash",
     )
 
     assert result["ok"] is True
@@ -879,6 +1167,8 @@ def test_public_event_endpoints_preserve_redactions(client, monkeypatch):
         type("FakeGateStore", (), {"get_event": staticmethod(lambda *_args, **_kwargs: None)})(),
         raising=False,
     )
+    monkeypatch.setattr(main, "_check_scoped_auth", lambda *_args, **_kwargs: (False, "no"))
+    monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
 
     collection_responses = [
         client.get("/api/mesh/infonet/messages").json()["messages"],
@@ -938,9 +1228,11 @@ def test_mesh_router_private_log_entries_age_out(monkeypatch):
     ]
 
 
-def test_mesh_router_private_log_entries_strip_metadata(caplog):
+def test_mesh_router_private_log_entries_strip_metadata(caplog, monkeypatch):
+    from services.mesh import mesh_router as mesh_router_mod
     from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
 
+    monkeypatch.setattr(mesh_router_mod, "_supervisor_verified_trust_tier", lambda: "private_strong")
     router = MeshRouter()
     envelope = MeshEnvelope(
         sender_id="alice",
@@ -1034,7 +1326,11 @@ def test_gate_compose_error_detail_is_sanitized(monkeypatch):
     from services import wormhole_supervisor
 
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: "private_transitional")
-    monkeypatch.setattr(mesh_gate_mls, "_active_gate_persona", lambda *_args, **_kwargs: {"persona_id": "p1"})
+    monkeypatch.setattr(
+        mesh_gate_mls,
+        "_active_gate_member",
+        lambda *_args, **_kwargs: ({"persona_id": "p1"}, "member"),
+    )
     monkeypatch.setattr(mesh_gate_mls, "_sync_binding", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("sensitive gate detail")))
 
     response = mesh_gate_mls.compose_encrypted_gate_message("finance", "hello")
@@ -1167,7 +1463,11 @@ def test_gate_mls_logs_only_hashed_gate_ids_on_failure(caplog, monkeypatch):
     from services.mesh import mesh_gate_mls
 
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: "private_transitional")
-    monkeypatch.setattr(mesh_gate_mls, "_active_gate_persona", lambda *_args, **_kwargs: {"persona_id": "p1"})
+    monkeypatch.setattr(
+        mesh_gate_mls,
+        "_active_gate_member",
+        lambda *_args, **_kwargs: ({"persona_id": "p1"}, "member"),
+    )
     monkeypatch.setattr(
         mesh_gate_mls,
         "_sync_binding",
@@ -1218,15 +1518,19 @@ def test_reputation_logs_hash_node_and_gate_identifiers(tmp_path, monkeypatch, c
     monkeypatch.setattr(mesh_reputation, "GATES_FILE", tmp_path / "gates.json")
 
     ledger = mesh_reputation.ReputationLedger()
+    suffix = tmp_path.name.replace("-", "")
+    voter_id = f"!alpha-{suffix}"
+    target_id = f"!bravo-{suffix}"
+    gate_id = f"finance-{suffix}"
 
     with caplog.at_level(logging.INFO, logger="services.mesh_reputation"):
-        ledger.register_node("!alpha", "pub-a", "Ed25519")
-        ledger.register_node("!bravo", "pub-b", "Ed25519")
-        ok, _detail = ledger.cast_vote("!alpha", "!bravo", 1, "finance")
+        ledger.register_node(voter_id, "pub-a", "Ed25519")
+        ledger.register_node(target_id, "pub-b", "Ed25519")
+        ok, _detail, _weight = ledger.cast_vote(voter_id, target_id, 1, gate_id)
 
     assert ok is True
-    assert "!alpha" not in caplog.text
-    assert "!bravo" not in caplog.text
-    assert "finance" not in caplog.text
+    assert voter_id not in caplog.text
+    assert target_id not in caplog.text
+    assert gate_id not in caplog.text
     assert "node#" in caplog.text
     assert "gate#" in caplog.text

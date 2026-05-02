@@ -1,0 +1,184 @@
+{
+  "_comment": "Payloads that MUST be rejected by the schema registry — validated by test_mls_vectors.py",
+  "gate_message_missing_ciphertext": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "nonce": "abc",
+      "sender_ref": "ref1",
+      "epoch": 1
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "ciphertext"
+  },
+  "gate_message_missing_nonce": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "ciphertext": "ZmFrZQ==",
+      "sender_ref": "ref1",
+      "epoch": 1
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "nonce"
+  },
+  "gate_message_missing_sender_ref": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "ciphertext": "ZmFrZQ==",
+      "nonce": "abc",
+      "epoch": 1
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "sender_ref"
+  },
+  "gate_message_plaintext_field_present": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "ciphertext": "ZmFrZQ==",
+      "nonce": "abc",
+      "sender_ref": "ref1",
+      "epoch": 1,
+      "message": "leaked plaintext"
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "plaintext"
+  },
+  "gate_message_invalid_format": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "ciphertext": "ZmFrZQ==",
+      "nonce": "abc",
+      "sender_ref": "ref1",
+      "epoch": 1,
+      "format": "legacy_cleartext"
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "format"
+  },
+  "gate_message_zero_epoch": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "infonet",
+      "ciphertext": "ZmFrZQ==",
+      "nonce": "abc",
+      "sender_ref": "ref1",
+      "epoch": 0
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "epoch"
+  },
+  "gate_message_empty_gate": {
+    "event_type": "gate_message",
+    "payload": {
+      "gate": "",
+      "ciphertext": "ZmFrZQ==",
+      "nonce": "abc",
+      "sender_ref": "ref1",
+      "epoch": 1
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "gate"
+  },
+  "dm_message_invalid_delivery_class": {
+    "event_type": "dm_message",
+    "payload": {
+      "recipient_id": "!sb_abc123",
+      "delivery_class": "pigeon",
+      "recipient_token": "tok1",
+      "ciphertext": "ZmFrZQ==",
+      "msg_id": "m1",
+      "timestamp": 1710000000
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "delivery_class"
+  },
+  "dm_message_invalid_format": {
+    "event_type": "dm_message",
+    "payload": {
+      "recipient_id": "!sb_abc123",
+      "delivery_class": "shared",
+      "recipient_token": "tok1",
+      "ciphertext": "ZmFrZQ==",
+      "msg_id": "m1",
+      "timestamp": 1710000000,
+      "format": "plaintext"
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "format"
+  },
+  "dm_key_invalid_algo": {
+    "event_type": "dm_key",
+    "payload": {
+      "dh_pub_key": "AAAA",
+      "dh_algo": "RSA",
+      "timestamp": 1710000000
+    },
+    "expected_ok": false,
+    "expected_reason_contains": "dh_algo"
+  },
+  "public_ledger_forbidden_fields_ip": {
+    "event_type": "message",
+    "payload": {
+      "message": "hello",
+      "destination": "broadcast",
+      "channel": "LongFast",
+      "priority": "normal",
+      "ephemeral": false,
+      "ip_address": "192.168.1.1"
+    },
+    "check": "public_ledger",
+    "expected_ok": false,
+    "expected_reason_contains": "forbidden"
+  },
+  "public_ledger_forbidden_fields_transport": {
+    "event_type": "message",
+    "payload": {
+      "message": "hello",
+      "destination": "broadcast",
+      "channel": "LongFast",
+      "priority": "normal",
+      "ephemeral": false,
+      "transport_lock": "meshtastic"
+    },
+    "check": "public_ledger",
+    "expected_ok": false,
+    "expected_reason_contains": "forbidden"
+  },
+  "public_ledger_private_destination": {
+    "event_type": "message",
+    "payload": {
+      "message": "hello",
+      "destination": "!sb_private123",
+      "channel": "LongFast",
+      "priority": "normal",
+      "ephemeral": false
+    },
+    "check": "public_ledger",
+    "expected_ok": false,
+    "expected_reason_contains": "broadcast"
+  },
+  "unknown_event_type": {
+    "event_type": "exploit_injection",
+    "payload": {"data": "malicious"},
+    "expected_ok": false,
+    "expected_reason_contains": "Unknown"
+  },
+  "protocol_version_mismatch": {
+    "protocol_version": "infonet/99",
+    "network_id": "sb-testnet-0",
+    "check": "protocol",
+    "expected_ok": false,
+    "expected_reason_contains": "protocol_version"
+  },
+  "network_id_mismatch": {
+    "protocol_version": "infonet/2",
+    "network_id": "sb-mainnet-evil",
+    "check": "protocol",
+    "expected_ok": false,
+    "expected_reason_contains": "network_id"
+  }
+}

@@ -183,6 +183,7 @@ const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: 
           value={query}
           name="sb-locate-search"
           autoComplete="off"
+          data-search-input
           placeholder="Search aircraft, person or vessel..."
           className="flex-1 bg-transparent text-[12px] text-[var(--text-secondary)] font-mono tracking-wider outline-none placeholder:text-slate-500"
           onChange={(e) => {
@@ -227,19 +228,19 @@ const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: 
                     <div className="text-[10px] text-[var(--text-primary)] font-mono tracking-wide truncate">
                       {r.label}
                     </div>
-                    <div className="text-[8px] text-[var(--text-muted)] font-mono truncate">
+                    <div className="text-[11px] text-[var(--text-muted)] font-mono truncate">
                       {r.sublabel}
                     </div>
                   </div>
                   <span
-                    className={`text-[7px] font-bold tracking-widest ${r.categoryColor} flex-shrink-0`}
+                    className={`text-[10px] font-bold tracking-widest ${r.categoryColor} flex-shrink-0`}
                   >
                     {r.category}
                   </span>
                 </button>
               ))}
             </div>
-            <div className="px-3 py-1.5 border-t border-[var(--border-primary)] bg-[var(--bg-primary)]/50 text-[8px] text-[var(--text-muted)] font-mono tracking-widest">
+            <div className="px-3 py-1.5 border-t border-[var(--border-primary)] bg-[var(--bg-primary)]/50 text-[11px] text-[var(--text-muted)] font-mono tracking-widest">
               {filtered.length} RESULT{filtered.length !== 1 ? 'S' : ''} — CLICK TO LOCATE
             </div>
           </motion.div>

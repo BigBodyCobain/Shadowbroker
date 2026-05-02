@@ -142,22 +142,22 @@ export function SigintSendForm({
 
   return (
     <div className="mt-2 pt-1.5 border-t border-[var(--border-primary)]/30">
-      <div className="text-[8px] text-[#666] tracking-widest mb-1">{label}</div>
+      <div className="text-[11px] text-[#666] tracking-widest mb-1">{label}</div>
       {isMesh && (
         <div className="mb-1.5 rounded border border-amber-500/30 bg-amber-950/20 px-2 py-1.5">
-          <div className="text-[8px] text-amber-300 tracking-widest">
+          <div className="text-[11px] text-amber-300 tracking-widest">
             PUBLIC MESH NOTICE
           </div>
-          <div className="text-[8px] text-amber-200/80 mt-0.5 leading-relaxed">
+          <div className="text-[11px] text-amber-200/80 mt-0.5 leading-relaxed">
             These Meshtastic messages are public/degraded, not private. They may be intercepted,
             relayed, logged, or fail to deliver.
           </div>
           {publicMeshAddress && (
-            <div className="text-[8px] text-amber-100/70 mt-1 font-mono">
+            <div className="text-[11px] text-amber-100/70 mt-1 font-mono">
               YOUR PUBLIC MESH ADDRESS: {publicMeshAddress.toUpperCase()}
             </div>
           )}
-          <label className="mt-1 flex items-start gap-1.5 text-[8px] text-amber-100/80 cursor-pointer">
+          <label className="mt-1 flex items-start gap-1.5 text-[11px] text-amber-100/80 cursor-pointer">
             <input
               type="checkbox"
               checked={warningAck}
@@ -176,7 +176,7 @@ export function SigintSendForm({
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder={placeholder}
           maxLength={200}
-          className={`flex-1 bg-[#0a0e1a] border border-[var(--border-primary)] rounded px-2 py-1 text-[10px] text-white font-mono placeholder:text-[#444] focus:outline-none ${
+          className={`flex-1 bg-[#0a0e1a] border border-[var(--border-primary)] rounded px-2 py-1 text-[13px] text-white font-mono placeholder:text-[#444] focus:outline-none ${
             isMesh ? 'focus:border-green-500/50' : 'focus:border-cyan-500/50'
           }`}
         />
@@ -200,11 +200,11 @@ export function SigintSendForm({
         </button>
       </div>
       {status === 'sent' && (
-        <div className="text-[8px] text-green-400 mt-0.5">Routed via {detail}</div>
+        <div className="text-[11px] text-green-400 mt-0.5">Routed via {detail}</div>
       )}
-      {status === 'error' && <div className="text-[8px] text-red-400 mt-0.5">{detail}</div>}
+      {status === 'error' && <div className="text-[11px] text-red-400 mt-0.5">{detail}</div>}
       {status === 'sending' && (
-        <div className="text-[8px] text-cyan-400 mt-0.5 animate-pulse">Routing...</div>
+        <div className="text-[11px] text-cyan-400 mt-0.5 animate-pulse">Routing...</div>
       )}
     </div>
   );
@@ -283,21 +283,21 @@ export function MeshtasticChannelFeed({ region, channel }: { region: string; cha
   const sortedChannels = Object.entries(regionChannels).sort((a, b) => b[1] - a[1]);
 
   if (loading)
-    return <div className="text-[8px] text-cyan-400/50 animate-pulse mt-1">Loading...</div>;
+    return <div className="text-[11px] text-cyan-400/50 animate-pulse mt-1">Loading...</div>;
 
   return (
     <div className="mt-1.5 pt-1 border-t border-green-500/20">
       {/* Channel population — which channels are active in this region */}
       {sortedChannels.length > 0 && (
         <div className="mb-1.5">
-          <div className="text-[8px] text-green-400/60 tracking-widest mb-0.5">
+          <div className="text-[11px] text-green-400/60 tracking-widest mb-0.5">
             ACTIVE CHANNELS — {region}
           </div>
           <div className="flex flex-wrap gap-1">
             {sortedChannels.map(([ch, count]) => (
               <span
                 key={ch}
-                className={`font-mono text-[8px] px-1.5 py-0.5 rounded border ${
+                className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${
                   ch === channel
                     ? 'bg-green-900/50 text-green-300 border-green-500/40'
                     : 'bg-slate-800/50 text-slate-400 border-slate-600/30'
@@ -308,7 +308,7 @@ export function MeshtasticChannelFeed({ region, channel }: { region: string; cha
             ))}
           </div>
           {(channelStats?.total_nodes ?? 0) > 0 && (
-            <div className="text-[8px] text-[#555] mt-0.5">
+            <div className="text-[11px] text-[#555] mt-0.5">
               {channelStats?.total_live} live + {channelStats?.total_api?.toLocaleString()} map nodes
               globally
             </div>
@@ -319,7 +319,7 @@ export function MeshtasticChannelFeed({ region, channel }: { region: string; cha
       {/* Message feed */}
       {messages.length > 0 ? (
         <>
-          <div className="text-[8px] text-green-400/60 tracking-widest mb-1">
+          <div className="text-[11px] text-green-400/60 tracking-widest mb-1">
             MESSAGES — {channel} ({region})
           </div>
           <div className="max-h-[140px] overflow-y-auto space-y-0.5 scrollbar-thin">
@@ -335,7 +335,7 @@ export function MeshtasticChannelFeed({ region, channel }: { region: string; cha
               return (
               <div
                 key={i}
-                className={`text-[9px] font-mono py-0.5 px-1 rounded hover:bg-green-950/20 ${
+                className={`text-[12px] font-mono py-0.5 px-1 rounded hover:bg-green-950/20 ${
                   directedToYou ? 'bg-amber-950/20 border border-amber-500/20' : ''
                 }`}
               >
@@ -364,7 +364,7 @@ export function MeshtasticChannelFeed({ region, channel }: { region: string; cha
           </div>
         </>
       ) : (
-        <div className="text-[8px] text-[#555]">No recent messages on {channel}</div>
+        <div className="text-[11px] text-[#555]">No recent messages on {channel}</div>
       )}
     </div>
   );

@@ -62,7 +62,13 @@ describe('gate envelope display', () => {
 
     expect(isEncryptedGateEnvelope(encrypted)).toBe(true);
     expect(gateEnvelopeState(encrypted)).toBe('locked');
-    expect(gateEnvelopeDisplayText(encrypted)).toBe('ENCRYPTED GATE MESSAGE - KEY UNAVAILABLE');
+    expect(gateEnvelopeDisplayText(encrypted)).toBe('Sealed message - durable gate envelope was not stored.');
+    expect(
+      gateEnvelopeDisplayText({
+        ...encrypted,
+        gate_envelope: 'opaque-envelope',
+      }),
+    ).toBe('Sealed message - waiting for local gate decrypt.');
     expect(
       gateEnvelopeState({
         ...encrypted,

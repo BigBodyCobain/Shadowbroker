@@ -5,88 +5,115 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Terminal,
-  Radio,
-  Camera,
-  Search,
-  TrainFront,
-  Globe,
+  Bot,
+  Network,
+  Scale,
+  KeyRound,
+  Cpu,
+  Layers,
+  GitBranch,
   Shield,
+  Plane,
+  Clock,
+  Satellite,
   Bug,
   Heart,
 } from 'lucide-react';
 
-const CURRENT_VERSION = '0.9.6';
+const CURRENT_VERSION = '0.9.7';
 const STORAGE_KEY = `shadowbroker_changelog_v${CURRENT_VERSION}`;
-const RELEASE_TITLE = 'InfoNet Experimental Testnet — Decentralized Intelligence Experiment';
+const RELEASE_TITLE = 'Agentic AI Channel + InfoNet Decentralized Intelligence';
 
-const HEADLINE_FEATURE = {
-  icon: <Terminal size={20} className="text-cyan-400" />,
-  title: 'InfoNet Experimental Testnet is Live',
-  subtitle: 'The first decentralized intelligence mesh built directly into an OSINT platform. This is an experimental testnet — NOT a privacy tool.',
-  details: [
-    'A global, obfuscated message relay running inside ShadowBroker. Anyone with the dashboard can transmit and receive on the InfoNet — no accounts, no signup, no identity required.',
-    'Messages pass through a Wormhole relay layer with gate personas, canonical payload signing, and message obfuscation. Transport is obfuscated to a degree, but this is NOT private communication. Do not transmit anything you would not say in public. End-to-end encryption is being developed but is not yet implemented.',
-    'Dead Drop inbox for peer-to-peer message exchange. Mesh Terminal CLI for power users. Gate persona system for pseudonymous identity. Double-ratchet DM scaffolding in progress.',
-    'Nothing like this has existed in an OSINT tool before. This is an open experiment — jump on the testnet, explore the protocol, and help shape what decentralized intelligence looks like.',
-  ],
-  callToAction: 'OPEN MESH CHAT \u2192 MESH TAB \u2192 START TRANSMITTING',
-};
+const HEADLINE_FEATURES = [
+  {
+    icon: <Bot size={20} className="text-purple-400" />,
+    accent: 'purple' as const,
+    title: 'Agentic AI Channel — supports OpenClaw and any HMAC-signing agent',
+    subtitle: 'ShadowBroker now exposes a signed agent command channel. Bring your own agent (OpenClaw, Claude Code, GPT, LangChain, or a custom client) and drive the dashboard from any LLM that speaks the protocol.',
+    details: [
+      'A signed command channel (POST /api/ai/channel/command) plus a batched concurrent-execution endpoint (up to 20 tool calls per round-trip via /api/ai/channel/batch). Agents query flights, ships, SIGINT, news, and intel layers; reason over the live mesh; and run market or threat analyses without a human in the loop.',
+      'HMAC-SHA256 request signing with timestamp + nonce replay protection. Tier-gated access (restricted vs full) governs which read and write commands the agent can invoke. Every call is auditable through the channel log.',
+      'ShadowBroker does not bundle an LLM, an agent runtime, or model weights — it ships the protocol. Any agent that signs requests with the documented HMAC contract can connect. OpenClaw is the reference implementation.',
+    ],
+    callToAction: 'CONNECT YOUR AGENT \u2192 /API/AI/CHANNEL/COMMAND',
+  },
+  {
+    icon: <Network size={20} className="text-cyan-400" />,
+    accent: 'cyan' as const,
+    title: 'InfoNet Testnet \u2014 Framework, Privacy, and a Path to Decentralized Intelligence',
+    subtitle: 'The testnet now ships its full governance economy and the runway for a privacy-preserving decentralized intelligence platform.',
+    details: [
+      'Sovereign Shell views: petitions (governance DSL covers parameter updates and feature toggles), upgrade-hash voting (80% supermajority, 67% Heavy-Node activation), evidence submission, dispute markets, gate suspension and shutdown, and bootstrap eligible-node-one-vote. Every write action is a clickable form with verbatim diagnostics on rejection.',
+      'Privacy primitive runway: locked Protocol contracts for ring signatures, stealth addresses, shielded balances, and DEX matching. The privacy-core Rust crate is the integration target. Function Keys (anonymous citizenship proof) ship 5 of 6 pieces; only blind-signature issuance waits on a primitive decision.',
+      'Backbone: two-tier event state with epoch finality, identity rotation, progressive penalties, ramp milestones, and constitutional invariants enforced via MappingProxyType. Sprint 11+ wires the cryptographic primitives into the locked Protocols.',
+      'Still an experimental testnet \u2014 no privacy guarantee yet. Treat all channels as public until E2E and the privacy primitives ship.',
+    ],
+    callToAction: 'OPEN SOVEREIGN SHELL \u2192 PETITIONS \u2022 UPGRADES \u2022 GATES',
+  },
+];
 
 const NEW_FEATURES = [
   {
-    icon: <Radio size={18} className="text-amber-400" />,
-    title: 'Meshtastic + APRS Radio Integration',
-    desc: 'Live Meshtastic mesh radio nodes plotted worldwide via MQTT. APRS amateur radio positioning via APRS-IS TCP feed. Both integrated into Mesh Chat and the SIGINT grid. Note: Mesh radio is NOT private — RF transmissions are public by nature.',
-    color: 'amber',
+    icon: <Cpu size={18} className="text-purple-400" />,
+    title: 'AI Batch Command Channel',
+    desc: 'POST up to 20 tool calls in a single HTTP round-trip; the backend executes them concurrently and returns a fan-out result map. Cuts agent latency by an order of magnitude over sequential calls.',
+  },
+  {
+    icon: <Scale size={18} className="text-amber-400" />,
+    title: 'Governance DSL — Petition-Driven Parameter Changes',
+    desc: 'Type-safe payload executor for UPDATE_PARAM, BATCH_UPDATE_PARAMS, ENABLE_FEATURE, and DISABLE_FEATURE petitions. Tunable knobs change on-chain via a vote — no code deploys required.',
+  },
+  {
+    icon: <GitBranch size={18} className="text-purple-400" />,
+    title: 'Upgrade-Hash Governance',
+    desc: 'Protocol upgrades that need new logic (not just parameter changes) vote on a SHA-256 hash of the verified release. 80% supermajority, 40% quorum, 67% Heavy-Node activation. Lifecycle: signatures, voting, challenge window, awaiting readiness, activated.',
+  },
+  {
+    icon: <KeyRound size={18} className="text-purple-400" />,
+    title: 'Function Keys — Anonymous Citizenship Proof',
+    desc: 'A citizen proves "I am an Infonet citizen" without revealing their Infonet identity. 5 of 6 pieces shipped: nullifiers, challenge-response, two-phase commit receipts, enumerated denial codes, batched settlement. Issuance via blind signatures waits on a primitive decision.',
+  },
+  {
+    icon: <Shield size={18} className="text-cyan-400" />,
+    title: 'Privacy Primitive Runway',
+    desc: 'Locked Protocol contracts in services/infonet/privacy/contracts.py for ring signatures, stealth addresses, Pedersen commitments, range proofs, and DEX matching. The privacy-core Rust crate is the integration target — no caller of the privacy module needs to know which scheme is active.',
+  },
+  {
+    icon: <Layers size={18} className="text-blue-400" />,
+    title: 'Two-Tier State + Epoch Finality',
+    desc: 'Tier 1 events propagate CRDT-style for low latency; Tier 2 events require epoch finality before they can be acted on. Identity rotation, progressive penalties, ramp milestones, and constitutional invariants are enforced via MappingProxyType.',
   },
   {
     icon: <Terminal size={18} className="text-cyan-400" />,
-    title: 'Mesh Terminal',
-    desc: 'Built-in command-line interface. Send messages, DMs, run market commands, inspect gate state. Draggable panel, minimizes to the top bar. Type "help" to see everything.',
-    color: 'cyan',
+    title: 'Sovereign Shell Write Surface',
+    desc: 'PetitionsView, UpgradeView, ResolutionView, GateShutdownView, BootstrapView, and FunctionKeyView each expose every Sprint 4-8 + 10 write action as a clickable form. Adaptive polling tightens to 8 seconds during active voting/challenge phases.',
   },
   {
-    icon: <Search size={18} className="text-green-400" />,
-    title: 'Shodan Device Search',
-    desc: 'Query Shodan directly from ShadowBroker. Search internet-connected devices by keyword, CVE, or port — results plotted as a live overlay on the map with configurable marker style.',
-    color: 'green',
+    icon: <Clock size={18} className="text-pink-400" />,
+    title: 'Time Machine — Snapshot Playback',
+    desc: 'Scrub backward through saved telemetry. Live polling pauses on entry to snapshot mode, the map redraws from the recorded snapshot, and moving entities interpolate between recorded frames. Hourly index lets you jump to any captured timestamp; pressing Live restores the current feed instantly.',
   },
   {
-    icon: <Camera size={18} className="text-emerald-400" />,
-    title: 'CCTV Mesh Expanded — 12 Sources, 11,000+ Cameras',
-    desc: 'Massive expansion: added Spain (DGT national + Madrid city), California (12 Caltrans districts), Washington State, Georgia, Illinois, Michigan, and Windy Webcams. Now covers 6 countries. Enabled by default.',
-    color: 'emerald',
-  },
-  {
-    icon: <TrainFront size={18} className="text-blue-400" />,
-    title: 'Train Tracking (Amtrak + European Rail)',
-    desc: 'Real-time Amtrak train positions across the US and European rail via DigiTraffic. Speed, heading, route, and status for every train on the network.',
-    color: 'blue',
-  },
-  {
-    icon: <Globe size={18} className="text-purple-400" />,
-    title: '8 New Intelligence Layers',
-    desc: 'Volcanoes (Smithsonian), air quality PM2.5 (OpenAQ), severe weather alerts, fishing activity (Global Fishing Watch), military bases, 35K+ power plants, SatNOGS ground stations, TinyGS LoRa satellites, VIIRS nightlights.',
-    color: 'purple',
-  },
-  {
-    icon: <Shield size={18} className="text-yellow-400" />,
-    title: 'Sentinel Hub Imagery + Desktop Shell Scaffold',
-    desc: 'Copernicus CDSE satellite imagery via Sentinel Hub Process API with OAuth2 token flow. Desktop-native control routing scaffold (pre-Tauri) with session profiles and audit trail.',
-    color: 'yellow',
+    icon: <Satellite size={18} className="text-orange-400" />,
+    title: 'SAR Satellite Telemetry — ASF, OPERA, Copernicus',
+    desc: 'New SAR (Synthetic Aperture Radar) layer. Mode A (default-on) pulls free catalog metadata from the Alaska Satellite Facility — no account required. Mode B (two-step opt-in) ingests pre-processed ground-change anomalies from NASA OPERA, Copernicus EGMS, GFM, EMS, and UNOSAT — deformation, flood, and damage assessments. Integrates with OpenClaw so agents can read and act on SAR anomalies; broadcasts default to private-tier transport (Tor / RNS).',
   },
 ];
 
 const BUG_FIXES = [
-  'CCTV auto-seed fix — partial DB (4 of 12 sources) no longer silently skips the other 8 ingestors on startup',
-  'SQLite threading fix — CCTV ingestors no longer share connections across threads',
-  'CCTV layer now ON by default and participates in the All On/Off global toggle',
-  'KiwiSDR, FIRMS fires, internet outages, data centers all switched to ON by default',
-  'Terminal minimized tab repositioned to top-center with proper icon (no more phantom cursor)',
-  'Mesh Chat defaults to MESH tab on startup instead of locked INFONET gate',
+  'Sovereign Shell adaptive polling — voting and challenge windows refresh every 8 seconds while active, every 30 to 60 seconds when idle. Voting feels live without a websocket layer.',
+  'Per-row write actions (petitions, upgrades, disputes) hold isolated submission state so concurrent forms no longer share a single in-flight slot.',
+  'Verbatim diagnostic surfacing on every write button. The backend reason text is always shown on rejection — no opaque "denied" toasts.',
+  'Evidence submission canonicalization matches Python repr() exactly, so client-side SHA-256 hashes round-trip cleanly through the chain.',
+  'Function Keys copy is context-agnostic — citizenship proof is described abstractly, not tied to a specific use case.',
+  'Post-cutover legacy mesh files (mesh_schema.py, mesh_signed_events.py, mesh_hashchain.py) hash-verified against the recorded baseline; the chain extension hook stays surgical.',
 ];
 
 const CONTRIBUTORS = [
+  {
+    name: '@Alienmajik',
+    desc: 'Raspberry Pi 5 support — ARM64 packaging, headless deployment notes, and runtime tuning for Pi-class hardware',
+  },
   {
     name: '@wa1id',
     desc: 'CCTV ingestion fix — fresh SQLite connections per ingest, persistent DB path, startup hydration, cluster clickability',
@@ -236,54 +263,94 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto styled-scrollbar p-5 space-y-5">
-            {/* === HEADLINE: InfoNet Testnet === */}
-            <div className="border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 border border-cyan-500/40 bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
-                  {HEADLINE_FEATURE.icon}
-                </div>
-                <div>
-                  <div className="text-sm font-mono text-cyan-300 font-bold tracking-wide">
-                    {HEADLINE_FEATURE.title}
-                  </div>
-                  <div className="text-xs font-mono text-cyan-500/80 mt-0.5">
-                    {HEADLINE_FEATURE.subtitle}
-                  </div>
-                </div>
-              </div>
+            {/* === HEADLINE PAIR: OpenClaw API + InfoNet === */}
+            {HEADLINE_FEATURES.map((h, idx) => {
+              const isPurple = h.accent === 'purple';
+              const cardClass = isPurple
+                ? 'border border-purple-500/30 bg-purple-950/20 p-4 space-y-3'
+                : 'border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-3';
+              const iconWrapClass = isPurple
+                ? 'w-9 h-9 border border-purple-500/40 bg-purple-500/10 flex items-center justify-center flex-shrink-0'
+                : 'w-9 h-9 border border-cyan-500/40 bg-cyan-500/10 flex items-center justify-center flex-shrink-0';
+              const titleClass = isPurple
+                ? 'text-sm font-mono text-purple-300 font-bold tracking-wide'
+                : 'text-sm font-mono text-cyan-300 font-bold tracking-wide';
+              const subtitleClass = isPurple
+                ? 'text-xs font-mono text-purple-500/80 mt-0.5'
+                : 'text-xs font-mono text-cyan-500/80 mt-0.5';
+              const ctaClass = isPurple
+                ? 'text-[11px] font-mono text-purple-400 tracking-[0.25em] font-bold'
+                : 'text-[11px] font-mono text-cyan-400 tracking-[0.25em] font-bold';
 
-              <div className="space-y-2">
-                {HEADLINE_FEATURE.details.map((para, i) => (
-                  <p
-                    key={i}
-                    className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed"
+              return (
+                <div key={idx} className={cardClass}>
+                  <div className="flex items-center gap-3">
+                    <div className={iconWrapClass}>{h.icon}</div>
+                    <div>
+                      <div className={titleClass}>{h.title}</div>
+                      <div className={subtitleClass}>{h.subtitle}</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {h.details.map((para, i) => (
+                      <p
+                        key={i}
+                        className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed"
+                      >
+                        {para}
+                      </p>
+                    ))}
+                  </div>
+
+                  {!isPurple && (
+                    <div className="flex items-start gap-2 p-2.5 border border-red-500/30 bg-red-950/20">
+                      <span className="text-red-400 text-xs mt-0.5 flex-shrink-0 font-bold">!!</span>
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-mono text-red-400/90 leading-relaxed block font-bold">
+                          EXPERIMENTAL TESTNET &mdash; NO PRIVACY GUARANTEE
+                        </span>
+                        <span className="text-[11px] font-mono text-amber-400/80 leading-relaxed block">
+                          InfoNet messages are obfuscated but NOT encrypted end-to-end. The Mesh
+                          network (Meshtastic/APRS) is NOT private &mdash; radio transmissions are
+                          inherently public. The privacy primitive contracts are scaffolded but not
+                          yet wired. Treat all channels as open and public for now.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-center pt-1">
+                    <span className={ctaClass}>{h.callToAction}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* === Required-config callout: OpenSky API === */}
+            <div className="border border-amber-500/40 bg-amber-950/20 p-3 flex items-start gap-3">
+              <Plane size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="space-y-1">
+                <div className="text-xs font-mono text-amber-300 font-bold tracking-wide uppercase">
+                  Required: OpenSky API credentials for airplane telemetry
+                </div>
+                <div className="text-xs font-mono text-amber-200/80 leading-relaxed">
+                  Airplane telemetry now requires an OpenSky Network OAuth2 client. Set{' '}
+                  <span className="text-amber-100 font-bold">OPENSKY_CLIENT_ID</span> and{' '}
+                  <span className="text-amber-100 font-bold">OPENSKY_CLIENT_SECRET</span> in your{' '}
+                  <span className="text-amber-100 font-bold">.env</span>. Free registration:{' '}
+                  <a
+                    href="https://opensky-network.org/index.php?option=com_users&view=registration"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-100 font-bold underline underline-offset-2 hover:text-amber-50"
                   >
-                    {para}
-                  </p>
-                ))}
-              </div>
-
-              {/* Testnet disclaimer */}
-              <div className="flex items-start gap-2 p-2.5 border border-red-500/30 bg-red-950/20">
-                <span className="text-red-400 text-xs mt-0.5 flex-shrink-0 font-bold">!!</span>
-                <div className="space-y-1.5">
-                  <span className="text-[11px] font-mono text-red-400/90 leading-relaxed block font-bold">
-                    EXPERIMENTAL TESTNET — NO PRIVACY GUARANTEE
-                  </span>
-                  <span className="text-[11px] font-mono text-amber-400/80 leading-relaxed block">
-                    InfoNet messages are obfuscated but NOT encrypted end-to-end. The Mesh network
-                    (Meshtastic/APRS) is NOT private &mdash; radio transmissions are inherently
-                    public. Do not send anything sensitive on any channel. Privacy and E2E encryption
-                    are actively being developed. Treat all channels as open and public for now.
-                  </span>
+                    opensky-network.org/register
+                  </a>
+                  . Without these the flights layer falls back to ADS-B-only coverage with
+                  significant gaps in Africa, Asia, and Latin America, and the startup environment
+                  check will surface a critical warning.
                 </div>
-              </div>
-
-              {/* CTA */}
-              <div className="text-center pt-1">
-                <span className="text-[11px] font-mono text-cyan-400 tracking-[0.25em] font-bold">
-                  {HEADLINE_FEATURE.callToAction}
-                </span>
               </div>
             </div>
 

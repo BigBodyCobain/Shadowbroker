@@ -160,7 +160,7 @@ function CongressTab({ trades }: { trades: CongressTrade[] }) {
             </div>
           </div>
           {t.asset_name && t.asset_name !== t.ticker && (
-            <div className="text-[8px] text-[var(--text-muted)]/70 truncate mt-0.5">{t.asset_name}</div>
+            <div className="text-[11px] text-[var(--text-muted)]/70 truncate mt-0.5">{t.asset_name}</div>
           )}
         </div>
       ))}
@@ -200,7 +200,7 @@ function InsiderTab({ transactions }: { transactions: InsiderTransaction[] }) {
               </div>
             </div>
             {t.filing_date && (
-              <div className="text-[8px] text-[var(--text-muted)]/70 mt-0.5">{t.filing_date}</div>
+              <div className="text-[11px] text-[var(--text-muted)]/70 mt-0.5">{t.filing_date}</div>
             )}
           </div>
         );
@@ -281,7 +281,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
             GLOBAL MARKETS
           </span>
           {hasFinnhub && (
-            <span className="text-[8px] text-green-500 bg-green-900/30 px-1 rounded">FINNHUB</span>
+            <span className="text-[11px] text-green-500 bg-green-900/30 px-1 rounded">FINNHUB</span>
           )}
         </div>
         <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
@@ -340,7 +340,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
 
                 {/* Attribution */}
                 <div className="px-3 pb-2">
-                  <p className="text-[8px] text-[var(--text-muted)]/60 text-center">
+                  <p className="text-[11px] text-[var(--text-muted)]/60 text-center">
                     Data from Finnhub
                   </p>
                 </div>
@@ -363,7 +363,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
                       href="https://finnhub.io/register"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[8px] text-cyan-400 hover:text-cyan-300 transition-colors"
+                      className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
                     >
                       Free API Key <ExternalLink size={8} />
                     </a>

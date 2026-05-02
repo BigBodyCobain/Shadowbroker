@@ -269,7 +269,7 @@ export default function AdvancedFilterModal({
                   >
                     {field.label}
                     {count > 0 && (
-                      <span className={`ml-1.5 text-[8px] ${c.text} bg-black/40 px-1`}>
+                      <span className={`ml-1.5 text-[11px] ${c.text} bg-black/40 px-1`}>
                         {count}
                       </span>
                     )}
@@ -301,7 +301,7 @@ export default function AdvancedFilterModal({
               })}
               <button
                 onClick={() => clearField(activeTab)}
-                className="text-[8px] text-red-400/70 hover:text-red-300 tracking-widest ml-1"
+                className="text-[11px] text-red-400/70 hover:text-red-300 tracking-widest ml-1"
               >
                 CLEAR
               </button>
@@ -335,10 +335,10 @@ export default function AdvancedFilterModal({
               )}
             </div>
             <div className="flex justify-between mt-1.5">
-              <span className="text-[8px] text-[var(--text-muted)] tracking-widest">
+              <span className="text-[11px] text-[var(--text-muted)] tracking-widest">
                 {filteredOptions.length} AVAILABLE
               </span>
-              <span className="text-[8px] text-[var(--text-muted)] tracking-widest">
+              <span className="text-[11px] text-[var(--text-muted)] tracking-widest">
                 {draft[activeTab]?.size || 0} SELECTED
               </span>
             </div>

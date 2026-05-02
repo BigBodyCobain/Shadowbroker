@@ -16,9 +16,12 @@ Heavy logic has been extracted into services/fetchers/:
 
 import logging
 import concurrent.futures
+import json
+import math
 import os
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -56,6 +59,7 @@ from services.fetchers.earth_observation import (  # noqa: F401
     fetch_air_quality,
     fetch_volcanoes,
     fetch_viirs_change_nodes,
+    fetch_uap_sightings,
 )
 from services.fetchers.infrastructure import (  # noqa: F401
     fetch_internet_outages,
@@ -90,15 +94,114 @@ from services.fetchers.meshtastic_map import (
     load_meshtastic_cache_if_available,
 )  # noqa: F401
 from services.fetchers.fimi import fetch_fimi  # noqa: F401
+from services.fetchers.crowdthreat import fetch_crowdthreat  # noqa: F401
+from services.fetchers.wastewater import fetch_wastewater  # noqa: F401
+from services.fetchers.sar_catalog import fetch_sar_catalog  # noqa: F401
+from services.fetchers.sar_products import fetch_sar_products  # noqa: F401
 from services.ais_stream import prune_stale_vessels  # noqa: F401
 
 logger = logging.getLogger(__name__)
 _SLOW_FETCH_S = float(os.environ.get("FETCH_SLOW_THRESHOLD_S", "5"))
+# Hard wall-clock limit per individual fetch task.  A task that exceeds this
+# is treated as a failure so it cannot block an entire fetch tier indefinitely.
+_TASK_HARD_TIMEOUT_S = float(os.environ.get("FETCH_TASK_TIMEOUT_S", "120"))
+_FAST_STARTUP_CACHE_MAX_AGE_S = float(os.environ.get("FAST_STARTUP_CACHE_MAX_AGE_S", "300"))
+_FAST_STARTUP_CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "fast_startup_cache.json"
+_FAST_STARTUP_CACHE_KEYS = (
+    "commercial_flights",
+    "military_flights",
+    "private_flights",
+    "private_jets",
+    "tracked_flights",
+    "ships",
+    "uavs",
+    "gps_jamming",
+    "satellites",
+    "satellite_source",
+    "satellite_analysis",
+    "sigint",
+    "sigint_totals",
+    "trains",
+)
 
 # Shared thread pool — reused across all fetch cycles instead of creating/destroying per tick
 _SHARED_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=20, thread_name_prefix="fetch"
 )
+
+
+def _cache_json_safe(value):
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {str(k): _cache_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_cache_json_safe(v) for v in value]
+    return value
+
+
+def _load_fast_startup_cache_if_available() -> bool:
+    """Seed moving layers from a recent disk cache while live fetches warm up."""
+    if _FAST_STARTUP_CACHE_MAX_AGE_S <= 0 or not _FAST_STARTUP_CACHE_PATH.exists():
+        return False
+    try:
+        with _FAST_STARTUP_CACHE_PATH.open("r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+        cached_at = float(payload.get("cached_at") or 0)
+        age_s = time.time() - cached_at
+        if cached_at <= 0 or age_s > _FAST_STARTUP_CACHE_MAX_AGE_S:
+            logger.info("Skipping stale fast startup cache (age %.1fs)", age_s)
+            return False
+        layers = payload.get("layers") or {}
+        freshness = payload.get("freshness") or {}
+        loaded: list[str] = []
+        with _data_lock:
+            for key in _FAST_STARTUP_CACHE_KEYS:
+                if key in layers:
+                    latest_data[key] = layers[key]
+                    loaded.append(key)
+            for key, ts in freshness.items():
+                source_timestamps[str(key)] = ts
+            if payload.get("last_updated"):
+                latest_data["last_updated"] = payload.get("last_updated")
+        if not loaded:
+            return False
+        from services.fetchers._store import bump_data_version
+
+        bump_data_version()
+        logger.info(
+            "Loaded fast startup cache for %d layers (age %.1fs) so the map can paint before remote feeds finish",
+            len(loaded),
+            age_s,
+        )
+        return True
+    except Exception as e:
+        logger.warning("Fast startup cache load failed (non-fatal): %s", e)
+        return False
+
+
+def _save_fast_startup_cache() -> None:
+    """Persist recent moving layers for the next cold start."""
+    try:
+        with _data_lock:
+            payload = {
+                "cached_at": time.time(),
+                "last_updated": latest_data.get("last_updated"),
+                "layers": {key: latest_data.get(key) for key in _FAST_STARTUP_CACHE_KEYS},
+                "freshness": {
+                    key: source_timestamps.get(key)
+                    for key in _FAST_STARTUP_CACHE_KEYS
+                    if source_timestamps.get(key)
+                },
+            }
+        safe_payload = _cache_json_safe(payload)
+        _FAST_STARTUP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = _FAST_STARTUP_CACHE_PATH.with_suffix(".tmp")
+        with tmp_path.open("w", encoding="utf-8") as fh:
+            json.dump(safe_payload, fh, separators=(",", ":"))
+        tmp_path.replace(_FAST_STARTUP_CACHE_PATH)
+    except Exception as e:
+        logger.debug("Fast startup cache save skipped: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -109,10 +212,12 @@ def _run_tasks(label: str, funcs: list):
     if not funcs:
         return
     futures = {_SHARED_EXECUTOR.submit(func): (func.__name__, time.perf_counter()) for func in funcs}
-    for future in concurrent.futures.as_completed(futures):
-        name, start = futures[future]
+    # Iterate directly so future.result(timeout=...) is the blocking call.
+    # as_completed() blocks inside __next__() waiting for completion — the timeout
+    # on result() would never be reached for a hanging task under that pattern.
+    for future, (name, start) in futures.items():
         try:
-            future.result()
+            future.result(timeout=_TASK_HARD_TIMEOUT_S)
             duration = time.perf_counter() - start
             from services.fetch_health import record_success
 
@@ -164,6 +269,7 @@ def update_fast_data():
         latest_data["last_updated"] = datetime.utcnow().isoformat()
     from services.fetchers._store import bump_data_version
     bump_data_version()
+    _save_fast_startup_cache()
     logger.info("Fast-tier update complete.")
 
 
@@ -219,6 +325,7 @@ def update_all_data(*, startup_mode: bool = False):
     logger.info("Full data update starting (parallel)...")
     # Preload Meshtastic map cache immediately (instant, from disk)
     load_meshtastic_cache_if_available()
+    _load_fast_startup_cache_if_available()
     with _data_lock:
         meshtastic_seeded = bool(latest_data.get("meshtastic_map_nodes"))
     futures = {
@@ -231,6 +338,11 @@ def update_all_data(*, startup_mode: bool = False):
         _SHARED_EXECUTOR.submit(fetch_fimi): ("fetch_fimi", time.perf_counter()),
         _SHARED_EXECUTOR.submit(fetch_gdelt): ("fetch_gdelt", time.perf_counter()),
         _SHARED_EXECUTOR.submit(update_liveuamap): ("update_liveuamap", time.perf_counter()),
+        _SHARED_EXECUTOR.submit(fetch_uap_sightings): ("fetch_uap_sightings", time.perf_counter()),
+        _SHARED_EXECUTOR.submit(fetch_wastewater): ("fetch_wastewater", time.perf_counter()),
+        _SHARED_EXECUTOR.submit(fetch_crowdthreat): ("fetch_crowdthreat", time.perf_counter()),
+        _SHARED_EXECUTOR.submit(fetch_sar_catalog): ("fetch_sar_catalog", time.perf_counter()),
+        _SHARED_EXECUTOR.submit(fetch_sar_products): ("fetch_sar_products", time.perf_counter()),
     }
     if not startup_mode or not meshtastic_seeded:
         futures[_SHARED_EXECUTOR.submit(fetch_meshtastic_nodes)] = (
@@ -241,10 +353,9 @@ def update_all_data(*, startup_mode: bool = False):
         logger.info(
             "Startup preload: Meshtastic cache already loaded, deferring remote map refresh to scheduled cadence"
         )
-    for future in concurrent.futures.as_completed(futures):
-        name, start = futures[future]
+    for future, (name, start) in futures.items():
         try:
-            future.result()
+            future.result(timeout=_TASK_HARD_TIMEOUT_S)
             duration = time.perf_counter() - start
             from services.fetch_health import record_success
 
@@ -257,6 +368,42 @@ def update_all_data(*, startup_mode: bool = False):
 
             record_failure(name, error=e, duration_s=duration)
             logger.exception(f"full-refresh task failed: {name}")
+    # Run CCTV ingest immediately so cameras are available on first request
+    # (the scheduled job also runs every 10 min for ongoing refresh).
+    if startup_mode:
+        try:
+            from services.cctv_pipeline import (
+                TFLJamCamIngestor, LTASingaporeIngestor, AustinTXIngestor,
+                NYCDOTIngestor, CaltransIngestor, ColoradoDOTIngestor,
+                WSDOTIngestor, GeorgiaDOTIngestor, IllinoisDOTIngestor,
+                MichiganDOTIngestor, WindyWebcamsIngestor, DGTNationalIngestor,
+                MadridCityIngestor, OSMTrafficCameraIngestor, get_all_cameras,
+            )
+            from services.cctv_pipeline import OSMALPRCameraIngestor
+            _startup_ingestors = [
+                TFLJamCamIngestor(), LTASingaporeIngestor(), AustinTXIngestor(),
+                NYCDOTIngestor(), CaltransIngestor(), ColoradoDOTIngestor(),
+                WSDOTIngestor(), GeorgiaDOTIngestor(), IllinoisDOTIngestor(),
+                MichiganDOTIngestor(), WindyWebcamsIngestor(), DGTNationalIngestor(),
+                MadridCityIngestor(), OSMTrafficCameraIngestor(),
+                OSMALPRCameraIngestor(),
+            ]
+            logger.info("Running CCTV ingest at startup (%d ingestors)...", len(_startup_ingestors))
+            ingest_futures = {
+                _SHARED_EXECUTOR.submit(ing.ingest): ing.__class__.__name__
+                for ing in _startup_ingestors
+            }
+            for fut in concurrent.futures.as_completed(ingest_futures, timeout=90):
+                name = ingest_futures[fut]
+                try:
+                    fut.result()
+                except Exception as e:
+                    logger.warning("CCTV startup ingest %s failed: %s", name, e)
+            fetch_cctv()
+            logger.info("CCTV startup ingest complete — %d cameras in DB", len(get_all_cameras()))
+        except Exception as e:
+            logger.warning("CCTV startup ingest failed (non-fatal): %s", e)
+
     logger.info("Full data update complete.")
 
 
@@ -406,6 +553,38 @@ def start_scheduler():
         misfire_grace_time=60,
     )
 
+    # Route database — bulk refresh from vrs-standing-data.adsb.lol every 5
+    # days. Replaces the legacy /api/0/routeset POST (blocked under our UA,
+    # and broken upstream). Airline schedules change on a quarterly cycle,
+    # so 5 days is well within the staleness budget; new flight numbers
+    # added within the window simply fall back to UNKNOWN until refresh.
+    from services.fetchers.route_database import refresh_route_database
+
+    _scheduler.add_job(
+        lambda: _run_task_with_health(refresh_route_database, "refresh_route_database"),
+        "interval",
+        days=5,
+        id="route_database",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
+    # Aircraft metadata database — bulk refresh from OpenSky's public S3
+    # bucket every 5 days. Provides hex24 -> ICAO type so OpenSky-sourced
+    # flights (which lack 't' in /states/all) get aircraft category and
+    # fuel/CO2 emissions populated. Snapshots are monthly; 5 days catches
+    # newer drops without hammering the bucket.
+    from services.fetchers.aircraft_database import refresh_aircraft_database
+
+    _scheduler.add_job(
+        lambda: _run_task_with_health(refresh_aircraft_database, "refresh_aircraft_database"),
+        "interval",
+        days=5,
+        id="aircraft_database",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
     # GDELT — every 30 minutes (downloads 32 ZIP files per call, avoid rate limits)
     _scheduler.add_job(
         lambda: _run_task_with_health(fetch_gdelt, "fetch_gdelt"),
@@ -510,14 +689,21 @@ def start_scheduler():
         misfire_grace_time=120,
     )
 
-    # Meshtastic map API — every 4 hours, fetch global node positions
+    # Meshtastic map API — once per day with a per-install random offset to
+    # avoid thundering the one-person hobby service at the top of the hour.
+    # The fetcher also short-circuits on a fresh on-disk cache, so the
+    # practical network cadence is closer to "once per day per install".
+    import random as _random_jitter
+
+    _meshtastic_jitter_minutes = _random_jitter.randint(0, 180)
     _scheduler.add_job(
         lambda: _run_task_with_health(fetch_meshtastic_nodes, "fetch_meshtastic_nodes"),
         "interval",
-        hours=4,
+        hours=24,
+        minutes=_meshtastic_jitter_minutes,
         id="meshtastic_map",
         max_instances=1,
-        misfire_grace_time=600,
+        misfire_grace_time=3600,
     )
 
     # Oracle resolution sweep — every hour, check if any markets with predictions have concluded
@@ -550,8 +736,135 @@ def start_scheduler():
         misfire_grace_time=600,
     )
 
+    # UAP sightings (NUFORC) — daily at 12:00 UTC
+    _scheduler.add_job(
+        lambda: _run_task_with_health(
+            lambda: fetch_uap_sightings(force_refresh=True),
+            "fetch_uap_sightings",
+        ),
+        "cron",
+        hour=12,
+        minute=0,
+        id="uap_sightings_daily",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
+    # WastewaterSCAN pathogen surveillance — daily at 12:00 UTC (samples update ~daily)
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_wastewater, "fetch_wastewater"),
+        "cron",
+        hour=12,
+        minute=0,
+        id="wastewater_daily",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
+    # CrowdThreat verified threat intelligence — daily at 12:00 UTC
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_crowdthreat, "fetch_crowdthreat"),
+        "cron",
+        hour=12,
+        minute=0,
+        id="crowdthreat_daily",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
+    # SAR catalog (Mode A) — every hour, free metadata from ASF Search.
+    # No account, no downloads, no DSP.  Pure scene catalog + coverage hints.
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_sar_catalog, "fetch_sar_catalog"),
+        "interval",
+        hours=1,
+        id="sar_catalog",
+        max_instances=1,
+        misfire_grace_time=600,
+        next_run_time=datetime.utcnow() + timedelta(minutes=3),
+    )
+
+    # SAR products (Mode B) — every 30 minutes, opt-in only.
+    # Pre-processed deformation/flood/damage anomalies from OPERA, EGMS, GFM,
+    # EMS, UNOSAT.  Disabled until both MESH_SAR_PRODUCTS_FETCH=allow and
+    # MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE=true are set.
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_sar_products, "fetch_sar_products"),
+        "interval",
+        minutes=30,
+        id="sar_products",
+        max_instances=1,
+        misfire_grace_time=600,
+        next_run_time=datetime.utcnow() + timedelta(minutes=5),
+    )
+
+    # ── Time Machine auto-snapshots ─────────────────────────────────────
+    # Compressed snapshots taken on two profiles (high_freq + standard).
+    # Intervals are read from _timemachine_config at each invocation so
+    # config changes via the API take effect without restarting.
+
+    def _auto_snapshot_high_freq():
+        """Auto-snapshot fast-moving layers (flights, ships, satellites)."""
+        try:
+            from services.node_settings import read_node_settings
+            if not read_node_settings().get("timemachine_enabled", False):
+                return  # Time Machine is off — skip
+            from routers.ai_intel import _timemachine_config, _take_snapshot_internal
+            cfg = _timemachine_config["profiles"]["high_freq"]
+            if cfg["interval_minutes"] <= 0:
+                return  # disabled
+            layers = cfg["layers"]
+            result = _take_snapshot_internal(layers=layers, profile="auto_high_freq", compress=True)
+            logger.info("Time Machine auto-snapshot (high_freq): %s — %s layers",
+                        result.get("snapshot_id"), len(result.get("layers", [])))
+        except Exception as e:
+            logger.warning("Time Machine auto-snapshot (high_freq) failed: %s", e)
+
+    def _auto_snapshot_standard():
+        """Auto-snapshot contextual layers (news, earthquakes, weather, etc.)."""
+        try:
+            from services.node_settings import read_node_settings
+            if not read_node_settings().get("timemachine_enabled", False):
+                return  # Time Machine is off — skip
+            from routers.ai_intel import _timemachine_config, _take_snapshot_internal
+            cfg = _timemachine_config["profiles"]["standard"]
+            if cfg["interval_minutes"] <= 0:
+                return  # disabled
+            layers = cfg["layers"]
+            result = _take_snapshot_internal(layers=layers, profile="auto_standard", compress=True)
+            logger.info("Time Machine auto-snapshot (standard): %s — %s layers",
+                        result.get("snapshot_id"), len(result.get("layers", [])))
+        except Exception as e:
+            logger.warning("Time Machine auto-snapshot (standard) failed: %s", e)
+
+    _scheduler.add_job(
+        _auto_snapshot_high_freq,
+        "interval",
+        minutes=15,
+        id="timemachine_high_freq",
+        max_instances=1,
+        misfire_grace_time=60,
+        next_run_time=datetime.utcnow() + timedelta(minutes=2),  # first snapshot 2m after startup
+    )
+    _scheduler.add_job(
+        _auto_snapshot_standard,
+        "interval",
+        minutes=120,
+        id="timemachine_standard",
+        max_instances=1,
+        misfire_grace_time=300,
+        next_run_time=datetime.utcnow() + timedelta(minutes=5),  # first snapshot 5m after startup
+    )
+
     _scheduler.start()
     logger.info("Scheduler started.")
+
+    # Start the feed ingester daemon (refreshes feed-backed pin layers)
+    try:
+        from services.feed_ingester import start_feed_ingester
+        start_feed_ingester()
+    except Exception as e:
+        logger.warning("Failed to start feed ingester: %s", e)
 
 
 def stop_scheduler():

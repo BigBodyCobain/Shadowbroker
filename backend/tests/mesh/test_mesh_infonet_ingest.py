@@ -49,7 +49,7 @@ def test_infonet_ingest_accepts_valid_event(tmp_path, monkeypatch):
     assert inf.head_hash == evt.event_id
 
 
-def test_verify_node_binding_rejects_legacy_and_accepts_current_ids():
+def test_verify_node_binding_accepts_current_and_compat_ids_only(monkeypatch):
     priv = ed25519.Ed25519PrivateKey.generate()
     pub = priv.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -58,10 +58,22 @@ def test_verify_node_binding_rejects_legacy_and_accepts_current_ids():
     pub_b64 = base64.b64encode(pub).decode("utf-8")
 
     current = mesh_crypto.derive_node_id(pub_b64)
-    legacy = f"{mesh_crypto.NODE_ID_PREFIX}{current[len(mesh_crypto.NODE_ID_PREFIX):len(mesh_crypto.NODE_ID_PREFIX) + 8]}"
+    compat = mesh_crypto.derive_node_id(pub_b64, legacy=True)
+    legacy = (
+        f"{mesh_crypto.NODE_ID_PREFIX}"
+        f"{current[len(mesh_crypto.NODE_ID_PREFIX):len(mesh_crypto.NODE_ID_PREFIX) + 8]}"
+    )
 
-    assert mesh_crypto.verify_node_binding(current, pub_b64)
-    assert not mesh_crypto.verify_node_binding(legacy, pub_b64)
+    monkeypatch.setenv("MESH_ALLOW_LEGACY_NODE_ID_COMPAT_UNTIL", "2099-01-01")
+    from services.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        assert mesh_crypto.verify_node_binding(current, pub_b64)
+        assert mesh_crypto.verify_node_binding(compat, pub_b64)
+        assert not mesh_crypto.verify_node_binding(legacy, pub_b64)
+    finally:
+        get_settings.cache_clear()
 
 
 def test_infonet_append_rejects_missing_signature_fields(tmp_path, monkeypatch):
@@ -191,6 +203,8 @@ def test_gate_store_accepts_encrypted_gate_payload(tmp_path, monkeypatch):
 def test_gate_store_rejects_replayed_ciphertext_across_append_and_peer_ingest(tmp_path):
     store = mesh_hashchain.GateMessageStore(data_dir=str(tmp_path / "gate_messages"))
     gate_id = "infonet"
+    replay_ts = float(int(mesh_hashchain.time.time() / 60) * 60)
+    replay_nonce = "stable-nonce"
     first = store.append(
         gate_id,
         {
@@ -199,9 +213,10 @@ def test_gate_store_rejects_replayed_ciphertext_across_append_and_peer_ingest(tm
             "payload": {
                 "gate": gate_id,
                 "ciphertext": "opaque-ciphertext",
+                "nonce": replay_nonce,
                 "format": "mls1",
             },
-            "timestamp": float(int(mesh_hashchain.time.time() / 60) * 60),
+            "timestamp": replay_ts,
         },
     )
 
@@ -213,9 +228,10 @@ def test_gate_store_rejects_replayed_ciphertext_across_append_and_peer_ingest(tm
             "payload": {
                 "gate": gate_id,
                 "ciphertext": "opaque-ciphertext",
+                "nonce": replay_nonce,
                 "format": "mls1",
             },
-            "timestamp": float(int(mesh_hashchain.time.time() / 60) * 60) + 60.0,
+            "timestamp": replay_ts,
         },
     )
     peer_result = store.ingest_peer_events(
@@ -223,10 +239,11 @@ def test_gate_store_rejects_replayed_ciphertext_across_append_and_peer_ingest(tm
         [
             {
                 "event_type": "gate_message",
-                "timestamp": mesh_hashchain.time.time(),
+                "timestamp": replay_ts,
                 "payload": {
                     "gate": gate_id,
                     "ciphertext": "opaque-ciphertext",
+                    "nonce": replay_nonce,
                     "format": "mls1",
                 },
             }
@@ -261,3 +278,59 @@ def test_gate_store_prunes_stale_replay_fingerprints(tmp_path):
 
     assert removed == 1
     assert store._replay_index == {}
+
+
+def test_gate_replay_fingerprint_includes_nonce():
+    base = {
+        "event_type": "gate_message",
+        "timestamp": 1_700_000_000,
+        "payload": {
+            "gate": "infonet",
+            "ciphertext": "same-ciphertext",
+            "format": "mls1",
+        },
+    }
+    first = mesh_hashchain.build_gate_replay_fingerprint(
+        "infonet",
+        {
+            **base,
+            "payload": {**base["payload"], "nonce": "nonce-a"},
+        },
+    )
+    second = mesh_hashchain.build_gate_replay_fingerprint(
+        "infonet",
+        {
+            **base,
+            "payload": {**base["payload"], "nonce": "nonce-b"},
+        },
+    )
+
+    assert first != second
+
+
+def test_gate_replay_fingerprint_includes_timestamp():
+    base = {
+        "event_type": "gate_message",
+        "payload": {
+            "gate": "infonet",
+            "ciphertext": "same-ciphertext",
+            "nonce": "nonce-a",
+            "format": "mls1",
+        },
+    }
+    first = mesh_hashchain.build_gate_replay_fingerprint(
+        "infonet",
+        {
+            **base,
+            "timestamp": 1_700_000_000,
+        },
+    )
+    second = mesh_hashchain.build_gate_replay_fingerprint(
+        "infonet",
+        {
+            **base,
+            "timestamp": 1_700_000_001,
+        },
+    )
+
+    assert first != second

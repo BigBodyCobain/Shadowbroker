@@ -1,0 +1,14 @@
+{
+  "name": "@shadowbroker/desktop-shell",
+  "version": "0.9.7",
+  "private": true,
+  "description": "ShadowBroker desktop shell packaging, runtime bridge, and release tooling",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:desktop": "node ./scripts/run-desktop-build.cjs",
+    "build:desktop:clean": "node ./scripts/run-desktop-build.cjs --clean"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

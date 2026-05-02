@@ -192,21 +192,23 @@ async function fetchSentinel2Direct(lat: number, lng: number) {
   const features = data.features || [];
   if (!features.length) return null; // No scenes — caller uses Esri fallback
 
-  const item = features[0];
-  const assets = item.assets || {};
-  const rendered = assets.rendered_preview || {};
-  const thumbnail = assets.thumbnail || {};
+  const scenes = features.map((item: any) => {
+    const assets = item.assets || {};
+    const rendered = assets.rendered_preview || {};
+    const thumbnail = assets.thumbnail || {};
+    return {
+      found: true,
+      scene_id: item.id,
+      datetime: item.properties?.datetime,
+      cloud_cover: item.properties?.['eo:cloud_cover'],
+      thumbnail_url: thumbnail.href || rendered.href,
+      fullres_url: rendered.href || thumbnail.href,
+      bbox: item.bbox ? [...item.bbox] : null,
+      platform: item.properties?.platform || 'Sentinel-2',
+    };
+  });
 
-  return {
-    found: true,
-    scene_id: item.id,
-    datetime: item.properties?.datetime,
-    cloud_cover: item.properties?.['eo:cloud_cover'],
-    thumbnail_url: thumbnail.href || rendered.href,
-    fullres_url: rendered.href || thumbnail.href,
-    bbox: item.bbox ? [...item.bbox] : null,
-    platform: item.properties?.platform || 'Sentinel-2',
-  };
+  return { ...scenes[0], scenes };
 }
 
 // ─── MAIN HOOK ─────────────────────────────────────────────────────────────

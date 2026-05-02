@@ -14,6 +14,11 @@ describe('desktopControlRouting', () => {
       path: '/api/wormhole/gate/infonet/key',
       method: 'GET',
     });
+    expect(commandToHttpRequest('wormhole.gate.state.resync', { gate_id: 'infonet' })).toEqual({
+      path: '/api/wormhole/gate/state/export',
+      method: 'POST',
+      payload: { gate_id: 'infonet' },
+    });
     expect(commandToHttpRequest('settings.news.reset')).toEqual({
       path: '/api/settings/news-feeds/reset',
       method: 'POST',
@@ -27,11 +32,12 @@ describe('desktopControlRouting', () => {
       commandToHttpRequest('wormhole.gate.message.post', {
         gate_id: 'ops',
         plaintext: 'hello',
+        reply_to: 'evt-parent-1',
       }),
     ).toEqual({
       path: '/api/wormhole/gate/message/post',
       method: 'POST',
-      payload: { gate_id: 'ops', plaintext: 'hello' },
+      payload: { gate_id: 'ops', plaintext: 'hello', reply_to: 'evt-parent-1' },
     });
   });
 
@@ -53,8 +59,18 @@ describe('desktopControlRouting', () => {
         JSON.stringify({ gate_id: 'infonet', reason: 'operator_reset' }),
       ),
     ).toEqual({
-      command: 'wormhole.gate.key.rotate',
-      payload: { gate_id: 'infonet', reason: 'operator_reset' },
+        command: 'wormhole.gate.key.rotate',
+        payload: { gate_id: 'infonet', reason: 'operator_reset' },
+      });
+    expect(
+      httpRequestToInvokeRequest(
+        '/api/wormhole/gate/state/export',
+        'POST',
+        JSON.stringify({ gate_id: 'infonet' }),
+      ),
+    ).toEqual({
+      command: 'wormhole.gate.state.resync',
+      payload: { gate_id: 'infonet' },
     });
     expect(
       httpRequestToInvokeRequest(
@@ -95,6 +111,16 @@ describe('desktopControlRouting', () => {
           },
         ],
       },
+    });
+    expect(
+      httpRequestToInvokeRequest(
+        '/api/wormhole/gate/message/post',
+        'POST',
+        JSON.stringify({ gate_id: 'ops', plaintext: 'hello', reply_to: 'evt-parent-2' }),
+      ),
+    ).toEqual({
+      command: 'wormhole.gate.message.post',
+      payload: { gate_id: 'ops', plaintext: 'hello', reply_to: 'evt-parent-2' },
     });
   });
 

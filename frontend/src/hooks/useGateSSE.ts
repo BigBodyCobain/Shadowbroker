@@ -1,33 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { API_BASE } from '@/lib/api';
-
 /**
- * Subscribe to the backend SSE gate-event stream.
- * Delivers ALL gate events (encrypted blobs) — the client filters by gate_id locally.
- * The server never learns which gates a client cares about (privacy-preserving broadcast).
- *
- * Falls back gracefully: if the stream fails the browser's EventSource auto-reconnects.
+ * DEPRECATED — Gate SSE stream removed in S3A.
+ * The frontend now relies on the authenticated poll loop for gate refresh.
+ * This stub is kept so stale imports compile without error.
  */
-export function useGateSSE(onEvent: (gateId: string) => void) {
-  const callbackRef = useRef(onEvent);
-  callbackRef.current = onEvent;
-
-  useEffect(() => {
-    const es = new EventSource(`${API_BASE}/api/mesh/gate/stream`);
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.gate_id && typeof data.gate_id === 'string') {
-          callbackRef.current(data.gate_id);
-        }
-      } catch {
-        /* ignore parse errors */
-      }
-    };
-
-    // Browser auto-reconnects EventSource on error — no manual retry needed.
-
-    return () => es.close();
-  }, []);
+export function useGateSSE(_onEvent: (gateId: string) => void) {
+  // no-op
 }

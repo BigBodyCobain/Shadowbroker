@@ -49,6 +49,11 @@ class TestGdeltArticleUrlSafety:
 
 
 class TestUpdaterHardening:
+    def test_validate_update_url_allows_github_codeload(self):
+        url = "https://codeload.github.com/BigBodyCobain/Shadowbroker/zip/refs/tags/v1.2.3"
+
+        assert updater._validate_update_url(url) == url
+
     def test_validate_update_url_rejects_untrusted_host(self):
         with pytest.raises(RuntimeError, match="untrusted release host"):
             updater._validate_update_url("https://evil.example.com/update.zip")
@@ -76,9 +81,12 @@ class TestUpdaterHardening:
     def test_perform_update_surfaces_release_metadata(self, monkeypatch, tmp_path):
         release_url = "https://github.com/BigBodyCobain/Shadowbroker/releases/tag/v1.2.3"
         download_url = (
-            "https://github.com/BigBodyCobain/Shadowbroker/releases/download/v1.2.3/update.zip"
+            "https://api.github.com/repos/BigBodyCobain/Shadowbroker/zipball/v1.2.3"
         )
         backup_path = tmp_path / "backup.zip"
+
+        (tmp_path / "frontend").mkdir()
+        (tmp_path / "backend").mkdir()
 
         monkeypatch.setattr(
             updater,
@@ -98,3 +106,24 @@ class TestUpdaterHardening:
         assert result["manual_url"] == release_url
         assert result["release_url"] == release_url
         assert result["download_url"] == download_url
+
+    def test_perform_update_returns_manual_for_non_source_runtime(self, monkeypatch, tmp_path):
+        release_url = "https://github.com/BigBodyCobain/Shadowbroker/releases/tag/v1.2.3"
+        download_url = (
+            "https://api.github.com/repos/BigBodyCobain/Shadowbroker/zipball/v1.2.3"
+        )
+
+        monkeypatch.setattr(
+            updater,
+            "_download_release",
+            lambda _temp_dir: ("dummy.zip", "v1.2.3", download_url, release_url),
+        )
+
+        result = updater.perform_update(str(tmp_path))
+
+        assert result["status"] == "manual"
+        assert result["version"] == "v1.2.3"
+        assert result["manual_url"] == release_url
+        assert result["release_url"] == release_url
+        assert result["download_url"] == download_url
+        assert "does not support in-place source updates" in result["message"]

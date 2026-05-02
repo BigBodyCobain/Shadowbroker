@@ -55,6 +55,10 @@ def test_high_privacy_refuses_private_tier_clearnet_fallback(monkeypatch):
     internet_attempts: list[str] = []
 
     monkeypatch.setattr(
+        "services.mesh.mesh_router._supervisor_verified_trust_tier",
+        lambda: "private_transitional",
+    )
+    monkeypatch.setattr(
         "services.mesh.mesh_router._high_privacy_profile_blocks_clearnet_fallback",
         lambda: True,
     )
@@ -82,4 +86,134 @@ def test_high_privacy_refuses_private_tier_clearnet_fallback(monkeypatch):
     assert internet_attempts == []
     assert len(results) == 1
     assert results[0].transport == "policy"
-    assert "clearnet fallback refused" in results[0].detail
+    assert "Switch to private to send?" in results[0].detail
+    assert results[0].upgrade_action["reason"] == "private_transport_not_ready"
+
+
+def test_default_policy_refuses_private_tier_clearnet_fallback(monkeypatch):
+    from services.config import get_settings
+    from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    router = MeshRouter()
+    internet_attempts: list[str] = []
+
+    monkeypatch.setattr(
+        "services.mesh.mesh_router._supervisor_verified_trust_tier",
+        lambda: "private_transitional",
+    )
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "block")
+    get_settings.cache_clear()
+    monkeypatch.setattr(router.tor_arti, "can_reach", lambda _envelope: False)
+    monkeypatch.setattr(
+        router.internet,
+        "send",
+        lambda *_args, **_kwargs: (
+            internet_attempts.append("internet"),
+            TransportResult(True, "internet", "sent"),
+        )[1],
+    )
+
+    results = router.route(
+        MeshEnvelope(
+            sender_id="!sb_sender",
+            destination="!sb_dest",
+            payload="ciphertext",
+            trust_tier="private_transitional",
+            priority=Priority.NORMAL,
+        ),
+        {},
+    )
+
+    assert internet_attempts == []
+    assert len(results) == 1
+    assert results[0].transport == "policy"
+    assert "Switch to private to send?" in results[0].detail
+    assert results[0].upgrade_action["reason"] == "private_transport_not_ready"
+
+
+def test_private_tier_clearnet_fallback_requires_explicit_operator_allow(monkeypatch):
+    from services.config import get_settings
+    from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    router = MeshRouter()
+    internet_attempts: list[str] = []
+
+    monkeypatch.setattr(
+        "services.mesh.mesh_router._supervisor_verified_trust_tier",
+        lambda: "private_transitional",
+    )
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "allow")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "services.wormhole_settings.read_wormhole_settings",
+        lambda: {"privacy_profile": "default"},
+    )
+    monkeypatch.setattr(router.tor_arti, "can_reach", lambda _envelope: False)
+    monkeypatch.setattr(
+        router.internet,
+        "send",
+        lambda *_args, **_kwargs: (
+            internet_attempts.append("internet"),
+            TransportResult(True, "internet", "sent"),
+        )[1],
+    )
+
+    results = router.route(
+        MeshEnvelope(
+            sender_id="!sb_sender",
+            destination="!sb_dest",
+            payload="ciphertext",
+            trust_tier="private_transitional",
+            priority=Priority.NORMAL,
+        ),
+        {},
+    )
+
+    assert internet_attempts == []
+    assert len(results) == 1
+    assert results[0].transport == "policy"
+    assert "Switch to private to send?" in results[0].detail
+    assert results[0].upgrade_action["reason"] == "private_transport_not_ready"
+
+
+def test_private_tier_clearnet_fallback_requires_explicit_acknowledge(monkeypatch):
+    from services.config import get_settings
+    from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    router = MeshRouter()
+    internet_attempts: list[str] = []
+
+    monkeypatch.setattr(
+        "services.mesh.mesh_router._supervisor_verified_trust_tier",
+        lambda: "private_transitional",
+    )
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK", "allow")
+    monkeypatch.setenv("MESH_PRIVATE_CLEARNET_FALLBACK_ACKNOWLEDGE", "true")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "services.wormhole_settings.read_wormhole_settings",
+        lambda: {"privacy_profile": "default"},
+    )
+    monkeypatch.setattr(router.tor_arti, "can_reach", lambda _envelope: False)
+    monkeypatch.setattr(
+        router.internet,
+        "send",
+        lambda *_args, **_kwargs: (
+            internet_attempts.append("internet"),
+            TransportResult(True, "internet", "sent"),
+        )[1],
+    )
+
+    results = router.route(
+        MeshEnvelope(
+            sender_id="!sb_sender",
+            destination="!sb_dest",
+            payload="ciphertext",
+            trust_tier="private_transitional",
+            priority=Priority.NORMAL,
+        ),
+        {},
+    )
+
+    assert internet_attempts == ["internet"]
+    assert results[-1].transport == "internet"

@@ -5,8 +5,12 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
-# Official/default region roots we actively watch on the public broker.
-DEFAULT_ROOTS: tuple[str, ...] = (
+# Default subscription roots — US-only to avoid flooding the public broker.
+# Users can opt into additional regions via MESH_MQTT_EXTRA_ROOTS.
+DEFAULT_ROOTS: tuple[str, ...] = ("US",)
+
+# Every known official region root (for UI dropdowns / manual opt-in).
+ALL_OFFICIAL_ROOTS: tuple[str, ...] = (
     "US",
     "EU_868",
     "EU_433",
@@ -111,7 +115,8 @@ def build_subscription_topics(
     roots: list[str] = []
     if include_defaults:
         roots.extend(DEFAULT_ROOTS)
-        roots.extend(COMMUNITY_ROOTS)
+        # Community roots are no longer subscribed by default — users opt in
+        # via MESH_MQTT_EXTRA_ROOTS to avoid flooding the public broker.
     roots.extend(root for root in (normalize_root(item) for item in _split_config_values(extra_roots)) if root)
 
     topics = [f"msh/{root}/#" for root in _dedupe(roots)]
@@ -126,6 +131,7 @@ def build_subscription_topics(
 
 
 def known_roots(extra_roots: str = "", include_defaults: bool = True) -> list[str]:
+    """Return the roots we are *currently subscribed* to."""
     topics = build_subscription_topics(extra_roots=extra_roots, include_defaults=include_defaults)
     roots: list[str] = []
     for topic in topics:
@@ -135,6 +141,11 @@ def known_roots(extra_roots: str = "", include_defaults: bool = True) -> list[st
         if root:
             roots.append(root)
     return _dedupe(roots)
+
+
+def all_available_roots() -> list[str]:
+    """Return every region the UI should list (for dropdowns), regardless of subscription state."""
+    return _dedupe(list(ALL_OFFICIAL_ROOTS) + list(COMMUNITY_ROOTS))
 
 
 def parse_topic_metadata(topic: str) -> dict[str, str]:

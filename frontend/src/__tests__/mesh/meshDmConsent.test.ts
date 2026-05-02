@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   allDmPeerIds,
+  mailboxPeerRefs,
   buildAliasRotateMessage,
   buildAccessGrantedMessage,
   buildContactAcceptMessage,
@@ -59,6 +60,17 @@ describe('mesh DM consent helpers', () => {
     expect(allDmPeerIds('node_public', { sharedAlias: 'node_public' })).toEqual(['node_public']);
   });
 
+  it('prefers alias history for mailbox refs and drops stable public id once aliasing exists', () => {
+    expect(
+      mailboxPeerRefs('node_public', {
+        sharedAlias: 'dmx_current',
+        pendingSharedAlias: 'dmx_next',
+        previousSharedAliases: ['dmx_prev'],
+      }),
+    ).toEqual(['dmx_current', 'dmx_next', 'dmx_prev']);
+    expect(mailboxPeerRefs('node_public', { sharedAlias: '' })).toEqual(['node_public']);
+  });
+
   it('builds and parses alias rotation control payloads', () => {
     const message = buildAliasRotateMessage('dmx_next');
     expect(parseAliasRotateMessage(message)).toEqual({ shared_alias: 'dmx_next' });
@@ -76,10 +88,38 @@ describe('mesh DM consent helpers', () => {
   });
 
   it('keeps alias history compact and unique', () => {
+    expect(mergeAliasHistory(['dmx_a', 'dmx_b', 'dmx_a', 'dmx_c', 'dmx_d'])).toEqual([
+      'dmx_a',
+      'dmx_b',
+    ]);
     expect(mergeAliasHistory(['dmx_a', 'dmx_b', 'dmx_a', 'dmx_c', 'dmx_d'], 3)).toEqual([
       'dmx_a',
       'dmx_b',
       'dmx_c',
     ]);
+  });
+
+  it('bounds mailbox peer refs to 4 and excludes long tail', () => {
+    expect(
+      mailboxPeerRefs('node_public', {
+        sharedAlias: 'dmx_current',
+        pendingSharedAlias: 'dmx_next',
+        previousSharedAliases: ['dmx_prev1', 'dmx_prev2', 'dmx_prev3'],
+      }),
+    ).toEqual(['dmx_current', 'dmx_next', 'dmx_prev1', 'dmx_prev2']);
+  });
+
+  it('bounds allDmPeerIds previous alias enumeration to 2', () => {
+    const ids = allDmPeerIds('node_public', {
+      sharedAlias: 'dmx_current',
+      pendingSharedAlias: 'dmx_next',
+      previousSharedAliases: ['dmx_prev1', 'dmx_prev2', 'dmx_prev3'],
+    });
+    // current + pending + at most 2 previous + peerId
+    expect(ids).toContain('dmx_current');
+    expect(ids).toContain('dmx_next');
+    expect(ids).toContain('dmx_prev1');
+    expect(ids).toContain('dmx_prev2');
+    expect(ids).not.toContain('dmx_prev3');
   });
 });

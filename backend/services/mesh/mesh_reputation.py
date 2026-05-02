@@ -20,8 +20,9 @@ import atexit
 import hmac
 import hashlib
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+from services.mesh.mesh_metrics import increment as metrics_inc, observe_ms as metrics_observe_ms
 from services.mesh.mesh_privacy_logging import privacy_log_label
 from services.mesh.mesh_secure_storage import (
     read_domain_json,
@@ -47,14 +48,46 @@ MIN_REP_TO_CREATE_GATE = 10  # Minimum overall rep to create a gate
 GATE_RATIFICATION_REP = (
     50  # Cumulative member rep needed for a gate to be ratified (after bootstrap)
 )
+BAN_ROTATION_P99_BUDGET_MS = 500.0
 ALLOW_DYNAMIC_GATES = False
-_VOTE_STORAGE_SALT_CACHE: bytes | None = None
+VALID_ENVELOPE_POLICIES = ("envelope_always", "envelope_recovery", "envelope_disabled")
+VOTE_SALT_STATE_FILE = "voter_blind_salt.json"
+_VOTE_STORAGE_SALT_CACHE: dict[str, Any] | None = None
 _VOTE_STORAGE_SALT_WARNING_EMITTED = False
+
+
+def _legacy_envelope_fallback_window_s() -> int:
+    try:
+        from services.config import get_settings
+
+        days = int(getattr(get_settings(), "MESH_GATE_LEGACY_ENVELOPE_FALLBACK_MAX_DAYS", 30) or 30)
+    except Exception:
+        days = 30
+    return max(1, days) * 86400
 
 
 def _generate_gate_secret() -> str:
     """Generate a cryptographically random 32-byte gate secret (URL-safe base64)."""
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
+
+
+def _normalized_gate_secret_archive(raw: Any) -> dict[str, Any]:
+    """Return the single-slot gate-secret archive shape used for ban/kick rotation.
+
+    This intentionally stores only the immediately previous secret. Older
+    history must come from already-durable local plaintext; the archive only
+    bridges the most recent ban/kick rotation.
+    """
+    archive = dict(raw or {})
+    return {
+        "previous_secret": str(archive.get("previous_secret", "") or ""),
+        "previous_valid_through_event_id": str(
+            archive.get("previous_valid_through_event_id", "") or ""
+        ),
+        "previous_valid_through_epoch": int(archive.get("previous_valid_through_epoch", 0) or 0),
+        "rotated_at": float(archive.get("rotated_at", 0.0) or 0.0),
+        "reason": str(archive.get("reason", "") or ""),
+    }
 
 DEFAULT_PRIVATE_GATES: dict[str, dict] = {
     "infonet": {
@@ -62,78 +95,91 @@ DEFAULT_PRIVATE_GATES: dict[str, dict] = {
         "description": "Private network operations floor. Core testnet traffic, protocol notes, and live coordination stay here.",
         "welcome": "WELCOME TO MAIN INFONET. Treat this as the protocol floor, not a public lobby.",
         "sort_order": 10,
+        "envelope_policy": "envelope_always",
     },
     "general-talk": {
         "display_name": "General Talk",
         "description": "Lower-friction private lounge for day-to-day chatter, intros, and community pulse checks.",
         "welcome": "WELCOME TO GENERAL TALK. Keep it human, but remember the lane is still private and reputation-backed.",
         "sort_order": 20,
+        "envelope_policy": "envelope_always",
     },
     "gathered-intel": {
         "display_name": "Gathered Intel",
         "description": "Drop sourced observations, OSINT fragments, and operator notes worth preserving for later review.",
         "welcome": "WELCOME TO GATHERED INTEL. Bring sources, timestamps, and enough context for someone else to verify you.",
         "sort_order": 30,
+        "envelope_policy": "envelope_always",
     },
     "tracked-planes": {
         "display_name": "Tracked Planes",
         "description": "Aviation watchers, route anomalies, military traffic, and callout chatter for flights worth tracking.",
         "welcome": "WELCOME TO TRACKED PLANES. Call out the flight, route, why it matters, and what pattern you think you see.",
         "sort_order": 40,
+        "envelope_policy": "envelope_always",
     },
     "ukraine-front": {
         "display_name": "Ukraine Front",
         "description": "Focused room for Ukraine war developments, map observations, and source cross-checking.",
         "welcome": "WELCOME TO UKRAINE FRONT. Keep reporting tight, sourced, and separated from wishcasting.",
         "sort_order": 50,
+        "envelope_policy": "envelope_always",
     },
     "iran-front": {
         "display_name": "Iran Front",
         "description": "Iran flashpoint monitoring, regional spillover, and escalation watch from a private-lane perspective.",
         "welcome": "WELCOME TO IRAN FRONT. Track escalation, proxies, logistics, and what changes the risk picture.",
         "sort_order": 60,
+        "envelope_policy": "envelope_always",
     },
     "world-news": {
         "display_name": "World News",
         "description": "Big-picture geopolitical developments, breaking stories, and broader context outside the narrow fronts.",
         "welcome": "WELCOME TO WORLD NEWS. Use this room when the story matters but does not fit a narrower gate.",
         "sort_order": 70,
+        "envelope_policy": "envelope_always",
     },
     "prediction-markets": {
         "display_name": "Prediction Markets",
         "description": "Discuss market signals, event contracts, and whether crowd pricing is tracking reality or pure narrative.",
         "welcome": "WELCOME TO PREDICTION MARKETS. Bring the market angle and the narrative angle, then compare them honestly.",
         "sort_order": 80,
+        "envelope_policy": "envelope_always",
     },
     "finance": {
         "display_name": "Finance",
         "description": "Macro moves, defense names, rates, liquidity stress, and the parts of finance that steer the rest of the board.",
         "welcome": "WELCOME TO FINANCE. Macro, defense names, liquidity stress, and market structure all belong here.",
         "sort_order": 90,
+        "envelope_policy": "envelope_always",
     },
     "cryptography": {
         "display_name": "Cryptography",
         "description": "Protocol design, primitives, breakage reports, and the sharper math behind the network.",
         "welcome": "WELCOME TO CRYPTOGRAPHY. If you think something can be broken, this is where you try to prove it.",
         "sort_order": 100,
+        "envelope_policy": "envelope_always",
     },
     "cryptocurrencies": {
         "display_name": "Cryptocurrencies",
         "description": "Chain activity, privacy coin chatter, market structure, and crypto-adjacent threat intel.",
         "welcome": "WELCOME TO CRYPTOCURRENCIES. Chain behavior, privacy tooling, and market weirdness all go on the table.",
         "sort_order": 110,
+        "envelope_policy": "envelope_always",
     },
     "meet-chat": {
         "display_name": "Meet Chat",
         "description": "Casual private hangout for getting to know the other operators behind the personas.",
         "welcome": "WELCOME TO MEET CHAT. Lighten up a little and let the community feel like it has actual people in it.",
         "sort_order": 120,
+        "envelope_policy": "envelope_always",
     },
     "opsec-lab": {
         "display_name": "OPSEC Lab",
         "description": "Stress-test assumptions, try to break rep or persona boundaries, and document privacy failures without mercy.",
         "welcome": "WELCOME TO OPSEC LAB. Be ruthless, document the leak, and assume everyone is smarter than the last audit.",
         "sort_order": 130,
+        "envelope_policy": "envelope_always",
     },
 }
 
@@ -145,43 +191,242 @@ def _blind_voter(voter_id: str, salt: bytes) -> str:
     return f"{digest[:8]}…"
 
 
-def _vote_storage_salt() -> bytes:
+def _vote_storage_window_seconds(grace_seconds: int) -> int:
+    return max(VOTE_DECAY_DAYS * 86400, 86400) + max(0, grace_seconds)
+
+
+def _derive_legacy_secret_vote_salt(secret: str) -> bytes:
+    return hmac.new(
+        secret.encode("utf-8"),
+        b"shadowbroker|reputation|voter-blind|v1",
+        hashlib.sha256,
+    ).digest()
+
+
+def _derive_rotated_secret_vote_salt(secret: str, epoch_index: int) -> bytes:
+    material = f"shadowbroker|reputation|voter-blind|v2|{epoch_index}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), material, hashlib.sha256).digest()
+
+
+def _load_vote_storage_state() -> dict[str, Any]:
+    try:
+        raw = read_domain_json(
+            LEDGER_DOMAIN,
+            VOTE_SALT_STATE_FILE,
+            lambda: {"version": 2, "local_history": []},
+        )
+    except Exception as exc:
+        logger.error("Failed to load voter salt rotation state: %s", exc)
+        raw = {"version": 2, "local_history": []}
+
+    history: list[dict[str, Any]] = []
+    for entry in raw.get("local_history", []) if isinstance(raw, dict) else []:
+        salt_hex = str(entry.get("salt", "") or "").strip().lower()
+        if len(salt_hex) != 64:
+            continue
+        try:
+            activated_at = float(entry.get("activated_at", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if activated_at <= 0:
+            continue
+        history.append({"salt": salt_hex, "activated_at": activated_at})
+
+    state: dict[str, Any] = {
+        "version": 2,
+        "local_history": history,
+        "legacy_secret_until": 0.0,
+    }
+    try:
+        state["legacy_secret_until"] = float(raw.get("legacy_secret_until", 0) or 0)
+    except (TypeError, ValueError):
+        state["legacy_secret_until"] = 0.0
+    return state
+
+
+def _write_vote_storage_state(state: dict[str, Any]) -> None:
+    payload = {
+        "version": 2,
+        "legacy_secret_until": float(state.get("legacy_secret_until", 0) or 0),
+        "local_history": [
+            {
+                "salt": str(entry.get("salt", "") or "").strip().lower(),
+                "activated_at": float(entry.get("activated_at", 0) or 0),
+            }
+            for entry in state.get("local_history", [])
+        ],
+    }
+    write_domain_json(LEDGER_DOMAIN, VOTE_SALT_STATE_FILE, payload)
+
+
+def _vote_storage_cache_ttl(now: float, *, next_refresh: float | None = None) -> float:
+    default_refresh = now + 3600.0
+    if next_refresh is None or next_refresh <= now:
+        return default_refresh
+    return min(default_refresh, next_refresh)
+
+
+def _vote_storage_candidates(now: float | None = None) -> dict[str, Any]:
     global _VOTE_STORAGE_SALT_CACHE, _VOTE_STORAGE_SALT_WARNING_EMITTED
-    if _VOTE_STORAGE_SALT_CACHE is not None:
+    current_time = float(now if now is not None else time.time())
+    if (
+        _VOTE_STORAGE_SALT_CACHE is not None
+        and current_time < float(_VOTE_STORAGE_SALT_CACHE.get("refresh_at", 0) or 0)
+    ):
         return _VOTE_STORAGE_SALT_CACHE
+
     try:
         from services.config import get_settings
 
-        secret = str(get_settings().MESH_PEER_PUSH_SECRET or "").strip()
+        settings = get_settings()
+        secret = str(settings.MESH_PEER_PUSH_SECRET or "").strip()
+        rotate_days = max(0, int(getattr(settings, "MESH_VOTER_BLIND_SALT_ROTATE_DAYS", 30) or 0))
+        grace_days = max(0, int(getattr(settings, "MESH_VOTER_BLIND_SALT_GRACE_DAYS", 30) or 0))
     except Exception:
         secret = ""
+        rotate_days = 30
+        grace_days = 30
+
+    rotate_seconds = rotate_days * 86400
+    grace_seconds = grace_days * 86400
+    history_window_seconds = _vote_storage_window_seconds(grace_seconds)
+    state = _load_vote_storage_state()
+    changed = False
+
     if not secret and not _VOTE_STORAGE_SALT_WARNING_EMITTED:
         logger.warning("MESH_PEER_PUSH_SECRET missing; falling back to local voter blinding salt")
         _VOTE_STORAGE_SALT_WARNING_EMITTED = True
-    if secret:
-        _VOTE_STORAGE_SALT_CACHE = hmac.new(
-            secret.encode("utf-8"),
-            b"shadowbroker|reputation|voter-blind|v1",
-            hashlib.sha256,
-        ).digest()
-    else:
-        # Persist a stable salt to disk so blinded voter IDs survive restarts.
-        # Without this, duplicate-vote detection breaks on every restart
-        # because the blinded ID changes with a new random salt.
-        salt_path = DATA_DIR / "voter_blind_salt.bin"
+
+    salt_path = DATA_DIR / "voter_blind_salt.bin"
+    local_history = list(state.get("local_history", []))
+    history_cutoff = current_time - history_window_seconds
+    pruned_history = [entry for entry in local_history if float(entry.get("activated_at", 0)) >= history_cutoff]
+    if pruned_history != local_history:
+        local_history = pruned_history
+        state["local_history"] = local_history
+        changed = True
+
+    migrated_legacy_bin = False
+    if not secret:
         try:
-            if salt_path.exists() and salt_path.stat().st_size == 32:
-                _VOTE_STORAGE_SALT_CACHE = salt_path.read_bytes()
-            else:
-                DATA_DIR.mkdir(parents=True, exist_ok=True)
-                new_salt = os.urandom(32)
-                salt_path.write_bytes(new_salt)
-                _VOTE_STORAGE_SALT_CACHE = new_salt
-                logger.info("Generated new persistent voter blinding salt")
-        except Exception as e:
-            logger.error(f"Failed to persist voter salt, falling back to random: {e}")
-            _VOTE_STORAGE_SALT_CACHE = os.urandom(32)
+            if not local_history and salt_path.exists() and salt_path.stat().st_size == 32:
+                seed_time = current_time - rotate_seconds if rotate_seconds > 0 else current_time
+                local_history = [{"salt": salt_path.read_bytes().hex(), "activated_at": seed_time}]
+                state["local_history"] = local_history
+                changed = True
+                migrated_legacy_bin = True
+                logger.info("Migrated legacy voter blinding salt into rotating history")
+            if not local_history:
+                local_history = [{"salt": os.urandom(32).hex(), "activated_at": current_time}]
+                state["local_history"] = local_history
+                changed = True
+                logger.info("Generated initial rotating voter blinding salt")
+            if rotate_seconds > 0:
+                last_activated_at = float(local_history[-1].get("activated_at", 0) or 0)
+                if current_time - last_activated_at >= rotate_seconds:
+                    local_history.append({"salt": os.urandom(32).hex(), "activated_at": current_time})
+                    state["local_history"] = local_history
+                    changed = True
+                    logger.info("Rotated voter blinding salt")
+        except Exception as exc:
+            logger.error("Failed to prepare rotating voter salt history, falling back to random: %s", exc)
+            fallback = os.urandom(32)
+            _VOTE_STORAGE_SALT_CACHE = {
+                "active": fallback,
+                "salts": [fallback],
+                "refresh_at": current_time + 300.0,
+            }
+            return _VOTE_STORAGE_SALT_CACHE
+
+    legacy_secret_until = float(state.get("legacy_secret_until", 0) or 0)
+    if secret and legacy_secret_until <= 0:
+        state["legacy_secret_until"] = current_time + history_window_seconds
+        legacy_secret_until = float(state["legacy_secret_until"])
+        changed = True
+
+    if changed:
+        try:
+            _write_vote_storage_state(state)
+            if migrated_legacy_bin:
+                salt_path.unlink(missing_ok=True)
+        except Exception as exc:
+            logger.error("Failed to persist voter salt rotation state: %s", exc)
+
+    salts: list[bytes] = []
+    refresh_at: float | None = None
+
+    if secret:
+        if rotate_seconds > 0:
+            current_epoch = int(current_time // rotate_seconds)
+            epoch_window = max(1, int(math.ceil(history_window_seconds / rotate_seconds)))
+            start_epoch = max(0, current_epoch - epoch_window)
+            for epoch_index in range(current_epoch, start_epoch - 1, -1):
+                salts.append(_derive_rotated_secret_vote_salt(secret, epoch_index))
+            refresh_at = (current_epoch + 1) * rotate_seconds
+        else:
+            salts.append(_derive_rotated_secret_vote_salt(secret, 0))
+        if legacy_secret_until > current_time:
+            salts.append(_derive_legacy_secret_vote_salt(secret))
+            refresh_at = legacy_secret_until if refresh_at is None else min(refresh_at, legacy_secret_until)
+
+    for entry in reversed(local_history):
+        salt_hex = str(entry.get("salt", "") or "").strip().lower()
+        if len(salt_hex) != 64:
+            continue
+        try:
+            salts.append(bytes.fromhex(salt_hex))
+        except ValueError:
+            continue
+
+    unique_salts: list[bytes] = []
+    seen_salts: set[bytes] = set()
+    for salt in salts:
+        if not salt or salt in seen_salts:
+            continue
+        seen_salts.add(salt)
+        unique_salts.append(salt)
+
+    if not unique_salts:
+        unique_salts.append(os.urandom(32))
+
+    _VOTE_STORAGE_SALT_CACHE = {
+        "active": unique_salts[0],
+        "salts": unique_salts,
+        "refresh_at": _vote_storage_cache_ttl(current_time, next_refresh=refresh_at),
+    }
     return _VOTE_STORAGE_SALT_CACHE
+
+
+def _vote_storage_salt() -> bytes:
+    return _vote_storage_candidates()["active"]
+
+
+def _vote_storage_salts() -> list[bytes]:
+    return list(_vote_storage_candidates()["salts"])
+
+
+def _blinded_voter_candidates(voter_id: str) -> list[str]:
+    if not voter_id:
+        return []
+    blinded_ids: list[str] = []
+    for salt in _vote_storage_salts():
+        blinded = _blind_voter(voter_id, salt)
+        if blinded and blinded not in blinded_ids:
+            blinded_ids.append(blinded)
+    return blinded_ids
+
+
+def _stored_voter_matches(vote: dict, voter_id: str) -> bool:
+    blinded = _stored_voter_id(vote)
+    if not blinded:
+        return False
+    return blinded in _blinded_voter_candidates(voter_id)
+
+
+def _reset_vote_storage_salt_cache() -> None:
+    global _VOTE_STORAGE_SALT_CACHE, _VOTE_STORAGE_SALT_WARNING_EMITTED
+    _VOTE_STORAGE_SALT_CACHE = None
+    _VOTE_STORAGE_SALT_WARNING_EMITTED = False
 
 
 def _stored_voter_id(vote: dict) -> str:
@@ -416,7 +661,7 @@ class ReputationLedger:
             (
                 v
                 for v in self.votes
-                if _stored_voter_id(v) == blinded_voter_id
+                if _stored_voter_matches(v, voter_id)
                 and v["target_id"] == target_id
                 and v.get("gate", "") == gate
             ),
@@ -438,7 +683,7 @@ class ReputationLedger:
             v
             for v in self.votes
             if not (
-                _stored_voter_id(v) == blinded_voter_id
+                _stored_voter_matches(v, voter_id)
                 and v["target_id"] == target_id
                 and v.get("gate", "") == gate
             )
@@ -451,6 +696,7 @@ class ReputationLedger:
         self.votes.append(
             {
                 "voter_id": voter_id,
+                "blinded_voter_id": blinded_voter_id,
                 "target_id": target_id,
                 "vote": vote,
                 "gate": gate,
@@ -612,8 +858,9 @@ class ReputationLedger:
             base = self._merge_scores(base, old)
 
         # Merge blinded-wallet costs (vote-cost records target the blinded ID)
-        blinded = _blind_voter(node_id, _vote_storage_salt())
-        if blinded and blinded != node_id:
+        for blinded in _blinded_voter_candidates(node_id):
+            if not blinded or blinded == node_id:
+                continue
             wallet = self._scores_cache.get(blinded, _zero())
             if wallet["overall"] != 0 or wallet["upvotes"] != 0 or wallet["downvotes"] != 0:
                 base = self._merge_scores(base, wallet)
@@ -721,6 +968,7 @@ class GateManager:
     def __init__(self, ledger: ReputationLedger):
         self.ledger = ledger
         self.gates: dict[str, dict] = {}
+        self._gate_lock = threading.RLock()
         self._dirty = False
         self._save_lock = threading.Lock()
         self._save_timer: threading.Timer | None = None
@@ -769,12 +1017,14 @@ class GateManager:
                     "message_count": 0,
                     "fixed": True,
                     "sort_order": seed["sort_order"],
-                    "gate_secret": _generate_gate_secret(),
+                    "gate_secret": "",
+                    "gate_secret_archive": _normalized_gate_secret_archive({}),
+                    "envelope_policy": str(seed.get("envelope_policy", "envelope_disabled") or "envelope_disabled"),
                 }
                 changed = True
                 continue
 
-            for key in ("display_name", "description", "welcome", "sort_order"):
+            for key in ("display_name", "description", "welcome", "sort_order", "envelope_policy"):
                 if gate.get(key) != seed[key]:
                     gate[key] = seed[key]
                     changed = True
@@ -788,9 +1038,55 @@ class GateManager:
             gate["rules"].setdefault("min_gate_rep", {})
             gate.setdefault("message_count", 0)
             gate.setdefault("created_at", time.time())
-            # Backfill gate_secret for gates created before Phase 2
-            if not gate.get("gate_secret"):
-                gate["gate_secret"] = _generate_gate_secret()
+            archive = _normalized_gate_secret_archive(gate.get("gate_secret_archive"))
+            if gate.get("gate_secret_archive") != archive:
+                gate["gate_secret_archive"] = archive
+                changed = True
+
+        for gate in self.gates.values():
+            if not isinstance(gate, dict):
+                continue
+            gate.setdefault("message_count", 0)
+            gate.setdefault("created_at", time.time())
+            policy = str(gate.get("envelope_policy", "") or "")
+            if policy not in VALID_ENVELOPE_POLICIES:
+                # Sprint 1 / Rec #1: default closed — no durable envelope unless
+                # the operator explicitly opts in via set_envelope_policy().
+                gate["envelope_policy"] = "envelope_disabled"
+                changed = True
+            if "legacy_envelope_fallback" not in gate or gate.get("legacy_envelope_fallback") is None:
+                gate["legacy_envelope_fallback"] = False
+                changed = True
+            if bool(gate.get("legacy_envelope_fallback")):
+                if not int(gate.get("legacy_envelope_fallback_expires_at", 0) or 0):
+                    enabled_at = int(time.time())
+                    gate["legacy_envelope_fallback_acknowledged"] = True
+                    gate["legacy_envelope_fallback_enabled_at"] = enabled_at
+                    gate["legacy_envelope_fallback_expires_at"] = (
+                        enabled_at + _legacy_envelope_fallback_window_s()
+                    )
+                    changed = True
+            else:
+                if gate.get("legacy_envelope_fallback_acknowledged") or gate.get(
+                    "legacy_envelope_fallback_enabled_at"
+                ) or gate.get("legacy_envelope_fallback_expires_at"):
+                    gate["legacy_envelope_fallback_acknowledged"] = False
+                    gate["legacy_envelope_fallback_enabled_at"] = 0
+                    gate["legacy_envelope_fallback_expires_at"] = 0
+                    changed = True
+            if "envelope_always_acknowledged" not in gate:
+                gate["envelope_always_acknowledged"] = bool(
+                    str(gate.get("envelope_policy", "") or "") == "envelope_always"
+                )
+                changed = True
+            archive = _normalized_gate_secret_archive(gate.get("gate_secret_archive"))
+            if gate.get("gate_secret_archive") != archive:
+                gate["gate_secret_archive"] = archive
+                changed = True
+
+        for gate_id, gate in list(self.gates.items()):
+            if isinstance(gate, dict) and not str(gate.get("gate_secret", "") or "").strip():
+                self.ensure_gate_secret(gate_id)
                 changed = True
 
         return changed
@@ -850,9 +1146,13 @@ class GateManager:
             "message_count": 0,
             "fixed": False,
             "sort_order": 1000,
-            "gate_secret": _generate_gate_secret(),
+            "gate_secret": "",
+            "gate_secret_archive": _normalized_gate_secret_archive({}),
+            "envelope_policy": "envelope_always",
+            "envelope_always_acknowledged": False,
+            "legacy_envelope_fallback": False,
         }
-        self._save()
+        self.ensure_gate_secret(gate_id)
         logger.info(
             "Gate created: %s by %s",
             privacy_log_label(gate_id, label="gate"),
@@ -921,15 +1221,276 @@ class GateManager:
             return ""
         return str(gate.get("gate_secret", "") or "")
 
+    def get_gate_secret_archive(self, gate_id: str) -> dict[str, Any]:
+        gate_key = str(gate_id or "").strip().lower()
+        gate = self.gates.get(gate_key)
+        if not gate:
+            return _normalized_gate_secret_archive({})
+        self._prune_expired_gate_secret_archive_if_needed(gate_key)
+        return _normalized_gate_secret_archive(gate.get("gate_secret_archive"))
+
+    def _prune_expired_gate_secret_archive_if_needed(self, gate_key: str) -> bool:
+        """Hardening Rec #10: wipe ``previous_secret`` bytes from disk state once
+        the configured TTL has elapsed since rotation.
+
+        Epoch/event_id ceilings in ``mesh_gate_mls._archived_gate_secret_allowed``
+        already bound *decryption policy*, but the raw secret bytes otherwise sit
+        in the on-disk gate state indefinitely. A disk-read adversary could use
+        them to decrypt any old envelope keyed under that secret. This pruner
+        caps that exposure to the TTL window (default 7 d). Returns True if a
+        scrub happened, False otherwise.
+        """
+        from services.mesh.mesh_rollout_flags import gate_previous_secret_ttl_s
+
+        ttl_s = int(gate_previous_secret_ttl_s() or 0)
+        if ttl_s <= 0:
+            return False
+        gate = self.gates.get(gate_key)
+        if not gate:
+            return False
+        raw = gate.get("gate_secret_archive") or {}
+        previous_secret = str(raw.get("previous_secret", "") or "")
+        if not previous_secret:
+            return False
+        rotated_at = float(raw.get("rotated_at", 0.0) or 0.0)
+        if rotated_at <= 0.0:
+            return False
+        if (time.time() - rotated_at) < float(ttl_s):
+            return False
+        with self._gate_lock:
+            gate = self.gates.get(gate_key)
+            if not gate:
+                return False
+            raw = gate.get("gate_secret_archive") or {}
+            if not str(raw.get("previous_secret", "") or ""):
+                return False
+            rotated_at = float(raw.get("rotated_at", 0.0) or 0.0)
+            if rotated_at <= 0.0 or (time.time() - rotated_at) < float(ttl_s):
+                return False
+            gate["gate_secret_archive"] = _normalized_gate_secret_archive(
+                {
+                    "previous_secret": "",
+                    "previous_valid_through_event_id": "",
+                    "previous_valid_through_epoch": 0,
+                    "rotated_at": float(raw.get("rotated_at", 0.0) or 0.0),
+                    "reason": str(raw.get("reason", "") or "") + "|scrubbed_ttl",
+                }
+            )
+            self._save()
+            return True
+
+    def ensure_gate_secret(self, gate_id: str) -> str:
+        """Ensure a gate has a secret; generate and persist if missing."""
+        gate_key = str(gate_id or "").strip().lower()
+        with self._gate_lock:
+            gate = self.gates.get(gate_key)
+            if not gate:
+                return ""
+            current = str(gate.get("gate_secret", "") or "")
+            if current:
+                return current
+            gate["gate_secret"] = _generate_gate_secret()
+            gate["gate_secret_archive"] = _normalized_gate_secret_archive(gate.get("gate_secret_archive"))
+            self._save()
+            return str(gate.get("gate_secret", "") or "")
+
+    def _rotate_gate_secret_for_member_removal_locked(
+        self,
+        gate_id: str,
+        *,
+        reason: str,
+        previous_valid_through_event_id: str = "",
+        previous_valid_through_epoch: int = 0,
+    ) -> dict[str, Any]:
+        """Rotate a gate secret and retain one prior value for pre-rotation reads.
+
+        Single-slot archive is intentional: N-2 and older history must already
+        exist in durable local plaintext. The archive only covers the most
+        recent ban/kick transition.
+        """
+        gate_key = str(gate_id or "").strip().lower()
+        gate = self.gates.get(gate_key)
+        if not gate:
+            return _normalized_gate_secret_archive({})
+        current_secret = str(gate.get("gate_secret", "") or "")
+        if not current_secret:
+            current_secret = _generate_gate_secret()
+        archive = {
+            "previous_secret": current_secret,
+            "previous_valid_through_event_id": str(previous_valid_through_event_id or ""),
+            "previous_valid_through_epoch": max(0, int(previous_valid_through_epoch or 0)),
+            "rotated_at": time.time(),
+            "reason": str(reason or ""),
+        }
+        gate["gate_secret_archive"] = _normalized_gate_secret_archive(archive)
+        gate["gate_secret"] = _generate_gate_secret()
+        self._save()
+        return dict(gate["gate_secret_archive"])
+
+    def remove_member(self, gate_id: str, member_id: str, *, kind: str = "leave") -> dict[str, Any]:
+        """Single authority for gate-member removal and ban/kick secret rotation."""
+        gate_key = str(gate_id or "").strip().lower()
+        member_key = str(member_id or "").strip()
+        removal_kind = str(kind or "leave").strip().lower() or "leave"
+        if removal_kind not in {"leave", "join", "kick", "ban"}:
+            return {"ok": False, "detail": "invalid removal kind"}
+        if gate_key not in self.gates:
+            return {"ok": False, "detail": "Gate not found"}
+        if not member_key:
+            return {"ok": False, "detail": "member_id required"}
+        if removal_kind == "join":
+            return {
+                "ok": True,
+                "gate_id": gate_key,
+                "member_id": member_key,
+                "kind": removal_kind,
+                "gate_secret_rotated": False,
+                "detail": "join does not rotate gate_secret",
+            }
+
+        from services.mesh import mesh_gate_mls
+        from services.mesh.mesh_rollout_flags import gate_ban_kick_rotation_enabled
+
+        started = time.perf_counter()
+        removed = mesh_gate_mls.remove_gate_member(
+            gate_key,
+            member_key,
+            reason=removal_kind,
+        )
+        if not removed.get("ok"):
+            return removed
+
+        rotated = False
+        archive = self.get_gate_secret_archive(gate_key)
+        if removal_kind in {"ban", "kick"}:
+            if gate_ban_kick_rotation_enabled():
+                with self._gate_lock:
+                    archive = self._rotate_gate_secret_for_member_removal_locked(
+                        gate_key,
+                        reason=removal_kind,
+                        previous_valid_through_event_id=str(
+                            removed.get("previous_valid_through_event_id", "") or ""
+                        ),
+                        previous_valid_through_epoch=int(removed.get("previous_epoch", 0) or 0),
+                    )
+                rotated = True
+            else:
+                logger.info(
+                    "Gate secret rotation disabled; observed %s for %s member %s without rotating",
+                    removal_kind,
+                    privacy_log_label(gate_key, label="gate"),
+                    privacy_log_label(member_key, label="member"),
+                )
+            metrics_observe_ms("ban_rotation_latency_ms", (time.perf_counter() - started) * 1000.0)
+
+        result = dict(removed)
+        result.update(
+            {
+                "gate_id": gate_key,
+                "member_id": member_key,
+                "kind": removal_kind,
+                "gate_secret_rotated": rotated,
+                "gate_secret_archive": archive,
+                "ban_rotation_p99_budget_ms": BAN_ROTATION_P99_BUDGET_MS,
+            }
+        )
+        if removal_kind in {"ban", "kick"} and not rotated:
+            result["rotation_observed_only"] = True
+        return result
+
+    def get_envelope_policy(self, gate_id: str) -> str:
+        """Return the envelope policy for a gate. Missing field → 'envelope_disabled'."""
+        gate = self.gates.get(str(gate_id or "").strip().lower())
+        if not gate:
+            return "envelope_disabled"
+        policy = str(gate.get("envelope_policy", "") or "")
+        if policy not in VALID_ENVELOPE_POLICIES:
+            return "envelope_disabled"
+        return policy
+
+    def set_envelope_policy(
+        self,
+        gate_id: str,
+        policy: str,
+        *,
+        acknowledge_recovery_risk: bool = False,
+    ) -> tuple[bool, str]:
+        """Set the envelope policy for a gate. Returns (ok, detail)."""
+        gate_key = str(gate_id or "").strip().lower()
+        gate = self.gates.get(gate_key)
+        if not gate:
+            return False, "Gate not found"
+        if policy not in VALID_ENVELOPE_POLICIES:
+            return False, f"Invalid policy: must be one of {VALID_ENVELOPE_POLICIES}"
+        if policy == "envelope_always" and not acknowledge_recovery_risk:
+            return False, (
+                "envelope_always requires acknowledge_recovery_risk=true because "
+                "durable recovery envelopes weaken gate content privacy"
+            )
+        previous_policy = str(gate.get("envelope_policy", "") or "")
+        gate["envelope_policy"] = policy
+        gate["envelope_always_acknowledged"] = bool(policy == "envelope_always")
+        self._save()
+        if previous_policy != policy:
+            metrics_inc("envelope_policy_transitions")
+        return True, f"envelope_policy set to '{policy}' for gate '{gate_key}'"
+
+    def get_legacy_envelope_fallback(self, gate_id: str) -> bool:
+        """Legacy envelope fallback has been removed.
+
+        Sprint 1 / Rec #6: the Phase-1 gate-name-only and node-local
+        envelope key paths no longer exist in _gate_envelope_decrypt.
+        This helper is retained as a stub so older API handlers and
+        tests don't explode — it always returns False.
+        """
+        return False
+
+    def set_legacy_envelope_fallback(
+        self,
+        gate_id: str,
+        enabled: bool,
+        *,
+        acknowledge_legacy_risk: bool = False,
+    ) -> tuple[bool, str]:
+        """Rejects enable attempts; disable is always a no-op success.
+
+        Sprint 1 / Rec #6: the legacy envelope key derivation has been
+        removed, so there is nothing left to enable. We return a clear
+        error for enable attempts and accept disable as a no-op so old
+        operator scripts can still tidy up state without crashing.
+        """
+        gate_key = str(gate_id or "").strip().lower()
+        gate = self.gates.get(gate_key)
+        if not gate:
+            return False, "Gate not found"
+        # Always sanitise any stale persisted flag — the legacy path is gone.
+        gate["legacy_envelope_fallback"] = False
+        gate["legacy_envelope_fallback_acknowledged"] = False
+        gate["legacy_envelope_fallback_enabled_at"] = 0
+        gate["legacy_envelope_fallback_expires_at"] = 0
+        self._save()
+        _ = acknowledge_legacy_risk  # accepted for API compat, ignored
+        if enabled:
+            logger.warning(
+                "[mesh] set_legacy_envelope_fallback(enabled=True) rejected for %s — "
+                "legacy envelope key path removed in Sprint 1 / Rec #6",
+                privacy_log_label(gate_key, label="gate"),
+            )
+            return False, (
+                "legacy_envelope_fallback has been removed in Sprint 1 / Rec #6; "
+                "there is no weaker key path left to enable"
+            )
+        return True, f"legacy_envelope_fallback cleared for gate '{gate_key}'"
+
     def get_gate(self, gate_id: str) -> Optional[dict]:
-        """Get gate details."""
+        """Get gate details (safe for remote callers — secrets excluded)."""
         gate = self.gates.get(gate_id)
         if not gate:
             return None
         public_gate = {
             key: value
             for key, value in gate.items()
-            if key not in {"creator_node_id", "message_count"}
+            if key not in {"creator_node_id", "message_count", "gate_secret", "gate_secret_archive"}
         }
         return {
             "gate_id": gate_id,

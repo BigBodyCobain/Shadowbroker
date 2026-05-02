@@ -23,10 +23,15 @@ import hmac
 import secrets
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from collections import deque
 from urllib.parse import urlparse
 from services.mesh.mesh_crypto import _derive_peer_key, normalize_peer_url
+from services.mesh.mesh_metrics import increment as metrics_inc
+from services.mesh.mesh_privacy_policy import (
+    TRANSPORT_TIER_ORDER as _TIER_RANK,
+    normalize_transport_tier,
+)
 from services.mesh.meshtastic_topics import normalize_root
 
 logger = logging.getLogger("services.mesh_router")
@@ -34,6 +39,7 @@ logger = logging.getLogger("services.mesh_router")
 DEDUP_TTL_SECONDS = 300
 DEDUP_MAX_ENTRIES = 5000
 _TRANSPORT_PAD_BUCKETS = (1024, 2048, 4096, 8192, 16384, 32768)
+_TIER_EVENT_MAXLEN = 128
 
 
 def _peer_audit_label(peer_url: str) -> str:
@@ -126,21 +132,20 @@ def active_sync_peer_urls() -> list[str]:
 
 
 def _high_privacy_profile_blocks_clearnet_fallback() -> bool:
-    # Explicit clearnet-fallback policy takes precedence over privacy-profile.
-    try:
-        from services.config import get_settings
+    """Return True when clearnet fallback should be refused on private-tier traffic.
 
-        if str(get_settings().MESH_PRIVATE_CLEARNET_FALLBACK or "").strip().lower() == "block":
-            return True
-    except Exception:
-        pass
+    Sprint 1 / Rec #3: fail-closed. Block is the default. The only way to
+    receive False (i.e. allow clearnet fallback) is an explicit operator
+    opt-in via MESH_PRIVATE_CLEARNET_FALLBACK=allow AND
+    MESH_PRIVATE_CLEARNET_FALLBACK_ACKNOWLEDGE=true. Any config-read error
+    also fails closed.
+    """
     try:
-        from services.wormhole_settings import read_wormhole_settings
+        from services.config import private_clearnet_fallback_effective
 
-        settings = read_wormhole_settings()
-        return str(settings.get("privacy_profile", "default") or "default").strip().lower() == "high"
+        return private_clearnet_fallback_effective() != "allow"
     except Exception:
-        return False
+        return True
 
 
 def _pad_transport_payload(raw_json_bytes: bytes) -> bytes:
@@ -170,6 +175,62 @@ class PayloadType(str, Enum):
     COMMAND = "command"  # Control message (channel join, ack, etc.)
 
 
+def _normalize_trust_tier(value: str | None) -> str:
+    return normalize_transport_tier(value)
+
+
+def _supervisor_verified_trust_tier() -> str:
+    """Return the current verified tier from wormhole_supervisor.
+
+    Sprint 2 / Rec #7: single authoritative source of truth for the
+    tier the node is actually operating at. Callers should never trust
+    a caller-supplied tier without passing it through here. Failing to
+    reach the supervisor falls closed to ``public_degraded``.
+    """
+    try:
+        from services.wormhole_supervisor import get_transport_tier
+
+        return _normalize_trust_tier(get_transport_tier())
+    except Exception:
+        return "public_degraded"
+
+
+def _clamp_trust_tier(claimed: str | None) -> str:
+    """Clamp a claimed tier to what the supervisor can actually deliver.
+
+    Sprint 2 / Rec #2: silent auto-correction. If the caller claims a
+    higher tier than the supervisor has verified, we lower the claim to
+    match reality — a background safety-net so the user never sees an
+    error they didn't cause.
+    """
+    claim = _normalize_trust_tier(claimed)
+    verified = _supervisor_verified_trust_tier()
+    if _TIER_RANK[claim] <= _TIER_RANK[verified]:
+        return claim
+    return verified
+
+
+def _compute_integrity_hash(
+    *,
+    sender_id: str,
+    destination: str,
+    payload: str,
+    timestamp: float,
+    trust_tier: str,
+) -> str:
+    """Integrity hash bound to ``trust_tier``.
+
+    Sprint 2 / Rec #2: including trust_tier in the hashed material means
+    any attempt to rewrite the tier after the envelope is sealed (e.g.
+    replay the same payload at ``public_degraded`` so the audit log
+    stops redacting) breaks the hash and the receiver notices.
+    """
+    h = hashlib.sha256(
+        f"{trust_tier}:{sender_id}:{destination}:{payload}:{timestamp}".encode()
+    )
+    return h.hexdigest()[:16]
+
+
 @dataclass
 class MeshEnvelope:
     """Canonical message format that all transports share.
@@ -187,7 +248,7 @@ class MeshEnvelope:
     priority: Priority = Priority.NORMAL
     payload_type: PayloadType = PayloadType.TEXT
     ttl: int = 3  # Max hops before discard
-    trust_tier: str = "public_degraded"  # public_degraded | private_transitional | private_strong
+    trust_tier: str = ""  # Resolved by __post_init__ via _clamp_trust_tier
 
     # Payload
     payload: str = ""  # The actual message content
@@ -196,7 +257,11 @@ class MeshEnvelope:
     # Provenance
     message_id: str = ""  # Unique ID (generated if empty)
     timestamp: float = 0.0  # Unix timestamp (generated if 0)
-    signature: str = ""  # Integrity-only hash, not a cryptographic authentication signature
+    # Integrity-only hash over (trust_tier, sender, destination, payload, timestamp).
+    # Sprint 2 / Rec #2: trust_tier is now part of the hashed material so
+    # downgraded replays don't match. NOT a crypto authentication
+    # signature — use ``integrity_hash``.
+    integrity_hash: str = ""
 
     # Retention
     ephemeral: bool = False  # If True, auto-purge after 24h
@@ -212,11 +277,33 @@ class MeshEnvelope:
             self.timestamp = time.time()
         if not self.payload_bytes:
             self.payload_bytes = len(self.payload.encode("utf-8"))
-        if not self.signature:
-            h = hashlib.sha256(
-                f"{self.sender_id}:{self.destination}:{self.payload}:{self.timestamp}".encode()
+        # Sprint 2 / Rec #7: single authoritative source. Any caller-
+        # supplied tier is clamped to what the supervisor has verified.
+        self.trust_tier = _clamp_trust_tier(self.trust_tier)
+        if not self.integrity_hash:
+            self.integrity_hash = _compute_integrity_hash(
+                sender_id=self.sender_id,
+                destination=self.destination,
+                payload=self.payload,
+                timestamp=self.timestamp,
+                trust_tier=self.trust_tier,
             )
-            self.signature = h.hexdigest()[:16]
+
+    def reseal_for_tier(self, verified_tier: str) -> None:
+        """Re-stamp the envelope for a new verified tier and rehash.
+
+        Used by the router when the supervisor's tier has shifted
+        between construction and dispatch. Silent and in-place so the
+        user never sees a failure they didn't cause.
+        """
+        self.trust_tier = _normalize_trust_tier(verified_tier)
+        self.integrity_hash = _compute_integrity_hash(
+            sender_id=self.sender_id,
+            destination=self.destination,
+            payload=self.payload,
+            timestamp=self.timestamp,
+            trust_tier=self.trust_tier,
+        )
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -226,15 +313,35 @@ class MeshEnvelope:
 
 
 class TransportResult:
-    """Result of a transport send attempt."""
+    """Result of a transport send attempt.
 
-    def __init__(self, ok: bool, transport: str, detail: str = ""):
+    ``upgrade_action`` is a structured hint for the UI when a send could
+    not complete because private transport is not up yet. When present,
+    the frontend should prompt the user (e.g. "Switch to private and
+    send?") and, on confirmation, invoke the referenced action
+    (typically POST /api/wormhole/connect) then retry the send. This
+    turns the safety stop into a one-click upgrade flow rather than a
+    refusal.
+    """
+
+    def __init__(
+        self,
+        ok: bool,
+        transport: str,
+        detail: str = "",
+        *,
+        upgrade_action: dict | None = None,
+    ):
         self.ok = ok
         self.transport = transport
         self.detail = detail
+        self.upgrade_action = upgrade_action
 
     def to_dict(self) -> dict:
-        return {"ok": self.ok, "transport": self.transport, "detail": self.detail}
+        out: dict = {"ok": self.ok, "transport": self.transport, "detail": self.detail}
+        if self.upgrade_action:
+            out["upgrade_action"] = self.upgrade_action
+        return out
 
 
 def _private_transport_outcomes(results: list[TransportResult]) -> list[dict[str, object]]:
@@ -278,21 +385,22 @@ class MeshtasticTransport:
 
     NAME = "meshtastic"
     MAX_PAYLOAD = 200  # LoRa practical payload limit
-    BROKER = "mqtt.meshtastic.org"
-    PORT = 1883
 
     @staticmethod
-    def _mqtt_creds() -> tuple[str, str]:
+    def _mqtt_config() -> tuple[str, int, str, str]:
+        """Return (broker, port, user, password) from settings."""
         try:
             from services.config import get_settings
 
             s = get_settings()
             return (
+                str(s.MESH_MQTT_BROKER or "mqtt.meshtastic.org"),
+                int(s.MESH_MQTT_PORT or 1883),
                 str(s.MESH_MQTT_USER or "meshdev"),
                 str(s.MESH_MQTT_PASS or "large4cats"),
             )
         except Exception:
-            return ("meshdev", "large4cats")
+            return ("mqtt.meshtastic.org", 1883, "meshdev", "large4cats")
 
     def can_reach(self, envelope: MeshEnvelope) -> bool:
         """Meshtastic can reach mesh nodes and supports broadcast."""
@@ -320,6 +428,18 @@ class MeshtasticTransport:
             0x01,
         ]
     )
+
+    @classmethod
+    def _resolve_psk(cls) -> bytes:
+        """Return the PSK from config, or the default LongFast key if empty."""
+        try:
+            from services.config import get_settings
+            raw = str(getattr(get_settings(), "MESH_MQTT_PSK", "") or "").strip()
+        except Exception:
+            raw = ""
+        if not raw:
+            return cls.DEFAULT_KEY
+        return bytes.fromhex(raw)
 
     @staticmethod
     def _stable_node_id(sender_id: str) -> int:
@@ -373,9 +493,10 @@ class MeshtasticTransport:
             direct_node = self._parse_node_id(envelope.destination)
             to_node = direct_node if direct_node is not None else 0xFFFFFFFF
 
-            # Encrypt (AES-128-CTR)
+            # Encrypt (AES-CTR)
+            psk = self._resolve_psk()
             nonce = struct.pack("<QQ", packet_id, from_node)
-            cipher = Cipher(algorithms.AES(self.DEFAULT_KEY), modes.CTR(nonce))
+            cipher = Cipher(algorithms.AES(psk), modes.CTR(nonce))
             encryptor = cipher.encryptor()
             encrypted = encryptor.update(plaintext) + encryptor.finalize()
 
@@ -411,10 +532,10 @@ class MeshtasticTransport:
             client = mqtt.Client(
                 client_id=f"shadowbroker-tx-{envelope.message_id[:8]}", protocol=mqtt.MQTTv311
             )
-            user, pw = self._mqtt_creds()
+            broker, port, user, pw = self._mqtt_config()
             client.username_pw_set(user, pw)
             client.on_connect = _on_connect
-            client.connect(self.BROKER, self.PORT, keepalive=10)
+            client.connect(broker, port, keepalive=10)
 
             # Run loop until published or timeout
             deadline = time.time() + 8
@@ -474,7 +595,19 @@ class _PeerPushTransportMixin:
         self._peer_failures.pop(peer_url, None)
         self._peer_cooldown_until.pop(peer_url, None)
 
-    def _build_peer_push_request(self, envelope: MeshEnvelope, push_source: str) -> tuple[str, bytes]:
+    def _build_peer_push_request(
+        self, envelope: MeshEnvelope, push_source: str
+    ) -> tuple[str, "Callable[[str], bytes]"]:
+        """Return ``(endpoint_path, build_for_peer)``.
+
+        Sprint 3 / Rec #4: ``build_for_peer(peer_url)`` yields the padded
+        wire bytes for a specific destination peer. Gate messages carry
+        a pair-bound ``gate_ref`` that is unique per receiver — a peer
+        who sniffs a push intended for another receiver cannot derive
+        the matching ref, so enumeration via a global secret is closed.
+        The raw length is invariant across peers (gate_ref is always a
+        64-char SHA-256 hexdigest) so padding buckets remain stable.
+        """
         evt_dict = envelope.to_dict()
         payload_candidate = envelope.payload
         if isinstance(payload_candidate, str):
@@ -490,7 +623,7 @@ class _PeerPushTransportMixin:
 
             payload_info = evt_dict.get("payload") if isinstance(evt_dict.get("payload"), dict) else {}
             gate_id = str(payload_info.get("gate", "") or "").strip().lower()
-            safe_evt = {
+            base_evt: dict[str, Any] = {
                 "event_type": "gate_message",
                 "timestamp": evt_dict.get("timestamp", 0),
                 "payload": {
@@ -498,19 +631,15 @@ class _PeerPushTransportMixin:
                     "format": str(payload_info.get("format", "") or ""),
                 },
             }
-            gate_ref = build_gate_wire_ref(gate_id, safe_evt)
-            if not gate_ref:
-                raise ValueError("private gate forwarding requires MESH_PEER_PUSH_SECRET")
-            safe_evt["payload"]["gate_ref"] = gate_ref
             nonce = str(payload_info.get("nonce", "") or "")
             sender_ref = str(payload_info.get("sender_ref", "") or "")
             epoch = int(payload_info.get("epoch", 0) or 0)
             if nonce:
-                safe_evt["payload"]["nonce"] = nonce
+                base_evt["payload"]["nonce"] = nonce
             if sender_ref:
-                safe_evt["payload"]["sender_ref"] = sender_ref
+                base_evt["payload"]["sender_ref"] = sender_ref
             if epoch > 0:
-                safe_evt["payload"]["epoch"] = epoch
+                base_evt["payload"]["epoch"] = epoch
             for field_name in (
                 "event_id",
                 "node_id",
@@ -522,16 +651,34 @@ class _PeerPushTransportMixin:
             ):
                 value = evt_dict.get(field_name, "")
                 if value not in ("", None):
-                    safe_evt[field_name] = value
-            payload = {"events": [safe_evt], "push_source": push_source}
-            return "/api/mesh/gate/peer-push", _pad_transport_payload(
-                json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-            )
+                    base_evt[field_name] = value
+
+            def _build_for_peer(peer_url: str) -> bytes:
+                gate_ref = build_gate_wire_ref(gate_id, base_evt, peer_url=peer_url)
+                if not gate_ref:
+                    raise ValueError(
+                        "private gate forwarding requires MESH_PEER_PUSH_SECRET and a known peer URL"
+                    )
+                peer_evt = {
+                    **base_evt,
+                    "payload": {**base_evt["payload"], "gate_ref": gate_ref},
+                }
+                payload = {"events": [peer_evt], "push_source": push_source}
+                return _pad_transport_payload(
+                    json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                )
+
+            return "/api/mesh/gate/peer-push", _build_for_peer
 
         payload = {"events": [evt_dict], "push_source": push_source}
-        return "/api/mesh/infonet/peer-push", _pad_transport_payload(
+        cached = _pad_transport_payload(
             json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         )
+
+        def _build_cached(_peer_url: str) -> bytes:
+            return cached
+
+        return "/api/mesh/infonet/peer-push", _build_cached
 
 
 class InternetTransport(_PeerPushTransportMixin):
@@ -839,7 +986,13 @@ class MeshRouter:
         self.transports = [self.aprs, self.meshtastic, self.tor_arti, self.internet]
         # Message log for audit trail / provenance
         self.message_log: deque[dict] = deque(maxlen=500)
+        self.tier_events: deque[dict[str, Any]] = deque(maxlen=_TIER_EVENT_MAXLEN)
         self._dedupe: dict[str, float] = {}
+        self._last_supervisor_tier: str = ""
+        # Per-process random salt for dedupe keys — prevents a restarted
+        # observer from correlating pre- and post-restart dedupe fingerprints
+        # across a node.
+        self._dedupe_salt: bytes = secrets.token_bytes(16)
         # Circuit breakers — protect external networks
         self.breakers = {
             "aprs": CircuitBreaker("APRS", soft_limit=20, hard_limit=50, cooldown_seconds=1800),
@@ -847,6 +1000,43 @@ class MeshRouter:
                 "Meshtastic", soft_limit=60, hard_limit=150, cooldown_seconds=900
             ),
         }
+
+    def record_tier_event(
+        self,
+        event: str,
+        *,
+        previous_tier: str = "",
+        current_tier: str = "",
+        detail: str = "",
+        route_reason: str = "",
+        transport: str = "",
+        lane: str = "",
+        hidden_transport_effective: bool | None = None,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "event": str(event or "").strip().lower(),
+            "timestamp": time.time(),
+        }
+        if previous_tier:
+            entry["previous_tier"] = str(previous_tier or "").strip().lower()
+        if current_tier:
+            entry["current_tier"] = str(current_tier or "").strip().lower()
+        if detail:
+            entry["detail"] = str(detail or "")
+        if route_reason:
+            entry["route_reason"] = str(route_reason or "")
+        if transport:
+            entry["transport"] = str(transport or "")
+        if lane:
+            entry["lane"] = str(lane or "")
+        if hidden_transport_effective is not None:
+            entry["hidden_transport_effective"] = bool(hidden_transport_effective)
+        for key, value in extra.items():
+            if value not in ("", None):
+                entry[key] = value
+        self.tier_events.append(entry)
+        return entry
 
     def prune_message_log(self, now: float | None = None) -> None:
         from services.config import get_settings
@@ -870,7 +1060,7 @@ class MeshRouter:
 
     def _dedupe_key(self, envelope: MeshEnvelope) -> str:
         base = f"{envelope.sender_id}:{envelope.destination}:{envelope.payload}"
-        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+        return hashlib.sha256(self._dedupe_salt + base.encode("utf-8")).hexdigest()
 
     def _prune_dedupe(self, now: float):
         cutoff = now - DEDUP_TTL_SECONDS
@@ -899,6 +1089,35 @@ class MeshRouter:
         Returns list of TransportResult (multiple for EMERGENCY broadcast).
         """
         results: list[TransportResult] = []
+        # Sprint 2 / Rec #2 + #7: re-verify the envelope's trust_tier
+        # against the supervisor at dispatch time. If the caller
+        # constructed the envelope when private was ready but private
+        # has since flapped, silently reseal the envelope for the
+        # current verified tier — the user doesn't see a failure, the
+        # routing decision just uses truth. We never upgrade a claim
+        # beyond what the supervisor confirms.
+        verified_tier = _supervisor_verified_trust_tier()
+        if verified_tier != self._last_supervisor_tier:
+            self.record_tier_event(
+                "tier_change",
+                previous_tier=self._last_supervisor_tier,
+                current_tier=verified_tier,
+                detail="supervisor_verified_trust_tier_changed",
+            )
+            self._last_supervisor_tier = verified_tier
+        if _TIER_RANK[_normalize_trust_tier(envelope.trust_tier)] > _TIER_RANK[verified_tier]:
+            logger.info(
+                "[mesh] trust_tier auto-clamped from %s to %s before dispatch",
+                envelope.trust_tier,
+                verified_tier,
+            )
+            self.record_tier_event(
+                "tier_fallback",
+                previous_tier=str(envelope.trust_tier or ""),
+                current_tier=verified_tier,
+                detail="dispatch_auto_clamp",
+            )
+            envelope.reseal_for_tier(verified_tier)
         private_tier = str(envelope.trust_tier or "public_degraded").strip().lower().startswith(
             "private_"
         )
@@ -916,7 +1135,7 @@ class MeshRouter:
             for transport in self.transports:
                 if private_tier and transport.NAME in {"aprs", "meshtastic"}:
                     continue
-                if tier_str == "private_strong" and transport.NAME == "internet":
+                if private_tier and transport.NAME == "internet":
                     continue
                 if transport.can_reach(envelope):
                     r = transport.send(envelope, credentials)
@@ -980,20 +1199,34 @@ class MeshRouter:
                     self._log(envelope, results)
                     return results
             envelope.route_reason = (
-                "PRIVATE_STRONG — Tor unavailable or failed, refusing clearnet fallback"
+                "PRIVATE_STRONG — Tor unavailable or failed, prompting upgrade"
             )
             results.append(
                 TransportResult(
                     False,
                     "policy",
-                    "private_strong requires Tor — clearnet fallback refused",
+                    "Private transport (Tor) is not up yet. Switch to private to send?",
+                    upgrade_action={
+                        "type": "enable_private_transport",
+                        "endpoint": "/api/wormhole/connect",
+                        "method": "POST",
+                        "prompt": "Switch to private transport and send?",
+                        "reason": "private_transport_not_ready",
+                        "retry_after": True,
+                    },
                 )
             )
             self._log(envelope, results)
             return results
 
         elif private_tier:
-            # private_transitional — prefer Tor, but allow clearnet fallback
+            # Sprint 1 / Rec #3: private_transitional prefers Tor. If Tor
+            # isn't up, we do NOT silently leak the payload over clearnet —
+            # instead we return a structured upgrade_action so the UI can
+            # ask the user "switch to private and send?" and, on consent,
+            # POST /api/wormhole/connect then retry the send. This turns
+            # the safety stop into a one-click upgrade rather than a
+            # hostile refusal.
             if self.tor_arti.can_reach(envelope):
                 envelope.route_reason = "PRIVATE payload prefers tor_arti when available"
                 tor_result = self.tor_arti.send(envelope, credentials)
@@ -1004,17 +1237,30 @@ class MeshRouter:
                     return results
             if _high_privacy_profile_blocks_clearnet_fallback():
                 envelope.route_reason = (
-                    "HIGH PRIVACY profile refuses clearnet fallback for private traffic"
+                    "PRIVATE_TRANSITIONAL — private transport not ready, prompting upgrade"
                 )
                 results.append(
                     TransportResult(
                         False,
                         "policy",
-                        "high privacy profile requires hidden/private transport — clearnet fallback refused",
+                        "Private transport (Tor) is not up yet. Switch to private to send?",
+                        upgrade_action={
+                            "type": "enable_private_transport",
+                            "endpoint": "/api/wormhole/connect",
+                            "method": "POST",
+                            "prompt": "Switch to private transport and send?",
+                            "reason": "private_transport_not_ready",
+                            "retry_after": True,
+                        },
                     )
                 )
                 self._log(envelope, results)
                 return results
+            # Explicit opt-in path: operator set MESH_PRIVATE_CLEARNET_FALLBACK=allow
+            # with acknowledgement — log loudly before degrading.
+            logger.warning(
+                "[mesh] private_transitional falling through to clearnet — operator opted in via MESH_PRIVATE_CLEARNET_FALLBACK=allow"
+            )
 
         envelope.route_reason = (
             "Payload too large for radio or radio transports failed — internet relay"
@@ -1022,6 +1268,14 @@ class MeshRouter:
         if private_tier:
             logger.warning(
                 "[mesh] Transport degradation: message sent via clearnet, expected private transport"
+            )
+            metrics_inc("silent_degradations")
+            self.record_tier_event(
+                "fallback",
+                current_tier=tier_str,
+                detail="private_payload_sent_via_clearnet_relay",
+                route_reason=envelope.route_reason,
+                transport=self.internet.NAME,
             )
         r = self.internet.send(envelope, credentials)
         envelope.routed_via = self.internet.NAME
@@ -1033,7 +1287,7 @@ class MeshRouter:
         """Record message in audit log for provenance tracking.
 
         Private-tier messages get redacted logs — no sender, destination,
-        signature, or payload preview. Only routing metadata is logged.
+        integrity_hash, or payload preview. Only routing metadata is logged.
         """
         tier_str = str(envelope.trust_tier or "public_degraded").strip().lower()
         is_private = tier_str.startswith("private_")
@@ -1058,7 +1312,7 @@ class MeshRouter:
             entry["sender"] = envelope.sender_id
             entry["destination"] = envelope.destination
             entry["payload_preview"] = envelope.payload[:50]
-            entry["signature"] = envelope.signature
+            entry["integrity_hash"] = envelope.integrity_hash
 
         self.message_log.append(entry)
         any_ok = any(r.ok for r in results)

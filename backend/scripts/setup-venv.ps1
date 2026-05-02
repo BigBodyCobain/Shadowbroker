@@ -1,10 +1,16 @@
 param(
-  [string]$Python = "python"
+  [string]$Python = "py"
 )
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $venvPath = Join-Path $repoRoot "venv"
-& $Python -m venv $venvPath
+$venvMarker = Join-Path $repoRoot ".venv-dir"
+& $Python -3.11 -m venv $venvPath
 
 $pip = Join-Path $venvPath "Scripts\pip.exe"
-& $pip install -r (Join-Path $repoRoot "requirements-dev.txt")
+& $pip install --upgrade pip
+Push-Location $repoRoot
+& (Join-Path $venvPath "Scripts\python.exe") -m pip install -e .
+& $pip install pytest pytest-asyncio ruff black
+"venv" | Set-Content -LiteralPath $venvMarker -NoNewline
+Pop-Location

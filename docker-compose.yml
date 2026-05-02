@@ -1,3 +1,11 @@
+## Default registry is GHCR because the GitHub release workflow publishes:
+##   ghcr.io/bigbodycobain/shadowbroker-backend:latest
+##   ghcr.io/bigbodycobain/shadowbroker-frontend:latest
+##
+## GitLab mirror images can still be used by swapping the image lines to:
+##   registry.gitlab.com/bigbodycobain/shadowbroker/backend:latest
+##   registry.gitlab.com/bigbodycobain/shadowbroker/frontend:latest
+
 services:
   backend:
     image: ghcr.io/bigbodycobain/shadowbroker-backend:latest
@@ -13,10 +21,12 @@ services:
       - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       # Override allowed CORS origins (comma-separated). Auto-detects LAN IPs if empty.
       - CORS_ORIGINS=${CORS_ORIGINS:-}
-      # Default Infonet relay peer so fresh installs can sync immediately.
-      - MESH_RELAY_PEERS=${MESH_RELAY_PEERS:-http://cipher0.shadowbroker.info:8000}
-      # Shared transport auth for mesh peer push (default matches baked-in testnet secret).
-      - MESH_PEER_PUSH_SECRET=${MESH_PEER_PUSH_SECRET:-Mv63UvLfwqOEVWeRBXjA8MtFl2nEkkhUlLYVHiX1Zzo}
+      # Default public Infonet seed used for pull-only sync by fresh installs.
+      - MESH_DEFAULT_SYNC_PEERS=${MESH_DEFAULT_SYNC_PEERS:-https://node.shadowbroker.info}
+      # Operator-trusted sync/push peers. Leave empty unless you control the peer secret on both sides.
+      - MESH_RELAY_PEERS=${MESH_RELAY_PEERS:-}
+      # Shared transport auth for operator peer push. Must be set to a unique secret per deployment.
+      - MESH_PEER_PUSH_SECRET=${MESH_PEER_PUSH_SECRET}
     volumes:
       - backend_data:/app/data
     restart: unless-stopped

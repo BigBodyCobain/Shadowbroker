@@ -1,13 +1,25 @@
 [package]
 name = "shadowbroker-tauri-shell"
-version = "0.1.0"
+version = "0.9.7"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2" }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
+axum = "0.7"
+base64 = "0.22"
+bytes = "1"
+getrandom = "0.2"
+open = "5"
+privacy-core = { path = "../../../privacy-core" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+tokio = { version = "1", features = ["net", "sync", "time"] }
+tower-http = { version = "0.5", features = ["fs"] }
+url = "2"
+urlencoding = "2"

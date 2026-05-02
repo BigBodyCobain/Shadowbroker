@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 import requests
 from services.network_utils import fetch_with_curl
 from services.fetchers._store import latest_data, _data_lock, _mark_fresh
@@ -296,17 +297,23 @@ def fetch_military_flights():
     with _data_lock:
         latest_data["military_flights"] = remaining_mil
 
-    # Store tracked military flights — update positions for existing entries
+    # Store tracked military flights — update positions for existing entries.
+    # Drop stale entries not refreshed by ANY source (civilian or military) within 5 min.
+    _TRACKED_STALE_S = 300  # 5 minutes
+    _merge_ts = time.time()
+
     with _data_lock:
         existing_tracked = list(latest_data.get("tracked_flights", []))
     fresh_mil_map = {}
     for t in tracked_mil:
         icao = t.get("icao24", "").upper()
         if icao:
+            t["_seen_at"] = _merge_ts
             fresh_mil_map[icao] = t
 
     updated_tracked = []
     seen_icaos = set()
+    stale_dropped = 0
     for old_t in existing_tracked:
         icao = old_t.get("icao24", "").upper()
         if icao in fresh_mil_map:
@@ -317,11 +324,16 @@ def fetch_military_flights():
             updated_tracked.append(fresh)
             seen_icaos.add(icao)
         else:
-            updated_tracked.append(old_t)
-            seen_icaos.add(icao)
+            # Keep stale entry only if it was seen recently
+            age = _merge_ts - old_t.get("_seen_at", 0)
+            if age < _TRACKED_STALE_S:
+                updated_tracked.append(old_t)
+                seen_icaos.add(icao)
+            else:
+                stale_dropped += 1
     for icao, t in fresh_mil_map.items():
         if icao not in seen_icaos:
             updated_tracked.append(t)
     with _data_lock:
         latest_data["tracked_flights"] = updated_tracked
-    logger.info(f"Tracked flights: {len(updated_tracked)} total ({len(tracked_mil)} from military)")
+    logger.info(f"Tracked flights: {len(updated_tracked)} total ({len(tracked_mil)} from military, {stale_dropped} stale dropped)")

@@ -17,6 +17,7 @@ import {
   decryptDM,
   getContacts,
   addContact,
+  updateContact,
   blockContact,
   unblockContact,
   getDMNotify,
@@ -38,6 +39,7 @@ import {
   buildMailboxClaims,
   countDmMailboxes,
   ensureRegisteredDmKey,
+  fetchDmPublicKey,
   pollDmMailboxes,
   sendDmMessage,
   sharedMailboxToken,
@@ -46,10 +48,13 @@ import { PROTOCOL_VERSION, buildSignaturePayload } from '@/mesh/meshProtocol';
 import { validateEventPayload } from '@/mesh/meshSchema';
 import { verifyMerkleProof } from '@/mesh/meshMerkle';
 import { API_BASE } from '@/lib/api';
-import { controlPlaneJson } from '@/lib/controlPlane';
+import { classifyTick, jitteredPollDelay, MAX_CATCHUP_POLLS } from '@/lib/dmPollScheduler';
 import { getPrivacyStrictPreference } from '@/lib/privacyBrowserStorage';
 import { getDesktopNativeControlAuditReport } from '@/lib/desktopBridge';
-import { describeNativeControlError } from '@/lib/desktopControlContract';
+import {
+  describeNativeControlError,
+  extractNativeGateResyncTarget,
+} from '@/lib/desktopControlContract';
 import {
   getSensitiveBrowserItem,
   setSensitiveBrowserItem,
@@ -58,22 +63,47 @@ import {
   fetchInfonetNodeStatusSnapshot,
   type InfonetNodeStatusSnapshot,
 } from '@/mesh/controlPlaneStatusClient';
-import { fetchWormholeStatus } from '@/mesh/wormholeIdentityClient';
+import { fetchWormholeStatus, runWormholeDmSelftest } from '@/mesh/wormholeIdentityClient';
 import {
-  bootstrapWormholeIdentity,
+  formatLegacyCompatibilitySeenAt,
+  summarizeLegacyCompatibility,
+} from '@/mesh/wormholeCompatibility';
+import {
+  formatGateCompatSeenAt,
+  getGateCompatTelemetrySnapshot,
+  summarizeGateCompatTelemetry,
+} from '@/mesh/gateCompatTelemetry';
+import {
+  describeBrowserGateLocalRuntimeStatus,
+  getBrowserGateLocalRuntimeStatus,
+} from '@/mesh/meshGateWorkerClient';
+import {
+  fetchGateCatalogSnapshot,
+  fetchGateDetailSnapshot,
+  invalidateGateCatalogSnapshot,
+  invalidateGateDetailSnapshot,
+} from '@/mesh/gateCatalogSnapshot';
+import { fetchGateMessageSnapshot } from '@/mesh/gateMessageSnapshot';
+import {
+  describeGateMessagePreview,
+  fetchGateThreadPreviewSnapshot,
+  invalidateGateThreadPreviewSnapshot,
+} from '@/mesh/gatePreviewSnapshot';
+import {
   clearWormholeGatePersona,
   createWormholeGatePersona,
-  decryptWormholeGateMessage,
   fetchWormholeGateKeyStatus,
+  postWormholeGateMessage,
+  prepareWormholeInteractiveLane,
+  resyncWormholeGateState,
   rotateWormholeGateKey,
 } from '@/mesh/wormholeIdentityClient';
-import { fetchWormholeSettings, joinWormhole } from '@/mesh/wormholeClient';
+import { fetchWormholeSettings } from '@/mesh/wormholeClient';
 import {
   getMeshTerminalWriteLockReason,
   isMeshTerminalWriteCommand,
 } from '@/lib/meshTerminalPolicy';
 import {
-  gateEnvelopeDisplayText,
   gateEnvelopeState,
   isEncryptedGateEnvelope,
 } from '@/mesh/gateEnvelope';
@@ -179,12 +209,16 @@ interface InfonetMessageRecord {
   sender_ref?: string;
   format?: string;
   gate?: string;
+  gate_envelope?: string;
+  envelope_hash?: string;
   payload?: {
     gate?: string;
     ciphertext?: string;
     nonce?: string;
     sender_ref?: string;
     format?: string;
+    gate_envelope?: string;
+    envelope_hash?: string;
   };
   timestamp: number;
   ephemeral?: boolean;
@@ -217,33 +251,6 @@ interface InfonetSyncResponse {
   merkle_proofs?: InfonetMerkleProof[];
   merkle_root?: string;
   head_hash?: string;
-}
-
-async function buildGateAccessHeaders(gateId: string): Promise<Record<string, string> | undefined> {
-  const normalizedGate = String(gateId || '').trim().toLowerCase();
-  if (!normalizedGate) return undefined;
-  try {
-    const proof = await controlPlaneJson<{ node_id?: string; ts?: number; proof?: string }>(
-      '/api/wormhole/gate/proof',
-      {
-        requireAdminSession: false,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gate_id: normalizedGate }),
-      },
-    );
-    const nodeId = String(proof.node_id || '').trim();
-    const gateProof = String(proof.proof || '').trim();
-    const gateTs = String(proof.ts || '').trim();
-    if (!nodeId || !gateProof || !gateTs) return undefined;
-    return {
-      'X-Wormhole-Node-Id': nodeId,
-      'X-Wormhole-Gate-Proof': gateProof,
-      'X-Wormhole-Gate-Ts': gateTs,
-    };
-  } catch {
-    return undefined;
-  }
 }
 
 interface GateSummary {
@@ -286,6 +293,8 @@ function normalizeInfonetMessageRecord(message: InfonetMessageRecord): InfonetMe
     nonce: String(message.nonce ?? payload.nonce ?? ''),
     sender_ref: String(message.sender_ref ?? payload.sender_ref ?? ''),
     format: String(message.format ?? payload.format ?? ''),
+    gate_envelope: String(message.gate_envelope ?? payload.gate_envelope ?? ''),
+    envelope_hash: String(message.envelope_hash ?? payload.envelope_hash ?? ''),
   };
 }
 
@@ -487,14 +496,18 @@ const HELP_SECTIONS: Record<string, string[]> = {
     '    gate mask <id>      Create and activate a gate face',
     '    gate anon <id>      Return to anonymous gate mode',
     '    gate rekey <id>     Rotate the gate content key',
+    '    gate resync <id>    Resync local native gate state',
     '    say <gate> <msg>    Post to an encrypted gate lane',
-    '    Gates and Dead Drop run through Wormhole. Public mesh does not.',
+    '    Gates run on a transitional private lane through Wormhole.',
+    '    Dead Drop / DM is a separate, stronger private lane.',
+    '    Public mesh does not route through Wormhole.',
   ],
   inbox: [
     '  EXPERIMENTAL PRIVATE DM INBOX',
     '    inbox               Check pending private messages',
     '    contacts            List saved contacts',
     '    dm                  Start interactive encrypted DM',
+    '    dm selftest         Run a local synthetic-peer DM privacy test',
     '    dm <id> <msg>       Send one-line private message',
     '    dm block <id>       Block a contact',
     '    dm unblock <id>     Unblock a contact',
@@ -541,7 +554,7 @@ const GUIDE_TEXT: TermLine[] = [
   { text: '     This is for public mesh + perimeter activity. It generates', type: 'dim' },
   { text: '     an Ed25519 keypair locally. Your private key never leaves', type: 'dim' },
   { text: '     your device. No registration, no server, no email.', type: 'dim' },
-  { text: "     Wormhole is the separate obfuscated lane for gates + Dead Drop.", type: 'dim' },
+  { text: "     Wormhole provides gates (transitional private lane) and Dead Drop (stronger private DM lane) separately.", type: 'dim' },
   { text: '', type: 'dim' },
   { text: '  2. MONITOR', type: 'system' },
   { text: "     'signals' — see live radio traffic (APRS, LoRa, HF)", type: 'dim' },
@@ -879,10 +892,10 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     const loadGateCatalog = async () => {
       setGateCatalogLoading(true);
       try {
-        const res = await fetch(`${API}/api/mesh/gate/list`);
-        const data = await res.json();
         if (cancelled) return;
-        setGateCatalog(Array.isArray(data.gates) ? data.gates : []);
+        const gates = await fetchGateCatalogSnapshot();
+        if (cancelled) return;
+        setGateCatalog(gates);
       } catch {
         if (!cancelled) setGateCatalog([]);
       } finally {
@@ -890,11 +903,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       }
     };
 
-    loadGateCatalog();
+    void loadGateCatalog();
     return () => {
       cancelled = true;
     };
-  }, [isOpen, surfacePanel, meshRegion]);
+  }, [isOpen, surfacePanel]);
 
   useEffect(() => {
     if (!isOpen || surfacePanel !== 'markets') return;
@@ -967,8 +980,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
   useEffect(() => {
     if (!isOpen || surfacePanel !== 'inbox') return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let catchUpBudget = MAX_CATCHUP_POLLS;
 
-    const loadInboxSurface = async () => {
+    const loadInboxSurface = async (includeCount = true) => {
+      let hasMore = false;
       if (!nodeIdentity || !hasSovereignty()) {
         setSurfaceInbox([]);
         return;
@@ -976,9 +992,15 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       setSurfaceInboxLoading(true);
       try {
         const claims = await buildMailboxClaims(getContacts());
-        const data = await pollDmMailboxes(API, nodeIdentity, claims);
+        const pollPromise = pollDmMailboxes(API, nodeIdentity, claims);
+        const countPromise = includeCount
+          ? countDmMailboxes(API, nodeIdentity, claims).catch(() => ({ ok: false, count: 0 }))
+          : null;
+        const [data, countResult] = await Promise.all([pollPromise, countPromise]);
         if (cancelled) return;
         const msgs = Array.isArray(data.messages) ? data.messages : [];
+        hasMore = Boolean(data.has_more);
+        if (countResult && onDmCount) onDmCount(Number(countResult.count || 0));
         const previews: InboxPreviewRecord[] = [];
         for (const message of msgs.slice(0, 6)) {
           const ageMin = Math.floor((Date.now() / 1000 - message.timestamp) / 60);
@@ -988,13 +1010,21 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             const contacts = getContacts();
             let senderDH = contacts[message.sender_id]?.dhPubKey;
             if (!senderDH) {
-              const keyRes = await fetch(
-                `${API}/api/mesh/dm/pubkey?agent_id=${encodeURIComponent(message.sender_id)}`,
+              const contact = contacts[message.sender_id];
+              const keyData = await fetchDmPublicKey(
+                API,
+                message.sender_id,
+                contact?.invitePinnedPrekeyLookupHandle,
               );
-              const keyData = await keyRes.json();
-              if (keyData.ok && keyData.dh_pub_key) {
+              if (keyData?.dh_pub_key) {
                 senderDH = keyData.dh_pub_key as string;
                 addContact(message.sender_id, senderDH, undefined, keyData.dh_algo);
+                updateContact(message.sender_id, {
+                  dhAlgo: keyData.dh_algo || contact?.dhAlgo,
+                  remotePrekeyLookupMode:
+                    String(keyData.lookup_mode || '').trim().toLowerCase() ||
+                    contact?.remotePrekeyLookupMode,
+                });
               }
             }
             if (!senderDH) {
@@ -1028,17 +1058,25 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           }
         }
         setSurfaceInbox(previews);
-        if (onDmCount) onDmCount(msgs.length);
       } catch {
         if (!cancelled) setSurfaceInbox([]);
       } finally {
-        if (!cancelled) setSurfaceInboxLoading(false);
+        if (!cancelled) {
+          setSurfaceInboxLoading(false);
+          const classification = classifyTick(hasMore, catchUpBudget, 15_000);
+          catchUpBudget = classification.newBudget;
+          timer = setTimeout(
+            () => void loadInboxSurface(classification.refreshCount),
+            classification.delay,
+          );
+        }
       }
     };
 
     void loadInboxSurface();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [isOpen, surfacePanel, nodeIdentity, onDmCount]);
 
@@ -1292,11 +1330,13 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     };
   }, []);
 
-  // DM unread count polling (every 15s when connected)
+  // DM unread count polling (jittered cadence around 15s when connected)
   useEffect(() => {
-    if (!nodeIdentity || !hasSovereignty() || !getDMNotify()) return;
+    if (!isOpen || !nodeIdentity || !hasSovereignty() || !getDMNotify() || surfacePanel === 'inbox') return;
     let cancelled = false;
-    const poll = async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      if (cancelled) return;
       try {
         const claims = await buildMailboxClaims(getContacts());
         const data = await countDmMailboxes(API, nodeIdentity, claims);
@@ -1304,14 +1344,16 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       } catch {
         /* ignore */
       }
+      if (!cancelled) {
+        timer = setTimeout(() => void tick(), jitteredPollDelay(15_000));
+      }
     };
-    poll(); // immediate
-    const iv = setInterval(poll, 15000);
+    void tick(); // immediate first poll
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      if (timer) clearTimeout(timer);
     };
-  }, [nodeIdentity, onDmCount]);
+  }, [isOpen, nodeIdentity, onDmCount, surfacePanel]);
 
   // Escape to close
   useEffect(() => {
@@ -1436,6 +1478,24 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     [addLines],
   );
   const addSystem = useCallback((text: string) => addLines([{ text, type: 'system' }]), [addLines]);
+  const addGateResyncAction = useCallback(
+    (err: unknown, gateIdHint?: string): boolean => {
+      const gateId = String(extractNativeGateResyncTarget(err) || gateIdHint || '')
+        .trim()
+        .toLowerCase();
+      if (!gateId) return false;
+      addLines([
+        {
+          text: '  Gate state changed on another native path. Resync local gate state before retrying.',
+          type: 'error',
+          actionCommand: `gate resync ${gateId}`,
+          actionLabel: 'RESYNC',
+        },
+      ]);
+      return true;
+    },
+    [addLines],
+  );
 
   const getInfonetHeadHistory = useCallback(() => {
     if (typeof window === 'undefined') return [];
@@ -1508,8 +1568,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
 
   const cmdStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/mesh/status`);
-      const data = (await res.json()) as MeshStatusResponse;
+      const [meshRes, wormholeStatus] = await Promise.all([
+        fetch(`${API}/api/mesh/status`),
+        fetchWormholeStatus().catch(() => null),
+      ]);
+      const data = (await meshRes.json()) as MeshStatusResponse;
       const aprs = Number(data.signal_counts?.aprs || 0);
       const mesh = Number(data.signal_counts?.meshtastic || 0);
       const js8 = Number(data.signal_counts?.js8call || 0);
@@ -1556,6 +1619,73 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       }
       addOutput(`    Wormhole Lane:  ${privateLaneLabel}`);
       addLines([{ text: `    ${privateLaneDetail}`, type: 'dim' }]);
+      const legacyCompatibilityItems = summarizeLegacyCompatibility(
+        wormholeStatus?.legacy_compatibility,
+      );
+      if (legacyCompatibilityItems.length) {
+        addSystem('');
+        addSystem('  LEGACY SUNSET');
+        for (const item of legacyCompatibilityItems) {
+          addOutput(
+            `    ${item.label.padEnd(21)} ${item.blocked ? 'BLOCKED ' : 'ALLOWING'} seen ${item.count}${
+              item.blockedCount > 0 ? ` / blocked ${item.blockedCount}` : ''
+            }`,
+          );
+          addLines([
+            {
+              text: `      target ${item.targetVersion} / ${item.targetDate} â€” ${
+                item.lastSeenAt > 0
+                  ? `last seen ${formatLegacyCompatibilitySeenAt(item.lastSeenAt)}`
+                  : 'never observed'
+              }`,
+              type: 'dim',
+            },
+          ]);
+          if (item.recentTargets.length) {
+            addLines([
+              {
+                text: `      recent ${item.recentTargets.join(' â€¢ ')}`,
+                type: 'dim',
+              },
+            ]);
+          }
+        }
+      }
+      const gateCompatTelemetry = getGateCompatTelemetrySnapshot();
+      const gateCompatTopReasons = summarizeGateCompatTelemetry(gateCompatTelemetry, 3);
+      const gateLocalRuntimeStatus = getBrowserGateLocalRuntimeStatus();
+      addSystem('');
+      addSystem('  GATE COMPAT');
+      addOutput(`    Local Runtime: ${describeBrowserGateLocalRuntimeStatus(gateLocalRuntimeStatus)}`);
+      addOutput(
+        `    Required:    ${gateCompatTelemetry.totalRequired}   Used: ${gateCompatTelemetry.totalUsed}`,
+      );
+      if (gateCompatTopReasons.length) {
+        for (const item of gateCompatTopReasons) {
+          addOutput(
+            `    ${item.label.slice(0, 21).padEnd(21)} need ${item.requiredCount}${
+              item.usedCount > 0 ? ` / used ${item.usedCount}` : ''
+            }`,
+          );
+          addLines([
+            {
+              text: `      ${
+                item.lastAt > 0
+                  ? `last seen ${formatGateCompatSeenAt(item.lastAt)}`
+                  : 'never observed'
+              }${item.recentGates.length ? ` • rooms ${item.recentGates.join(' • ')}` : ''}`,
+              type: 'dim',
+            },
+          ]);
+        }
+      } else {
+        addLines([
+          {
+            text: '      no browser gate compat issues recorded for this profile',
+            type: 'dim',
+          },
+        ]);
+      }
       addSystem('');
     } catch {
       addError('Failed to reach backend');
@@ -2464,10 +2594,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
 
       addSystem(`  Encrypting for ${recipientId}...`);
         try {
-          // 1. Get recipient's DH public key (from contacts or server)
+          // 1. Get recipient's DH public key from an existing invite-backed contact
           const contacts = getContacts();
-          let theirDHPub = contacts[recipientId]?.dhPubKey;
-          const contactAlgo = contacts[recipientId]?.dhAlgo;
+          const recipientContact = contacts[recipientId];
+          let theirDHPub = recipientContact?.dhPubKey;
+          const contactAlgo = recipientContact?.dhAlgo;
           const localAlgo = getDHAlgo();
           if (contactAlgo && localAlgo && contactAlgo !== localAlgo) {
             addError('DM key algorithm mismatch. Regenerate keys to match recipient.');
@@ -2475,17 +2606,19 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           }
 
           if (!theirDHPub) {
-            // Fetch from server
-            const keyRes = await fetch(
-              `${API}/api/mesh/dm/pubkey?agent_id=${encodeURIComponent(recipientId)}`,
-            );
-            const keyData = await keyRes.json();
-            if (!keyData.ok || !keyData.dh_pub_key) {
-              addError("Recipient not found or has no DM keys. They need to 'connect' first.");
+            const lookupHandle = String(recipientContact?.invitePinnedPrekeyLookupHandle || '').trim();
+            if (!lookupHandle) {
+              addError(
+                "No invite-backed DM key for this contact. Import or re-import a signed invite, or use 'dm add <agent_id>' only for legacy migration.",
+              );
+              return;
+            }
+            const keyData = await fetchDmPublicKey(API, recipientId, lookupHandle);
+            if (!keyData?.dh_pub_key) {
+              addError('Invite-scoped lookup failed. Re-import a signed invite and try again.');
               return;
             }
             theirDHPub = keyData.dh_pub_key as string;
-            // Auto-add to contacts
             addContact(recipientId, theirDHPub, undefined, keyData.dh_algo);
             const localAlgo = getDHAlgo();
             if (keyData.dh_algo && localAlgo && keyData.dh_algo !== localAlgo) {
@@ -2513,8 +2646,15 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           recipientToken,
         });
         if (data.ok) {
-          addSystem(`  Message delivered to dead drop. ID: ${data.msg_id}`);
+          if (data.queued) {
+            addSystem(`  Message sealed and queued for private delivery. ID: ${data.msg_id || msgId}`);
+          } else {
+            addSystem(`  Message delivered to dead drop. ID: ${data.msg_id || msgId}`);
+          }
           addLines([{ text: '  Encrypted end-to-end. Server cannot read this.', type: 'dim' }]);
+          if (data.private_transport_pending) {
+            addLines([{ text: '  Private transport is warming up in the background.', type: 'dim' }]);
+          }
         } else {
           addError(data.detail || 'DM delivery failed');
         }
@@ -2592,24 +2732,31 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
   const postGateMessage = useCallback(
     async (gateId: string, plaintext: string) => {
       const sendAttempt = async () => {
-        const res = await fetch(`${API}/api/wormhole/gate/message/post`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            gate_id: gateId,
-            plaintext,
-          }),
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          throw new Error(String(data.detail || 'Failed to post to gate'));
+        let data;
+        try {
+          data = await postWormholeGateMessage(gateId, plaintext);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : 'Failed to post to gate';
+          throw new Error(
+            detail === 'gate_compat_fallback_consent_required' || detail.startsWith('gate_local_runtime_required:')
+              ? 'Browser-local gate runtime is unavailable. Open the room view to resync local gate state or use native desktop.'
+              : detail,
+          );
+        }
+        if (!data?.ok) {
+          const detail = String(data?.detail || 'Failed to post to gate');
+          throw new Error(
+            detail === 'gate_compat_fallback_consent_required' || detail.startsWith('gate_local_runtime_required:')
+              ? 'Browser-local gate runtime is unavailable. Open the room view to resync local gate state or use native desktop.'
+              : detail,
+          );
         }
         return data;
       };
 
       return await sendAttempt();
     },
-    [addLines, addSystem],
+    [],
   );
 
   const requestGateAccess = useCallback((command: string | null = 'gates') => {
@@ -2625,37 +2772,19 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
         text: 'Turning on Wormhole and preparing the obfuscated lane...',
       });
       try {
+        const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
         let runtime = await refreshPrivateLaneRuntime();
-        if (!runtime.secureRequired || !runtime.ready) {
-          const joined = await joinWormhole();
-          setWormholeSecureRequired(Boolean(joined.settings?.enabled ?? joined.runtime?.configured ?? true));
-          setAnonymousModeEnabled(Boolean(joined.settings?.anonymous_mode));
-          setWormholeReadyState(Boolean(joined.runtime?.ready));
-          setAnonymousModeReady(Boolean(joined.runtime?.anonymous_mode_ready));
-
-          let ready = Boolean(joined.runtime?.ready);
-          const deadline = Date.now() + 12000;
-          while (!ready && Date.now() < deadline) {
-            await new Promise((resolve) => window.setTimeout(resolve, 700));
-            runtime = await refreshPrivateLaneRuntime();
-            ready = runtime.ready;
-          }
-          if (!ready) {
-            setPrivateLanePromptStatus({
-              type: 'err',
-              text: 'Wormhole is starting up. Give it a few seconds, then try again.',
-            });
-            return;
-          }
-        }
+        setWormholeSecureRequired(Boolean(prepared.settingsEnabled || runtime.secureRequired));
+        setWormholeReadyState(Boolean(runtime.ready || prepared.ready));
 
         setPrivateLanePromptStatus({
           type: 'dim',
           text: 'Provisioning obfuscated identity and opening the Infonet Commons...',
         });
-        const identity = await bootstrapWormholeIdentity();
-        setWormholeSecureRequired(true);
-        setWormholeReadyState(true);
+        const identity = prepared.identity;
+        if (!identity) {
+          throw new Error('Wormhole is still warming up in the background.');
+        }
         setGateAccessGranted(true);
         setPrivateLanePromptStatus({
           type: 'ok',
@@ -2698,36 +2827,8 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     void activatePrivateLane('gates');
   }, [activatePrivateLane]);
 
-  const describeGateMessage = useCallback(
-    async (message: InfonetMessageRecord): Promise<string> => {
-      const normalized = normalizeInfonetMessageRecord(message);
-      if (message.system_seed) {
-        return String(message.message || '').slice(0, 120);
-      }
-      if (!isEncryptedGateEnvelope(normalized)) {
-        return String(normalized.message || '').slice(0, 80);
-      }
-      try {
-        const decrypted = await decryptWormholeGateMessage(
-          String(normalized.gate || ''),
-          Number(normalized.epoch || 0),
-          String(normalized.ciphertext || ''),
-          String(normalized.nonce || ''),
-          String(normalized.sender_ref || ''),
-        );
-        return gateEnvelopeDisplayText({
-          ...normalized,
-          decrypted_message: decrypted.ok ? decrypted.plaintext : '',
-        }).slice(0, 120);
-      } catch {
-        return gateEnvelopeDisplayText(normalized).slice(0, 120);
-      }
-    },
-    [],
-  );
-
   const openGateCard = useCallback(
-    async (gateId: string) => {
+    async (gateId: string, options: { force?: boolean } = {}) => {
       if (!gateId) return;
       if (expandedGateId === gateId && expandedGateDetail) {
         setExpandedGateId(null);
@@ -2742,34 +2843,16 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       }
       setExpandedGateLoading(gateId);
       try {
-        const gateHeaders = await buildGateAccessHeaders(gateId);
-        const [gateData, keyData, messageData] = await Promise.all([
-          fetch(`${API}/api/mesh/gate/${encodeURIComponent(gateId)}`).then((res) => res.json()),
+        const [gateData, keyData, previews] = await Promise.all([
+          fetchGateDetailSnapshot(gateId, options),
           fetchWormholeGateKeyStatus(gateId).catch(() => null),
-          fetch(`${API}/api/mesh/infonet/messages?gate=${encodeURIComponent(gateId)}&limit=6`, {
-            headers: gateHeaders,
-          }).then((res) => res.json()),
+          fetchGateThreadPreviewSnapshot(gateId, options).catch(() => []),
         ]);
         setExpandedGateId(gateId);
         setExpandedGateDetail(gateData);
         setExpandedGateKey(keyData && keyData.ok ? (keyData as GateKeyStatusRecord) : null);
         setActiveGateComposeId(gateId);
-        const msgs = (Array.isArray(messageData.messages) ? messageData.messages : []).map(
-          (message: InfonetMessageRecord) => normalizeInfonetMessageRecord(message),
-        ) as InfonetMessageRecord[];
-        const previews: GateThreadPreview[] = [];
-        for (const message of msgs.slice(0, 4)) {
-          const ageMin = Math.floor((Date.now() / 1000 - message.timestamp) / 60);
-          const age = ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ago`;
-          const text = await describeGateMessage(message);
-          previews.push({
-            nodeId: message.node_id || '',
-            age,
-            text,
-            encrypted: isEncryptedGateEnvelope(message),
-          });
-        }
-        setExpandedGateMessages(previews);
+        setExpandedGateMessages(previews as GateThreadPreview[]);
       } catch {
         setExpandedGateId(gateId);
         setExpandedGateDetail(null);
@@ -2779,7 +2862,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
         setExpandedGateLoading(null);
       }
     },
-    [activeGateComposeId, describeGateMessage, expandedGateDetail, expandedGateId],
+    [activeGateComposeId, expandedGateDetail, expandedGateId],
   );
 
   const exec = useCallback(
@@ -2809,20 +2892,32 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           return;
         }
         if (!wormholeSecureRequired || !wormholeReadyState) {
-          addError('Wormhole obfuscated lane is required for gate posting. Open Wormhole first.');
-          return;
+          addSystem('  Preparing Wormhole in the background for gate posting...');
+          try {
+            const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+            setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
+            setWormholeReadyState(Boolean(prepared.ready));
+          } catch (err) {
+            addError(describeNativeControlError(err) || (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'));
+            return;
+          }
         }
         setBusy(true);
         await (async () => {
           try {
             const messageToSend = gateReplyTarget ? `@${gateReplyTarget} ${trimmed}` : trimmed;
             await postGateMessage(activeGateComposeId, messageToSend);
+            invalidateGateCatalogSnapshot();
+            invalidateGateDetailSnapshot(activeGateComposeId);
+            invalidateGateThreadPreviewSnapshot(activeGateComposeId);
             addSystem(`  Posted to g/${activeGateComposeId}`);
             setGateReplyTarget(null);
-            await openGateCard(activeGateComposeId);
+            await openGateCard(activeGateComposeId, { force: true });
           } catch (err) {
             const detail = err instanceof Error && err.message ? err.message : '';
-            addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
+            if (!addGateResyncAction(err, activeGateComposeId)) {
+              addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
+            }
           } finally {
             setBusy(false);
           }
@@ -3339,9 +3434,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
               break;
             }
             try {
-              const res = await fetch(`${API}/api/mesh/gate/list`);
-              const data = await res.json();
-              const gates = data.gates || [];
+              const gates = await fetchGateCatalogSnapshot();
               addSystem('');
               if (!gates.length) {
                 addSystem('  No launch gates are available yet.');
@@ -3384,7 +3477,14 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           }
           case 'gate': {
-            if (!gateAccessGranted) {
+            // Only the subcommands that mutate wormhole state need gate
+            // access upfront. Plain `gate <id>` (view) and `gate audit` are
+            // read-only paths that don't touch the wormhole supervisor or
+            // require an admin session — let them run for any user.
+            const needsWormholePrep = ['create', 'mask', 'anon', 'rekey', 'resync'].includes(
+              String(args[0] || ''),
+            );
+            if (needsWormholePrep && !gateAccessGranted) {
               requestGateAccess(`gate ${args.join(' ')}`.trim());
               break;
             }
@@ -3426,8 +3526,18 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                 break;
               }
               if (!wormholeSecureRequired || !wormholeReadyState) {
-                addError('Wormhole is not ready. Open Wormhole first, then retry gate unlock.');
-                break;
+                addSystem('  Preparing Wormhole in the background for gate unlock...');
+                try {
+                  const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+                  setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
+                  setWormholeReadyState(Boolean(prepared.ready));
+                } catch (err) {
+                  addError(
+                    describeNativeControlError(err) ||
+                      (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'),
+                  );
+                  break;
+                }
               }
               if (anonymousModeEnabled && !anonymousModeReady) {
                 addError('Hidden transport required for anonymous gate personas.');
@@ -3492,17 +3602,47 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
               } catch (err) {
                 addError(describeNativeControlError(err) || 'Failed to rotate gate key');
               }
+            } else if (args[0] === 'resync') {
+              const gateId = String(args[1] || '').trim().toLowerCase();
+              if (!gateId) {
+                addError('Usage: gate resync <id>');
+                break;
+              }
+              try {
+                const resynced = await resyncWormholeGateState(gateId);
+                if (!resynced.ok) {
+                  addError(resynced.detail || 'failed to resync gate state');
+                  break;
+                }
+                addSystem('');
+                addSystem(`  GATE STATE RESYNCED: ${resynced.gate_id || gateId}`);
+                addOutput(`    Epoch:      ${resynced.epoch || 0}`);
+                if (resynced.active_identity_scope) {
+                  addOutput(`    Scope:      ${resynced.active_identity_scope}`);
+                }
+                if (resynced.active_persona_id) {
+                  addOutput(`    Persona:    ${resynced.active_persona_id}`);
+                }
+                if (resynced.active_node_id) {
+                  addOutput(`    Node:       ${String(resynced.active_node_id).slice(0, 16)}...`);
+                }
+                addSystem('');
+              } catch (err) {
+                if (!addGateResyncAction(err, gateId)) {
+                  addError(describeNativeControlError(err) || 'Failed to resync gate state');
+                }
+              }
             } else if (args[0]) {
               // View gate details
               try {
                 const gateId = String(args[0] || '').trim().toLowerCase();
                 const [gateRes, keyStatus] = await Promise.all([
-                  fetch(`${API}/api/mesh/gate/${encodeURIComponent(gateId)}`).then((res) => res.json()),
+                  fetchGateDetailSnapshot(gateId),
                   fetchWormholeGateKeyStatus(gateId).catch(() => null),
                 ]);
                 const data = gateRes;
                 if (data.ok === false) {
-                  addError(data.detail);
+                  addError(data.detail || 'Failed to load gate details');
                   break;
                 }
                 addSystem('');
@@ -3546,7 +3686,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                 addError('Failed to fetch gate details');
               }
             } else {
-              addError('Usage: gate <id> | gate mask <id> | gate anon <id> | gate rekey <id> [reason] | gate audit [limit]');
+              addError('Usage: gate <id> | gate mask <id> | gate anon <id> | gate rekey <id> [reason] | gate resync <id> | gate audit [limit]');
             }
             break;
           }
@@ -3557,8 +3697,18 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             }
             // say <gate_id> <message>
             if (!wormholeSecureRequired || !wormholeReadyState) {
-              addError('Wormhole obfuscated lane is required for gate posting. Open Wormhole first.');
-              break;
+              addSystem('  Preparing Wormhole in the background for gate posting...');
+              try {
+                const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+                setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
+                setWormholeReadyState(Boolean(prepared.ready));
+              } catch (err) {
+                addError(
+                  describeNativeControlError(err) ||
+                    (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'),
+                );
+                break;
+              }
             }
               const gateId = args[0];
               const gateMsg = args.slice(1).join(' ');
@@ -3568,11 +3718,16 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             }
               try {
                 const data = await postGateMessage(gateId, gateMsg);
+                invalidateGateCatalogSnapshot();
+                invalidateGateDetailSnapshot(gateId);
+                invalidateGateThreadPreviewSnapshot(gateId);
                 addSystem(`  ${data.detail || `Posted to g/${gateId}`}`);
               } catch (err) {
-              const detail = err instanceof Error && err.message ? err.message : '';
-              addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
-            }
+                const detail = err instanceof Error && err.message ? err.message : '';
+                if (!addGateResyncAction(err, gateId)) {
+                  addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
+                }
+              }
             break;
           }
           case 'apps':
@@ -3975,17 +4130,13 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             // messages [gate] — browse Infonet messages
             const msgGate = args[0] || '';
             try {
-              const url = msgGate
-                ? `${API}/api/mesh/infonet/messages?gate=${encodeURIComponent(msgGate)}&limit=20`
-                : `${API}/api/mesh/infonet/messages?limit=20`;
-              const headers = msgGate ? await buildGateAccessHeaders(msgGate) : undefined;
-              const res = await fetch(url, {
-                headers,
-              });
-              const data = await res.json();
-              const msgs = (Array.isArray(data.messages) ? data.messages : []).map(
-                (message: InfonetMessageRecord) => normalizeInfonetMessageRecord(message),
-              ) as InfonetMessageRecord[];
+              const msgs = msgGate
+                ? await fetchGateMessageSnapshot(msgGate, 20)
+                : ((await fetch(`${API}/api/mesh/infonet/messages?limit=20`).then((res) =>
+                    res.json(),
+                  )).messages || []).map((message: InfonetMessageRecord) =>
+                    normalizeInfonetMessageRecord(message),
+                  );
               addSystem('');
               if (!msgs.length) {
                 addSystem(
@@ -4000,7 +4151,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                 for (const m of msgs) {
                   if (m.system_seed) {
                     addSystem(`    ${m.fixed_gate ? 'FIXED GATE NOTICE' : 'GATE NOTICE'} [${m.gate || msgGate || 'infonet'}]`);
-                    addLines([{ text: `      ${await describeGateMessage(m)}`, type: 'dim' }]);
+                    addLines([{ text: `      ${await describeGateMessagePreview(m)}`, type: 'dim' }]);
                     continue;
                   }
                   const age = Math.floor((Date.now() / 1000 - m.timestamp) / 60);
@@ -4015,7 +4166,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                         ? ' [enc:locked]'
                         : '';
                   addOutput(`    ${m.node_id || ''} ${ageStr} ago${gateStr}${ephStr}${encLabel}`);
-                  addLines([{ text: `      ${await describeGateMessage(m)}`, type: 'dim' }]);
+                  addLines([{ text: `      ${await describeGateMessagePreview(m)}`, type: 'dim' }]);
                   if (isEncryptedGateEnvelope(m)) {
                     const metaBits = [];
                     if (Number(m.epoch ?? 0) > 0) {
@@ -4139,11 +4290,71 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           // ─── Encrypted DM Commands ───────────────────────────
           case 'dm': {
+            const sub = args[0]?.toLowerCase();
+
+            if (sub === 'selftest' || sub === 'test') {
+              addSystem('  Running local DM selftest...');
+              try {
+                const data = await runWormholeDmSelftest(args.slice(1).join(' '));
+                const failedSteps = (data.steps || []).filter((step) => !step.ok);
+                const failedChecks = (data.privacy_checks || []).filter((check) => !check.ok);
+                if (data.ok) {
+                  addSystem('  DM SELFTEST PASSED');
+                } else {
+                  addError(
+                    `DM selftest failed: ${failedSteps.length} step(s), ${failedChecks.length} privacy check(s) failed.`,
+                  );
+                }
+                addOutput(`    Mode:       ${data.mode}`);
+                addOutput(`    Transport:  ${data.transport_tier}`);
+                addOutput(`    Run ID:     ${data.run_id}`);
+                addOutput(
+                  `    Steps:      ${(data.steps || []).filter((step) => step.ok).length}/${(data.steps || []).length}`,
+                );
+                addOutput(
+                  `    Warnings:   ${(data.steps || []).filter((step) => !step.ok && !step.required).length}`,
+                );
+                addOutput(
+                  `    Privacy:    ${(data.privacy_checks || []).filter((check) => check.ok).length}/${(data.privacy_checks || []).length}`,
+                );
+                if (data.artifacts?.ciphertext_sha256) {
+                  addLines([
+                    {
+                      text: `    Ciphertext: ${data.artifacts.ciphertext_sha256.slice(0, 24)}...`,
+                      type: 'dim',
+                    },
+                  ]);
+                }
+                for (const check of data.privacy_checks || []) {
+                  addLines([
+                    {
+                      text: `    [${check.ok ? 'OK' : 'FAIL'}] ${check.name}: ${check.detail || ''}`,
+                      type: check.ok ? 'output' : 'error',
+                    },
+                  ]);
+                }
+                const limits = (data.unproven_by_this_test || []).slice(0, 3);
+                if (limits.length) {
+                  addSystem('  Still unproven by this local test:');
+                  for (const limit of limits) {
+                    addLines([{ text: `    - ${limit}`, type: 'dim' }]);
+                  }
+                }
+              } catch (err) {
+                const msg =
+                  typeof err === 'object' && err !== null && 'message' in err
+                    ? String((err as { message?: string }).message)
+                    : 'selftest failed';
+                addError(`DM selftest failed: ${msg}`);
+              }
+              addSystem('');
+              break;
+            }
+
             if (!nodeIdentity || !hasSovereignty()) {
               addError("Not connected. Type 'connect' to activate your Agent identity.");
               break;
             }
-            const sub = args[0]?.toLowerCase();
 
             // dm add <agent_id> [alias]
             if (sub === 'add') {
@@ -4153,17 +4364,27 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                 break;
               }
               try {
-                const res = await fetch(
-                  `${API}/api/mesh/dm/pubkey?agent_id=${encodeURIComponent(targetId)}`,
-                );
-                const data = await res.json();
-                if (!data.ok || !data.dh_pub_key) {
+                const data = await fetchDmPublicKey(API, targetId, undefined, {
+                  allowLegacyAgentId: true,
+                });
+                if (!data?.dh_pub_key) {
                   addError('Agent not found or has no DM keys.');
                   break;
                 }
                 const alias = args[2] || undefined;
                 addContact(targetId, data.dh_pub_key, alias, data.dh_algo);
+                updateContact(targetId, {
+                  remotePrekeyLookupMode: String(data.lookup_mode || '').trim().toLowerCase(),
+                });
                 addSystem(`  Contact added: ${targetId}${alias ? ` (${alias})` : ''}`);
+                if (String(data.lookup_mode || '').trim().toLowerCase() === 'legacy_agent_id') {
+                  addLines([
+                    {
+                      text: "  Legacy lookup only. Import or re-import a signed invite to replace stable-ID lookup.",
+                      type: 'dim',
+                    },
+                  ]);
+                }
               } catch {
                 addError('Failed to fetch agent key');
               }
@@ -4180,7 +4401,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
               blockContact(targetId);
               try {
                 const sequence = nextSequence();
-                const blockPayload = { blocked_id: targetId, action: 'block' };
+                const blockPayload = {
+                  blocked_id: targetId,
+                  action: 'block',
+                  transport_lock: 'private_strong',
+                };
                 const v = validateEventPayload('dm_block', blockPayload);
                 if (!v.ok) {
                   addError(`Invalid payload: ${v.reason}`);
@@ -4199,6 +4424,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                     agent_id: nodeIdentity.nodeId,
                     blocked_id: targetId,
                     action: 'block',
+                    transport_lock: 'private_strong',
                     public_key: nodeIdentity.publicKey,
                     public_key_algo: getPublicKeyAlgo(),
                     signature,
@@ -4223,7 +4449,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
               unblockContact(targetId);
               try {
                 const sequence = nextSequence();
-                const blockPayload = { blocked_id: targetId, action: 'unblock' };
+                const blockPayload = {
+                  blocked_id: targetId,
+                  action: 'unblock',
+                  transport_lock: 'private_strong',
+                };
                 const v = validateEventPayload('dm_block', blockPayload);
                 if (!v.ok) {
                   addError(`Invalid payload: ${v.reason}`);
@@ -4242,6 +4472,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                     agent_id: nodeIdentity.nodeId,
                     blocked_id: targetId,
                     action: 'unblock',
+                    transport_lock: 'private_strong',
                     public_key: nodeIdentity.publicKey,
                     public_key_algo: getPublicKeyAlgo(),
                     signature,
@@ -4329,13 +4560,21 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
                   const contacts = getContacts();
                   let senderDH = contacts[m.sender_id]?.dhPubKey;
                   if (!senderDH) {
-                    const keyRes = await fetch(
-                      `${API}/api/mesh/dm/pubkey?agent_id=${encodeURIComponent(m.sender_id)}`,
+                    const contact = contacts[m.sender_id];
+                    const keyData = await fetchDmPublicKey(
+                      API,
+                      m.sender_id,
+                      contact?.invitePinnedPrekeyLookupHandle,
                     );
-                    const keyData = await keyRes.json();
-                    if (keyData.ok && keyData.dh_pub_key) {
+                    if (keyData?.dh_pub_key) {
                       senderDH = keyData.dh_pub_key as string;
                       addContact(m.sender_id, senderDH!, undefined, keyData.dh_algo);
+                      updateContact(m.sender_id, {
+                        dhAlgo: keyData.dh_algo || contact?.dhAlgo,
+                        remotePrekeyLookupMode:
+                          String(keyData.lookup_mode || '').trim().toLowerCase() ||
+                          contact?.remotePrekeyLookupMode,
+                      });
                     }
                   }
                   if (!senderDH) {
@@ -4534,10 +4773,10 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       anonymousModeReady,
       privateLaneLabel,
       privateLaneDetail,
+      addGateResyncAction,
       postGateMessage,
       requestGateAccess,
       openGateCard,
-      describeGateMessage,
       cmdApps,
       cmdNews,
       cmdJets,

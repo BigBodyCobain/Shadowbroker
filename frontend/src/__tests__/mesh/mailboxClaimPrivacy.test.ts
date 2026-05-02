@@ -155,4 +155,14 @@ describe('mailbox claim privacy padding', () => {
     expect(decoyTokens).toEqual(['decoy-0', 'decoy-1']);
     expect(decoyTokens.every((token) => !realSharedTokens.includes(token))).toBe(true);
   });
+
+  it('can build mailbox claims from a prepared Wormhole identity override', async () => {
+    deadDropTokensForContacts.mockResolvedValue([]);
+
+    const mod = await import('@/mesh/meshDmClient');
+    await mod.buildMailboxClaims({}, { nodeId: '!sb_wormhole_dm' });
+
+    expect(mailboxClaimToken).toHaveBeenCalledWith('self', '!sb_wormhole_dm');
+    expect(mailboxClaimToken).toHaveBeenCalledWith('requests', '!sb_wormhole_dm');
+  });
 });

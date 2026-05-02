@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import type { MapEffects } from '@/types/dashboard';
 
 const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
@@ -53,15 +53,17 @@ const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
       <div className="bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 pointer-events-auto border-r-2 border-r-cyan-900/40 flex flex-col relative overflow-hidden h-full">
         {/* Header / Toggle */}
         <div
-          className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors border-b border-[var(--border-primary)]/50"
+          className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
           onClick={() => setIsMinimized(!isMinimized)}
         >
-          <span className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">
+          <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
             DISPLAY CONFIG
           </span>
-          <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-            {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          </button>
+          {isMinimized ? (
+            <Plus size={16} className="text-cyan-400" />
+          ) : (
+            <Minus size={16} className="text-cyan-400" />
+          )}
         </div>
 
         <AnimatePresence>

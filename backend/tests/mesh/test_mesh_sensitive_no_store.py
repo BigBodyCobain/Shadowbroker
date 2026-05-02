@@ -37,7 +37,10 @@ class TestSensitiveBackendNoStore:
         assert body["ok"] is False
         assert "no-store" in (r.headers.get("cache-control") or "").lower()
 
-    def test_anonymous_mode_blocked_dm_send_is_no_store(self, client, monkeypatch):
+    def test_anonymous_mode_dm_send_response_is_no_store(self, client, monkeypatch):
+        """Tor-style: anonymous-mode DM send with non-hidden transport does
+        not 428; it proceeds to the handler (which may queue). Whatever
+        response comes out must still be no-store."""
         import main
         from services import wormhole_settings, wormhole_status
 
@@ -69,5 +72,37 @@ class TestSensitiveBackendNoStore:
                 return await ac.post("/api/mesh/dm/send", json={})
 
         response = asyncio.run(_post())
-        assert response.status_code == 428
+        assert response.status_code != 428
+        assert "no-store" in (response.headers.get("cache-control") or "").lower()
+
+    def test_private_scope_denial_is_no_store_and_generic(self, client, monkeypatch):
+        import main
+        from services import wormhole_supervisor
+        from services.config import get_settings
+
+        monkeypatch.setattr(
+            wormhole_supervisor,
+            "get_wormhole_state",
+            lambda: {
+                "configured": False,
+                "ready": False,
+                "arti_ready": False,
+                "rns_ready": False,
+            },
+        )
+        monkeypatch.setattr(main, "_kickoff_private_control_transport_upgrade", lambda: None)
+        monkeypatch.setenv("MESH_SCOPED_TOKENS", '{"gate-only":["gate"]}')
+        get_settings.cache_clear()
+
+        try:
+            response = client.post(
+                "/api/wormhole/dm/compose",
+                json={"peer_id": "bob", "peer_dh_pub": "deadbeef", "plaintext": "blocked"},
+                headers={"X-Admin-Key": "gate-only"},
+            )
+        finally:
+            get_settings.cache_clear()
+
+        assert response.status_code == 403
+        assert response.json() == {"ok": False, "detail": "access denied"}
         assert "no-store" in (response.headers.get("cache-control") or "").lower()

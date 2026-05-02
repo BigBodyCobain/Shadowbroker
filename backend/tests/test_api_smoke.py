@@ -121,6 +121,7 @@ class TestLiveDataEndpoints:
 
     def test_enabling_viirs_layer_queues_immediate_refresh(self, monkeypatch):
         import main
+        from routers import data as data_router_mod
         from httpx import ASGITransport, AsyncClient
         from services.fetchers import _store
 
@@ -128,6 +129,7 @@ class TestLiveDataEndpoints:
 
         monkeypatch.setitem(_store.active_layers, "viirs_nightlights", False)
         monkeypatch.setattr(main, "_queue_viirs_change_refresh", lambda: queued.__setitem__("called", True))
+        monkeypatch.setattr(data_router_mod, "_queue_viirs_change_refresh", lambda: queued.__setitem__("called", True))
 
         async def _exercise():
             transport = ASGITransport(app=main.app)
@@ -165,10 +167,10 @@ class TestSettingsEndpoints:
 
 class TestAdminProtection:
     def test_refresh_requires_admin_key(self, client, monkeypatch):
-        import main
+        import auth
 
-        monkeypatch.setattr(main, "_ADMIN_KEY", "test-key")
-        monkeypatch.setattr(main, "_ALLOW_INSECURE_ADMIN", False)
+        monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-key")
+        monkeypatch.setattr(auth, "_allow_insecure_admin", lambda: False)
 
         r = client.get("/api/refresh")
         assert r.status_code == 403

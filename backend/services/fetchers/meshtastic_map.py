@@ -25,7 +25,10 @@ logger = logging.getLogger("services.data_fetcher")
 _API_URL = "https://meshtastic.liamcottle.net/api/v1/nodes"
 _CACHE_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "meshtastic_nodes_cache.json"
 _FETCH_TIMEOUT = 90  # seconds — response is ~37MB, needs time on slow connections
-_MAX_AGE_HOURS = 4  # discard nodes not seen within this window (matches refresh interval)
+_MAX_AGE_HOURS = 24  # discard nodes not seen within this window
+# Skip network fetch if cached data is fresher than this — the API is a
+# one-person hobby service, so we prefer stale data over hammering it.
+_CACHE_TRUST_HOURS = 20
 
 # Track when we last fetched so the frontend can show staleness
 _last_fetch_ts: float = 0.0
@@ -141,13 +144,54 @@ def fetch_meshtastic_nodes():
         return
     global _last_fetch_ts
 
+    # Trust a recent cache on disk — avoids hammering the upstream HTTP API
+    # when every install polls on roughly the same cadence.
+    try:
+        if _CACHE_FILE.exists():
+            mtime = _CACHE_FILE.stat().st_mtime
+            if time.time() - mtime < _CACHE_TRUST_HOURS * 3600:
+                # If memory is empty (cold start), hydrate from cache and skip fetch.
+                with _data_lock:
+                    has_memory = bool(latest_data.get("meshtastic_map_nodes"))
+                if not has_memory:
+                    cached = _load_cache()
+                    if cached:
+                        with _data_lock:
+                            latest_data["meshtastic_map_nodes"] = cached
+                            latest_data["meshtastic_map_fetched_at"] = mtime
+                        _mark_fresh("meshtastic_map")
+                        logger.info(
+                            "Meshtastic map: cache fresh (<%.0fh), skipping network fetch",
+                            _CACHE_TRUST_HOURS,
+                        )
+                        return
+                else:
+                    logger.info(
+                        "Meshtastic map: cache fresh (<%.0fh), skipping network fetch",
+                        _CACHE_TRUST_HOURS,
+                    )
+                    return
+    except Exception as e:
+        logger.debug(f"Meshtastic cache freshness check failed: {e}")
+
+    # Build a polite User-Agent. Include the operator callsign when set so
+    # the upstream service can correlate per-install traffic if needed.
+    try:
+        from services.config import get_settings
+
+        callsign = str(getattr(get_settings(), "MESHTASTIC_OPERATOR_CALLSIGN", "") or "").strip()
+    except Exception:
+        callsign = ""
+    ua_base = "ShadowBroker-OSINT/0.9.7 (+https://github.com/BigBodyCobain/Shadowbroker; contact: bigbodycobain@gmail.com; 24h polling)"
+    user_agent = f"{ua_base}; node={callsign}" if callsign else ua_base
+
     try:
         logger.info("Fetching Meshtastic map nodes from API...")
         resp = requests.get(
             _API_URL,
             timeout=_FETCH_TIMEOUT,
             headers={
-                "User-Agent": "ShadowBroker/1.0 (OSINT dashboard, 4h polling)",
+                "User-Agent": user_agent,
                 "Accept": "application/json",
             },
         )

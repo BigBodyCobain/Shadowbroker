@@ -78,17 +78,43 @@ def fetch_liveuamap():
                             mid = marker.get("id")
                             if mid and mid not in seen_ids:
                                 seen_ids.add(mid)
+                                title = (marker.get("s") or marker.get("title") or "Unknown Event").strip()
+                                # Extract all available fields from the marker
+                                description = (marker.get("d") or marker.get("desc") or marker.get("description") or "").strip()
+                                category = (marker.get("c") or marker.get("cat") or marker.get("category") or "").strip()
+                                img = marker.get("img") or marker.get("image") or marker.get("photo") or ""
+                                source = (marker.get("source") or marker.get("src") or "").strip()
+                                event_time = marker.get("time") or marker.get("t") or ""
+                                link = marker.get("link") or marker.get("url") or ""
+                                # Format date from unix timestamp if available
+                                date_str = ""
+                                if event_time:
+                                    try:
+                                        from datetime import datetime, timezone
+                                        ts = int(event_time) if not isinstance(event_time, int) else event_time
+                                        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+                                        date_str = dt.strftime("%Y-%m-%d %H:%M UTC")
+                                    except (ValueError, TypeError, OSError):
+                                        date_str = str(event_time)
+                                # Build full link URL
+                                if link and not link.startswith("http"):
+                                    base = region["url"].rstrip("/")
+                                    link = f"{base}/{link.lstrip('/')}"
                                 all_markers.append(
                                     {
                                         "id": mid,
                                         "type": "liveuamap",
-                                        "title": marker.get("s", "Unknown Event")
-                                        or marker.get("title", ""),
+                                        "title": title,
+                                        "description": description[:500] if description else "",
                                         "lat": marker.get("lat"),
                                         "lng": marker.get("lng"),
-                                        "timestamp": marker.get("time", ""),
-                                        "link": marker.get("link", region["url"]),
+                                        "timestamp": event_time,
+                                        "date": date_str,
+                                        "link": link or region["url"],
                                         "region": region["name"],
+                                        "category": category,
+                                        "image": img,
+                                        "source": source,
                                     }
                                 )
                     except (json.JSONDecodeError, ValueError, KeyError) as e:

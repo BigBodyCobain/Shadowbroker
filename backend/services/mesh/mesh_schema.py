@@ -314,12 +314,11 @@ SCHEMA_REGISTRY: dict[str, EventSchema] = {
 }
 
 
-PUBLIC_LEDGER_EVENT_TYPES: frozenset[str] = frozenset(
+ACTIVE_PUBLIC_LEDGER_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "message",
         "vote",
         "gate_create",
-        "gate_message",
         "prediction",
         "stake",
         "key_rotate",
@@ -327,6 +326,20 @@ PUBLIC_LEDGER_EVENT_TYPES: frozenset[str] = frozenset(
         "abuse_report",
     }
 )
+"""Event types that may be newly appended to the public infonet chain."""
+
+LEGACY_PUBLIC_LEDGER_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "gate_message",
+    }
+)
+"""Event types that exist historically on the public chain and must remain
+ingestable for sync/restart compatibility, but may NOT be newly appended."""
+
+PUBLIC_LEDGER_EVENT_TYPES: frozenset[str] = (
+    ACTIVE_PUBLIC_LEDGER_EVENT_TYPES | LEGACY_PUBLIC_LEDGER_EVENT_TYPES
+)
+"""Union of active + legacy — the full set accepted during ingest."""
 
 _PUBLIC_LEDGER_FORBIDDEN_FIELDS: frozenset[str] = frozenset(
     {
@@ -362,9 +375,46 @@ def get_schema(event_type: str) -> EventSchema | None:
     return SCHEMA_REGISTRY.get(event_type)
 
 
+# ─── Extension registry (Sprint 8+ chain cutover, 2026-04-28) ────────────
+# The infonet economy layer registers its event-type validators here at
+# import time via ``services/infonet/_chain_cutover.py``. mesh_schema does
+# NOT import from services.infonet (would create a cycle); the direction
+# stays one-way (infonet → mesh).
+#
+# Extensions opt out of the legacy normalize_payload + ephemeral-check
+# pipeline because their payloads have their own normalization rules.
+# The legacy flow stays byte-identical for legacy event types.
+
+_EXTENSION_VALIDATORS: dict[str, Callable[[dict[str, Any]], tuple[bool, str]]] = {}
+
+
+def register_extension_validator(
+    event_type: str,
+    validator: Callable[[dict[str, Any]], tuple[bool, str]],
+) -> None:
+    """Register an extension event-type validator.
+
+    Idempotent — calling twice with the same ``event_type`` overwrites
+    the prior validator (no-op when called with the same function).
+    Used by ``services/infonet/_chain_cutover.py``.
+    """
+    if not isinstance(event_type, str) or not event_type:
+        raise ValueError("event_type must be a non-empty string")
+    _EXTENSION_VALIDATORS[event_type] = validator
+
+
+def is_extension_event_type(event_type: str) -> bool:
+    return event_type in _EXTENSION_VALIDATORS
+
+
 def validate_event_payload(event_type: str, payload: dict[str, Any]) -> tuple[bool, str]:
     schema = get_schema(event_type)
-    if not schema:
+    if schema is None:
+        # Fall through to extension validators (registered by infonet
+        # economy layer at import time).
+        ext = _EXTENSION_VALIDATORS.get(event_type)
+        if ext is not None:
+            return ext(payload)
         return False, "Unknown event_type"
     normalized = normalize_payload(event_type, payload)
     if normalized != payload:
@@ -375,7 +425,7 @@ def validate_event_payload(event_type: str, payload: dict[str, Any]) -> tuple[bo
 
 
 def validate_public_ledger_payload(event_type: str, payload: dict[str, Any]) -> tuple[bool, str]:
-    if event_type not in PUBLIC_LEDGER_EVENT_TYPES:
+    if event_type not in PUBLIC_LEDGER_EVENT_TYPES and event_type not in _EXTENSION_VALIDATORS:
         return False, f"{event_type} is not allowed on the public ledger"
     forbidden = sorted(
         key

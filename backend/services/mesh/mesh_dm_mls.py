@@ -1,9 +1,10 @@
 """MLS-backed DM session manager.
 
 This module keeps DM session orchestration in Python while privacy-core owns
-the MLS session state. Python-side metadata survives via domain storage, but
-Rust session state remains in-memory only. Process restart still requires
-session re-establishment until Rust FFI state export is available.
+the MLS session state. Python-side metadata survives via domain storage, and
+Rust session state is exported/imported through the privacy-core bridge so
+restart can restore sessions. Restored sessions still fail closed if the
+underlying Rust state is stale or invalid.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import base64
 import logging
 import secrets
+import struct
 import threading
 import time
 from dataclasses import dataclass
@@ -22,15 +24,26 @@ from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from services.mesh.mesh_secure_storage import (
-    read_domain_json,
-    read_secure_json,
-    write_domain_json,
+from services.mesh.mesh_local_custody import (
+    read_sensitive_domain_json,
+    write_sensitive_domain_json,
 )
+from services.mesh.mesh_secure_storage import (
+    read_secure_json,
+)
+from services.mesh.mesh_privacy_policy import (
+    TRANSPORT_TIER_ORDER as _TRANSPORT_TIER_ORDER,
+    transport_tier_is_sufficient,
+)
+from services.mesh.mesh_metrics import increment as metrics_inc
 from services.mesh.mesh_privacy_logging import privacy_log_label
 from services.mesh.mesh_wormhole_persona import sign_dm_alias_blob, verify_dm_alias_blob
 from services.privacy_core_client import PrivacyCoreClient, PrivacyCoreError
-from services.wormhole_supervisor import get_wormhole_state, transport_tier_from_state
+from services.wormhole_supervisor import (
+    connect_wormhole,
+    get_wormhole_state,
+    transport_tier_from_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +51,18 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STATE_FILE = DATA_DIR / "wormhole_dm_mls.json"
 STATE_FILENAME = "wormhole_dm_mls.json"
 STATE_DOMAIN = "dm_alias"
+STATE_CUSTODY_SCOPE = "dm_mls_state"
+RUST_STATE_FILENAME = "wormhole_dm_mls_rust.bin"
+RUST_STATE_DOMAIN = "dm_alias_rust"
+RUST_STATE_CUSTODY_SCOPE = "dm_mls_rust_state"
 _STATE_LOCK = threading.RLock()
 _PRIVACY_CLIENT: PrivacyCoreClient | None = None
 _STATE_LOADED = False
-_TRANSPORT_TIER_ORDER = {
-    "public_degraded": 0,
-    "private_transitional": 1,
-    "private_strong": 2,
-}
 MLS_DM_FORMAT = "mls1"
 MAX_DM_PLAINTEXT_SIZE = 65_536
+PAD_MAGIC = b"SBP1"
+PAD_HEADER_SIZE = 8  # 4-byte magic + 4-byte uint32 BE length
+PAD_BUCKET_STEP = 512
 
 try:
     from nacl.public import PrivateKey as _NaclPrivateKey
@@ -83,6 +98,25 @@ def _decode_key_text(data: str | bytes | None) -> bytes:
 
 def _normalize_alias(alias: str) -> str:
     return str(alias or "").strip().lower()
+
+
+def _pad_plaintext(data: bytes) -> bytes:
+    """Wrap plaintext in a bucket-padded envelope: SBP1 + uint32BE(len) + data + zero-fill."""
+    payload_size = PAD_HEADER_SIZE + len(data)
+    # Round up to next PAD_BUCKET_STEP boundary (minimum one full bucket).
+    padded_size = ((payload_size + PAD_BUCKET_STEP - 1) // PAD_BUCKET_STEP) * PAD_BUCKET_STEP
+    header = PAD_MAGIC + struct.pack(">I", len(data))
+    return header + data + b"\x00" * (padded_size - payload_size)
+
+
+def _unpad_plaintext(data: bytes) -> bytes:
+    """Remove bucket-padding envelope. Returns raw bytes unchanged if magic is absent (legacy)."""
+    if len(data) < PAD_HEADER_SIZE or data[:4] != PAD_MAGIC:
+        return data  # legacy unpadded ciphertext
+    original_len = struct.unpack(">I", data[4:8])[0]
+    if PAD_HEADER_SIZE + original_len > len(data):
+        raise PrivacyCoreError("padded DM plaintext is truncated")
+    return data[PAD_HEADER_SIZE : PAD_HEADER_SIZE + original_len]
 
 
 def _session_id(local_alias: str, remote_alias: str) -> str:
@@ -160,6 +194,7 @@ class _SessionBinding:
     role: str
     session_handle: int
     created_at: int
+    restored: bool = False
 
 
 _ALIAS_IDENTITIES: dict[str, int] = {}
@@ -191,11 +226,61 @@ def _current_transport_tier() -> str:
     return transport_tier_from_state(get_wormhole_state())
 
 
+# Cooldown on auto-upgrade attempts so we don't thrash connect_wormhole()
+# on every DM call when the supervisor is unavailable.
+_AUTO_UPGRADE_COOLDOWN_S = 30.0
+_last_auto_upgrade_attempt: float = 0.0
+_auto_upgrade_lock = threading.Lock()
+
+
+def _attempt_transport_auto_upgrade() -> str:
+    """Best-effort background attempt to bring the wormhole supervisor up.
+
+    Returns the current transport tier after the attempt (or after the
+    cooldown, if an attempt was skipped). Never raises — the caller then
+    decides whether the resulting tier is high enough to proceed.
+    """
+    global _last_auto_upgrade_attempt
+    with _auto_upgrade_lock:
+        now = time.time()
+        if (now - _last_auto_upgrade_attempt) < _AUTO_UPGRADE_COOLDOWN_S:
+            return _current_transport_tier()
+        _last_auto_upgrade_attempt = now
+    try:
+        connect_wormhole(reason="dm_auto_upgrade")
+    except Exception:
+        logger.debug("DM auto-upgrade of wormhole supervisor failed", exc_info=True)
+    return _current_transport_tier()
+
+
 def _require_private_transport() -> tuple[bool, str]:
+    """Transparent transport gate for DM MLS local operations.
+
+    MLS session setup, encryption, and decryption are purely local actions
+    against Rust-held privacy-core state. The *network release* of ciphertext
+    has its own tier floor (see ``_dm_send_from_signed_request`` +
+    ``_queue_dm_release``) which silently queues until the floor is met — so
+    this gate no longer returns a consent-prompt or hostile refusal.
+
+    Instead: if the tier is already sufficient, return it. If not, kick off
+    a background warmup so the release path will unblock, and return
+    ``(True, current_tier)`` anyway so local MLS work proceeds. The caller
+    doesn't see a "needs approval" detail and neither does the user.
+    """
     current = _current_transport_tier()
-    if _TRANSPORT_TIER_ORDER.get(current, 0) < _TRANSPORT_TIER_ORDER["private_transitional"]:
-        return False, "DM MLS requires PRIVATE transport tier"
-    return True, current
+    if transport_tier_is_sufficient(current, "private_control_only"):
+        return True, current
+    try:
+        upgraded = _attempt_transport_auto_upgrade()
+    except Exception:
+        logger.debug("DM background transport auto-upgrade errored", exc_info=True)
+        upgraded = current
+    if transport_tier_is_sufficient(upgraded, "private_control_only"):
+        logger.info("DM auto-upgraded transport tier to %s", upgraded)
+        return True, upgraded
+    # Still below floor. Don't refuse — local MLS work is safe at any tier
+    # and the outbound release path will queue until the lane is ready.
+    return True, upgraded or current
 
 
 def _serialize_session(binding: _SessionBinding) -> dict[str, Any]:
@@ -229,7 +314,12 @@ def _load_state() -> None:
         if not domain_path.exists() and STATE_FILE.exists():
             try:
                 legacy = read_secure_json(STATE_FILE, _default_state)
-                write_domain_json(STATE_DOMAIN, STATE_FILENAME, legacy)
+                write_sensitive_domain_json(
+                    STATE_DOMAIN,
+                    STATE_FILENAME,
+                    legacy,
+                    custody_scope=STATE_CUSTODY_SCOPE,
+                )
                 STATE_FILE.unlink(missing_ok=True)
             except Exception:
                 logger.warning(
@@ -237,7 +327,12 @@ def _load_state() -> None:
                     "discarding stale file and starting fresh"
                 )
                 STATE_FILE.unlink(missing_ok=True)
-        raw = read_domain_json(STATE_DOMAIN, STATE_FILENAME, _default_state)
+        raw = read_sensitive_domain_json(
+            STATE_DOMAIN,
+            STATE_FILENAME,
+            _default_state,
+            custody_scope=STATE_CUSTODY_SCOPE,
+        )
         state = _default_state()
         if isinstance(raw, dict):
             state.update(raw)
@@ -307,12 +402,29 @@ def _load_state() -> None:
             normalized = str(payload_format or "").strip().lower()
             if normalized:
                 _DM_FORMAT_LOCKS[str(session_id or "")] = normalized
+
+        # Attempt to restore Rust DM state and remap handles.
+        try:
+            restored = _load_rust_dm_state()
+            if restored:
+                _probe_restored_sessions_locked()
+        except Exception:
+            logger.warning(
+                "Persisted Rust DM state is corrupt or incompatible — "
+                "clearing stale sessions",
+                exc_info=True,
+            )
+            _SESSIONS.clear()
+            _ALIAS_IDENTITIES.clear()
+            _ALIAS_BINDINGS.clear()
+            _clear_rust_dm_state()
+
         _STATE_LOADED = True
 
 
 def _save_state() -> None:
     with _STATE_LOCK:
-        write_domain_json(
+        write_sensitive_domain_json(
             STATE_DOMAIN,
             STATE_FILENAME,
             {
@@ -333,8 +445,151 @@ def _save_state() -> None:
                 },
                 "dm_format_locks": dict(_DM_FORMAT_LOCKS),
             },
+            custody_scope=STATE_CUSTODY_SCOPE,
         )
         STATE_FILE.unlink(missing_ok=True)
+        _save_rust_dm_state()
+
+
+def _save_rust_dm_state() -> None:
+    """Export Rust DM state blob and persist it via domain storage."""
+    try:
+        blob = _privacy_client().export_dm_state()
+        if blob:
+            write_sensitive_domain_json(
+                RUST_STATE_DOMAIN,
+                RUST_STATE_FILENAME,
+                {"version": 1, "blob_b64": _b64(blob)},
+                custody_scope=RUST_STATE_CUSTODY_SCOPE,
+            )
+    except Exception:
+        logger.warning("failed to export Rust DM state for persistence", exc_info=True)
+
+
+def _load_rust_dm_state() -> bool:
+    """Import persisted Rust DM state and remap Python handle metadata.
+
+    Returns True if Rust state was successfully imported and handles remapped.
+    Returns False if no Rust state was found (legacy/fresh install).
+    Raises on corruption or version mismatch (caller must invalidate).
+    """
+    raw = read_sensitive_domain_json(
+        RUST_STATE_DOMAIN,
+        RUST_STATE_FILENAME,
+        lambda: None,
+        custody_scope=RUST_STATE_CUSTODY_SCOPE,
+    )
+    if raw is None:
+        return False
+    if not isinstance(raw, dict) or raw.get("version") != 1 or not raw.get("blob_b64"):
+        raise PrivacyCoreError("persisted Rust DM state has invalid format or version")
+    blob = _unb64(raw["blob_b64"])
+    mapping = _privacy_client().import_dm_state(blob)
+    id_map = {int(k): int(v) for k, v in (mapping.get("identities") or {}).items()}
+    session_map = {int(k): int(v) for k, v in (mapping.get("dm_sessions") or {}).items()}
+    # Remap alias identity handles.
+    for alias in list(_ALIAS_IDENTITIES):
+        old_handle = _ALIAS_IDENTITIES[alias]
+        if old_handle in id_map:
+            new_handle = id_map[old_handle]
+            _ALIAS_IDENTITIES[alias] = new_handle
+            binding = _ALIAS_BINDINGS.get(alias)
+            if binding:
+                binding["handle"] = int(new_handle)
+    # Remap session handles and mark as restored.
+    for session_id in list(_SESSIONS):
+        binding = _SESSIONS[session_id]
+        old_handle = binding.session_handle
+        if old_handle in session_map:
+            binding.session_handle = session_map[old_handle]
+            binding.restored = True
+    return True
+
+
+def _drop_session_binding_locked(session_id: str, *, count_failure: bool) -> _SessionBinding | None:
+    binding = _SESSIONS.pop(str(session_id or ""), None)
+    if binding is None:
+        return None
+    try:
+        _privacy_client().release_dm_session(binding.session_handle)
+    except Exception as exc:
+        logger.debug("release_dm_session cleanup failed: %s", type(exc).__name__)
+    if count_failure:
+        metrics_inc("session_restore_failures")
+    return binding
+
+
+def _probe_restored_sessions_locked() -> None:
+    from services.mesh.mesh_rollout_flags import dm_restored_session_boot_probe_enabled
+
+    if not dm_restored_session_boot_probe_enabled():
+        return
+    restored_ids = sorted(session_id for session_id, binding in _SESSIONS.items() if binding.restored)
+    if not restored_ids:
+        return
+
+    client = _privacy_client()
+    dropped: set[str] = set()
+    changed = False
+    for session_id in restored_ids:
+        if session_id in dropped:
+            continue
+        binding = _SESSIONS.get(session_id)
+        if binding is None or not binding.restored:
+            continue
+        reverse_id = _session_id(binding.remote_alias, binding.local_alias)
+        reverse = _SESSIONS.get(reverse_id)
+        if reverse is None or not reverse.restored:
+            logger.warning(
+                "restored DM session boot probe missing reverse pair for %s",
+                privacy_log_label(session_id, label="session"),
+            )
+            dropped.add(session_id)
+            continue
+        try:
+            before_out = client.dm_session_fingerprint(binding.session_handle)
+            before_in = client.dm_session_fingerprint(reverse.session_handle)
+            ciphertext = client.dm_encrypt(binding.session_handle, b"\x00")
+            plaintext = client.dm_decrypt(reverse.session_handle, ciphertext)
+            after_out = client.dm_session_fingerprint(binding.session_handle)
+            after_in = client.dm_session_fingerprint(reverse.session_handle)
+        except Exception as exc:
+            logger.warning(
+                "restored DM session boot probe failed for %s <-> %s: %s",
+                privacy_log_label(binding.local_alias, label="alias"),
+                privacy_log_label(binding.remote_alias, label="alias"),
+                type(exc).__name__,
+            )
+            dropped.update({session_id, reverse_id})
+            continue
+        if plaintext != b"\x00" or before_out == after_out or before_in == after_in:
+            logger.warning(
+                "restored DM session boot probe did not advance state for %s <-> %s",
+                privacy_log_label(binding.local_alias, label="alias"),
+                privacy_log_label(binding.remote_alias, label="alias"),
+            )
+            dropped.update({session_id, reverse_id})
+            continue
+        binding.restored = False
+        reverse.restored = False
+        changed = True
+
+    if dropped:
+        for session_id in sorted(dropped):
+            if _drop_session_binding_locked(session_id, count_failure=True) is not None:
+                changed = True
+        _clear_rust_dm_state()
+    if changed:
+        _save_state()
+
+
+def _clear_rust_dm_state() -> None:
+    """Delete persisted Rust DM state blob."""
+    try:
+        rust_path = DATA_DIR / RUST_STATE_DOMAIN / RUST_STATE_FILENAME
+        rust_path.unlink(missing_ok=True)
+    except Exception:
+        logger.debug("failed to clear persisted Rust DM state", exc_info=True)
 
 
 def reset_dm_mls_state(*, clear_privacy_core: bool = False, clear_persistence: bool = True) -> None:
@@ -351,8 +606,52 @@ def reset_dm_mls_state(*, clear_privacy_core: bool = False, clear_persistence: b
         _SESSIONS.clear()
         _DM_FORMAT_LOCKS.clear()
         _STATE_LOADED = False
-        if clear_persistence and STATE_FILE.exists():
-            STATE_FILE.unlink()
+        if clear_persistence:
+            if STATE_FILE.exists():
+                STATE_FILE.unlink()
+            _clear_rust_dm_state()
+
+
+def forget_dm_aliases(aliases: list[str]) -> dict[str, Any]:
+    """Remove dedicated DM aliases and any sessions that reference them.
+
+    This is intentionally narrow: production contacts are not touched unless
+    the caller passes their exact alias. It exists for local diagnostics that
+    need to exercise the MLS path without leaving synthetic peers behind.
+    """
+    normalized_aliases = {
+        _normalize_alias(alias)
+        for alias in aliases
+        if _normalize_alias(alias)
+    }
+    if not normalized_aliases:
+        return {"ok": True, "aliases_removed": 0, "sessions_removed": 0}
+    aliases_removed = 0
+    sessions_removed = 0
+    with _STATE_LOCK:
+        _load_state()
+        for session_id, binding in list(_SESSIONS.items()):
+            if binding.local_alias in normalized_aliases or binding.remote_alias in normalized_aliases:
+                if _drop_session_binding_locked(session_id, count_failure=False) is not None:
+                    sessions_removed += 1
+                _DM_FORMAT_LOCKS.pop(session_id, None)
+        for alias in sorted(normalized_aliases):
+            handle = _ALIAS_IDENTITIES.pop(alias, None)
+            if handle:
+                aliases_removed += 1
+                try:
+                    _privacy_client().release_identity(handle)
+                except Exception as exc:
+                    logger.debug("release_identity cleanup failed: %s", type(exc).__name__)
+            if _ALIAS_BINDINGS.pop(alias, None) is not None and not handle:
+                aliases_removed += 1
+            _ALIAS_SEAL_KEYS.pop(alias, None)
+        _save_state()
+    return {
+        "ok": True,
+        "aliases_removed": aliases_removed,
+        "sessions_removed": sessions_removed,
+    }
 
 
 def _identity_handle_for_alias(alias: str) -> int:
@@ -363,15 +662,28 @@ def _identity_handle_for_alias(alias: str) -> int:
     with _STATE_LOCK:
         handle = _ALIAS_IDENTITIES.get(alias_key)
         if handle:
-            return handle
+            # Probe whether the Rust identity is still live.  After a
+            # privacy-core restart the handle may be stale (identity no longer
+            # exists in the current process).  If so, fall through to recreate.
+            try:
+                _privacy_client().export_public_bundle(handle)
+                return handle
+            except PrivacyCoreError:
+                logger.warning(
+                    "Stale alias identity handle %d for %s — recreating",
+                    handle,
+                    privacy_log_label(alias_key, label="alias"),
+                )
+                # Fall through to create a fresh identity below.
+
         handle = _privacy_client().create_identity()
         public_bundle = _privacy_client().export_public_bundle(handle)
         signed = sign_dm_alias_blob(alias_key, public_bundle)
         if not signed.get("ok"):
             try:
                 _privacy_client().release_identity(handle)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("release_identity cleanup failed: %s", type(exc).__name__)
             raise PrivacyCoreError(str(signed.get("detail") or "dm_mls_identity_binding_failed"))
         _ALIAS_IDENTITIES[alias_key] = handle
         _ALIAS_BINDINGS[alias_key] = _binding_record(
@@ -434,8 +746,8 @@ def _remember_session(local_alias: str, remote_alias: str, *, role: str, session
         if existing is not None:
             try:
                 _privacy_client().release_dm_session(session_handle)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("release_dm_session cleanup failed: %s", type(exc).__name__)
             return existing
         _SESSIONS[binding.session_id] = binding
         _save_state()
@@ -521,13 +833,13 @@ def initiate_dm_session(
         if key_package_handle:
             try:
                 _privacy_client().release_key_package(key_package_handle)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("release_key_package cleanup failed: %s", type(exc).__name__)
         if session_handle and not remembered:
             try:
                 _privacy_client().release_dm_session(session_handle)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("release_dm_session cleanup failed: %s", type(exc).__name__)
 
 
 def accept_dm_session(
@@ -535,6 +847,7 @@ def accept_dm_session(
     remote_alias: str,
     welcome_b64: str,
     local_dh_secret: str = "",
+    identity_alias: str = "",
 ) -> dict[str, Any]:
     ok, detail = _require_private_transport()
     if not ok:
@@ -546,12 +859,28 @@ def accept_dm_session(
     session_handle = 0
     remembered = False
     try:
-        identity_handle = _identity_handle_for_alias(local_key)
+        identity_handle = _identity_handle_for_alias(str(identity_alias or local_key))
         seal_keypair = _seal_keypair_for_alias(local_key)
-        welcome = _unseal_welcome_for_private_key(
-            _unb64(welcome_b64),
-            str(local_dh_secret or seal_keypair.get("private_key") or ""),
-        )
+        welcome_payload = _unb64(welcome_b64)
+        welcome = None
+        last_unseal_error: Exception | None = None
+        candidate_private_keys: list[str] = []
+        injected_private_key = str(local_dh_secret or "").strip()
+        alias_private_key = str(seal_keypair.get("private_key") or "").strip()
+        if injected_private_key:
+            candidate_private_keys.append(injected_private_key)
+        if alias_private_key and alias_private_key not in candidate_private_keys:
+            candidate_private_keys.append(alias_private_key)
+        for private_key in candidate_private_keys:
+            try:
+                welcome = _unseal_welcome_for_private_key(welcome_payload, private_key)
+                break
+            except Exception as exc:
+                last_unseal_error = exc
+        if welcome is None:
+            if last_unseal_error is not None:
+                raise last_unseal_error
+            raise ValueError("welcome_private_key_unavailable")
         session_handle = _privacy_client().join_dm_session(identity_handle, welcome)
         binding = _remember_session(local_key, remote_key, role="responder", session_handle=session_handle)
         remembered = True
@@ -567,8 +896,8 @@ def accept_dm_session(
         if session_handle and not remembered:
             try:
                 _privacy_client().release_dm_session(session_handle)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("release_dm_session cleanup failed: %s", type(exc).__name__)
 
 
 def has_dm_session(local_alias: str, remote_alias: str) -> dict[str, Any]:
@@ -582,7 +911,13 @@ def has_dm_session(local_alias: str, remote_alias: str) -> dict[str, Any]:
         return {"ok": True, "exists": False, "session_id": _session_id(local_alias, remote_alias)}
 
 
-def ensure_dm_session(local_alias: str, remote_alias: str, welcome_b64: str) -> dict[str, Any]:
+def ensure_dm_session(
+    local_alias: str,
+    remote_alias: str,
+    welcome_b64: str,
+    local_dh_secret: str = "",
+    identity_alias: str = "",
+) -> dict[str, Any]:
     ok, detail = _require_private_transport()
     if not ok:
         return {"ok": False, "detail": detail}
@@ -591,13 +926,33 @@ def ensure_dm_session(local_alias: str, remote_alias: str, welcome_b64: str) -> 
         return has_session
     if has_session.get("exists"):
         return {"ok": True, "session_id": _session_id(local_alias, remote_alias)}
-    return accept_dm_session(local_alias, remote_alias, welcome_b64)
+    return accept_dm_session(
+        local_alias,
+        remote_alias,
+        welcome_b64,
+        local_dh_secret=local_dh_secret,
+        identity_alias=identity_alias,
+    )
 
 
 def _session_expired_result(local_alias: str, remote_alias: str) -> dict[str, Any]:
     binding = _forget_session(local_alias, remote_alias)
     session_id = binding.session_id if binding is not None else _session_id(local_alias, remote_alias)
     return {"ok": False, "detail": "session_expired", "session_id": session_id}
+
+
+def _invalidate_restored_session(local_alias: str, remote_alias: str) -> dict[str, Any]:
+    """Fail-closed for a restored session that proved stale/unusable.
+
+    Clears the stale session mapping AND deletes the persisted Rust DM state
+    blob so that a corrupt/stale blob cannot be reloaded on next restart.
+    """
+    result = _session_expired_result(local_alias, remote_alias)
+    metrics_inc("session_restore_failures")
+    # Delete after _session_expired_result because _forget_session → _save_state
+    # re-exports the Rust blob.  The blob is stale, so remove it.
+    _clear_rust_dm_state()
+    return result
 
 
 def encrypt_dm(local_alias: str, remote_alias: str, plaintext: str) -> dict[str, Any]:
@@ -607,9 +962,11 @@ def encrypt_dm(local_alias: str, remote_alias: str, plaintext: str) -> dict[str,
     plaintext_bytes = str(plaintext or "").encode("utf-8")
     if len(plaintext_bytes) > MAX_DM_PLAINTEXT_SIZE:
         return {"ok": False, "detail": "plaintext exceeds maximum size"}
+    binding: _SessionBinding | None = None
     try:
         binding = _session_binding(local_alias, remote_alias)
-        ciphertext = _privacy_client().dm_encrypt(binding.session_handle, plaintext_bytes)
+        padded = _pad_plaintext(plaintext_bytes)
+        ciphertext = _privacy_client().dm_encrypt(binding.session_handle, padded)
         _lock_dm_format(local_alias, remote_alias, MLS_DM_FORMAT)
         return {
             "ok": True,
@@ -622,6 +979,14 @@ def encrypt_dm(local_alias: str, remote_alias: str, plaintext: str) -> dict[str,
     except PrivacyCoreError as exc:
         if "unknown dm session handle" in str(exc).lower():
             return _session_expired_result(local_alias, remote_alias)
+        if binding is not None and binding.restored:
+            logger.warning(
+                "restored DM session stale during encrypt for %s -> %s: %s",
+                privacy_log_label(local_alias, label="alias"),
+                privacy_log_label(remote_alias, label="alias"),
+                exc,
+            )
+            return _invalidate_restored_session(local_alias, remote_alias)
         logger.exception(
             "dm mls encrypt failed for %s -> %s",
             privacy_log_label(local_alias, label="alias"),
@@ -641,9 +1006,11 @@ def decrypt_dm(local_alias: str, remote_alias: str, ciphertext_b64: str, nonce_b
     ok, detail = _require_private_transport()
     if not ok:
         return {"ok": False, "detail": detail}
+    binding: _SessionBinding | None = None
     try:
         binding = _session_binding(local_alias, remote_alias)
-        plaintext = _privacy_client().dm_decrypt(binding.session_handle, _unb64(ciphertext_b64))
+        raw_plaintext = _privacy_client().dm_decrypt(binding.session_handle, _unb64(ciphertext_b64))
+        plaintext = _unpad_plaintext(raw_plaintext)
         _lock_dm_format(local_alias, remote_alias, MLS_DM_FORMAT)
         return {
             "ok": True,
@@ -654,6 +1021,14 @@ def decrypt_dm(local_alias: str, remote_alias: str, ciphertext_b64: str, nonce_b
     except PrivacyCoreError as exc:
         if "unknown dm session handle" in str(exc).lower():
             return _session_expired_result(local_alias, remote_alias)
+        if binding is not None and binding.restored:
+            logger.warning(
+                "restored DM session stale during decrypt for %s <- %s: %s",
+                privacy_log_label(local_alias, label="alias"),
+                privacy_log_label(remote_alias, label="alias"),
+                exc,
+            )
+            return _invalidate_restored_session(local_alias, remote_alias)
         logger.exception(
             "dm mls decrypt failed for %s <- %s",
             privacy_log_label(local_alias, label="alias"),

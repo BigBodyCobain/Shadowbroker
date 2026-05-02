@@ -16,12 +16,15 @@ export const makeSatSvg = (color: string) => {
 export const MISSION_COLORS: Record<string, string> = {
   military_recon: '#ff3333',
   military_sar: '#ff3333',
+  military_comms: '#ff6644',
   sar: '#00e5ff',
   sigint: '#ffffff',
   navigation: '#4488ff',
   early_warning: '#ff00ff',
   commercial_imaging: '#44ff44',
   space_station: '#ffdd00',
+  starlink: '#8899bb',
+  constellation: '#7799cc',
 };
 
 /** Special ISS icon — larger with built-in golden dashed halo ring */
@@ -54,10 +57,13 @@ export const makeTrainSvg = (color: string) => {
 export const MISSION_ICON_MAP: Record<string, string> = {
   military_recon: 'sat-mil',
   military_sar: 'sat-mil',
+  military_comms: 'sat-mil',
   sar: 'sat-sar',
   sigint: 'sat-sigint',
   navigation: 'sat-nav',
   early_warning: 'sat-ew',
   commercial_imaging: 'sat-com',
   space_station: 'sat-station',
+  starlink: 'sat-com',
+  constellation: 'sat-com',
 };

@@ -47,6 +47,7 @@ fi
 
 PYVER=$($PYTHON_CMD --version 2>&1 | awk '{print $2}')
 echo "[*] Found Python $PYVER"
+export BACKEND_BASE_PYTHON="$PYTHON_CMD"
 PY_MINOR=$(echo "$PYVER" | cut -d. -f2)
 if [ "$PY_MINOR" -ge 13 ] 2>/dev/null; then
     echo "[!] WARNING: Python $PYVER detected. Some packages may fail to build."
@@ -91,36 +92,90 @@ echo "[*] Ports clear."
 echo ""
 echo "[*] Setting up backend..."
 cd "$SCRIPT_DIR/backend"
+VENV_MARKER=".venv-dir"
+PINNED_VENV_DIR=""
+if [ -f "$VENV_MARKER" ]; then
+    PINNED_VENV_DIR="$(head -n 1 "$VENV_MARKER" | tr -d '\r')"
+fi
 
 # Check if UV is available (preferred, much faster installs)
 if command -v uv &> /dev/null; then
     echo "[*] Using UV for Python dependency management."
-    if [ ! -d "venv" ]; then
+    PRIMARY_VENV_DIR="venv"
+    if [ -n "$PINNED_VENV_DIR" ]; then
+        PRIMARY_VENV_DIR="$PINNED_VENV_DIR"
+    fi
+    REPAIR_VENV_DIR="venv-repair-$$"
+    VENV_DIR="$PRIMARY_VENV_DIR"
+    VENV_PY="$VENV_DIR/bin/python3"
+    if [ -x "$VENV_PY" ] && ! "$VENV_PY" --version >/dev/null 2>&1; then
+        echo "[*] Existing backend Python venv is stale. Rebuilding it..."
+        rm -rf "$PRIMARY_VENV_DIR" 2>/dev/null || true
+        if [ -d "$PRIMARY_VENV_DIR" ]; then
+            VENV_DIR="$REPAIR_VENV_DIR"
+            VENV_PY="$VENV_DIR/bin/python3"
+            echo "[*] Primary venv could not be replaced cleanly. Falling back to $REPAIR_VENV_DIR..."
+        fi
+    fi
+    if [ "$VENV_DIR" != "$PRIMARY_VENV_DIR" ] && [ -x "$VENV_PY" ] && ! "$VENV_PY" --version >/dev/null 2>&1; then
+        rm -rf "$VENV_DIR"
+    fi
+    export BACKEND_VENV_DIR="$VENV_DIR"
+    if [ ! -d "$VENV_DIR" ]; then
         echo "[*] Creating Python virtual environment..."
-        uv venv
+        rm -rf "$VENV_DIR"
+        uv venv "$VENV_DIR"
         if [ $? -ne 0 ]; then
             echo "[!] ERROR: Failed to create virtual environment."
             exit 1
         fi
     fi
-    source venv/bin/activate
+    "$VENV_PY" --version >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "[!] ERROR: Backend virtual environment could not start Python after repair."
+        exit 1
+    fi
     echo "[*] Installing Python dependencies via UV (fast)..."
     cd "$SCRIPT_DIR"
-    uv sync --frozen --no-dev
+    UV_PROJECT_ENVIRONMENT="$SCRIPT_DIR/backend/$VENV_DIR" uv sync --frozen --no-dev
     cd "$SCRIPT_DIR/backend"
 else
     echo "[*] UV not found, using pip (install UV for faster installs: https://docs.astral.sh/uv/)"
-    if [ ! -d "venv" ]; then
+    PRIMARY_VENV_DIR="venv"
+    if [ -n "$PINNED_VENV_DIR" ]; then
+        PRIMARY_VENV_DIR="$PINNED_VENV_DIR"
+    fi
+    REPAIR_VENV_DIR="venv-repair-$$"
+    VENV_DIR="$PRIMARY_VENV_DIR"
+    VENV_PY="$VENV_DIR/bin/python3"
+    if [ -x "$VENV_PY" ] && ! "$VENV_PY" --version >/dev/null 2>&1; then
+        echo "[*] Existing backend Python venv is stale. Rebuilding it..."
+        rm -rf "$PRIMARY_VENV_DIR" 2>/dev/null || true
+        if [ -d "$PRIMARY_VENV_DIR" ]; then
+            VENV_DIR="$REPAIR_VENV_DIR"
+            VENV_PY="$VENV_DIR/bin/python3"
+            echo "[*] Primary venv could not be replaced cleanly. Falling back to $REPAIR_VENV_DIR..."
+        fi
+    fi
+    if [ "$VENV_DIR" != "$PRIMARY_VENV_DIR" ] && [ -x "$VENV_PY" ] && ! "$VENV_PY" --version >/dev/null 2>&1; then
+        rm -rf "$VENV_DIR"
+    fi
+    export BACKEND_VENV_DIR="$VENV_DIR"
+    if [ ! -d "$VENV_DIR" ]; then
         echo "[*] Creating Python virtual environment..."
-        $PYTHON_CMD -m venv venv
+        $PYTHON_CMD -m venv "$VENV_DIR"
         if [ $? -ne 0 ]; then
             echo "[!] ERROR: Failed to create virtual environment."
             exit 1
         fi
     fi
-    source venv/bin/activate
+    "$VENV_PY" --version >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "[!] ERROR: Backend virtual environment could not start Python after repair."
+        exit 1
+    fi
     echo "[*] Installing Python dependencies (this may take a minute)..."
-    pip install -q -r requirements.txt
+    "$VENV_PY" -m pip install -q .
 fi
 if [ $? -ne 0 ]; then
     echo ""
@@ -129,8 +184,8 @@ if [ $? -ne 0 ]; then
     echo "[!] Recommended: Python 3.10, 3.11, or 3.12."
     exit 1
 fi
+printf '%s\n' "$VENV_DIR" > "$VENV_MARKER"
 echo "[*] Backend dependencies OK."
-deactivate
 if [ ! -d "node_modules/ws" ]; then
     echo "[*] Installing backend Node.js dependencies..."
     npm ci --omit=dev --silent
@@ -142,11 +197,18 @@ cd "$SCRIPT_DIR"
 echo ""
 echo "[*] Setting up frontend..."
 cd "$SCRIPT_DIR/frontend"
+FRONTEND_DEPS_OK=1
 if [ ! -d "node_modules" ]; then
-    echo "[*] Installing frontend dependencies..."
-    npm install
+    FRONTEND_DEPS_OK=0
+fi
+if [ "$FRONTEND_DEPS_OK" -eq 1 ]; then
+    node -e "require.resolve('next/dist/bin/next',{paths:['.']});require.resolve('lucide-react',{paths:['.']});require.resolve('maplibre-gl',{paths:['.']});require.resolve('@swc/helpers/_/_interop_require_default',{paths:['.']})" >/dev/null 2>&1 || FRONTEND_DEPS_OK=0
+fi
+if [ "$FRONTEND_DEPS_OK" -eq 0 ]; then
+    echo "[*] Frontend install is missing required packages. Repairing with npm ci..."
+    npm ci
     if [ $? -ne 0 ]; then
-        echo "[!] ERROR: npm install failed. See errors above."
+        echo "[!] ERROR: frontend dependency install failed. See errors above."
         exit 1
     fi
 fi

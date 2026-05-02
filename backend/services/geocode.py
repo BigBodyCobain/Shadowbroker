@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import threading
 from typing import Any, Dict, List
@@ -81,43 +82,63 @@ def _load_local_search_cache() -> List[Dict[str, Any]]:
 
 
 def _search_local_fallback(query: str, limit: int) -> List[Dict[str, Any]]:
+    """Strict local lookup used only when ``local_only=True`` is set.
+
+    Historical behaviour (substring-token-in-haystack matching) produced
+    catastrophically wrong results: any query containing a common word
+    would match the first airport with that word anywhere in its name,
+    which silently poisoned every cache downstream. Fixed to require
+    whole-word matches against airport name/IATA/id and cached-geocode
+    labels.
+    """
     q = query.strip().lower()
     if not q:
+        return []
+    q_tokens = set(re.findall(r"[a-z0-9]+", q))
+    if not q_tokens:
         return []
 
     matches: List[Dict[str, Any]] = []
     seen: set[tuple[float, float, str]] = set()
 
+    def _whole_word_tokens(text: str) -> set[str]:
+        return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
     for item in cached_airports:
-        haystacks = [
-            str(item.get("name", "")).lower(),
-            str(item.get("iata", "")).lower(),
-            str(item.get("id", "")).lower(),
-        ]
-        if any(q in h for h in haystacks):
-            label = f'{item.get("name", "Airport")} ({item.get("iata", "")})'
-            key = (float(item["lat"]), float(item["lng"]), label)
-            if key not in seen:
-                seen.add(key)
-                matches.append(
-                    {
-                        "label": label,
-                        "lat": float(item["lat"]),
-                        "lng": float(item["lng"]),
-                    }
-                )
-                if len(matches) >= limit:
-                    return matches
+        name_tokens = _whole_word_tokens(item.get("name", ""))
+        iata = str(item.get("iata", "")).lower().strip()
+        icao = str(item.get("id", "")).lower().strip()
+        # IATA/ICAO must match exactly; name must share ALL query tokens
+        # with the airport name (not "any token in haystack").
+        exact_code = bool(iata and iata in q_tokens) or bool(icao and icao in q_tokens)
+        name_match = bool(q_tokens) and q_tokens.issubset(name_tokens)
+        if not (exact_code or name_match):
+            continue
+        label = f'{item.get("name", "Airport")} ({item.get("iata", "")})'
+        key = (float(item["lat"]), float(item["lng"]), label)
+        if key not in seen:
+            seen.add(key)
+            matches.append(
+                {
+                    "label": label,
+                    "lat": float(item["lat"]),
+                    "lng": float(item["lng"]),
+                }
+            )
+            if len(matches) >= limit:
+                return matches
 
     for item in _load_local_search_cache():
         label = str(item.get("label", ""))
-        if q in label.lower():
-            key = (float(item["lat"]), float(item["lng"]), label)
-            if key not in seen:
-                seen.add(key)
-                matches.append(item)
-                if len(matches) >= limit:
-                    break
+        label_tokens = _whole_word_tokens(label)
+        if not q_tokens.issubset(label_tokens):
+            continue
+        key = (float(item["lat"]), float(item["lng"]), label)
+        if key not in seen:
+            seen.add(key)
+            matches.append(item)
+            if len(matches) >= limit:
+                break
 
     return matches
 
@@ -163,9 +184,14 @@ def search_geocode(query: str, limit: int = 5, local_only: bool = False) -> List
             timeout=6,
         )
     except Exception:
-        results = _search_local_fallback(q, limit)
-        _set_cache(key, results)
-        return results
+        # Intentionally no silent airport-name fallback. Callers that
+        # want offline results should pass ``local_only=True``; anything
+        # else means we return an empty list so the caller can decide
+        # whether to retry or propagate the failure. The old behaviour
+        # of falling through to _search_local_fallback silently poisoned
+        # every downstream cache with airport coordinates for any query.
+        _set_cache(key, [])
+        return []
 
     results: List[Dict[str, Any]] = []
     if res and res.status_code == 200:
@@ -184,9 +210,9 @@ def search_geocode(query: str, limit: int = 5, local_only: bool = False) -> List
                     continue
         except Exception:
             results = []
-    if not results:
-        results = _search_local_fallback(q, limit)
 
+    # No silent airport-name fallback on empty results either — same
+    # reason as above. Empty means empty.
     _set_cache(key, results)
     return results
 

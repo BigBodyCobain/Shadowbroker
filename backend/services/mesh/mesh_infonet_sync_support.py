@@ -104,6 +104,28 @@ def finish_sync(
     )
 
 
+def finish_solo_sync(
+    state: SyncWorkerState,
+    *,
+    current_head: str = "",
+    now: float | None = None,
+    interval_s: int = 300,
+) -> SyncWorkerState:
+    timestamp = int(now if now is not None else time.time())
+    return SyncWorkerState(
+        last_sync_started_at=state.last_sync_started_at,
+        last_sync_finished_at=timestamp,
+        last_sync_ok_at=state.last_sync_ok_at,
+        next_sync_due_at=timestamp + max(0, int(interval_s or 0)),
+        last_peer_url="",
+        last_error="",
+        last_outcome="solo",
+        current_head=current_head or state.current_head,
+        fork_detected=False,
+        consecutive_failures=0,
+    )
+
+
 def should_run_sync(
     state: SyncWorkerState,
     *,

@@ -1,5 +1,6 @@
 import { API_BASE } from '@/lib/api';
-import { controlPlaneFetch } from '@/lib/controlPlane';
+import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
+import type { LegacyCompatibilitySnapshot } from '@/mesh/wormholeCompatibility';
 
 export interface WormholeState {
   installed: boolean;
@@ -30,6 +31,57 @@ export interface WormholeState {
   recent_private_clearnet_fallback?: boolean;
   recent_private_clearnet_fallback_at?: number;
   recent_private_clearnet_fallback_reason?: string;
+  clearnet_fallback_policy?: string;
+  clearnet_fallback_requested?: string;
+  private_delivery?: PrivateDeliverySummary;
+  legacy_compatibility?: LegacyCompatibilitySnapshot;
+}
+
+export interface PrivateDeliveryApprovalAction {
+  code: 'wait' | 'relay';
+  label: string;
+  emphasis: 'primary' | 'secondary' | '';
+}
+
+export interface PrivateDeliveryApprovalState {
+  required?: boolean;
+  reason_code?: string;
+  started_at?: number;
+  window_seconds?: number;
+  status_label?: string;
+  detail?: string;
+  actions?: PrivateDeliveryApprovalAction[];
+}
+
+export interface PrivateDeliveryItem {
+  id: string;
+  lane: string;
+  release_state: string;
+  required_tier?: string;
+  current_tier?: string;
+  status?: {
+    code?: string;
+    label?: string;
+    reason_code?: string;
+    reason?: string;
+  };
+  approval?: PrivateDeliveryApprovalState;
+}
+
+export interface PrivateDeliverySummary {
+  pending_count?: number;
+  preparing_count?: number;
+  queued_count?: number;
+  approval_required_count?: number;
+  current_tier?: string;
+  items?: PrivateDeliveryItem[];
+}
+
+export interface PrivateDeliveryActionResponse {
+  ok: boolean;
+  action: 'wait' | 'relay';
+  item?: PrivateDeliveryItem;
+  detail?: string;
 }
 
 export interface WormholeSettingsSnapshot {
@@ -172,6 +224,22 @@ export async function connectWormhole(): Promise<WormholeState> {
     inflight: null,
   };
   return state;
+}
+
+export async function updatePrivateDeliveryAction(
+  itemId: string,
+  action: 'wait' | 'relay',
+): Promise<PrivateDeliveryActionResponse> {
+  const response = await controlPlaneJson<PrivateDeliveryActionResponse>(
+    `/api/wormhole/private-delivery/${encodeURIComponent(itemId)}/action`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    },
+  );
+  invalidateWormholeRuntimeCache();
+  return response;
 }
 
 export async function disconnectWormhole(): Promise<WormholeState> {

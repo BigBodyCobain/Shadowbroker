@@ -1,8 +1,9 @@
 def test_wormhole_identity_allows_local_operator_without_admin_key(client, monkeypatch):
     import main
+    import auth
 
-    monkeypatch.setattr(main, "_current_admin_key", lambda: "test-key")
-    monkeypatch.setattr(main, "_allow_insecure_admin", lambda: False)
+    monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-key")
+    monkeypatch.setattr(auth, "_allow_insecure_admin", lambda: False)
     monkeypatch.setattr(
         main,
         "get_transport_identity",
@@ -20,9 +21,10 @@ def test_wormhole_identity_allows_local_operator_without_admin_key(client, monke
 
 def test_wormhole_gate_identity_allows_local_operator_without_admin_key(client, monkeypatch):
     import main
+    import auth
 
-    monkeypatch.setattr(main, "_current_admin_key", lambda: "test-key")
-    monkeypatch.setattr(main, "_allow_insecure_admin", lambda: False)
+    monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-key")
+    monkeypatch.setattr(auth, "_allow_insecure_admin", lambda: False)
     monkeypatch.setattr(
         main,
         "get_active_gate_identity",
@@ -42,9 +44,10 @@ def test_wormhole_gate_identity_allows_local_operator_without_admin_key(client, 
 
 def test_wormhole_gate_personas_allows_local_operator_without_admin_key(client, monkeypatch):
     import main
+    import auth
 
-    monkeypatch.setattr(main, "_current_admin_key", lambda: "test-key")
-    monkeypatch.setattr(main, "_allow_insecure_admin", lambda: False)
+    monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-key")
+    monkeypatch.setattr(auth, "_allow_insecure_admin", lambda: False)
     monkeypatch.setattr(
         main,
         "list_gate_personas",

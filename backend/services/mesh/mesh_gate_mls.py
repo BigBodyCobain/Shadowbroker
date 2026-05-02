@@ -22,10 +22,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from services.mesh.mesh_local_custody import (
+    read_sensitive_domain_json,
+    write_sensitive_domain_json,
+)
 from services.mesh.mesh_secure_storage import (
-    read_domain_json,
     read_secure_json,
-    write_domain_json,
 )
 from services.mesh.mesh_privacy_logging import privacy_log_label
 from services.mesh.mesh_wormhole_persona import (
@@ -49,35 +51,38 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 STATE_FILE = DATA_DIR / "wormhole_gate_mls.json"
 STATE_FILENAME = "wormhole_gate_mls.json"
 STATE_DOMAIN = "gate_persona"
+RUST_GATE_STATE_DOMAIN = "gate_rust"
 MLS_GATE_FORMAT = "mls1"
-# Gate-scoped symmetric encryption domain — used for the durable envelope
-# that survives MLS group rebuilds / process restarts.  The key is the same
-# domain key that protects the gate_persona store (AES-256-GCM, stored in an
-# OS-protected key envelope).  Gate members can always decrypt; outsiders
-# cannot because they lack the domain key.
-_GATE_ENVELOPE_DOMAIN = "gate_persona"
+STATE_CUSTODY_SCOPE = "gate_mls_binding_store"
 
 
-def _gate_envelope_key_shared(gate_id: str, gate_secret: str = "") -> bytes:
+class GateSecretUnavailableError(Exception):
+    """Raised when gate-secret resolution fails or returns empty.
+
+    New envelope encryption must not silently fall back to the Phase-1
+    gate-name-only key derivation.  Callers should catch this and either
+    skip the durable envelope (MLS-only) or surface a structured failure.
+    """
+
+
+def _gate_envelope_key_shared(gate_id: str, gate_secret: str) -> bytes:
     """Derive a 256-bit AES key for gate envelope encryption.
 
-    When *gate_secret* is provided (Phase 2), the random per-gate secret is
-    the primary input key material — knowing the gate name alone is no longer
-    sufficient.  Without it, falls back to the legacy gate-name-only derivation
-    for backward compatibility with pre-Phase-2 messages.
+    Sprint 1 / Rec #6: the legacy gate-name-only derivation has been
+    removed. A non-empty ``gate_secret`` is required; passing an empty
+    secret is a programming error and raises GateSecretUnavailableError.
     """
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.primitives import hashes
 
+    if not gate_secret:
+        raise GateSecretUnavailableError(
+            f"gate secret required for {privacy_log_label(gate_id, label='gate')} — "
+            "legacy gate-name-only envelope key has been removed"
+        )
     gate_key = gate_id.strip().lower()
-    if gate_secret:
-        # Phase 2: IKM = gate_secret, info includes gate_id for domain separation
-        ikm = gate_secret.encode("utf-8")
-        info = f"gate_envelope_aes256gcm|{gate_key}".encode("utf-8")
-    else:
-        # Legacy: IKM = gate_id only (backward compat)
-        ikm = gate_key.encode("utf-8")
-        info = b"gate_envelope_aes256gcm"
+    ikm = gate_secret.encode("utf-8")
+    info = f"gate_envelope_aes256gcm|{gate_key}".encode("utf-8")
     return HKDF(
         algorithm=hashes.SHA256(),
         length=32,
@@ -86,74 +91,250 @@ def _gate_envelope_key_shared(gate_id: str, gate_secret: str = "") -> bytes:
     ).derive(ikm)
 
 
+def _gate_envelope_key_scoped(gate_id: str, gate_secret: str, *, message_nonce: str) -> bytes:
+    """Derive a 256-bit AES key scoped to one gate message envelope."""
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+
+    if not gate_secret:
+        raise GateSecretUnavailableError(
+            f"gate secret required for {privacy_log_label(gate_id, label='gate')} — "
+            "legacy gate-name-only envelope key has been removed"
+        )
+    nonce_value = str(message_nonce or "").strip()
+    if not nonce_value:
+        raise GateSecretUnavailableError(
+            f"message nonce required for {privacy_log_label(gate_id, label='gate')} envelope scoping"
+        )
+    gate_key = gate_id.strip().lower()
+    ikm = gate_secret.encode("utf-8")
+    info = f"gate_envelope_aes256gcm|{gate_key}|{nonce_value}".encode("utf-8")
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"shadowbroker-gate-envelope-v2",
+        info=info,
+    ).derive(ikm)
+
+
 def _resolve_gate_secret(gate_id: str) -> str:
-    """Look up the per-gate content key from the gate manager."""
+    """Look up the per-gate content key from the gate manager.
+
+    Returns the secret string (may be empty if the gate has no secret configured).
+    Raises GateSecretUnavailableError if the gate manager lookup itself fails.
+    """
     try:
         from services.mesh.mesh_reputation import gate_manager
-        return gate_manager.get_gate_secret(gate_id)
-    except Exception:
-        return ""
+        secret = gate_manager.get_gate_secret(gate_id)
+        if not secret:
+            secret = gate_manager.ensure_gate_secret(gate_id)
+        return secret
+    except Exception as exc:
+        raise GateSecretUnavailableError(
+            f"gate_manager lookup failed for gate {privacy_log_label(gate_id, label='gate')}"
+        ) from exc
 
 
-def _gate_envelope_key_legacy() -> bytes | None:
-    """Return the old node-local domain key, or None if unavailable."""
+def _resolve_gate_secret_archive(gate_id: str) -> dict[str, Any]:
     try:
-        from services.mesh.mesh_secure_storage import _load_domain_key  # type: ignore[attr-defined]
-        return _load_domain_key(_GATE_ENVELOPE_DOMAIN)
+        from services.mesh.mesh_reputation import gate_manager
+
+        return dict(gate_manager.get_gate_secret_archive(gate_id) or {})
     except Exception:
-        return None
+        return {}
 
 
-def _gate_envelope_encrypt(gate_id: str, plaintext: str) -> str:
-    """Encrypt plaintext under the per-gate secret key.  Returns base64."""
-    gate_secret = _resolve_gate_secret(gate_id)
-    key = _gate_envelope_key_shared(gate_id, gate_secret)
+def _resolve_gate_envelope_policy(gate_id: str) -> str:
+    """Return the gate envelope policy.
+
+    The per-gate ``envelope_policy`` is the source of truth. If the operator
+    (or the seed catalog) has configured a gate for ``envelope_always`` or
+    ``envelope_recovery``, that IS the acknowledgment — a gate-level opt-in
+    to durable recovery envelopes. A second global runtime gate would be
+    redundant and silently downgrades working configurations to
+    ``envelope_disabled`` without surfacing any error; that's the exact
+    "hostile silent downgrade" pattern this codebase used to perform.
+    """
+    try:
+        from services.mesh.mesh_reputation import gate_manager
+
+        return str(gate_manager.get_envelope_policy(gate_id) or "envelope_disabled")
+    except Exception:
+        return "envelope_disabled"
+
+
+def _gate_envelope_encrypt(gate_id: str, plaintext: str, *, message_nonce: str = "") -> str:
+    """Encrypt plaintext under the gate secret, scoped to one message when possible.
+
+    Raises GateSecretUnavailableError if the gate secret cannot be resolved
+    or is empty — new envelopes must never silently use the Phase-1
+    gate-name-only derivation.
+    """
+    gate_secret = _resolve_gate_secret(gate_id)  # raises on lookup failure
+    if not gate_secret:
+        raise GateSecretUnavailableError(
+            f"gate secret is empty for {privacy_log_label(gate_id, label='gate')} — "
+            "refusing Phase-1 fallback for new encryption"
+        )
+    nonce_value = str(message_nonce or "").strip()
+    if nonce_value:
+        key = _gate_envelope_key_scoped(gate_id, gate_secret, message_nonce=nonce_value)
+        aad = f"gate_envelope|{gate_id}|{nonce_value}".encode("utf-8")
+    else:
+        key = _gate_envelope_key_shared(gate_id, gate_secret)
+        aad = f"gate_envelope|{gate_id}".encode("utf-8")
     nonce = _os.urandom(12)
-    aad = f"gate_envelope|{gate_id}".encode("utf-8")
     ct = _AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), aad)
     return base64.b64encode(nonce + ct).decode("ascii")
 
 
-def _gate_envelope_decrypt(gate_id: str, token: str) -> str | None:
-    """Decrypt a gate envelope token.
+def _gate_envelope_hash(token: str) -> str:
+    """Return the canonical signed binding for a gate envelope token."""
+    token_value = str(token or "").strip()
+    if not token_value:
+        return ""
+    try:
+        token_bytes = token_value.encode("ascii")
+    except UnicodeEncodeError:
+        return ""
+    return hashlib.sha256(token_bytes).hexdigest()
 
-    Tries keys in priority order:
-    1. Phase 2 per-gate secret key (gate_secret + gate_id)
-    2. Legacy shared key (gate_id only — for pre-Phase-2 messages)
-    3. Legacy node-local domain key (for very old messages)
+
+def _try_gate_envelope_decrypt(
+    gate_id: str,
+    gate_secret: str,
+    nonce: bytes,
+    ct: bytes,
+    *,
+    message_nonce: str = "",
+) -> str | None:
+    try:
+        nonce_value = str(message_nonce or "").strip()
+        if nonce_value:
+            scoped_aad = f"gate_envelope|{gate_id}|{nonce_value}".encode("utf-8")
+            scoped_key = _gate_envelope_key_scoped(gate_id, gate_secret, message_nonce=nonce_value)
+            return _AESGCM(scoped_key).decrypt(nonce, ct, scoped_aad).decode("utf-8")
+    except Exception:
+        pass
+    try:
+        aad = f"gate_envelope|{gate_id}".encode("utf-8")
+        return _AESGCM(_gate_envelope_key_shared(gate_id, gate_secret)).decrypt(nonce, ct, aad).decode("utf-8")
+    except Exception:
+        return None
+
+
+def _archived_gate_secret_allowed(
+    archive: dict[str, Any],
+    *,
+    message_epoch: int = 0,
+    event_id: str = "",
+) -> bool:
+    if not str((archive or {}).get("previous_secret", "") or "").strip():
+        return False
+    ceiling_epoch = int((archive or {}).get("previous_valid_through_epoch", 0) or 0)
+    if message_epoch > 0 and ceiling_epoch > 0:
+        return message_epoch <= ceiling_epoch
+    ceiling_event_id = str((archive or {}).get("previous_valid_through_event_id", "") or "").strip()
+    target_event_id = str(event_id or "").strip()
+    return bool(ceiling_event_id and target_event_id and target_event_id == ceiling_event_id)
+
+
+def _gate_envelope_decrypt(
+    gate_id: str,
+    token: str,
+    *,
+    message_nonce: str = "",
+    message_epoch: int = 0,
+    event_id: str = "",
+) -> str | None:
+    """Decrypt a gate envelope token using the current scoped derivation first.
+
+    New envelopes are keyed from the gate secret plus the signed message
+    nonce so one long-lived gate key no longer directly wraps every recovery
+    envelope for the gate. Old per-gate envelopes still decrypt via the
+    shared-key fallback so stored recovery material survives upgrade.
     """
     try:
         raw = base64.b64decode(token)
         if len(raw) < 13:
             return None
         nonce, ct = raw[:12], raw[12:]
-        aad = f"gate_envelope|{gate_id}".encode("utf-8")
-        # 1. Try Phase 2 per-gate secret key
-        gate_secret = _resolve_gate_secret(gate_id)
-        if gate_secret:
-            try:
-                return _AESGCM(_gate_envelope_key_shared(gate_id, gate_secret)).decrypt(nonce, ct, aad).decode("utf-8")
-            except Exception:
-                pass
-        # 2. Try legacy gate-name-only key (backward compat)
         try:
-            return _AESGCM(_gate_envelope_key_shared(gate_id, "")).decrypt(nonce, ct, aad).decode("utf-8")
-        except Exception:
-            pass
-        # 3. Fall back to legacy node-local key for very old messages
-        legacy_key = _gate_envelope_key_legacy()
-        if legacy_key:
-            return _AESGCM(legacy_key).decrypt(nonce, ct, aad).decode("utf-8")
+            gate_secret = _resolve_gate_secret(gate_id)
+        except GateSecretUnavailableError:
+            return None
+        if not gate_secret:
+            return None
+        plaintext = _try_gate_envelope_decrypt(
+            gate_id,
+            gate_secret,
+            nonce,
+            ct,
+            message_nonce=message_nonce,
+        )
+        if plaintext is not None:
+            return plaintext
+        archive = _resolve_gate_secret_archive(gate_id)
+        if _archived_gate_secret_allowed(
+            archive,
+            message_epoch=int(message_epoch or 0),
+            event_id=str(event_id or ""),
+        ):
+            previous_secret = str(archive.get("previous_secret", "") or "")
+            if previous_secret:
+                return _try_gate_envelope_decrypt(
+                    gate_id,
+                    previous_secret,
+                    nonce,
+                    ct,
+                    message_nonce=message_nonce,
+                )
         return None
     except Exception:
         return None
+
+
+def _stored_legacy_unbound_envelope_allowed(
+    gate_id: str,
+    event_id: str,
+    gate_envelope: str,
+) -> bool:
+    """Allow old local history whose envelope predates signed envelope_hash.
+
+    This is deliberately limited to an exact event already present in the
+    local private gate store. New writes and network ingest still require the
+    signed envelope_hash binding before side effects.
+    """
+    event_key = str(event_id or "").strip()
+    envelope_value = str(gate_envelope or "").strip()
+    if not event_key or not envelope_value:
+        return False
+    try:
+        from services.mesh.mesh_hashchain import gate_store
+
+        stored = gate_store.get_event(event_key)
+        payload = stored.get("payload") if isinstance(stored, dict) else None
+        if not isinstance(payload, dict):
+            return False
+        stored_gate = _stable_gate_ref(str(payload.get("gate", "") or ""))
+        if stored_gate != _stable_gate_ref(gate_id):
+            return False
+        if str(payload.get("gate_envelope", "") or "").strip() != envelope_value:
+            return False
+        return not str(payload.get("envelope_hash", "") or "").strip()
+    except Exception:
+        return False
 # Self-echo plaintext cache: MLS cannot decrypt messages authored by the same
 # member, so we cache plaintext locally after compose.  The TTL must comfortably
 # exceed the frontend poll + batch-decrypt round-trip (often 2-5 s under load).
 # 300 s keeps self-authored messages readable for the whole session while still
-# bounding memory exposure.
+# bounding memory exposure. Long-term durability is intentionally off by
+# default; ordinary reads keep plaintext local/in-memory only unless the caller
+# is performing an explicit recovery read or the operator deliberately opted
+# into durable plaintext retention.
 LOCAL_CIPHERTEXT_CACHE_MAX = 128
 LOCAL_CIPHERTEXT_CACHE_TTL_S = 300
+
 _CT_BUCKETS = (192, 384, 768, 1536, 3072, 6144)
 
 
@@ -228,6 +409,15 @@ def _sender_ref(persona_id: str, msg_id: str) -> str:
     ).hexdigest()[:16]
 
 
+def _gate_plaintext_persist_enabled() -> bool:
+    try:
+        from services.config import gate_plaintext_persist_effective
+
+        return bool(gate_plaintext_persist_effective())
+    except Exception:
+        return False
+
+
 @dataclass
 class _GateMemberBinding:
     persona_id: str
@@ -255,13 +445,14 @@ class _GateBinding:
 
 _STATE_LOCK = threading.RLock()
 _PRIVACY_CLIENT: PrivacyCoreClient | None = None
-# MLS limitation: Rust group state (ratchet trees, group secrets) is in-memory only.
-# Python-side metadata (bindings, epochs, personas) is persisted via domain storage.
-# Process restart requires group re-join. Rust FFI state export is still deferred.
+# Rust group state is exported/imported via the privacy-core bridge so gate
+# bindings can survive restart. Python-side metadata (bindings, epochs,
+# personas) is still persisted via domain storage, and restored bindings fail
+# closed if the Rust state cannot be reloaded safely.
 _GATE_BINDINGS: dict[str, _GateBinding] = {}
 _LOCAL_CIPHERTEXT_CACHE: OrderedDict[
     tuple[str, str, str],
-    tuple[str, float],
+    tuple[str, str, float],
 ] = OrderedDict()
 _HIGH_WATER_EPOCHS: dict[str, int] = {}
 
@@ -283,8 +474,8 @@ def _privacy_client() -> PrivacyCoreClient:
     return _PRIVACY_CLIENT
 
 
-def reset_gate_mls_state() -> None:
-    """Test helper for clearing in-memory gate -> MLS bindings."""
+def reset_gate_mls_state(*, clear_persistence: bool = True) -> None:
+    """Clear in-memory gate -> MLS bindings and optionally persisted Rust state."""
 
     global _PRIVACY_CLIENT
     with _STATE_LOCK:
@@ -296,6 +487,8 @@ def reset_gate_mls_state() -> None:
         _GATE_BINDINGS.clear()
         _LOCAL_CIPHERTEXT_CACHE.clear()
         _HIGH_WATER_EPOCHS.clear()
+        if clear_persistence:
+            _clear_gate_rust_state()
 
 
 def _gate_personas(gate_id: str) -> list[dict[str, Any]]:
@@ -349,25 +542,35 @@ def _active_gate_persona(gate_id: str) -> dict[str, Any] | None:
 def _prune_local_plaintext_cache(now: float) -> None:
     expired_keys = [
         key
-        for key, (_plaintext, inserted_at) in _LOCAL_CIPHERTEXT_CACHE.items()
+        for key, (_plaintext, _reply_to, inserted_at) in _LOCAL_CIPHERTEXT_CACHE.items()
         if now - inserted_at > LOCAL_CIPHERTEXT_CACHE_TTL_S
     ]
     for key in expired_keys:
         _LOCAL_CIPHERTEXT_CACHE.pop(key, None)
 
 
-def _cache_local_plaintext(gate_id: str, ciphertext: str, sender_ref: str, plaintext: str) -> None:
+def _cache_local_plaintext(
+    gate_id: str,
+    ciphertext: str,
+    sender_ref: str,
+    plaintext: str,
+    reply_to: str = "",
+) -> None:
     now = time.time()
     cache_key = (gate_id, ciphertext, sender_ref)
     with _STATE_LOCK:
         _prune_local_plaintext_cache(now)
         if cache_key not in _LOCAL_CIPHERTEXT_CACHE and len(_LOCAL_CIPHERTEXT_CACHE) >= LOCAL_CIPHERTEXT_CACHE_MAX:
             _LOCAL_CIPHERTEXT_CACHE.popitem(last=False)
-        _LOCAL_CIPHERTEXT_CACHE[cache_key] = (plaintext, now)
+        _LOCAL_CIPHERTEXT_CACHE[cache_key] = (plaintext, str(reply_to or "").strip(), now)
         _LOCAL_CIPHERTEXT_CACHE.move_to_end(cache_key)
 
 
-def _consume_cached_plaintext(gate_id: str, ciphertext: str, sender_ref: str) -> str | None:
+def _consume_cached_plaintext(
+    gate_id: str,
+    ciphertext: str,
+    sender_ref: str,
+) -> tuple[str, str] | None:
     """Non-destructive read so repeated decrypt polls still find the entry."""
     now = time.time()
     cache_key = (gate_id, ciphertext, sender_ref)
@@ -376,15 +579,19 @@ def _consume_cached_plaintext(gate_id: str, ciphertext: str, sender_ref: str) ->
         entry = _LOCAL_CIPHERTEXT_CACHE.get(cache_key)
         if entry is None:
             return None
-        plaintext, inserted_at = entry
+        plaintext, reply_to, inserted_at = entry
         if now - inserted_at > LOCAL_CIPHERTEXT_CACHE_TTL_S:
             _LOCAL_CIPHERTEXT_CACHE.pop(cache_key, None)
             return None
         _LOCAL_CIPHERTEXT_CACHE.move_to_end(cache_key)
-        return plaintext
+        return plaintext, reply_to
 
 
-def _peek_cached_plaintext(gate_id: str, ciphertext: str, sender_ref: str) -> str | None:
+def _peek_cached_plaintext(
+    gate_id: str,
+    ciphertext: str,
+    sender_ref: str,
+) -> tuple[str, str] | None:
     now = time.time()
     cache_key = (gate_id, ciphertext, sender_ref)
     with _STATE_LOCK:
@@ -392,12 +599,36 @@ def _peek_cached_plaintext(gate_id: str, ciphertext: str, sender_ref: str) -> st
         entry = _LOCAL_CIPHERTEXT_CACHE.get(cache_key)
         if entry is None:
             return None
-        plaintext, inserted_at = entry
+        plaintext, reply_to, inserted_at = entry
         if now - inserted_at > LOCAL_CIPHERTEXT_CACHE_TTL_S:
             _LOCAL_CIPHERTEXT_CACHE.pop(cache_key, None)
             return None
         _LOCAL_CIPHERTEXT_CACHE.move_to_end(cache_key)
-        return plaintext
+        return plaintext, reply_to
+
+
+def _encode_gate_plaintext_envelope(plaintext: str, epoch: int, reply_to: str = "") -> str:
+    payload: dict[str, Any] = {
+        "m": str(plaintext or ""),
+        "e": int(epoch or 0),
+    }
+    reply_to_val = str(reply_to or "").strip()
+    if reply_to_val:
+        payload["r"] = reply_to_val
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+
+
+def _decode_gate_plaintext_envelope(raw: str, fallback_epoch: int) -> tuple[str, int, str]:
+    try:
+        envelope = json.loads(raw)
+        if isinstance(envelope, dict):
+            plaintext = str(envelope.get("m", raw))
+            epoch = int(envelope.get("e", fallback_epoch) or fallback_epoch)
+            reply_to = str(envelope.get("r", "") or "").strip()
+            return plaintext, epoch, reply_to
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
+    return raw, int(fallback_epoch or 0), ""
 
 
 def _load_binding_store() -> dict[str, Any]:
@@ -408,7 +639,12 @@ def _load_binding_store() -> dict[str, Any]:
     if not domain_path.exists() and STATE_FILE.exists():
         try:
             legacy = read_secure_json(STATE_FILE, _default_binding_store)
-            write_domain_json(STATE_DOMAIN, STATE_FILENAME, legacy)
+            write_sensitive_domain_json(
+                STATE_DOMAIN,
+                STATE_FILENAME,
+                legacy,
+                custody_scope=STATE_CUSTODY_SCOPE,
+            )
             STATE_FILE.unlink(missing_ok=True)
         except Exception:
             logger.warning(
@@ -416,7 +652,12 @@ def _load_binding_store() -> dict[str, Any]:
                 "discarding stale file and starting fresh"
             )
             STATE_FILE.unlink(missing_ok=True)
-    raw = read_domain_json(STATE_DOMAIN, STATE_FILENAME, _default_binding_store)
+    raw = read_sensitive_domain_json(
+        STATE_DOMAIN,
+        STATE_FILENAME,
+        _default_binding_store,
+        custody_scope=STATE_CUSTODY_SCOPE,
+    )
     state = _default_binding_store()
     if isinstance(raw, dict):
         state.update(raw)
@@ -444,8 +685,128 @@ def _save_binding_store(state: dict[str, Any]) -> None:
     # but any process that can read this domain's key envelope can still forge this file.
     payload = dict(state)
     payload["updated_at"] = int(time.time())
-    write_domain_json(STATE_DOMAIN, STATE_FILENAME, payload)
+    write_sensitive_domain_json(
+        STATE_DOMAIN,
+        STATE_FILENAME,
+        payload,
+        custody_scope=STATE_CUSTODY_SCOPE,
+    )
     STATE_FILE.unlink(missing_ok=True)
+
+
+def _rust_gate_state_filename(gate_id: str) -> str:
+    gate_key = _stable_gate_ref(gate_id)
+    safe_id = hashlib.sha256(gate_key.encode("utf-8")).hexdigest()[:16]
+    return f"gate_rust_{safe_id}.bin"
+
+
+def _read_gate_rust_state_snapshot(gate_id: str) -> dict[str, Any] | None:
+    gate_key = _stable_gate_ref(gate_id)
+    return read_sensitive_domain_json(
+        RUST_GATE_STATE_DOMAIN,
+        _rust_gate_state_filename(gate_key),
+        lambda: None,
+        custody_scope=f"gate_mls_rust_state::{gate_key}",
+    )
+
+
+def _write_gate_rust_state_snapshot(gate_id: str, payload: dict[str, Any] | None) -> None:
+    gate_key = _stable_gate_ref(gate_id)
+    if payload is None:
+        _clear_gate_rust_state(gate_key)
+        return
+    write_sensitive_domain_json(
+        RUST_GATE_STATE_DOMAIN,
+        _rust_gate_state_filename(gate_key),
+        payload,
+        custody_scope=f"gate_mls_rust_state::{gate_key}",
+    )
+
+
+def _save_gate_rust_state(binding: _GateBinding) -> None:
+    """Export Rust gate state blob for a single gate and persist via domain storage."""
+    try:
+        identity_handles = []
+        group_handles = []
+        seen_ids = set()
+        for member in binding.members.values():
+            if member.identity_handle not in seen_ids:
+                identity_handles.append(member.identity_handle)
+                seen_ids.add(member.identity_handle)
+            if member.group_handle > 0:
+                group_handles.append(member.group_handle)
+        if binding.root_group_handle > 0 and binding.root_group_handle not in group_handles:
+            group_handles.append(binding.root_group_handle)
+        if not identity_handles or not group_handles:
+            return
+        blob = _privacy_client().export_gate_state(identity_handles, group_handles)
+        if blob:
+            write_sensitive_domain_json(
+                RUST_GATE_STATE_DOMAIN,
+                _rust_gate_state_filename(binding.gate_id),
+                {"version": 1, "blob_b64": _b64(blob)},
+                custody_scope=f"gate_mls_rust_state::{_stable_gate_ref(binding.gate_id)}",
+            )
+    except Exception:
+        logger.warning(
+            "failed to export Rust gate state for %s",
+            privacy_log_label(binding.gate_id, label="gate"),
+            exc_info=True,
+        )
+
+
+def _load_gate_rust_state(gate_id: str, binding: _GateBinding) -> bool:
+    """Import persisted Rust gate state and remap Python binding handles.
+
+    Returns True if Rust state was successfully imported and handles remapped.
+    Returns False if no Rust state was found (legacy/fresh install).
+    Raises on corruption or version mismatch (caller must handle).
+    """
+    gate_key = _stable_gate_ref(gate_id)
+    filename = _rust_gate_state_filename(gate_key)
+    raw = read_sensitive_domain_json(
+        RUST_GATE_STATE_DOMAIN,
+        filename,
+        lambda: None,
+        custody_scope=f"gate_mls_rust_state::{gate_key}",
+    )
+    if raw is None:
+        return False
+    if not isinstance(raw, dict) or raw.get("version") != 1 or not raw.get("blob_b64"):
+        raise PrivacyCoreError("persisted Rust gate state has invalid format or version")
+    blob = _unb64(raw["blob_b64"])
+    mapping = _privacy_client().import_gate_state(blob)
+    id_map = {int(k): int(v) for k, v in (mapping.get("identities") or {}).items()}
+    group_map = {int(k): int(v) for k, v in (mapping.get("groups") or {}).items()}
+    # Remap root_group_handle.
+    if binding.root_group_handle in group_map:
+        binding.root_group_handle = group_map[binding.root_group_handle]
+    # Remap per-member handles.
+    for member in binding.members.values():
+        if member.identity_handle in id_map:
+            member.identity_handle = id_map[member.identity_handle]
+        if member.group_handle in group_map:
+            member.group_handle = group_map[member.group_handle]
+    return True
+
+
+def _clear_gate_rust_state(gate_id: str | None = None) -> None:
+    """Delete persisted Rust gate state blob(s).
+
+    If gate_id is provided, delete only that gate's blob.
+    If gate_id is None, delete all gate Rust state blobs.
+    """
+    try:
+        domain_dir = DATA_DIR / RUST_GATE_STATE_DOMAIN
+        if not domain_dir.exists():
+            return
+        if gate_id:
+            (domain_dir / _rust_gate_state_filename(gate_id)).unlink(missing_ok=True)
+        else:
+            for f in domain_dir.glob("gate_rust_*.bin"):
+                f.unlink(missing_ok=True)
+    except Exception:
+        logger.debug("failed to clear persisted Rust gate state", exc_info=True)
 
 
 def _serialize_member_binding(member: _GateMemberBinding) -> dict[str, Any]:
@@ -458,6 +819,8 @@ def _serialize_member_binding(member: _GateMemberBinding) -> dict[str, Any]:
         "is_creator": bool(member.is_creator),
         "public_bundle": _b64(member.public_bundle),
         "binding_signature": member.binding_signature,
+        "identity_handle": int(member.identity_handle),
+        "group_handle": int(member.group_handle),
     }
 
 
@@ -489,6 +852,7 @@ def _persist_binding(binding: _GateBinding) -> None:
         "gate_id": binding.gate_id,
         "epoch": int(binding.epoch),
         "root_persona_id": binding.root_persona_id,
+        "root_group_handle": int(binding.root_group_handle),
         "next_member_ref": int(binding.next_member_ref),
         "members": {
             persona_id: _serialize_member_binding(member)
@@ -502,6 +866,7 @@ def _persist_binding(binding: _GateBinding) -> None:
     _HIGH_WATER_EPOCHS[binding.gate_id] = high_water
     state.setdefault("high_water_epochs", {})[binding.gate_id] = high_water
     _save_binding_store(state)
+    _save_gate_rust_state(binding)
 
 
 def _persist_delete_binding(gate_id: str) -> None:
@@ -511,13 +876,185 @@ def _persist_delete_binding(gate_id: str) -> None:
     state.setdefault("high_water_epochs", {}).pop(gate_key, None)
     _HIGH_WATER_EPOCHS.pop(gate_key, None)
     _save_binding_store(state)
+    _clear_gate_rust_state(gate_key)
+
+
+def inspect_local_gate_state(gate_id: str, *, expected_epoch: int = 0) -> dict[str, Any]:
+    gate_key = _stable_gate_ref(gate_id)
+    if not gate_key:
+        return {
+            "ok": False,
+            "gate_id": "",
+            "repair_state": "gate_state_stale",
+            "detail": "gate_id required",
+            "repairable": False,
+            "has_metadata": False,
+            "has_rust_state": False,
+            "has_local_access": False,
+            "current_epoch": 0,
+            "identity_scope": "",
+        }
+
+    metadata = _persisted_gate_metadata(gate_key) or {}
+    rust_state = _read_gate_rust_state_snapshot(gate_key)
+    active_identity, active_source = _active_gate_member(gate_key)
+    identity_scope = "anonymous" if active_source == "anonymous" else "persona"
+    current_epoch = int(metadata.get("epoch", 0) or 0)
+    has_metadata = bool(metadata)
+    has_rust_state = isinstance(rust_state, dict) and bool(rust_state.get("blob_b64"))
+    has_local_access = False
+    member_identity_id = ""
+    if active_identity:
+        member_identity_id = _gate_member_identity_id(active_identity)
+        with _STATE_LOCK:
+            binding = _GATE_BINDINGS.get(gate_key)
+        if binding is not None:
+            has_local_access = member_identity_id in binding.members
+            current_epoch = max(current_epoch, int(binding.epoch or 0))
+        if not has_local_access and has_metadata:
+            members_meta = dict(metadata.get("members") or {})
+            has_local_access = member_identity_id in members_meta
+
+    result = {
+        "ok": True,
+        "gate_id": gate_key,
+        "repair_state": "gate_state_ok",
+        "detail": "gate access ready",
+        "repairable": False,
+        "has_metadata": has_metadata,
+        "has_rust_state": has_rust_state,
+        "has_local_access": has_local_access,
+        "current_epoch": current_epoch,
+        "expected_epoch": int(expected_epoch or 0),
+        "identity_scope": identity_scope,
+    }
+
+    if not active_identity:
+        result.update(
+            {
+                "ok": False,
+                "repair_state": "gate_state_recovery_only",
+                "detail": "no active gate identity",
+                "repairable": False,
+                "has_local_access": False,
+                "identity_scope": "",
+            }
+        )
+        return result
+
+    if int(expected_epoch or 0) > 0 and current_epoch > 0 and int(expected_epoch or 0) != current_epoch:
+        result.update(
+            {
+                "ok": False,
+                "repair_state": "gate_state_stale",
+                "detail": "gate state epoch mismatch",
+                "repairable": True,
+            }
+        )
+        return result
+
+    if not has_metadata:
+        result.update(
+            {
+                "ok": False,
+                "repair_state": "gate_state_stale",
+                "detail": "local gate state is missing",
+                "repairable": True,
+                "has_local_access": False,
+            }
+        )
+        return result
+
+    if not has_rust_state:
+        result.update(
+            {
+                "ok": False,
+                "repair_state": "gate_state_stale",
+                "detail": "persisted gate state is incomplete",
+                "repairable": True,
+            }
+        )
+        return result
+
+    if not has_local_access:
+        result.update(
+            {
+                "ok": False,
+                "repair_state": "gate_state_stale",
+                "detail": "active gate identity is not mapped into the MLS group",
+                "repairable": True,
+            }
+        )
+        return result
+
+    return result
+
+
+def resync_local_gate_state(gate_id: str, *, reason: str = "automatic_resync") -> dict[str, Any]:
+    gate_key = _stable_gate_ref(gate_id)
+    if not gate_key:
+        return {"ok": False, "gate_id": "", "detail": "gate_id required", "reason": str(reason or "automatic_resync")}
+
+    store_backup = _load_binding_store()
+    rust_backup = _read_gate_rust_state_snapshot(gate_key)
+    client = _privacy_client()
+
+    with _STATE_LOCK:
+        existing = _GATE_BINDINGS.pop(gate_key, None)
+    if existing is not None:
+        try:
+            _release_binding(client, existing)
+        except Exception:
+            logger.exception(
+                "Failed to release in-memory gate binding before resync for %s",
+                privacy_log_label(gate_key, label="gate"),
+            )
+
+    _persist_delete_binding(gate_key)
+
+    try:
+        binding = _sync_binding(gate_key)
+        return {
+            "ok": True,
+            "gate_id": gate_key,
+            "epoch": int(binding.epoch),
+            "detail": "gate MLS state synchronized",
+            "reason": str(reason or "automatic_resync"),
+        }
+    except Exception as exc:
+        logger.warning(
+            "Gate MLS resync failed for %s; restoring last-known-good state",
+            privacy_log_label(gate_key, label="gate"),
+            exc_info=True,
+        )
+        with _STATE_LOCK:
+            failed_binding = _GATE_BINDINGS.pop(gate_key, None)
+        if failed_binding is not None:
+            try:
+                _release_binding(client, failed_binding)
+            except Exception:
+                logger.exception(
+                    "Failed to release failed gate binding during rollback for %s",
+                    privacy_log_label(gate_key, label="gate"),
+                )
+        _save_binding_store(store_backup)
+        _write_gate_rust_state_snapshot(gate_key, rust_backup)
+        return {
+            "ok": False,
+            "gate_id": gate_key,
+            "detail": "gate_state_resync_failed",
+            "reason": str(reason or "automatic_resync"),
+            "error_detail": str(exc) or type(exc).__name__,
+        }
 
 
 def _force_rebuild_binding(gate_id: str) -> None:
     """Tear down the in-memory and persisted MLS binding for a gate.
 
     The next call to ``_sync_binding`` will create a fresh MLS group
-    with the current set of identities.
+    with the current set of identities.  The _reader identity is also
+    rotated so that each MLS epoch gets a fresh reader key, limiting
+    key-custody exposure (Rec #9 remediation).
     """
     gate_key = _stable_gate_ref(gate_id)
     client = _privacy_client()
@@ -526,6 +1063,11 @@ def _force_rebuild_binding(gate_id: str) -> None:
         if binding is not None:
             _release_binding(client, binding)
     _persist_delete_binding(gate_key)
+    # Rotate the _reader identity so the new epoch gets a fresh key
+    try:
+        _ensure_reader_identity(gate_key, rotate=True)
+    except Exception:
+        pass  # non-fatal — _sync_binding will create one if missing
     logger.info(
         "Forced MLS binding rebuild for %s",
         privacy_log_label(gate_key, label="gate"),
@@ -611,6 +1153,60 @@ def get_local_gate_key_status(gate_id: str) -> dict[str, Any]:
         "detail": "gate access ready" if has_local_access else "active gate identity is not mapped into the MLS group",
         "format": MLS_GATE_FORMAT,
     }
+
+
+def export_gate_state_snapshot(gate_id: str) -> dict[str, Any]:
+    """Export opaque gate MLS state for native client-side gate operations.
+
+    The response includes only the Rust MLS state blob plus the legacy handles
+    needed to remap imported group handles on the native client. It does not
+    return plaintext, durable envelopes, or gate secrets.
+    """
+    gate_key = _stable_gate_ref(gate_id)
+    if not gate_key:
+        return {"ok": False, "detail": "gate_id required"}
+    try:
+        binding = _sync_binding(gate_key)
+        active_identity, active_source = _active_gate_member(gate_key)
+        identity_handles: list[int] = []
+        group_handles: list[int] = []
+        seen_identity_handles: set[int] = set()
+        members: list[dict[str, Any]] = []
+        for member in binding.members.values():
+            if member.identity_handle not in seen_identity_handles:
+                identity_handles.append(member.identity_handle)
+                seen_identity_handles.add(member.identity_handle)
+            if member.group_handle > 0:
+                group_handles.append(member.group_handle)
+                members.append(
+                    {
+                        "persona_id": member.persona_id,
+                        "node_id": member.node_id,
+                        "identity_scope": member.identity_scope,
+                        "group_handle": int(member.group_handle),
+                    }
+                )
+        if binding.root_group_handle > 0 and binding.root_group_handle not in group_handles:
+            group_handles.append(binding.root_group_handle)
+        if not identity_handles or not group_handles:
+            return {"ok": False, "detail": "gate_state_export_empty"}
+        blob = _privacy_client().export_gate_state(identity_handles, group_handles)
+        return {
+            "ok": True,
+            "gate_id": gate_key,
+            "epoch": int(binding.epoch),
+            "rust_state_blob_b64": _b64(blob),
+            "members": members,
+            "active_identity_scope": "anonymous" if active_source == "anonymous" else "persona",
+            "active_persona_id": str((active_identity or {}).get("persona_id", "") or ""),
+            "active_node_id": str((active_identity or {}).get("node_id", "") or ""),
+        }
+    except Exception:
+        logger.exception(
+            "MLS gate state export failed for %s",
+            privacy_log_label(gate_key, label="gate"),
+        )
+        return {"ok": False, "detail": "gate_state_export_failed"}
 
 
 def ensure_gate_member_access(
@@ -713,6 +1309,68 @@ def _validate_persisted_member(
     return True, "ok"
 
 
+def _try_rust_gate_restore(
+    gate_key: str,
+    metadata: dict[str, Any],
+    ordered_members: list[dict[str, Any]],
+    identities_by_id: dict[str, dict[str, Any]],
+) -> _GateBinding | None:
+    """Attempt to restore a gate binding from persisted Rust state.
+
+    Reconstructs a _GateBinding with fresh Rust handles remapped from persisted
+    metadata. Returns None if no Rust state exists or if import fails (caller
+    should fall back to the rebuild path).
+    """
+    root_group_handle = int(metadata.get("root_group_handle", 0) or 0)
+    if root_group_handle <= 0:
+        return None  # no persisted handles — legacy metadata
+    # Build a preliminary binding with old handles from metadata.
+    root_persona_id = str(metadata.get("root_persona_id", "") or "")
+    binding = _GateBinding(
+        gate_id=gate_key,
+        epoch=max(1, int(metadata.get("epoch", 1) or 1)),
+        root_persona_id=root_persona_id,
+        root_group_handle=root_group_handle,
+        next_member_ref=int(metadata.get("next_member_ref", 1) or 1),
+    )
+    for member_meta in ordered_members:
+        persona_id = str(member_meta.get("persona_id", "") or "")
+        identity_handle = int(member_meta.get("identity_handle", 0) or 0)
+        group_handle = int(member_meta.get("group_handle", 0) or 0)
+        if identity_handle <= 0:
+            return None  # member has no persisted handle — can't restore
+        binding.members[persona_id] = _GateMemberBinding(
+            persona_id=persona_id,
+            node_id=str(member_meta.get("node_id", "") or ""),
+            label=str(member_meta.get("label", "") or ""),
+            identity_scope=str(member_meta.get("identity_scope", "persona") or "persona"),
+            identity_handle=identity_handle,
+            group_handle=group_handle,
+            member_ref=int(member_meta.get("member_ref", 0) or 0),
+            is_creator=bool(member_meta.get("is_creator")),
+            public_bundle=_unb64(member_meta.get("public_bundle")),
+            binding_signature=str(member_meta.get("binding_signature", "") or ""),
+        )
+    try:
+        loaded = _load_gate_rust_state(gate_key, binding)
+        if not loaded:
+            return None  # no Rust blob found — fall back to rebuild
+        logger.info(
+            "Rust gate state restored for %s",
+            privacy_log_label(gate_key, label="gate"),
+        )
+        return binding
+    except Exception:
+        logger.warning(
+            "Persisted Rust gate state is corrupt or incompatible for %s — "
+            "invalidating and falling back to rebuild",
+            privacy_log_label(gate_key, label="gate"),
+            exc_info=True,
+        )
+        _clear_gate_rust_state(gate_key)
+        return None
+
+
 def _restore_binding_from_metadata(
     gate_id: str,
     identities_by_id: dict[str, dict[str, Any]],
@@ -767,6 +1425,15 @@ def _restore_binding_from_metadata(
             _save_binding_store(state)
             return None
         identities.append(dict(identity or {}))
+
+    # Try Rust state restore before falling back to rebuild.
+    rust_restored = _try_rust_gate_restore(gate_key, metadata, ordered, identities_by_id)
+    if rust_restored is not None:
+        _HIGH_WATER_EPOCHS[gate_key] = max(
+            int(rust_restored.epoch),
+            int(_HIGH_WATER_EPOCHS.get(gate_key, 0) or 0),
+        )
+        return rust_restored
 
     rebuilt = _build_binding(gate_id, identities)
     rebuilt.epoch = max(1, int(metadata.get("epoch", rebuilt.epoch) or rebuilt.epoch))
@@ -926,8 +1593,8 @@ def _build_binding(gate_id: str, identities: list[dict[str, Any]]) -> _GateBindi
     return binding
 
 
-def _ensure_reader_identity(gate_key: str) -> dict[str, Any]:
-    """Create a dedicated reader identity for cross-member MLS decrypt.
+def _ensure_reader_identity(gate_key: str, *, rotate: bool = False) -> dict[str, Any]:
+    """Create or rotate a dedicated reader identity for cross-member MLS decrypt.
 
     MLS does not let the sender decrypt their own ciphertext.  On a
     single-operator node every message is "from self".  By ensuring
@@ -935,8 +1602,14 @@ def _ensure_reader_identity(gate_key: str) -> dict[str, Any]:
     member can always decrypt what the sender encrypted — giving
     every gate member (including the author) read access.
 
-    The reader is stored as a normal gate persona so existing signing
-    infrastructure (``sign_gate_persona_blob``) can find it.
+    The reader is stored as a gate persona so existing signing
+    infrastructure (``sign_gate_persona_blob``) can bind it into the
+    MLS group, but it is **never** activated as the event-signing
+    persona and is excluded from ``sign_gate_wormhole_event``.
+
+    When ``rotate=True`` (e.g. on binding rebuild / epoch advance),
+    the old reader is retired and a fresh one is minted — limiting
+    the key-custody window per Rec #9 remediation.
     """
     from services.mesh.mesh_wormhole_persona import (
         _identity_record,          # type: ignore[attr-defined]
@@ -948,10 +1621,14 @@ def _ensure_reader_identity(gate_key: str) -> dict[str, Any]:
     bootstrap_wormhole_persona_state()
     state = read_wormhole_persona_state()
     personas = list(state.get("gate_personas", {}).get(gate_key) or [])
-    # Check if a reader persona already exists.
-    for p in personas:
-        if str(p.get("label", "") or "") == "_reader":
-            return p
+
+    if not rotate:
+        for p in personas:
+            if str(p.get("label", "") or "") == "_reader":
+                return p
+
+    # Retire any existing _reader identities for this gate
+    remaining = [p for p in personas if str(p.get("label", "") or "") != "_reader"]
     import secrets as _secrets
 
     reader_persona_id = f"_reader_{_secrets.token_hex(4)}"
@@ -961,28 +1638,37 @@ def _ensure_reader_identity(gate_key: str) -> dict[str, Any]:
         persona_id=reader_persona_id,
         label="_reader",
     )
-    personas.append(reader)
-    state.setdefault("gate_personas", {})[gate_key] = personas
+    remaining.append(reader)
+    state.setdefault("gate_personas", {})[gate_key] = remaining
+    # Ensure _reader is never left as the active persona
+    active_pid = str(state.get("active_gate_personas", {}).get(gate_key, "") or "")
+    if active_pid.startswith("_reader"):
+        state.setdefault("active_gate_personas", {}).pop(gate_key, None)
     _write_wormhole_persona_state(state)
     return reader
 
 
-def _sync_binding(gate_id: str) -> _GateBinding:
-    gate_key = _stable_gate_ref(gate_id)
+def _current_gate_identities(gate_key: str) -> list[dict[str, Any]]:
     personas = _gate_personas(gate_key)
     session_identity = _gate_session_identity(gate_key)
     identities: list[dict[str, Any]] = list(personas)
     if session_identity:
         identities.append(session_identity)
-    # Ensure we always have ≥2 members so cross-member MLS decrypt works.
-    # MLS does not allow a sender to decrypt their own message — on a
-    # single-operator node, every member is "self".  The reader identity
-    # is a dedicated second member that exists solely for this purpose.
     if len(identities) < 2:
         reader = _ensure_reader_identity(gate_key)
         reader_id = _gate_member_identity_id(reader)
         if not any(_gate_member_identity_id(i) == reader_id for i in identities):
             identities.append(reader)
+    return identities
+
+
+def _sync_binding(gate_id: str) -> _GateBinding:
+    gate_key = _stable_gate_ref(gate_id)
+    identities = _current_gate_identities(gate_key)
+    # Ensure we always have ≥2 members so cross-member MLS decrypt works.
+    # MLS does not allow a sender to decrypt their own message — on a
+    # single-operator node, every member is "self".  The reader identity
+    # is a dedicated second member that exists solely for this purpose.
     if not identities:
         _persist_delete_binding(gate_key)
         raise PrivacyCoreError("no gate identities exist for this gate")
@@ -1084,20 +1770,148 @@ def _sync_binding(gate_id: str) -> _GateBinding:
         return binding
 
 
-def compose_encrypted_gate_message(gate_id: str, plaintext: str) -> dict[str, Any]:
+def _remove_gate_member_from_state(gate_key: str, member_id: str) -> dict[str, Any]:
+    from services.mesh.mesh_wormhole_persona import (
+        _write_wormhole_persona_state,
+        bootstrap_wormhole_persona_state,
+        read_wormhole_persona_state,
+    )
+
+    target = str(member_id or "").strip()
+    bootstrap_wormhole_persona_state()
+    state = read_wormhole_persona_state()
+    personas = list(state.get("gate_personas", {}).get(gate_key) or [])
+    remaining: list[dict[str, Any]] = []
+    removed_persona: dict[str, Any] | None = None
+    for persona in personas:
+        persona_id = str(persona.get("persona_id", "") or "").strip()
+        node_id = str(persona.get("node_id", "") or "").strip()
+        if not str(persona.get("label", "") or "").startswith("_reader") and target in {persona_id, node_id}:
+            removed_persona = persona
+            continue
+        remaining.append(persona)
+    if removed_persona is not None:
+        if remaining:
+            state.setdefault("gate_personas", {})[gate_key] = remaining
+        else:
+            state.setdefault("gate_personas", {}).pop(gate_key, None)
+        active_persona_id = str(state.get("active_gate_personas", {}).get(gate_key, "") or "")
+        if active_persona_id == str(removed_persona.get("persona_id", "") or ""):
+            state.setdefault("active_gate_personas", {}).pop(gate_key, None)
+        _write_wormhole_persona_state(state)
+        return {
+            "ok": True,
+            "identity_scope": "persona",
+            "persona_id": str(removed_persona.get("persona_id", "") or ""),
+            "node_id": str(removed_persona.get("node_id", "") or ""),
+        }
+
+    session = dict(state.get("gate_sessions", {}).get(gate_key) or {})
+    if session.get("private_key"):
+        session_node_id = str(session.get("node_id", "") or "").strip()
+        if target in {session_node_id}:
+            state.setdefault("gate_sessions", {}).pop(gate_key, None)
+            _write_wormhole_persona_state(state)
+            return {
+                "ok": True,
+                "identity_scope": "anonymous",
+                "persona_id": "",
+                "node_id": session_node_id,
+            }
+
+    return {"ok": False, "detail": "gate_member_not_found"}
+
+
+def remove_gate_member(gate_id: str, member_id: str, *, reason: str = "remove") -> dict[str, Any]:
+    gate_key = _stable_gate_ref(gate_id)
+    target = str(member_id or "").strip()
+    if not gate_key:
+        return {"ok": False, "detail": "gate_id required"}
+    if not target:
+        return {"ok": False, "detail": "member_id required"}
+
+    try:
+        binding_before = _sync_binding(gate_key)
+    except Exception:
+        logger.exception(
+            "MLS gate member removal preflight failed for %s",
+            privacy_log_label(gate_key, label="gate"),
+        )
+        return {"ok": False, "detail": "gate_mls_remove_failed"}
+
+    previous_epoch = int(binding_before.epoch or 0)
+    previous_valid_through_event_id = ""
+    try:
+        from services.mesh.mesh_hashchain import gate_store
+
+        latest = gate_store.get_messages(gate_key, limit=1)
+        if latest:
+            previous_valid_through_event_id = str(latest[0].get("event_id", "") or "")
+    except Exception:
+        previous_valid_through_event_id = ""
+
+    removed = _remove_gate_member_from_state(gate_key, target)
+    if not removed.get("ok"):
+        return removed
+
+    try:
+        binding_after = _sync_binding(gate_key)
+    except Exception:
+        logger.exception(
+            "MLS gate member removal sync failed for %s",
+            privacy_log_label(gate_key, label="gate"),
+        )
+        return {"ok": False, "detail": "gate_mls_remove_failed"}
+
+    _HIGH_WATER_EPOCHS[gate_key] = max(
+        int(binding_after.epoch or 0),
+        int(_HIGH_WATER_EPOCHS.get(gate_key, 0) or 0),
+    )
+    return {
+        "ok": True,
+        "gate_id": gate_key,
+        "member_id": target,
+        "identity_scope": str(removed.get("identity_scope", "") or ""),
+        "persona_id": str(removed.get("persona_id", "") or ""),
+        "node_id": str(removed.get("node_id", "") or ""),
+        "reason": str(reason or ""),
+        "previous_epoch": previous_epoch,
+        "epoch": int(binding_after.epoch or 0),
+        "previous_valid_through_event_id": previous_valid_through_event_id,
+    }
+
+
+def _gate_is_solo(binding: "_GateBinding") -> bool:
+    """Return True when a gate has no real peers (only the operator + the
+    synthetic ``_reader`` identity that exists so MLS encrypt-then-self-decrypt
+    works on a single-operator node).
+
+    Phase 3.3: this lets compose_encrypted_gate_message surface a
+    ``solo_pending`` flag without refusing the compose. The message still
+    encrypts and stores normally; the flag tells the caller "no real peers
+    yet — your message is sealed but nobody else can read it until someone
+    joins this gate." This is the non-hostile pattern: never refuse, always
+    surface the state.
+    """
+
+    real_members = 0
+    for member in binding.members.values():
+        label = str(getattr(member, "label", "") or "")
+        if label == "_reader":
+            continue
+        real_members += 1
+        if real_members > 1:
+            return False
+    return real_members <= 1
+
+
+def compose_encrypted_gate_message(gate_id: str, plaintext: str, reply_to: str = "") -> dict[str, Any]:
     gate_key = _stable_gate_ref(gate_id)
     plaintext = str(plaintext or "")
     if not gate_key:
         return {"ok": False, "detail": "gate_id required"}
     if not plaintext.strip():
         return {"ok": False, "detail": "plaintext required"}
-    try:
-        from services.wormhole_supervisor import get_transport_tier
-
-        if get_transport_tier() == "public_degraded":
-            return {"ok": False, "detail": "MLS gate compose requires PRIVATE transport tier"}
-    except Exception:
-        return {"ok": False, "detail": "MLS gate compose requires PRIVATE transport tier"}
 
     active_identity, active_source = _active_gate_member(gate_key)
     if not active_identity:
@@ -1116,40 +1930,15 @@ def compose_encrypted_gate_message(gate_id: str, plaintext: str) -> dict[str, An
             member = binding.members.get(persona_id)
             if member is None:
                 return {"ok": False, "detail": "active gate identity is not mapped into the MLS group"}
-        plaintext_with_epoch = json.dumps(
-            {
-                "m": plaintext,
-                "e": int(binding.epoch),
-            },
-            separators=(",", ":"),
-            ensure_ascii=False,
+        plaintext_with_epoch = _encode_gate_plaintext_envelope(
+            plaintext,
+            int(binding.epoch),
+            reply_to,
         )
         ciphertext = _privacy_client().encrypt_group_message(
             member.group_handle,
             plaintext_with_epoch.encode("utf-8"),
         )
-        # MLS does not let the sender decrypt their own ciphertext.
-        # Immediately decrypt with a *different* group member so the
-        # plaintext is available to every member on this node — including
-        # the sender — without storing raw plaintext outside the MLS layer.
-        _self_decrypt_plaintext: str | None = None
-        for other_pid, other_member in binding.members.items():
-            if other_pid == persona_id:
-                continue  # skip the sender
-            try:
-                dec_bytes = _privacy_client().decrypt_group_message(
-                    other_member.group_handle,
-                    ciphertext,
-                )
-                dec_raw = dec_bytes.decode("utf-8")
-                try:
-                    dec_env = json.loads(dec_raw)
-                    _self_decrypt_plaintext = str(dec_env["m"]) if isinstance(dec_env, dict) and "m" in dec_env else dec_raw
-                except (json.JSONDecodeError, ValueError, TypeError):
-                    _self_decrypt_plaintext = dec_raw
-                break
-            except Exception:
-                continue
     except Exception:
         logger.exception(
             "MLS gate compose failed for %s",
@@ -1160,23 +1949,51 @@ def compose_encrypted_gate_message(gate_id: str, plaintext: str) -> dict[str, An
     message_id = base64.b64encode(secrets.token_bytes(12)).decode("ascii")
     sender_ref = _sender_ref(_sender_ref_seed(active_identity), message_id)
     padded_ct = _pad_ciphertext_raw(ciphertext)
+    # Look up envelope policy for this gate.
+    _envelope_policy = _resolve_gate_envelope_policy(gate_key)
     # Create a durable gate envelope: the plaintext encrypted under the
     # gate's domain key (AES-256-GCM).  This survives MLS group rebuilds
     # and process restarts.  Only nodes holding the gate domain key can
     # decrypt — outsiders see opaque base64.
     gate_envelope: str = ""
-    try:
-        gate_envelope = _gate_envelope_encrypt(gate_key, plaintext)
-    except Exception:
-        logger.debug("gate envelope encrypt failed — MLS-only for this message")
+    if _envelope_policy != "envelope_disabled":
+        try:
+            gate_envelope = _gate_envelope_encrypt(
+                gate_key,
+                plaintext,
+                message_nonce=message_id,
+            )
+        except GateSecretUnavailableError:
+            return {"ok": False, "detail": "gate_envelope_required", "gate_id": gate_key}
+        except Exception:
+            logger.warning(
+                "gate envelope encrypt failed for %s — MLS-only for this message",
+                privacy_log_label(gate_key, label="gate"),
+            )
+            return {"ok": False, "detail": "gate_envelope_encrypt_failed", "gate_id": gate_key}
+    # Compute envelope_hash: cryptographic binding of gate_envelope to the
+    # signed payload.  SHA-256 of the envelope ciphertext string.
+    # envelope_disabled → no envelope → no hash.
+    envelope_hash = ""
+    if gate_envelope:
+        envelope_hash = _gate_envelope_hash(gate_envelope)
+    if _envelope_policy != "envelope_disabled" and (not gate_envelope or not envelope_hash):
+        return {"ok": False, "detail": "gate_envelope_required", "gate_id": gate_key}
     payload = {
         "gate": gate_key,
         "ciphertext": _b64(padded_ct),
         "nonce": message_id,
         "sender_ref": sender_ref,
         "format": MLS_GATE_FORMAT,
+        "epoch": int(binding.epoch),
+        "transport_lock": "private_strong",
     }
-    # gate_envelope must NOT be in the signed payload — it rides alongside.
+    reply_to_val = str(reply_to or "").strip()
+    if reply_to_val:
+        payload["reply_to"] = reply_to_val
+    if envelope_hash:
+        payload["envelope_hash"] = envelope_hash
+    # gate_envelope itself is NOT in the signed payload — envelope_hash binds it.
     signed = sign_gate_wormhole_event(gate_id=gate_key, event_type="gate_message", payload=payload)
     if not signed.get("signature"):
         return {"ok": False, "detail": str(signed.get("detail") or "gate_sign_failed")}
@@ -1185,10 +2002,19 @@ def compose_encrypted_gate_message(gate_id: str, plaintext: str) -> dict[str, An
         int(_HIGH_WATER_EPOCHS.get(gate_key, 0) or 0),
     )
     _lock_gate_format(gate_key, MLS_GATE_FORMAT)
-    # Cache the MLS-decrypted plaintext (not raw input) so every member
-    # including the sender can read it back.  Falls back to the original
-    # plaintext if the cross-member decrypt failed (single-member edge case).
-    _cache_local_plaintext(gate_key, payload["ciphertext"], sender_ref, str(_self_decrypt_plaintext or plaintext))
+    # No local plaintext retention: by design, the node only persists the
+    # ciphertext on the private hashchain. The author does NOT keep a local
+    # plaintext copy of their own message — if the device is compromised
+    # later, the attacker can only decrypt messages for epochs the compromised
+    # MLS state holds keys for (which excludes the sender's own sending-
+    # ratchet output once it has advanced). The sender does still see what
+    # they just typed in the compose response (below), so the UI can render
+    # the optimistic post; after that, the ciphertext is the only record.
+    # Phase 3.3: surface solo-mode without refusing the compose. A gate with
+    # no real peers still encrypts and stores normally — the flag is purely
+    # advisory so the UI/caller can show "your message is sealed but nobody
+    # else can read it until someone joins this gate."
+    solo_pending = _gate_is_solo(binding)
     return _ComposeResult(
         {
         "ok": True,
@@ -1204,11 +2030,200 @@ def compose_encrypted_gate_message(gate_id: str, plaintext: str) -> dict[str, An
         "nonce": payload["nonce"],
         "sender_ref": sender_ref,
         "format": MLS_GATE_FORMAT,
+        "transport_lock": "private_strong",
         "timestamp": ts,
         "gate_envelope": gate_envelope,
+        "envelope_hash": envelope_hash,
+        "reply_to": reply_to_val,
+        "solo_pending": solo_pending,
+        # Echo the composer's plaintext back in the compose response so the
+        # UI can render the post optimistically on the author's screen. This
+        # is NOT persisted, NOT relayed, NOT cached — it only lives in the
+        # HTTP response for this single compose call and in the client's
+        # local UI state until the page refreshes. After that, the author
+        # sees their own post the same way any other member does (KEY LOCKED
+        # if their MLS state can't re-derive the sending-ratchet key, which
+        # is MLS's forward-secrecy behavior by design).
+        "self_plaintext": plaintext,
         },
         legacy_epoch=int(binding.epoch),
     )
+
+
+def sign_encrypted_gate_message(
+    *,
+    gate_id: str,
+    epoch: int,
+    ciphertext: str,
+    nonce: str,
+    payload_format: str = MLS_GATE_FORMAT,
+    reply_to: str = "",
+    compat_reply_to: bool = False,
+    recovery_plaintext: str = "",
+    envelope_hash: str = "",
+    transport_lock: str = "private_strong",
+) -> dict[str, Any]:
+    """Sign an already encrypted gate payload without receiving plaintext."""
+    gate_key = _stable_gate_ref(gate_id)
+    ciphertext = str(ciphertext or "").strip()
+    nonce = str(nonce or "").strip()
+    payload_format = str(payload_format or MLS_GATE_FORMAT).strip().lower() or MLS_GATE_FORMAT
+    if not gate_key:
+        return {"ok": False, "detail": "gate_id required"}
+    if not ciphertext:
+        return {"ok": False, "detail": "ciphertext required"}
+    if not nonce:
+        return {"ok": False, "detail": "nonce required"}
+    if payload_format != MLS_GATE_FORMAT:
+        return {
+            "ok": False,
+            "detail": "native encrypted gate signing requires MLS format",
+            "required_format": MLS_GATE_FORMAT,
+            "current_format": payload_format,
+        }
+    # Tor-style: gate signing is a LOCAL cryptographic operation on
+    # already-encrypted ciphertext. It doesn't leak anything by itself —
+    # only network release of the signed envelope does, and the release
+    # path has its own tier floor that queues until the lane is ready.
+    # Proceed with signing at any tier; kick off a background transport
+    # warmup (in a worker thread so signing is never blocked) so the
+    # release path unblocks as soon as possible.
+    try:
+        from services.wormhole_supervisor import get_transport_tier, connect_wormhole
+
+        if get_transport_tier() == "public_degraded":
+            import threading as _threading
+
+            def _bg_connect() -> None:
+                try:
+                    connect_wormhole(reason="gate_sign_auto_upgrade")
+                except Exception:
+                    logger.debug("gate sign background transport kickoff failed", exc_info=True)
+
+            _threading.Thread(target=_bg_connect, name="gate-sign-warmup", daemon=True).start()
+    except Exception:
+        logger.debug("gate sign transport probe failed", exc_info=True)
+
+    active_identity, active_source = _active_gate_member(gate_key)
+    if not active_identity:
+        return {"ok": False, "detail": "no active gate identity"}
+
+    try:
+        binding = _sync_binding(gate_key)
+    except Exception:
+        logger.exception(
+            "MLS gate sign failed during binding sync for %s",
+            privacy_log_label(gate_key, label="gate"),
+        )
+        return {"ok": False, "detail": "gate_mls_sign_failed"}
+
+    requested_epoch = int(epoch or 0)
+    if requested_epoch > 0 and requested_epoch != int(binding.epoch):
+        return {
+            "ok": False,
+            "detail": "gate_state_stale",
+            "gate_id": gate_key,
+            "current_epoch": int(binding.epoch),
+        }
+
+    sender_ref = _sender_ref(_sender_ref_seed(active_identity), nonce)
+    payload = {
+        "gate": gate_key,
+        "ciphertext": ciphertext,
+        "nonce": nonce,
+        "sender_ref": sender_ref,
+        "format": MLS_GATE_FORMAT,
+        "epoch": int(binding.epoch),
+    }
+    transport_lock_val = str(transport_lock or "private_strong").strip().lower() or "private_strong"
+    if transport_lock_val != "private_strong":
+        return {"ok": False, "detail": "gate encrypted signing requires private_strong transport_lock"}
+    payload["transport_lock"] = transport_lock_val
+    reply_to_val = str(reply_to or "").strip()
+    if reply_to_val and not compat_reply_to:
+        return {
+            "ok": False,
+            "detail": "gate_encrypted_reply_to_hidden_required",
+            "gate_id": gate_key,
+            "compat_reply_to": False,
+        }
+    if reply_to_val:
+        payload["reply_to"] = reply_to_val
+    envelope_policy = _resolve_gate_envelope_policy(gate_key)
+    envelope_hash_val = str(envelope_hash or "").strip()
+    gate_envelope_val = ""
+    recovery_plaintext_val = str(recovery_plaintext or "").strip()
+    if recovery_plaintext_val and envelope_policy in {"envelope_always", "envelope_recovery"}:
+        try:
+            gate_envelope_val = _gate_envelope_encrypt(
+                gate_key,
+                recovery_plaintext_val,
+                message_nonce=nonce,
+            )
+        except GateSecretUnavailableError:
+            return {"ok": False, "detail": "gate_envelope_required", "gate_id": gate_key}
+        except Exception:
+            logger.exception(
+                "gate envelope encrypt failed during encrypted signing for %s",
+                privacy_log_label(gate_key, label="gate"),
+            )
+            return {"ok": False, "detail": "gate_envelope_encrypt_failed", "gate_id": gate_key}
+        if not gate_envelope_val:
+            return {"ok": False, "detail": "gate_envelope_required", "gate_id": gate_key}
+        envelope_hash_val = _gate_envelope_hash(gate_envelope_val)
+    if envelope_policy == "envelope_always" and not gate_envelope_val and not envelope_hash_val:
+        return {"ok": False, "detail": "gate_envelope_required", "gate_id": gate_key}
+    if envelope_hash_val:
+        payload["envelope_hash"] = envelope_hash_val
+    signed = sign_gate_wormhole_event(
+        gate_id=gate_key,
+        event_type="gate_message",
+        payload=payload,
+    )
+    if not signed.get("signature"):
+        return {"ok": False, "detail": str(signed.get("detail") or "gate_sign_failed")}
+
+    bucket_s = 60
+    ts = float(math.floor(time.time() / bucket_s) * bucket_s)
+    return {
+        "ok": True,
+        "gate_id": gate_key,
+        "identity_scope": "anonymous" if active_source == "anonymous" else str(signed.get("identity_scope", "") or "gate_persona"),
+        "sender_id": str(signed.get("node_id", "") or ""),
+        "public_key": str(signed.get("public_key", "") or ""),
+        "public_key_algo": str(signed.get("public_key_algo", "") or ""),
+        "protocol_version": str(signed.get("protocol_version", "") or ""),
+        "sequence": int(signed.get("sequence", 0) or 0),
+        "signature": str(signed.get("signature", "") or ""),
+        "epoch": int(binding.epoch),
+        "ciphertext": ciphertext,
+        "nonce": nonce,
+        "sender_ref": sender_ref,
+        "format": MLS_GATE_FORMAT,
+        "transport_lock": transport_lock_val,
+        "timestamp": ts,
+        "reply_to": reply_to_val,
+        "gate_envelope": gate_envelope_val,
+        "envelope_hash": envelope_hash_val,
+    }
+
+
+def _stamp_plaintext_on_chain(
+    gate_key: str,
+    event_id: str,
+    plaintext: str,
+    reply_to: str = "",
+    *,
+    allow_persist: bool = False,
+) -> None:
+    """Best-effort stamp of decrypted plaintext onto the private hashchain."""
+    if not allow_persist or not event_id or not plaintext:
+        return
+    try:
+        from services.mesh.mesh_hashchain import gate_store
+        gate_store.stamp_local_plaintext(gate_key, event_id, plaintext, reply_to)
+    except Exception:
+        pass
 
 
 def decrypt_gate_message_for_local_identity(
@@ -1219,43 +2234,70 @@ def decrypt_gate_message_for_local_identity(
     nonce: str,
     sender_ref: str = "",
     gate_envelope: str = "",
+    envelope_hash: str = "",
+    recovery_envelope: bool = False,
+    event_id: str = "",
 ) -> dict[str, Any]:
     gate_key = _stable_gate_ref(gate_id)
     if not gate_key or not ciphertext:
         return {"ok": False, "detail": "gate_id and ciphertext required"}
 
-    # Fast path: gate envelope (AES-256-GCM under gate domain key).
-    # This always works regardless of MLS group state / restarts.
-    if gate_envelope:
-        envelope_pt = _gate_envelope_decrypt(gate_key, gate_envelope)
-        if envelope_pt is not None:
-            return {
-                "ok": True,
-                "gate_id": gate_key,
-                "epoch": int(epoch or 0),
-                "plaintext": envelope_pt,
-                "identity_scope": "gate_envelope",
-            }
+    envelope_policy = _resolve_gate_envelope_policy(gate_key)
+    envelope_fast_path_enabled = envelope_policy == "envelope_always" or (
+        recovery_envelope and envelope_policy == "envelope_recovery"
+    )
 
+    # Fast path: gate envelope (AES-256-GCM under gate domain key) only for
+    # explicit recovery reads or gates that intentionally keep the envelope on
+    # the ordinary local-read path. No plaintext is stamped to disk.
+    if envelope_fast_path_enabled:
+        if gate_envelope:
+            if not envelope_hash:
+                if _stored_legacy_unbound_envelope_allowed(gate_key, event_id, gate_envelope):
+                    envelope_hash = _gate_envelope_hash(gate_envelope)
+                else:
+                    return {"ok": False, "detail": "gate_envelope missing signed envelope_hash"}
+            expected = _gate_envelope_hash(gate_envelope)
+            legacy_unbound_envelope = bool(
+                event_id
+                and envelope_hash == expected
+                and _stored_legacy_unbound_envelope_allowed(gate_key, event_id, gate_envelope)
+            )
+            if expected != envelope_hash:
+                return {"ok": False, "detail": "gate_envelope integrity check failed"}
+            envelope_pt = _gate_envelope_decrypt(
+                gate_key,
+                gate_envelope,
+                message_nonce=str(nonce or ""),
+                message_epoch=int(epoch or 0),
+                event_id=event_id,
+            )
+            if envelope_pt is not None:
+                return {
+                    "ok": True,
+                    "gate_id": gate_key,
+                    "epoch": int(epoch or 0),
+                    "plaintext": envelope_pt,
+                    "identity_scope": "gate_envelope",
+                    "legacy_unbound_envelope": legacy_unbound_envelope,
+                }
+        elif envelope_hash:
+            return {"ok": False, "detail": "gate_envelope missing but envelope_hash present"}
+
+    # No-local-plaintext policy: we deliberately do NOT consult any disk-
+    # persisted plaintext or in-memory self-echo cache. Every read re-decrypts
+    # from ciphertext using the current MLS member state. Messages the caller
+    # has keys for decrypt normally; messages authored by the caller at an
+    # earlier session (or from epochs before they joined) show as locked.
     active_identity, active_source = _active_gate_member(gate_key)
     if not active_identity:
         return {"ok": False, "detail": "no active gate identity"}
 
-    expected_sender_ref = _sender_ref(_sender_ref_seed(active_identity), str(nonce or ""))
-    if str(sender_ref or "").strip() == expected_sender_ref:
-        cached_plaintext = _peek_cached_plaintext(gate_key, str(ciphertext), str(sender_ref))
-        if cached_plaintext is not None:
-            return {
-                "ok": True,
-                "gate_id": gate_key,
-                "epoch": int(epoch or 0),
-                "plaintext": cached_plaintext,
-                "identity_scope": "anonymous" if active_source == "anonymous" else "persona",
-            }
-
-    # Try all group members (verifier path) — this is the primary decrypt
-    # strategy on a single-operator node where the sender is also a member.
-    # A non-sender member can decrypt even though the sender member cannot.
+    # Try all group members (verifier path): on a single-operator node the
+    # sender is also a member, and MLS's own-author limitation means the
+    # sender's own group state can't decrypt their authored ciphertext —
+    # but a *different* member state on the same node can. This path is
+    # pure ciphertext → plaintext with no disk artifact.
     verifier_open = open_gate_ciphertext_for_verifier(
         gate_id=gate_key,
         ciphertext=str(ciphertext),
@@ -1263,23 +2305,27 @@ def decrypt_gate_message_for_local_identity(
         epoch=int(epoch or 0),
     )
     if verifier_open.get("ok"):
-        return {
+        verifier_pt = str(verifier_open.get("plaintext", "") or "")
+        verifier_rt = str(verifier_open.get("reply_to", "") or "").strip()
+        result = {
             "ok": True,
             "gate_id": gate_key,
             "epoch": int(verifier_open.get("epoch", epoch or 0) or 0),
-            "plaintext": str(verifier_open.get("plaintext", "") or ""),
+            "plaintext": verifier_pt,
             "identity_scope": active_source if active_source == "anonymous" else "persona",
         }
-    # All MLS members are "self" — single-operator node authored this
-    # message but plaintext was not persisted (pre-fix legacy message).
+        if verifier_rt:
+            result["reply_to"] = verifier_rt
+        return result
+    # All MLS members on this node are the author — MLS's sending-ratchet
+    # has advanced past this message so no local member state can decrypt
+    # it. Under the no-local-plaintext policy this is the expected outcome
+    # for your own past messages; the UI will render KEY LOCKED.
     if verifier_open.get("detail") == "gate_mls_self_authored":
         return {
-            "ok": True,
-            "gate_id": gate_key,
-            "epoch": int(epoch or 0),
-            "plaintext": "",
+            "ok": False,
+            "detail": "gate_mls_self_authored",
             "self_authored": True,
-            "legacy": True,
             "identity_scope": active_source if active_source == "anonymous" else "persona",
         }
 
@@ -1298,18 +2344,11 @@ def decrypt_gate_message_for_local_identity(
             _unpad_ciphertext_raw(_unb64(ciphertext)),
         )
     except Exception:
-        # The verifier (all-member attempt) already ran above and failed.
-        # Check the in-memory cache as a last resort.
-        if str(sender_ref or "").strip() == expected_sender_ref:
-            cached_plaintext = _consume_cached_plaintext(gate_key, str(ciphertext), str(sender_ref))
-            if cached_plaintext is not None:
-                return {
-                    "ok": True,
-                    "gate_id": gate_key,
-                    "epoch": int(epoch or binding.epoch or 0),
-                    "plaintext": cached_plaintext,
-                    "identity_scope": "anonymous" if active_source == "anonymous" else "persona",
-                }
+        # No-local-plaintext policy: no cache fallback. If MLS can't decrypt
+        # the ciphertext for this member state, the message is KEY LOCKED to
+        # this caller — which is the correct behavior for an epoch they don't
+        # have keys for, or for their own authored messages after MLS advanced
+        # the sending ratchet.
         logger.debug(
             "MLS gate decrypt failed for %s (verifier already attempted)",
             privacy_log_label(gate_key, label="gate"),
@@ -1317,26 +2356,20 @@ def decrypt_gate_message_for_local_identity(
         return {"ok": False, "detail": "gate_mls_decrypt_failed"}
 
     raw = decrypted_bytes.decode("utf-8")
-    try:
-        envelope = json.loads(raw)
-        if isinstance(envelope, dict) and "m" in envelope:
-            actual_plaintext = str(envelope["m"])
-            decrypted_epoch = int(envelope.get("e", 0) or 0)
-        else:
-            actual_plaintext = raw
-            decrypted_epoch = 0
-    except (json.JSONDecodeError, ValueError, TypeError):
-        actual_plaintext = raw
-        decrypted_epoch = 0
+    actual_plaintext, decrypted_epoch, decrypted_reply_to = _decode_gate_plaintext_envelope(raw, int(epoch or 0))
 
     _lock_gate_format(gate_key, MLS_GATE_FORMAT)
-    return {
+    # No plaintext stamped to disk — every read re-decrypts from ciphertext.
+    result = {
         "ok": True,
         "gate_id": gate_key,
         "epoch": int(decrypted_epoch or epoch or 0),
         "plaintext": actual_plaintext,
         "identity_scope": "anonymous" if active_source == "anonymous" else "persona",
     }
+    if decrypted_reply_to:
+        result["reply_to"] = decrypted_reply_to
+    return result
 
 
 def open_gate_ciphertext_for_verifier(
@@ -1374,19 +2407,12 @@ def open_gate_ciphertext_for_verifier(
                 decoded,
             )
             raw = decrypted_bytes.decode("utf-8")
-            try:
-                envelope = json.loads(raw)
-                if isinstance(envelope, dict) and "m" in envelope:
-                    actual_plaintext = str(envelope["m"])
-                    decrypted_epoch = int(envelope.get("e", 0) or 0)
-                else:
-                    actual_plaintext = raw
-                    decrypted_epoch = 0
-            except (json.JSONDecodeError, ValueError, TypeError):
-                actual_plaintext = raw
-                decrypted_epoch = 0
+            actual_plaintext, decrypted_epoch, decrypted_reply_to = _decode_gate_plaintext_envelope(
+                raw,
+                int(epoch or 0),
+            )
             _lock_gate_format(gate_key, MLS_GATE_FORMAT)
-            return {
+            result = {
                 "ok": True,
                 "gate_id": gate_key,
                 "epoch": int(decrypted_epoch or epoch or 0),
@@ -1394,6 +2420,9 @@ def open_gate_ciphertext_for_verifier(
                 "opened_by_persona_id": persona_id,
                 "identity_scope": "verifier",
             }
+            if decrypted_reply_to:
+                result["reply_to"] = decrypted_reply_to
+            return result
         except Exception as exc:
             if "message from self" not in str(exc):
                 all_self_authored = False

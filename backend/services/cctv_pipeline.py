@@ -818,6 +818,105 @@ out body;
         return cameras
 
 
+# ---------------------------------------------------------------------------
+# ALPR / Surveillance Camera Locations (OSM Overpass)
+# ---------------------------------------------------------------------------
+# Queries OpenStreetMap for ALPR/LPR tagged surveillance cameras.
+# These cameras rarely have public media URLs — this ingestor captures
+# their LOCATIONS for situational awareness (density heatmap, blind-spot
+# analysis).  No plate-read data is fetched — only publicly-mapped positions.
+
+
+class OSMALPRCameraIngestor(BaseCCTVIngestor):
+    """ALPR / license-plate reader camera locations from OpenStreetMap.
+
+    Searches for nodes tagged with surveillance:type=ALPR or
+    man_made=surveillance + camera:type values indicating plate readers.
+    Only geolocations are ingested — no live feeds or detection data.
+    """
+
+    URL = "https://overpass-api.de/api/interpreter"
+    QUERY = """
+[out:json][timeout:45];
+(
+  node["surveillance:type"="ALPR"];
+  node["surveillance:type"="alpr"];
+  node["surveillance:type"="LPR"];
+  node["surveillance:type"="lpr"];
+  node["man_made"="surveillance"]["camera:type"="ALPR"];
+  node["man_made"="surveillance"]["camera:type"="alpr"];
+  node["man_made"="surveillance"]["camera:type"="LPR"];
+  node["man_made"="surveillance"]["camera:type"="lpr"];
+  node["man_made"="surveillance"]["description"~"[Ll]icense [Pp]late"];
+  node["man_made"="surveillance"]["description"~"ALPR"];
+  node["man_made"="surveillance"]["description"~"Flock"];
+);
+out body;
+""".strip()
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        query = quote(self.QUERY, safe="")
+        resp = fetch_with_curl(
+            f"{self.URL}?data={query}",
+            timeout=50,
+            headers={"Accept": "application/json"},
+        )
+        if not resp or resp.status_code != 200:
+            logger.warning(
+                "OSM ALPR camera fetch failed: HTTP %s",
+                resp.status_code if resp else "no response",
+            )
+            return []
+        data = resp.json()
+        cameras = []
+        for item in data.get("elements", []) if isinstance(data, dict) else []:
+            lat = item.get("lat")
+            lon = item.get("lon")
+            if lat is None or lon is None:
+                continue
+            try:
+                lat, lon = float(lat), float(lon)
+            except (ValueError, TypeError):
+                continue
+
+            tags = item.get("tags", {}) if isinstance(item.get("tags"), dict) else {}
+
+            # Extract what we can from tags
+            operator = (
+                tags.get("operator")
+                or tags.get("brand")
+                or tags.get("network")
+                or "Unknown"
+            )
+            description = (
+                tags.get("description")
+                or tags.get("name")
+                or tags.get("surveillance:type", "ALPR")
+            )
+            direction = (
+                tags.get("camera:direction")
+                or tags.get("direction")
+                or tags.get("surveillance:direction")
+                or "Unknown"
+            )
+
+            # ALPR cameras typically have no public media URL — use a
+            # placeholder so the pin renders but no proxy attempt is made.
+            cameras.append(
+                {
+                    "id": f"ALPR-{item.get('id')}",
+                    "source_agency": str(operator)[:60],
+                    "lat": lat,
+                    "lon": lon,
+                    "direction_facing": f"ALPR: {str(description)[:100]} ({str(direction)[:30]})",
+                    "media_url": "",
+                    "media_type": "none",
+                    "refresh_rate_seconds": 0,
+                }
+            )
+        logger.info("OSM ALPR ingestor found %d cameras", len(cameras))
+        return cameras
+
 
 # ---------------------------------------------------------------------------
 # DGT Spain — National Road Cameras

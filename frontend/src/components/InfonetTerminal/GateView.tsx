@@ -3,17 +3,36 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronLeft, RefreshCw, Reply, Search, Send } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
-import { controlPlaneJson } from '@/lib/controlPlane';
+import {
+  nextGateMessagesPollDelayMs,
+  nextGateMessagesWaitRearmDelayMs,
+  nextGateMessagesWaitTimeoutMs,
+} from '@/mesh/gateMetadataTiming';
+import {
+  ACTIVE_GATE_ROOM_MESSAGE_LIMIT,
+  fetchGateMessageSnapshotState,
+  waitForGateMessageSnapshot,
+} from '@/mesh/gateMessageSnapshot';
+import {
+  getGateSessionStreamStatus,
+  retainGateSessionStreamGate,
+  subscribeGateSessionStreamEvents,
+  subscribeGateSessionStreamStatus,
+} from '@/mesh/gateSessionStream';
 import { nextSequence } from '@/mesh/meshIdentity';
 import {
+  approveGateCompatFallback,
   decryptWormholeGateMessages,
   fetchWormholeGateKeyStatus,
+  hasGateCompatFallbackApproval,
+  postWormholeGateMessage,
+  prepareWormholeInteractiveLane,
   signMeshEvent,
+  syncBrowserWormholeGateState,
   type WormholeGateKeyStatus,
 } from '@/mesh/wormholeIdentityClient';
 import { gateEnvelopeDisplayText, gateEnvelopeState, isEncryptedGateEnvelope } from '@/mesh/gateEnvelope';
 import { validateEventPayload } from '@/mesh/meshSchema';
-import { useGateSSE } from '@/hooks/useGateSSE';
 
 const GATE_INTROS: Record<string, string> = {
   infonet:
@@ -52,6 +71,8 @@ interface GateViewProps {
   onNavigateGate: (gate: string) => void;
   onOpenLiveGate?: (gate: string) => void;
   availableGates: string[];
+  /** Open the gate shutdown lifecycle view. */
+  onOpenShutdownPetition?: (gate: string) => void;
 }
 
 interface GateMessage {
@@ -65,6 +86,7 @@ interface GateMessage {
   sender_ref?: string;
   format?: string;
   gate_envelope?: string;
+  envelope_hash?: string;
   decrypted_message?: string;
   payload?: {
     gate?: string;
@@ -73,6 +95,7 @@ interface GateMessage {
     sender_ref?: string;
     format?: string;
     gate_envelope?: string;
+    envelope_hash?: string;
     reply_to?: string;
   };
   gate?: string;
@@ -92,9 +115,6 @@ interface ReplyContext {
   eventId: string;
   nodeId: string;
 }
-
-const GATE_ACCESS_PROOF_TTL_MS = 45_000;
-const gateAccessHeaderCache = new Map<string, { headers: Record<string, string>; expiresAt: number }>();
 
 function timeAgo(timestamp: number): string {
   const ts = Number(timestamp || 0);
@@ -176,44 +196,84 @@ function normalizeGateMessage(message: GateMessage): GateMessage {
     sender_ref: String(message.sender_ref ?? payload?.sender_ref ?? ''),
     format: String(message.format ?? payload?.format ?? ''),
     gate_envelope: String(message.gate_envelope ?? payload?.gate_envelope ?? ''),
+    envelope_hash: String(message.envelope_hash ?? payload?.envelope_hash ?? ''),
     reply_to: String(message.reply_to ?? payload?.reply_to ?? ''),
   };
 }
 
-async function buildGateAccessHeaders(gateId: string): Promise<Record<string, string> | undefined> {
+function describeGateCompatError(detail: string, gateId: string = ''): string {
+  const normalized = String(detail || '').trim();
+  const lowered = normalized.toLowerCase();
+  if (
+    lowered.includes('transport tier insufficient') ||
+    lowered.includes('warming up in the background')
+  ) {
+    return 'The obfuscated lane is still warming up in the background. Stay in the room and posting should unlock shortly.';
+  }
+  if (normalized === 'gate_compat_fallback_consent_required') {
+    return 'Local gate runtime is unavailable for this room.';
+  }
+  if (normalized.startsWith('gate_local_runtime_required:')) {
+    const reason = normalized.slice('gate_local_runtime_required:'.length);
+    return `${describeGateCompatReason(reason, gateId)} Use native desktop or resync local gate state.`;
+  }
+  if (normalized === 'gate_backend_plaintext_compat_required') {
+    return 'Service-side gate send is disabled on this runtime. Use native desktop or an explicit compatibility override.';
+  }
+  if (normalized === 'gate_envelope_required') {
+    return 'Local gate sealing is warming up. Your draft is still here.';
+  }
+  if (normalized === 'gate_envelope_encrypt_failed') {
+    return 'Local gate sealing could not finish. Your draft is still here.';
+  }
+  return normalized;
+}
+
+function describeGateCompatConsentPrompt(action: string): string {
+  switch (String(action || '')) {
+    case 'decrypt':
+      return 'Use compatibility mode for this room to read messages on this device.';
+    case 'compose':
+    case 'post':
+      return 'Use compatibility mode for this room to send messages on this device.';
+    default:
+      return 'Use compatibility mode for this room on this device.';
+  }
+}
+
+function describeGateCompatReason(reason: string, gateId: string): string {
   const normalizedGate = String(gateId || '').trim().toLowerCase();
-  if (!normalizedGate) return undefined;
-  const cached = gateAccessHeaderCache.get(normalizedGate);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.headers;
+  const detail = String(reason || '').trim().toLowerCase();
+  if (!detail || detail === 'browser_local_gate_crypto_unavailable') {
+    return 'Local gate crypto failed on this device.';
   }
-  try {
-    const proof = await controlPlaneJson<{ node_id?: string; ts?: number; proof?: string }>(
-      '/api/wormhole/gate/proof',
-      {
-        requireAdminSession: false,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gate_id: normalizedGate }),
-      },
-    );
-    const nodeId = String(proof.node_id || '').trim();
-    const gateProof = String(proof.proof || '').trim();
-    const gateTs = String(proof.ts || '').trim();
-    if (!nodeId || !gateProof || !gateTs) return undefined;
-    const headers = {
-      'X-Wormhole-Node-Id': nodeId,
-      'X-Wormhole-Gate-Proof': gateProof,
-      'X-Wormhole-Gate-Ts': gateTs,
-    };
-    gateAccessHeaderCache.set(normalizedGate, {
-      headers,
-      expiresAt: Date.now() + GATE_ACCESS_PROOF_TTL_MS,
-    });
-    return headers;
-  } catch {
-    return undefined;
+  if (detail === 'browser_gate_worker_unavailable') {
+    return 'This runtime cannot use the local gate worker.';
   }
+  if (detail.startsWith('browser_gate_state_resync_required:')) {
+    return normalizedGate
+      ? `Local ${normalizedGate} state needs a resync on this device.`
+      : 'Local gate state needs a resync on this device.';
+  }
+  if (
+    detail.startsWith('browser_gate_state_mapping_missing_group:') ||
+    detail === 'browser_gate_state_active_member_missing'
+  ) {
+    return 'Local gate state is incomplete on this device.';
+  }
+  if (detail === 'worker_gate_wrap_key_missing') {
+    return 'Secure local gate storage is unavailable in this browser.';
+  }
+  if (detail === 'gate_mls_decrypt_failed') {
+    return 'Local gate decrypt failed on this device.';
+  }
+  return 'Local gate crypto failed on this device.';
+}
+
+interface GateCompatConsentPromptState {
+  gateId: string;
+  action: 'compose' | 'post' | 'decrypt';
+  reason: string;
 }
 
 export default function GateView({
@@ -224,9 +284,17 @@ export default function GateView({
   onNavigateGate,
   onOpenLiveGate: _onOpenLiveGate,
   availableGates,
+  onOpenShutdownPetition,
 }: GateViewProps) {
   const [searchInput, setSearchInput] = useState('');
   const [messages, setMessages] = useState<GateMessage[]>([]);
+  // Self-authored plaintext, keyed by real event_id returned from the POST.
+  // This lives in React state ONLY — pure RAM, dies with the tab, never
+  // written to disk or sessionStorage. It exists so a refresh that replaces
+  // the messages array with ciphertext from the server doesn't wipe the
+  // author's view of what they just said. MLS's forward-secrecy property
+  // (sender can't re-decrypt own output) is preserved on the wire / on disk.
+  const [selfAuthoredByEventId, setSelfAuthoredByEventId] = useState<Record<string, string>>({});
   const [composer, setComposer] = useState('');
   const [busy, setBusy] = useState(false);
   const [roomError, setRoomError] = useState('');
@@ -236,12 +304,65 @@ export default function GateView({
   const [reps, setReps] = useState<Record<string, number>>({});
   const [voteNotice, setVoteNotice] = useState('');
   const [votedOn, setVotedOn] = useState<Record<string, 1 | -1>>({});
+  const [compatActive, setCompatActive] = useState(false);
+  const [compatConsentPrompt, setCompatConsentPrompt] = useState<GateCompatConsentPromptState | null>(null);
+  const [streamStatus, setStreamStatus] = useState(() => getGateSessionStreamStatus());
+  const [streamStatusHydrated, setStreamStatusHydrated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const waitAbortRef = useRef<AbortController | null>(null);
+  const gateCursorRef = useRef(0);
+  const repsRef = useRef<Record<string, number>>({});
+  const streamEnabledForGateRef = useRef(false);
 
   const gateId = useMemo(() => String(gateName || '').trim().toLowerCase(), [gateName]);
   const introMessage =
     GATE_INTROS[gateId] || 'Welcome to this gate. Be civil. The Shadowbroker is watching.';
+
+  useEffect(() => {
+    setCompatActive(hasGateCompatFallbackApproval(gateId));
+    setCompatConsentPrompt(null);
+    gateCursorRef.current = 0;
+  }, [gateId]);
+
+  useEffect(
+    () =>
+      subscribeGateSessionStreamStatus((nextStatus) => {
+        setStreamStatus(nextStatus);
+        setStreamStatusHydrated(true);
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    if (!gateId || !status?.has_local_access) {
+      return;
+    }
+    return retainGateSessionStreamGate(gateId);
+  }, [gateId, status?.has_local_access]);
+
+  useEffect(() => {
+    if (!gateId || !status?.has_local_access) {
+      return;
+    }
+    void prepareWormholeInteractiveLane({
+      minimumTransportTier: 'private_control_only',
+    }).catch(() => undefined);
+  }, [gateId, status?.has_local_access]);
+
+  const streamEnabledForGate =
+    Boolean(gateId) &&
+    streamStatus.phase === 'open' &&
+    streamStatus.subscriptions.includes(gateId);
+  const streamPreferredForGate =
+    Boolean(gateId) &&
+    (streamStatus.phase === 'connecting' || streamStatus.phase === 'open') &&
+    streamStatus.subscriptions.includes(gateId);
+
+  useEffect(() => {
+    streamEnabledForGateRef.current = streamPreferredForGate;
+  }, [streamPreferredForGate]);
 
   const searchMatch = searchInput.startsWith('g/')
     ? availableGates.find((g) => g.startsWith(searchInput.slice(2).toLowerCase()))
@@ -249,32 +370,50 @@ export default function GateView({
 
   const voteScopeKey = useCallback((targetId: string) => `${gateId}::${String(targetId || '').trim()}`, [gateId]);
 
-  const hydrateMessages = useCallback(async (rawMessages: GateMessage[]): Promise<GateMessage[]> => {
+  const hydrateMessages = useCallback(async (
+    rawMessages: GateMessage[],
+  ): Promise<{ messages: GateMessage[]; compatDecryptBlocked: boolean; roomError?: string }> => {
     const baseMessages = (Array.isArray(rawMessages) ? rawMessages : []).map(normalizeGateMessage);
     const encrypted = baseMessages
       .map((message, index) => ({ message, index }))
       .filter(({ message }) => isEncryptedGateEnvelope(message));
 
     if (!encrypted.length) {
-      return baseMessages.map((message) => ({ ...message, decrypted_message: '' }));
+      return {
+        messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
+        compatDecryptBlocked: false,
+        roomError: '',
+      };
     }
 
     try {
       const batch = await decryptWormholeGateMessages(
-        encrypted.map(({ message }) => ({
-          gate_id: String(message.gate || gateId),
-          epoch: Number(message.epoch || 0),
-          ciphertext: String(message.ciphertext || ''),
-          nonce: String(message.nonce || ''),
-          sender_ref: String(message.sender_ref || ''),
-          format: String(message.format || 'mls1'),
-          gate_envelope: String(message.gate_envelope || ''),
-        })),
+        encrypted.map(({ message }) => {
+          const gateEnvelope = String(message.gate_envelope || '');
+          return {
+            gate_id: String(message.gate || gateId),
+            epoch: Number(message.epoch || 0),
+            ciphertext: String(message.ciphertext || ''),
+            nonce: String(message.nonce || ''),
+            sender_ref: String(message.sender_ref || ''),
+            format: String(message.format || 'mls1'),
+            gate_envelope: gateEnvelope,
+            envelope_hash: String(message.envelope_hash || ''),
+            // If a gate_envelope is present, go straight to the backend
+            // envelope-fast-path by signaling recovery_envelope=true.
+            // This skips browser-side MLS (which has empty state across
+            // fresh anon sessions) and uses the durable AES-GCM envelope
+            // keyed under gate_secret — which EVERY gate member can
+            // decrypt as long as they hold the current gate_secret.
+            recovery_envelope: gateEnvelope.length > 0,
+          };
+        }),
       );
       const results = Array.isArray(batch.results) ? batch.results : [];
       const nextMessages = [...baseMessages];
       encrypted.forEach(({ index, message }, resultIndex) => {
         const decrypted = results[resultIndex];
+        const decryptedReplyTo = decrypted?.ok ? String(decrypted.reply_to || '').trim() : '';
         nextMessages[index] = {
           ...message,
           decrypted_message: decrypted?.ok
@@ -285,43 +424,45 @@ export default function GateView({
               : String(decrypted.plaintext || ''))
             : '',
           epoch: decrypted?.ok ? Number(decrypted.epoch || message.epoch || 0) : message.epoch,
+          reply_to: decryptedReplyTo || String(message.reply_to || ''),
         };
       });
-      return nextMessages;
-    } catch {
-      return baseMessages.map((message) => ({ ...message, decrypted_message: '' }));
+      return {
+        messages: nextMessages,
+        compatDecryptBlocked: false,
+        roomError: '',
+      };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '';
+      if (
+        detail === 'gate_compat_fallback_consent_required' ||
+        detail.startsWith('gate_local_runtime_required:')
+      ) {
+        return {
+          messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
+          compatDecryptBlocked: false,
+          roomError: describeGateCompatError(detail, gateId),
+        };
+      }
+      return {
+        messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
+        compatDecryptBlocked: false,
+        roomError: '',
+      };
     }
   }, [gateId]);
 
-  const refreshGate = useCallback(async () => {
-    if (!gateId) return;
-    setLoading(true);
-    try {
-      const nextStatus = await fetchWormholeGateKeyStatus(gateId);
-      setStatus(nextStatus);
-      if (!nextStatus?.ok || !nextStatus.has_local_access) {
-        setMessages([]);
-        setRoomError(String(nextStatus?.detail || 'Gate access still syncing'));
-        return;
-      }
-      const headers = await buildGateAccessHeaders(gateId);
-      if (!headers) {
-        setMessages([]);
-        setRoomError('Gate proof unavailable');
-        return;
-      }
-      const params = new URLSearchParams({ limit: '40', gate: gateId });
-      const res = await fetch(`${API_BASE}/api/mesh/infonet/messages?${params}`, { headers });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMessages([]);
-        setRoomError(String(data?.detail || 'Failed to load gate room'));
-        return;
-      }
-      const hydrated = await hydrateMessages(Array.isArray(data.messages) ? data.messages : []);
-      const chronological = [...hydrated].reverse();
+  const applyGateMessages = useCallback(
+    async (rawMessages: GateMessage[]) => {
+      const normalizedMessages = Array.isArray(rawMessages) ? rawMessages : [];
+      const hydrated = await hydrateMessages(normalizedMessages);
+      const chronological = [...hydrated.messages].reverse();
       setMessages(chronological);
-      setRoomError('');
+      if (hydrated.roomError) {
+        setRoomError(hydrated.roomError);
+      } else if (!hydrated.compatDecryptBlocked) {
+        setRoomError('');
+      }
 
       const uniqueEventIds = Array.from(
         new Set(
@@ -332,14 +473,20 @@ export default function GateView({
       );
       if (uniqueEventIds.length > 0) {
         try {
-          const params = new URLSearchParams();
-          for (const eid of uniqueEventIds) params.append('node_id', eid);
-          const repRes = await fetch(`${API_BASE}/api/mesh/reputation/batch?${params}`);
-          if (repRes.ok) {
-            const repData = await repRes.json();
-            const freshReps: Record<string, number> = {};
-            if (repData.reputations && typeof repData.reputations === 'object') {
-              for (const [k, v] of Object.entries(repData.reputations)) {
+        const uncachedEventIds = uniqueEventIds.filter(
+          (eventId) => !Object.prototype.hasOwnProperty.call(repsRef.current, eventId),
+        );
+        if (uncachedEventIds.length === 0) {
+          return;
+        }
+        const params = new URLSearchParams();
+        for (const eid of uncachedEventIds) params.append('node_id', eid);
+        const repRes = await fetch(`${API_BASE}/api/mesh/reputation/batch?${params}`);
+        if (repRes.ok) {
+          const repData = await repRes.json();
+          const freshReps: Record<string, number> = {};
+          if (repData.reputations && typeof repData.reputations === 'object') {
+            for (const [k, v] of Object.entries(repData.reputations)) {
                 freshReps[k] = Number(v || 0);
               }
             }
@@ -351,32 +498,246 @@ export default function GateView({
           /* ignore batch rep fetch failure */
         }
       }
+    },
+    [hydrateMessages],
+  );
+
+  const refreshGate = useCallback(async (options: { force?: boolean } = {}): Promise<boolean> => {
+    if (!gateId) return false;
+    setLoading(true);
+    try {
+      const streamOwned = streamEnabledForGateRef.current;
+      const nextStatus = await fetchWormholeGateKeyStatus(gateId, {
+        force: options.force,
+        mode: streamOwned ? 'session_stream' : 'active_room',
+      });
+      setStatus(nextStatus);
+      if (!nextStatus?.ok || !nextStatus.has_local_access) {
+        gateCursorRef.current = 0;
+        setMessages([]);
+        setRoomError(String(nextStatus?.detail || 'Gate access still syncing'));
+        return false;
+      }
+      if (options.force || !streamOwned || !status?.has_local_access) {
+        await syncBrowserWormholeGateState(gateId).catch(() => false);
+      }
+      const snapshot = await fetchGateMessageSnapshotState(gateId, ACTIVE_GATE_ROOM_MESSAGE_LIMIT, {
+        force: options.force,
+        proofMode: streamOwned ? 'session_stream' : 'default',
+      });
+      gateCursorRef.current = snapshot.cursor;
+      await applyGateMessages(snapshot.messages as GateMessage[]);
+      return true;
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : 'Failed to load gate room');
+      return false;
     } finally {
       setLoading(false);
     }
-  }, [gateId, hydrateMessages]);
+  }, [applyGateMessages, gateId, status?.has_local_access]);
 
-  // SSE: instant delivery when new gate events arrive
-  const handleSSEEvent = useCallback(
-    (eventGateId: string) => {
-      if (eventGateId === gateId) void refreshGate();
-    },
-    [gateId, refreshGate],
-  );
-  useGateSSE(handleSSEEvent);
-
-  // Fallback poll (30s) in case SSE disconnects
   useEffect(() => {
-    void refreshGate();
-    const timer = window.setInterval(() => {
-      void refreshGate();
-    }, 30_000);
-    return () => {
-      window.clearInterval(timer);
+    if (!gateId || !status?.has_local_access || !streamEnabledForGate) {
+      return;
+    }
+    return subscribeGateSessionStreamEvents((event) => {
+      if (event.event !== 'gate_update' || !event.data || typeof event.data !== 'object') {
+        return;
+      }
+      const updates = Array.isArray((event.data as { updates?: unknown }).updates)
+        ? ((event.data as { updates?: Array<{ gate_id?: string; cursor?: number }> }).updates || [])
+        : [];
+      const matching = updates.find(
+        (update) => String(update?.gate_id || '').trim().toLowerCase() === gateId,
+      );
+      if (!matching) {
+        return;
+      }
+      void (async () => {
+        try {
+          const snapshot = await fetchGateMessageSnapshotState(
+            gateId,
+            ACTIVE_GATE_ROOM_MESSAGE_LIMIT,
+            { force: true, proofMode: 'session_stream' },
+          );
+          gateCursorRef.current = snapshot.cursor;
+          await applyGateMessages(snapshot.messages as GateMessage[]);
+        } catch {
+          await refreshGate({ force: true });
+        }
+      })();
+    });
+  }, [applyGateMessages, gateId, refreshGate, status?.has_local_access, streamEnabledForGate]);
+
+  // Active gate rooms now wait for server-side change instead of issuing a fresh fetch on every cycle.
+  useEffect(() => {
+    if (!streamStatusHydrated) {
+      return;
+    }
+    const isLiveStreamPreferredForGate = () => {
+      const liveStreamStatus = getGateSessionStreamStatus();
+      return (
+        Boolean(gateId) &&
+        (liveStreamStatus.phase === 'connecting' || liveStreamStatus.phase === 'open') &&
+        liveStreamStatus.subscriptions.includes(gateId)
+      );
     };
-  }, [refreshGate]);
+    const liveStreamPreferred = streamPreferredForGate || isLiveStreamPreferredForGate();
+    streamEnabledForGateRef.current = liveStreamPreferred;
+    let cancelled = false;
+    const clearRetry = () => {
+      if (pollTimerRef.current) {
+        window.clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+
+    const scheduleRetry = () => {
+      if (cancelled || streamEnabledForGateRef.current) return;
+      clearRetry();
+      pollTimerRef.current = window.setTimeout(() => {
+        pollTimerRef.current = null;
+        void waitForNextChange();
+      }, nextGateMessagesPollDelayMs());
+    };
+
+    const startWaitIfNeeded = () => {
+      queueMicrotask(() => {
+        streamEnabledForGateRef.current =
+          streamPreferredForGate || isLiveStreamPreferredForGate();
+        if (!cancelled && !streamEnabledForGateRef.current) {
+          void waitForNextChange();
+        }
+      });
+    };
+
+    const waitForNextChange = async () => {
+      streamEnabledForGateRef.current =
+        streamPreferredForGate || isLiveStreamPreferredForGate();
+      if (cancelled || !gateId || streamEnabledForGateRef.current) return;
+      const controller = new AbortController();
+      waitAbortRef.current = controller;
+      try {
+        const snapshot = await waitForGateMessageSnapshot(
+          gateId,
+          gateCursorRef.current,
+          ACTIVE_GATE_ROOM_MESSAGE_LIMIT,
+          {
+            timeoutMs: nextGateMessagesWaitTimeoutMs(),
+            signal: controller.signal,
+          },
+        );
+        waitAbortRef.current = null;
+        if (cancelled) return;
+        gateCursorRef.current = snapshot.cursor;
+        if (snapshot.changed) {
+          await applyGateMessages(snapshot.messages as GateMessage[]);
+          void waitForNextChange();
+          return;
+        }
+        clearRetry();
+        pollTimerRef.current = window.setTimeout(() => {
+          pollTimerRef.current = null;
+          void waitForNextChange();
+        }, nextGateMessagesWaitRearmDelayMs());
+      } catch (error) {
+        waitAbortRef.current = null;
+        if (cancelled || controller.signal.aborted) {
+          return;
+        }
+        const ready = await refreshGate({ force: true });
+        if (!ready) {
+          setRoomError(error instanceof Error ? error.message : 'Failed to load gate room');
+          scheduleRetry();
+          return;
+        }
+        startWaitIfNeeded();
+      }
+    };
+
+    if (liveStreamPreferred) {
+      void refreshGate();
+      return () => {
+        cancelled = true;
+        clearRetry();
+        if (waitAbortRef.current) {
+          waitAbortRef.current.abort();
+          waitAbortRef.current = null;
+        }
+      };
+    }
+
+    void refreshGate().then((ready) => {
+      streamEnabledForGateRef.current =
+        streamPreferredForGate || isLiveStreamPreferredForGate();
+      if (!cancelled && ready && !streamEnabledForGateRef.current) {
+        startWaitIfNeeded();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      clearRetry();
+      if (waitAbortRef.current) {
+        waitAbortRef.current.abort();
+        waitAbortRef.current = null;
+      }
+    };
+  }, [applyGateMessages, gateId, refreshGate, streamPreferredForGate, streamStatusHydrated]);
+
+  useEffect(() => {
+    setCompatConsentPrompt(null);
+  }, [gateId]);
+
+  useEffect(() => {
+    repsRef.current = reps;
+  }, [reps]);
+
+  useEffect(() => {
+    const handleCompatFallback = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent && event.detail && typeof event.detail === 'object'
+          ? (event.detail as { gateId?: string; action?: string })
+          : {};
+      const eventGateId = String(detail.gateId || '').trim().toLowerCase();
+      if (!eventGateId || eventGateId !== gateId) {
+        return;
+      }
+      setCompatActive(true);
+    };
+    window.addEventListener('sb:gate-compat-fallback', handleCompatFallback as EventListener);
+    return () => {
+      window.removeEventListener('sb:gate-compat-fallback', handleCompatFallback as EventListener);
+    };
+  }, [gateId]);
+
+  useEffect(() => {
+    const handleCompatConsentRequired = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent && event.detail && typeof event.detail === 'object'
+          ? (event.detail as GateCompatConsentPromptState)
+          : null;
+      const eventGateId = String(detail?.gateId || '').trim().toLowerCase();
+      if (!eventGateId || eventGateId !== gateId || !detail) {
+        return;
+      }
+      setCompatConsentPrompt({
+        gateId: eventGateId,
+        action: detail.action,
+        reason: String(detail.reason || ''),
+      });
+    };
+    window.addEventListener(
+      'sb:gate-compat-consent-required',
+      handleCompatConsentRequired as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        'sb:gate-compat-consent-required',
+        handleCompatConsentRequired as EventListener,
+      );
+    };
+  }, [gateId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -405,27 +766,31 @@ export default function GateView({
     setBusy(true);
     setRoomError('');
     try {
-      await controlPlaneJson<{ ok: boolean; detail?: string }>('/api/wormhole/gate/message/post', {
-        requireAdminSession: false,
-        capabilityIntent: 'wormhole_gate_content',
-        sessionProfileHint: 'gate_operator',
-        enforceProfileHint: true,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gate_id: gateId,
-          plaintext: msg,
-          reply_to: replyContext?.eventId || '',
-        }),
-      });
+      const gatePost = await postWormholeGateMessage(gateId, msg, replyContext?.eventId || '').catch((error) => ({
+        ok: false,
+        detail: error instanceof Error ? error.message : 'Gate post failed',
+      }));
+      if (gatePost?.ok === false) {
+        throw new Error(describeGateCompatError(String(gatePost.detail || 'Gate post failed'), gateId));
+      }
       setComposer('');
       setReplyContext(null);
-      // Optimistic: append a placeholder message so the user sees it immediately,
-      // then let the next poll cycle (8s) hydrate it with the real encrypted copy.
+      // Capture the server-assigned event_id and remember the plaintext we
+      // just authored, keyed by that event_id. The refresh will bring back
+      // the same event as ciphertext; during render we paint over its
+      // decrypted_message with what we typed. Pure React state — when the
+      // tab closes, this map vanishes.
+      const realEventId = String((gatePost as { event_id?: string })?.event_id || '');
+      if (realEventId) {
+        setSelfAuthoredByEventId((prev) => ({ ...prev, [realEventId]: msg }));
+      }
+      // Optimistic placeholder so the post appears instantly even before
+      // the next refresh round-trip completes. Uses the real event_id when
+      // available so the refresh merges cleanly rather than duplicating.
       setMessages((prev) => [
         ...prev,
         {
-          event_id: `_pending_${Date.now()}`,
+          event_id: realEventId || `_pending_${Date.now()}`,
           message: msg,
           decrypted_message: msg,
           timestamp: Math.floor(Date.now() / 1000),
@@ -435,8 +800,6 @@ export default function GateView({
           ephemeral: true,
         } as GateMessage,
       ]);
-      // Non-blocking background refresh to pick up the real message
-      void refreshGate();
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Gate post failed';
       // Suppress technical sequence/replay errors — just show a clean retry hint
@@ -448,7 +811,21 @@ export default function GateView({
     } finally {
       setBusy(false);
     }
-  }, [busy, composer, gateId, persona, refreshGate, replyContext, status?.has_local_access]);
+  }, [busy, composer, gateId, persona, replyContext, status?.has_local_access]);
+
+  const approveCompatFallback = useCallback(() => {
+    if (!compatConsentPrompt?.gateId) return;
+    approveGateCompatFallback(compatConsentPrompt.gateId);
+    const action = compatConsentPrompt.action;
+    setCompatActive(true);
+    setCompatConsentPrompt(null);
+    setRoomError('');
+    if (action === 'decrypt') {
+      void refreshGate({ force: true });
+      return;
+    }
+    void handleSend();
+  }, [compatConsentPrompt, handleSend, refreshGate]);
 
   const handleVote = useCallback(async (eventId: string, vote: 1 | -1) => {
     if (!eventId || !gateId || votedOn[voteScopeKey(eventId)] === vote) return;
@@ -503,19 +880,45 @@ export default function GateView({
     }
   }, [gateId, voteScopeKey, votedOn]);
 
-  const threadedMessages = useMemo(() => buildThreadedList(messages), [messages]);
+  // Overlay self-authored plaintexts onto the refreshed message list.
+  // Lives only in this component's React state; a tab close wipes it.
+  const messagesWithSelfOverlay = useMemo(
+    () =>
+      messages.map((m) => {
+        const eid = String(m.event_id || '');
+        const selfText = eid ? selfAuthoredByEventId[eid] : '';
+        if (!selfText) return m;
+        return { ...m, decrypted_message: selfText };
+      }),
+    [messages, selfAuthoredByEventId],
+  );
+  const threadedMessages = useMemo(
+    () => buildThreadedList(messagesWithSelfOverlay),
+    [messagesWithSelfOverlay],
+  );
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="border-b border-gray-800 pb-4 mb-4 shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={onBack}
-            className="flex items-center text-cyan-500 hover:text-cyan-400 transition-all uppercase text-xs tracking-widest border border-cyan-900/50 px-3 py-1 bg-cyan-900/10 hover:bg-cyan-900/30 hover:border-cyan-500/50"
-          >
-            <ChevronLeft size={14} className="mr-1" />
-            RETURN TO MAIN
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onBack}
+              className="flex items-center text-cyan-500 hover:text-cyan-400 transition-all uppercase text-xs tracking-widest border border-cyan-900/50 px-3 py-1 bg-cyan-900/10 hover:bg-cyan-900/30 hover:border-cyan-500/50"
+            >
+              <ChevronLeft size={14} className="mr-1" />
+              RETURN TO MAIN
+            </button>
+            {onOpenShutdownPetition && (
+              <button
+                onClick={() => onOpenShutdownPetition(gateName)}
+                title="Open gate shutdown lifecycle (suspend / shutdown / appeal)"
+                className="flex items-center text-amber-500 hover:text-amber-400 transition-all uppercase text-xs tracking-widest border border-amber-900/50 px-3 py-1 bg-amber-900/10 hover:bg-amber-900/30 hover:border-amber-500/50"
+              >
+                SHUTDOWN STATUS
+              </button>
+            )}
+          </div>
           <div className="text-gray-500 text-xs">
             LOGGED IN AS:{' '}
             <span
@@ -530,11 +933,18 @@ export default function GateView({
 
         <div className="flex items-center justify-between gap-4 mt-4">
           <div>
-            <h1 className="text-2xl font-bold text-cyan-400 uppercase tracking-widest">g/{gateId}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-cyan-400 uppercase tracking-widest">g/{gateId}</h1>
+              {compatActive ? (
+                <span className="border border-amber-500/40 bg-amber-950/20 px-2 py-0.5 text-[10px] font-mono tracking-[0.2em] text-amber-200">
+                  COMPAT
+                </span>
+              ) : null}
+            </div>
             <p className="text-gray-500 text-sm mt-1">Fixed obfuscated gate. Creation is disabled for this testnet.</p>
           </div>
           <button
-            onClick={() => void refreshGate()}
+            onClick={() => void refreshGate({ force: true })}
             className="inline-flex items-center gap-2 px-3 py-2 border border-cyan-500/30 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-900/30 transition-colors text-sm uppercase tracking-[0.22em]"
           >
             <RefreshCw size={13} />
@@ -593,9 +1003,29 @@ export default function GateView({
         )}
       </div>
 
-      {roomError ? (
+      {roomError && !compatConsentPrompt ? (
         <div className="mb-3 shrink-0 border border-red-900/30 bg-red-950/10 px-3 py-2 text-[11px] text-red-300">
           {roomError}
+        </div>
+      ) : null}
+      {compatConsentPrompt ? (
+        <div className="mb-3 shrink-0 border border-amber-500/30 bg-amber-950/15 px-3 py-2 text-[11px] text-amber-100/90">
+          <div className="text-[12px] font-mono tracking-[0.2em] text-amber-300">COMPAT MODE</div>
+          <div className="mt-1 leading-[1.7]">
+            {describeGateCompatConsentPrompt(compatConsentPrompt.action)}
+          </div>
+          <div className="mt-1 text-[11px] text-amber-200/70">
+            {describeGateCompatReason(compatConsentPrompt.reason, compatConsentPrompt.gateId)}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={approveCompatFallback}
+              className="px-3 py-1.5 border border-amber-500/40 bg-amber-950/20 text-[11px] font-mono tracking-[0.18em] text-amber-100 hover:bg-amber-900/30 transition-colors"
+            >
+              ENABLE FOR ROOM
+            </button>
+            <span className="text-[11px] text-amber-200/70">Weaker privacy on this device.</span>
+          </div>
         </div>
       ) : null}
       {voteNotice ? (
@@ -644,10 +1074,14 @@ export default function GateView({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm font-mono">
-                      <span className="text-green-400" title={String(message.public_key || message.node_id || '')}>
-                        @{String(message.node_id || '').replace(/^!sb_/, '').slice(0, 8)
-                          || String(message.public_key || '').slice(0, 8)
-                          || 'unknown'}
+                      <span className="text-green-400">
+                        @{String(
+                          (message as unknown as { sender_handle?: string }).sender_handle
+                            || ((message as unknown as { payload?: { sender_handle?: string } }).payload?.sender_handle)
+                            || String(message.node_id || '').replace(/^!sb_/, '').slice(0, 8)
+                            || String(message.public_key || '').slice(0, 8)
+                            || 'anon_????',
+                        )}
                       </span>
                       {isEncryptedGateEnvelope(message) ? (
                         <span
@@ -657,7 +1091,7 @@ export default function GateView({
                               : 'text-amber-300 border-amber-700/60'
                           }`}
                         >
-                          {gateEnvelopeState(message) === 'decrypted' ? 'DECRYPTED' : 'KEY LOCKED'}
+                          {gateEnvelopeState(message) === 'decrypted' ? 'DECRYPTED' : 'SEALED'}
                         </span>
                       ) : null}
                       <span className="text-[var(--text-muted)] text-[13px]">{timeAgo(message.timestamp)}</span>
@@ -742,7 +1176,12 @@ export default function GateView({
           <textarea
             ref={textareaRef}
             value={composer}
-            onChange={(e) => setComposer(e.target.value)}
+            onChange={(e) => {
+              setComposer(e.target.value);
+              if (roomError) {
+                setRoomError('');
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

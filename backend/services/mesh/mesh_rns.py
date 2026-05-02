@@ -19,11 +19,60 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 from services.config import get_settings
 from services.mesh.mesh_ibf import IBLT, build_iblt, minhash_sketch, minhash_similarity
 from services.wormhole_settings import read_wormhole_settings
 
 logger = logging.getLogger("services.mesh_rns")
+
+# Synthetic mailbox prefix — cover traffic targets mailbox keys starting with
+# this prefix so real DM collection (which uses agent-derived keys) never
+# surfaces cover entries.
+_COVER_MAILBOX_PREFIX = "__cover_synthetic__:"
+_RNS_COVER_AUTH_INFO = b"shadowbroker|rns-cover-auth|v1"
+_RNS_COVER_AUTH_SALT = b"shadowbroker/rns-cover-auth/v1"
+_RNS_COVER_AUTH_NONCE_BYTES = 16
+_RNS_COVER_AUTH_MAC_BYTES = 32
+_RNS_COVER_AUTH_BLOCK_BYTES = 1 + 1 + 8 + _RNS_COVER_AUTH_NONCE_BYTES + _RNS_COVER_AUTH_MAC_BYTES
+
+# ── S15B: DM wire-visible ciphertext length alignment ──────────────────
+# Real DM private_dm ciphertext is produced by bucket-padding plaintext to
+# multiples of PAD_BUCKET_STEP (512) bytes, then MLS-encrypting through
+# privacy-core, then base64-encoding the result into envelope.ciphertext.
+#
+# MLS overhead is NOT a fixed constant — it varies non-linearly across
+# bucket classes due to internal MLS framing.  The table below is grounded
+# in live probes against the current backend build's privacy-core dm_encrypt
+# for each standard DM pad-bucket size (512*N for N=1..8).  Cover traffic
+# uses the raw ciphertext sizes from this table so that on-wire base64
+# lengths match the real DM family exactly.
+#
+# Regenerate by running:
+#   python -m pytest backend/tests/mesh/test_s15b_cover_ct_alignment.py \
+#       -k test_grounded_family_matches_live_dm -s
+_DM_CT_FAMILY: tuple[int, ...] = (
+    734,    # pad-bucket 1: padded 512  → MLS ct 734  → b64 980
+    1374,   # pad-bucket 2: padded 1024 → MLS ct 1374 → b64 1832
+    1886,   # pad-bucket 3: padded 1536 → MLS ct 1886 → b64 2516
+    2654,   # pad-bucket 4: padded 2048 → MLS ct 2654 → b64 3540
+    3166,   # pad-bucket 5: padded 2560 → MLS ct 3166 → b64 4224
+    3678,   # pad-bucket 6: padded 3072 → MLS ct 3678 → b64 4904
+    4190,   # pad-bucket 7: padded 3584 → MLS ct 4190 → b64 5588
+    5214,   # pad-bucket 8: padded 4096 → MLS ct 5214 → b64 6952
+)
+
+
+def _dm_cover_buckets(max_raw: int) -> list[int]:
+    """Return raw-byte sizes whose base64 lengths match real DM ciphertext.
+
+    Filters the grounded ``_DM_CT_FAMILY`` table to entries that fit within
+    *max_raw* bytes.  Each entry is the actual raw ciphertext length produced
+    by privacy-core dm_encrypt for the corresponding DM pad-bucket class.
+    """
+    return [size for size in _DM_CT_FAMILY if size <= max_raw]
 
 
 def _safe_int(val, default=0) -> int:
@@ -41,6 +90,23 @@ def _blind_mailbox_key(mailbox_key: str | bytes | None) -> str:
     if not key_bytes:
         return ""
     return hmac.new(key_bytes, b"rns-mailbox-blind-v1", hashlib.sha256).hexdigest()
+
+
+def _rns_peer_ref_url(peer_hash: str | None) -> str:
+    """Project an authenticated RNS peer hash into a stable ref-binding URL."""
+    candidate = str(peer_hash or "").strip().lower()
+    if not candidate:
+        return ""
+    if any(ch not in "0123456789abcdef" for ch in candidate):
+        return ""
+    return f"rns://{candidate}"
+
+
+def _cover_ciphertext_b64_lengths() -> set[int]:
+    return {
+        len(base64.b64encode(b"\x00" * size).decode("ascii"))
+        for size in _DM_CT_FAMILY
+    }
 
 
 @dataclass
@@ -81,6 +147,9 @@ class RNSBridge:
         self._batch_lock = threading.Lock()
         self._batch_queue: list[dict] = []
         self._batch_timer: threading.Timer | None = None
+        self._gate_batch_lock = threading.Lock()
+        self._gate_batch_queue: list[tuple[str, dict]] = []
+        self._gate_batch_timer: threading.Timer | None = None
         self._cover_thread: threading.Thread | None = None
         self._pending_sync: dict[str, dict[str, Any]] = {}
         self._sync_lock = threading.Lock()
@@ -259,7 +328,11 @@ class RNSBridge:
             try:
                 data = read_wormhole_settings()
                 profile = str(data.get("privacy_profile", "default") or "default").lower()
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "read_wormhole_settings failed in _privacy_profile — using default: %s",
+                    type(exc).__name__,
+                )
                 profile = "default"
             self._privacy_cache = {"value": profile, "ts": now}
         return str(self._privacy_cache.get("value", "default"))
@@ -784,8 +857,8 @@ class RNSBridge:
                     self._last_ibf_sync = now
                     self._send_ibf_sync_init()
                 self._prune_sync_rounds()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("IBF sync loop error: %s", type(exc).__name__)
             time.sleep(interval)
 
     def _send_ibf_sync_init(self) -> None:
@@ -835,8 +908,8 @@ class RNSBridge:
 
             if ordered:
                 infonet.ingest_events(ordered)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("IBF ordered ingest failed: %s", type(exc).__name__)
 
     def _handle_ibf_sync_init(self, body: dict, meta: dict) -> None:
         reply_to = str(meta.get("reply_to", "") or "")
@@ -1033,18 +1106,141 @@ class RNSBridge:
                 sent += 1
         return sent
 
+    def _cover_auth_enabled(self) -> bool:
+        return bool(getattr(get_settings(), "MESH_RNS_COVER_AUTH_MARKER_ENABLE", False))
+
+    def _cover_lambda_per_minute(self) -> float:
+        settings = get_settings()
+        interval_s = float(settings.MESH_RNS_COVER_INTERVAL_S or 0)
+        if interval_s <= 0:
+            return 0.0
+        peers = max(1, len(self._active_peers or self._parse_peers()) or 1)
+        # λ(n) = clamp((60 / i) * min(3.0, 0.5 + 1.5 * log10(n)), 1.0, 6.0)
+        scale = min(3.0, 0.5 + (1.5 * math.log10(peers)))
+        return max(1.0, min(6.0, (60.0 / interval_s) * scale))
+
+    def _transport_secret_material(self, packet: Any | None = None) -> bytes:
+        identities: list[Any] = []
+        if packet is not None:
+            try:
+                destination = getattr(packet, "destination", None)
+                if destination is not None:
+                    identities.append(getattr(destination, "identity", None))
+            except Exception:
+                pass
+        identities.append(getattr(self, "_identity", None))
+        for identity in identities:
+            if identity is None:
+                continue
+            for attr_name in (
+                "get_private_key",
+                "private_key",
+                "_private_key",
+                "prv",
+                "_prv",
+                "sig_prv",
+                "_sig_prv",
+            ):
+                try:
+                    value = getattr(identity, attr_name, None)
+                    if callable(value):
+                        value = value()
+                except Exception:
+                    continue
+                if isinstance(value, bytes) and value:
+                    return value
+                if isinstance(value, bytearray) and value:
+                    return bytes(value)
+                if isinstance(value, str) and value:
+                    try:
+                        return bytes.fromhex(value)
+                    except ValueError:
+                        return value.encode("utf-8")
+        return b""
+
+    def _cover_auth_key(self, packet: Any | None = None) -> bytes:
+        secret = self._transport_secret_material(packet)
+        if not secret:
+            return b""
+        # Lock this MAC key to the current transport secret. There is no grace
+        # window across transport rotation; old-key traffic fails verification
+        # and drops before mailbox persistence.
+        return HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=_RNS_COVER_AUTH_SALT,
+            info=_RNS_COVER_AUTH_INFO,
+        ).derive(secret)
+
+    def _build_transport_auth_block(self, *, cover: bool, packet: Any | None = None) -> str:
+        key = self._cover_auth_key(packet)
+        if not key:
+            return ""
+        payload = bytearray()
+        payload.append(1)  # version
+        payload.append(1 if cover else 0)
+        payload.extend(int(time.time()).to_bytes(8, "big", signed=False))
+        payload.extend(os.urandom(_RNS_COVER_AUTH_NONCE_BYTES))
+        mac = hmac.new(key, bytes(payload), hashlib.sha256).digest()
+        return base64.b64encode(bytes(payload) + mac).decode("ascii")
+
+    def _verify_transport_auth_block(
+        self,
+        envelope: dict[str, Any],
+        *,
+        packet: Any | None = None,
+    ) -> tuple[bool, bool]:
+        if not self._cover_auth_enabled():
+            return True, False
+        block_b64 = str(envelope.get("transport_auth", "") or "").strip()
+        if not block_b64:
+            return False, False
+        try:
+            raw = base64.b64decode(block_b64, validate=True)
+        except Exception:
+            return False, False
+        if len(raw) != _RNS_COVER_AUTH_BLOCK_BYTES:
+            return False, False
+        payload = raw[: -_RNS_COVER_AUTH_MAC_BYTES]
+        mac = raw[-_RNS_COVER_AUTH_MAC_BYTES :]
+        key = self._cover_auth_key(packet)
+        if not key:
+            return False, False
+        expected = hmac.new(key, payload, hashlib.sha256).digest()
+        if not hmac.compare_digest(mac, expected):
+            return False, False
+        if payload[0] != 1:
+            return False, False
+        return True, bool(payload[1] & 0x01)
+
+    def _private_dm_bucket_ok(self, envelope: dict[str, Any]) -> bool:
+        ciphertext = str(envelope.get("ciphertext", "") or "")
+        return bool(ciphertext) and len(ciphertext) in _cover_ciphertext_b64_lengths()
+
+    def _with_transport_auth(self, envelope: dict[str, Any], *, cover: bool) -> dict[str, Any] | None:
+        auth_block = self._build_transport_auth_block(cover=cover)
+        if self._cover_auth_enabled() and not auth_block:
+            return None
+        updated = dict(envelope)
+        if auth_block:
+            updated["transport_auth"] = auth_block
+        return updated
+
     def send_private_dm(self, *, mailbox_key: str, envelope: dict[str, Any]) -> bool:
         if not self.enabled():
             return False
         if not mailbox_key or not isinstance(envelope, dict):
             return False
+        envelope_with_auth = self._with_transport_auth(envelope, cover=False)
+        if envelope_with_auth is None:
+            return False
         blinded_mailbox_key = _blind_mailbox_key(mailbox_key)
         if not blinded_mailbox_key:
             return False
-        message_id = str(envelope.get("msg_id", "") or self._make_message_id("private_dm"))
+        message_id = str(envelope_with_auth.get("msg_id", "") or self._make_message_id("private_dm"))
         payload = RNSMessage(
             msg_type="private_dm",
-            body={"mailbox_key": blinded_mailbox_key, "envelope": envelope},
+            body={"mailbox_key": blinded_mailbox_key, "envelope": envelope_with_auth},
             meta={
                 "message_id": f"private_dm:{message_id}",
                 "dandelion": {"phase": "stem", "hops": 0, "max_hops": self._dandelion_hops()},
@@ -1061,7 +1257,7 @@ class RNSBridge:
             def _diffuse_dm() -> None:
                 diffuse = RNSMessage(
                     msg_type="private_dm",
-                    body={"mailbox_key": blinded_mailbox_key, "envelope": envelope},
+                    body={"mailbox_key": blinded_mailbox_key, "envelope": envelope_with_auth},
                     meta={"message_id": f"private_dm:{message_id}", "dandelion": {"phase": "diffuse"}},
                 ).encode()
                 self._send_diffuse(diffuse, exclude=stem_peer)
@@ -1071,11 +1267,27 @@ class RNSBridge:
             return True
         return self._send_diffuse(payload) > 0
 
+    def _prune_stale_mailboxes(self) -> None:
+        """Remove mailbox entries older than MESH_DM_MAILBOX_TTL_S.
+
+        Must be called while holding ``_dm_lock``.
+        """
+        ttl = float(get_settings().MESH_DM_MAILBOX_TTL_S or 900)
+        cutoff = time.time() - ttl
+        empty_keys: list[str] = []
+        for key, items in self._dm_mailboxes.items():
+            items[:] = [i for i in items if float(i.get("timestamp", 0) or 0) > cutoff]
+            if not items:
+                empty_keys.append(key)
+        for key in empty_keys:
+            del self._dm_mailboxes[key]
+
     def _store_private_dm(self, mailbox_key: str, envelope: dict[str, Any]) -> None:
         msg_id = str(envelope.get("msg_id", "") or "")
         if not mailbox_key or not msg_id:
             return
         with self._dm_lock:
+            self._prune_stale_mailboxes()
             mailbox = self._dm_mailboxes.setdefault(mailbox_key, [])
             if any(str(item.get("msg_id", "") or "") == msg_id for item in mailbox):
                 return
@@ -1091,26 +1303,41 @@ class RNSBridge:
                 }
             )
 
-    def collect_private_dm(self, mailbox_keys: list[str]) -> list[dict[str, Any]]:
+    def collect_private_dm(self, mailbox_keys: list[str], *, limit: int = 0) -> tuple[list[dict[str, Any]], bool]:
         out: list[dict[str, Any]] = []
         seen: set[str] = set()
+        popped: dict[str, list[dict[str, Any]]] = {}
         with self._dm_lock:
+            self._prune_stale_mailboxes()
             for key in mailbox_keys:
                 blinded_key = _blind_mailbox_key(key)
                 if not blinded_key:
                     continue
                 mailbox = self._dm_mailboxes.pop(blinded_key, [])
+                popped[blinded_key] = mailbox
                 for item in mailbox:
                     msg_id = str(item.get("msg_id", "") or "")
                     if not msg_id or msg_id in seen:
                         continue
                     seen.add(msg_id)
                     out.append(item)
-        return sorted(out, key=lambda item: float(item.get("timestamp", 0) or 0))
+            sorted_out = sorted(out, key=lambda item: float(item.get("timestamp", 0) or 0))
+            has_more = False
+            if limit > 0 and len(sorted_out) > limit:
+                has_more = True
+                kept = sorted_out[:limit]
+                kept_ids = {str(m.get("msg_id", "")) for m in kept}
+                for blinded_key, original in popped.items():
+                    remaining = [m for m in original if str(m.get("msg_id", "")) not in kept_ids]
+                    if remaining:
+                        self._dm_mailboxes.setdefault(blinded_key, []).extend(remaining)
+                sorted_out = kept
+        return sorted_out, has_more
 
     def count_private_dm(self, mailbox_keys: list[str]) -> int:
         seen: set[str] = set()
         with self._dm_lock:
+            self._prune_stale_mailboxes()
             for key in mailbox_keys:
                 blinded_key = _blind_mailbox_key(key)
                 if not blinded_key:
@@ -1124,6 +1351,7 @@ class RNSBridge:
     def private_dm_ids(self, mailbox_keys: list[str]) -> set[str]:
         seen: set[str] = set()
         with self._dm_lock:
+            self._prune_stale_mailboxes()
             for key in mailbox_keys:
                 blinded_key = _blind_mailbox_key(key)
                 if not blinded_key:
@@ -1224,7 +1452,44 @@ class RNSBridge:
             return
         self._publish_now(event, message_id or self._make_message_id("event"))
 
-    def publish_gate_event(self, gate_id: str, event: dict) -> None:
+    def _ensure_gate_batch_state(self) -> None:
+        if not hasattr(self, "_gate_batch_lock"):
+            self._gate_batch_lock = threading.Lock()
+        if not hasattr(self, "_gate_batch_queue"):
+            self._gate_batch_queue = []
+        if not hasattr(self, "_gate_batch_timer"):
+            self._gate_batch_timer = None
+
+    def _flush_gate_batch(self) -> None:
+        self._ensure_gate_batch_state()
+        with self._gate_batch_lock:
+            queued = list(self._gate_batch_queue)
+            self._gate_batch_queue.clear()
+            if self._gate_batch_timer:
+                self._gate_batch_timer.cancel()
+            self._gate_batch_timer = None
+        for gate_id, event in queued:
+            self._publish_gate_event_now(gate_id, event)
+
+    def _queue_gate_event(self, gate_id: str, event: dict) -> None:
+        self._ensure_gate_batch_state()
+        settings = get_settings()
+        max_batch = 25
+        should_flush = False
+        with self._gate_batch_lock:
+            self._gate_batch_queue.append((str(gate_id or ""), dict(event or {})))
+            if len(self._gate_batch_queue) >= max_batch:
+                should_flush = True
+            elif self._gate_batch_timer is None:
+                delay = max(0, int(getattr(settings, "MESH_RNS_BATCH_MS", 0) or 0)) / 1000.0
+                timer = threading.Timer(delay, self._flush_gate_batch)
+                timer.daemon = True
+                self._gate_batch_timer = timer
+                timer.start()
+        if should_flush:
+            self._flush_gate_batch()
+
+    def _publish_gate_event_now(self, gate_id: str, event: dict) -> None:
         """Publish a gate message on the private plane using the current signer-carried v1 envelope."""
         if not self.enabled():
             return
@@ -1255,6 +1520,15 @@ class RNSBridge:
             safe_event["payload"]["sender_ref"] = sender_ref
         if epoch > 0:
             safe_event["payload"]["epoch"] = epoch
+        for payload_field in (
+            "envelope_hash",
+            "gate_envelope",
+            "reply_to",
+            "transport_lock",
+        ):
+            value = str(payload_info.get(payload_field, "") or "").strip()
+            if value:
+                safe_event["payload"][payload_field] = value
         for field_name in (
             "event_id",
             "node_id",
@@ -1267,17 +1541,28 @@ class RNSBridge:
             value = event.get(field_name, "")
             if value not in ("", None):
                 safe_event[field_name] = value
-        gate_ref = build_gate_wire_ref(str(payload_info.get("gate", "") or gate_id), safe_event)
+        origin_peer_hash = self._local_hash()
+        gate_ref = build_gate_wire_ref(
+            str(payload_info.get("gate", "") or gate_id),
+            safe_event,
+            peer_url=_rns_peer_ref_url(origin_peer_hash),
+        )
         if not gate_ref:
-            logger.warning("RNS private gate forwarding requires MESH_PEER_PUSH_SECRET; event not sent")
+            logger.warning(
+                "RNS private gate forwarding requires MESH_PEER_PUSH_SECRET and a local RNS identity; event not sent"
+            )
             return
         safe_event["payload"]["gate_ref"] = gate_ref
         wire_message_id = self._make_message_id("gate")
+        base_meta = {
+            "message_id": wire_message_id,
+            "reply_to": origin_peer_hash,
+        }
         payload = RNSMessage(
             msg_type="gate_event",
             body={"event": safe_event},
             meta={
-                "message_id": wire_message_id,
+                **base_meta,
                 "dandelion": {
                     "phase": "stem",
                     "hops": 0,
@@ -1296,7 +1581,7 @@ class RNSBridge:
                 diffuse_payload = RNSMessage(
                     msg_type="gate_event",
                     body={"event": safe_event},
-                    meta={"message_id": wire_message_id, "dandelion": {"phase": "diffuse"}},
+                    meta={**base_meta, "dandelion": {"phase": "diffuse"}},
                 ).encode()
                 self._send_diffuse(diffuse_payload, exclude=stem_peer)
 
@@ -1305,33 +1590,88 @@ class RNSBridge:
             return
         self._send_diffuse(payload)
 
-    def _cover_interval(self) -> float:
+    def publish_gate_event(self, gate_id: str, event: dict) -> None:
+        if not self.enabled():
+            return
         settings = get_settings()
-        interval = float(settings.MESH_RNS_COVER_INTERVAL_S or 0)
-        if self._is_high_privacy() and interval <= 0:
-            interval = 15.0
-        if self._batch_queue:
-            qlen = len(self._batch_queue)
-            if qlen >= 25:
-                interval *= 3
-            elif qlen >= 10:
-                interval *= 2
-        return interval
+        try:
+            high_privacy = self._is_high_privacy()
+        except Exception:
+            high_privacy = False
+        if high_privacy and int(getattr(settings, "MESH_RNS_BATCH_MS", 0) or 0) > 0:
+            self._queue_gate_event(gate_id, event)
+            return
+        self._publish_gate_event_now(gate_id, event)
+
+    def _cover_interval(self) -> float:
+        lambda_per_minute = self._cover_lambda_per_minute()
+        if lambda_per_minute <= 0:
+            return 0.0
+        # NOTE: adaptive backoff removed in S8A — expanding the cover interval
+        # when the real batch queue is active leaks activity state.
+        return 60.0 / lambda_per_minute
 
     def _send_cover_traffic(self) -> None:
+        import random as _rng
+        from services.mesh.mesh_metrics import increment as metrics_inc
+
         settings = get_settings()
-        size = max(16, int(settings.MESH_RNS_COVER_SIZE))
-        payload = os.urandom(size)
+        configured_cap = max(16, int(settings.MESH_RNS_COVER_SIZE))
+        max_payload = settings.MESH_RNS_MAX_PAYLOAD
+        # Reserve headroom for base64 expansion (~4/3) + envelope JSON wrapping.
+        raw_cap = min(configured_cap, int((max_payload - 300) * 3 / 4))
+        buckets = _dm_cover_buckets(raw_cap)
+        if not buckets:
+            # Config too small for any aligned bucket — use smallest DM bucket.
+            size = _DM_CT_FAMILY[0]
+        else:
+            size = _rng.choice(buckets)
+        # Build a DM-shaped cover message so on-wire structure matches real
+        # private_dm traffic (S10B structural alignment, S15B size alignment).
+        # Mirror the DM originator path as well so cover and DM both do
+        # stem + delayed diffuse when a stem peer is available.
+        synthetic_mailbox = f"{_COVER_MAILBOX_PREFIX}{uuid.uuid4().hex}"
+        blinded_key = _blind_mailbox_key(synthetic_mailbox)
+        envelope = {
+            "msg_id": uuid.uuid4().hex,
+            "sender_id": "",
+            "ciphertext": base64.b64encode(os.urandom(size)).decode("ascii"),
+            "timestamp": int(time.time()),
+            "delivery_class": "shared",
+            "sender_seal": "",
+        }
+        envelope_with_auth = self._with_transport_auth(envelope, cover=True)
+        if envelope_with_auth is None:
+            return
+        message_id = self._make_message_id("private_dm")
         msg = RNSMessage(
-            msg_type="cover_traffic",
-            body={"pad": base64.b64encode(payload).decode("ascii"), "size": size},
-            meta={"message_id": self._make_message_id("cover"), "ts": int(time.time())},
+            msg_type="private_dm",
+            body={"mailbox_key": blinded_key, "envelope": envelope_with_auth},
+            meta={
+                "message_id": f"private_dm:{message_id}",
+                "dandelion": {"phase": "stem", "hops": 0, "max_hops": self._dandelion_hops()},
+            },
         ).encode()
         if len(msg) > settings.MESH_RNS_MAX_PAYLOAD:
             return
+        metrics_inc("cover_emits")
         peer = self._pick_stem_peer()
         if peer:
-            self._send_to_peer(peer, msg)
+            if not self._send_to_peer(peer, msg):
+                return
+
+            def _diffuse_cover() -> None:
+                diffuse = RNSMessage(
+                    msg_type="private_dm",
+                    body={"mailbox_key": blinded_key, "envelope": envelope_with_auth},
+                    meta={"message_id": f"private_dm:{message_id}", "dandelion": {"phase": "diffuse"}},
+                ).encode()
+                self._send_diffuse(diffuse, exclude=peer)
+
+            delay_s = max(0, settings.MESH_RNS_DANDELION_DELAY_MS / 1000.0)
+            threading.Timer(delay_s, _diffuse_cover).start()
+            return
+        self._send_diffuse(msg)
 
     def _cover_loop(self) -> None:
         import random
@@ -1346,9 +1686,9 @@ class RNSBridge:
                     time.sleep(5)
                     continue
                 self._send_cover_traffic()
-                jitter = random.uniform(0.7, 1.3)
-                time.sleep(interval * jitter)
-            except Exception:
+                time.sleep(random.expovariate(1.0 / interval))
+            except Exception as exc:
+                logger.debug("Cover loop error: %s", type(exc).__name__)
                 time.sleep(5)
 
     def _peer_score(self, peer_hash: str) -> float:
@@ -1439,7 +1779,11 @@ class RNSBridge:
                         logger.info("Fork applied by quorum")
                 else:
                     self._ingest_ordered(merged)
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "Fork resolution failed, falling back to ordered ingest: %s",
+                    type(exc).__name__,
+                )
                 self._ingest_ordered(merged)
         else:
             self._prune_sync_rounds()
@@ -1488,6 +1832,16 @@ class RNSBridge:
             mailbox_key = str(body.get("mailbox_key", "") or "")
             envelope = body.get("envelope") or {}
             if not mailbox_key or not isinstance(envelope, dict):
+                return
+            ciphertext = str(envelope.get("ciphertext", "") or "")
+            if not ciphertext:
+                return
+            if self._cover_auth_enabled() and not self._private_dm_bucket_ok(envelope):
+                return
+            valid_transport_auth, is_cover = self._verify_transport_auth_block(envelope, packet=packet)
+            if not valid_transport_auth:
+                return
+            if is_cover:
                 return
 
             dandelion = meta.get("dandelion", {}) or {}
@@ -1555,8 +1909,8 @@ class RNSBridge:
                 from services.mesh.mesh_hashchain import infonet
 
                 infonet.ingest_events([event])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("infonet ingest_events failed: %s", type(exc).__name__)
             return
 
         if msg_type == "gate_event":
@@ -1572,7 +1926,12 @@ class RNSBridge:
                 try:
                     from services.mesh.mesh_hashchain import resolve_gate_wire_ref
 
-                    gate_id = resolve_gate_wire_ref(str(payload.get("gate_ref", "") or ""), event)
+                    ref_peer_url = _rns_peer_ref_url(str(meta.get("reply_to", "") or ""))
+                    gate_id = resolve_gate_wire_ref(
+                        str(payload.get("gate_ref", "") or ""),
+                        event,
+                        peer_url=ref_peer_url,
+                    )
                 except Exception:
                     gate_id = ""
             if not gate_id:
@@ -1590,6 +1949,7 @@ class RNSBridge:
                 if peer:
                     next_meta = {
                         "message_id": message_id,
+                        "reply_to": str(meta.get("reply_to", "") or ""),
                         "dandelion": {"phase": "stem", "hops": hops + 1, "max_hops": max_hops},
                     }
                     forward = RNSMessage(
@@ -1602,7 +1962,11 @@ class RNSBridge:
                 diffuse = RNSMessage(
                     msg_type="gate_event",
                     body={"event": event},
-                    meta={"message_id": message_id, "dandelion": {"phase": "diffuse"}},
+                    meta={
+                        "message_id": message_id,
+                        "reply_to": str(meta.get("reply_to", "") or ""),
+                        "dandelion": {"phase": "diffuse"},
+                    },
                 ).encode()
                 self._send_diffuse(diffuse)
 
@@ -1615,8 +1979,8 @@ class RNSBridge:
                     payload_for_store["gate"] = gate_id
                     event_for_store["payload"] = payload_for_store
                     gate_store.ingest_peer_events(gate_id, [event_for_store])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("gate_store ingest_peer_events failed: %s", type(exc).__name__)
 
 
 rns_bridge = RNSBridge()

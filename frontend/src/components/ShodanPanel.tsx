@@ -2,19 +2,20 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
   Download,
+  Eye,
+  EyeOff,
   KeyRound,
+  Minus,
+  Plus,
   Radar,
   RefreshCw,
   Save,
   Search,
   Server,
-  ShieldAlert,
   Upload,
 } from 'lucide-react';
+import { API_BASE } from '@/lib/api';
 import type { SelectedEntity } from '@/types/dashboard';
 import type {
   ShodanCountResponse,
@@ -167,7 +168,7 @@ function buildCsv(rows: ShodanSearchMatch[]): string {
 }
 
 export default function ShodanPanel({
-  onOpenSettings,
+  onOpenSettings: _onOpenSettings,
   onResultsChange,
   onSelectEntity,
   onStyleChange,
@@ -199,6 +200,9 @@ export default function ShodanPanel({
   const [customHex, setCustomHex] = useState('');
   const [lastAction, setLastAction] = useState<(() => void) | null>(null);
   const [unmappedCount, setUnmappedCount] = useState(0);
+  const [shodanApiKey, setShodanApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [keySaving, setKeySaving] = useState(false);
   const prevSettingsOpen = useRef(settingsOpen);
   const presetImportRef = useRef<HTMLInputElement | null>(null);
   const resultImportRef = useRef<HTMLInputElement | null>(null);
@@ -496,52 +500,38 @@ export default function ShodanPanel({
   return (
     <div className="pointer-events-auto flex-shrink-0 border border-green-700/40 bg-black/75 backdrop-blur-sm shadow-[0_0_18px_rgba(34,197,94,0.12)]">
       <div
-        className="flex items-center justify-between border-b border-green-700/30 bg-green-950/20 px-3 py-2 cursor-pointer"
+        className="flex items-center justify-between border-b border-green-700/30 bg-green-950/20 px-3 py-2.5 cursor-pointer hover:bg-green-950/40 transition-colors"
         onClick={() => setIsMinimized((prev) => !prev)}
       >
         <div className="flex items-center gap-2">
-          <Radar size={13} className="text-green-400" />
-          <span className="text-[12px] font-mono font-bold tracking-[0.25em] text-green-400">
-            SHODAN CONNECTOR
+          <Radar size={16} className="text-green-400" />
+          <span className="text-[12px] font-mono font-bold tracking-widest text-green-400">
+            SHODAN
           </span>
+          {currentResults.length > 0 && (
+            <span className="text-[11px] font-mono px-1.5 py-0.5 bg-green-900/30 border border-green-700/30 text-green-300">
+              {currentResults.length.toLocaleString()} MAPPED
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-[12px] font-mono">
-          <span className="border border-green-700/40 px-1.5 py-0.5 text-green-300">
-            {currentResults.length.toLocaleString()} MAP
-          </span>
-          <span className="border border-green-700/40 px-1.5 py-0.5 text-green-500/80">
-            LOCAL
-          </span>
+        <div className="flex items-center gap-2">
           {isMinimized ? (
-            <ChevronUp size={12} className="text-green-500" />
+            <Plus size={16} className="text-green-400" />
           ) : (
-            <ChevronDown size={12} className="text-green-500" />
+            <Minus size={16} className="text-green-400" />
           )}
         </div>
       </div>
 
       {!isMinimized && (
       <>
-      <div className="border-b border-green-900/40 bg-green-950/10 px-3 py-2 text-sm font-mono leading-relaxed text-green-200/90">
-        <div className="flex items-start gap-2">
-          <AlertTriangle size={12} className="mt-0.5 text-green-400" />
-          <div>
-            <div className="font-bold tracking-wider text-green-400">PAID API / OPERATOR-SUPPLIED KEY</div>
-            <div>
-              Data from Shodan is fetched with the local <span className="text-green-400">SHODAN_API_KEY</span>,
-              rendered as a temporary overlay, and remains the operator&apos;s responsibility.
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="px-3 py-2">
-        <div className="mb-2 flex items-center gap-2 text-[13px] font-mono">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-mono">
           {(['search', 'count', 'host'] as Mode[]).map((item) => (
             <button
               key={item}
               onClick={() => setMode(item)}
-              className={`border px-2 py-1 tracking-[0.2em] transition-colors ${
+              className={`border px-2 py-0.5 tracking-[0.15em] transition-colors ${
                 mode === item
                   ? 'border-green-500/50 bg-green-950/30 text-green-300'
                   : 'border-green-900/40 text-green-600 hover:border-green-700/60 hover:text-green-400'
@@ -552,44 +542,93 @@ export default function ShodanPanel({
           ))}
           <button
             onClick={refreshStatus}
-            className="ml-auto border border-green-900/40 px-2 py-1 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400"
+            title="Refresh Shodan status"
+            className="ml-auto text-green-600 transition-colors hover:text-green-400 p-0.5"
           >
-            STATUS
+            <RefreshCw size={11} />
           </button>
         </div>
 
         {!status?.configured && (
-          <div className="mb-3 border border-yellow-700/30 bg-yellow-950/10 px-3 py-2 text-sm font-mono text-yellow-300">
-            <div className="mb-2 flex items-center gap-2 font-bold tracking-wide">
-              <KeyRound size={12} /> SHODAN_API_KEY REQUIRED
+          <div className="mb-2 border border-green-700/30 bg-green-950/10 px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-mono text-green-300 mb-1.5">
+              <KeyRound size={10} />
+              <span className="tracking-wider">SHODAN API KEY</span>
+              <a
+                href="https://account.shodan.io/billing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-[9px] text-green-500/60 hover:text-green-400 transition-colors"
+              >
+                GET KEY →
+              </a>
             </div>
-            <button
-              onClick={onOpenSettings}
-              className="border border-green-600/40 px-2 py-1 text-green-400 transition-colors hover:border-green-500/70"
-            >
-              OPEN SETTINGS
-            </button>
+            <div className="flex items-center gap-1">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={shodanApiKey}
+                onChange={(e) => setShodanApiKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && shodanApiKey.trim()) {
+                    setKeySaving(true);
+                    fetch(`${API_BASE}/api/settings/api-keys`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ env_key: 'SHODAN_API_KEY', value: shodanApiKey.trim() }),
+                    })
+                      .then(() => refreshStatus())
+                      .finally(() => setKeySaving(false));
+                  }
+                }}
+                placeholder="Paste your Shodan API key"
+                className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60 placeholder:text-green-800"
+              />
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="p-1 text-green-600 hover:text-green-400 transition-colors"
+                title={showKey ? 'Hide key' : 'Show key'}
+              >
+                {showKey ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
+              <button
+                disabled={!shodanApiKey.trim() || keySaving}
+                onClick={() => {
+                  setKeySaving(true);
+                  fetch(`${API_BASE}/api/settings/api-keys`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ env_key: 'SHODAN_API_KEY', value: shodanApiKey.trim() }),
+                  })
+                    .then(() => refreshStatus())
+                    .finally(() => setKeySaving(false));
+                }}
+                className="border border-green-600/40 px-1.5 py-0.5 text-[10px] font-mono text-green-400 transition-colors hover:border-green-500/70 disabled:opacity-40"
+              >
+                {keySaving ? '...' : 'SAVE'}
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="space-y-2 text-sm font-mono">
+        <div className="space-y-1.5 text-[12px] font-mono">
           {mode !== 'host' ? (
             <>
-              <div className="flex items-center gap-2">
-                <Search size={12} className="text-green-500" />
+              <div className="flex items-center gap-1.5">
+                <Search size={11} className="text-green-500 shrink-0" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={'query (e.g. port:443 org:"Amazon")'}
-                  className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1.5 text-green-300 outline-none transition-colors focus:border-green-500/60"
+                  onKeyDown={(e) => e.key === 'Enter' && (mode === 'search' ? void handleSearch() : void handleCount())}
+                  placeholder='port:443 org:"Amazon"'
+                  className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-green-300 outline-none transition-colors focus:border-green-500/60"
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <input
                   value={facets}
                   onChange={(e) => setFacets(e.target.value)}
-                  placeholder="facets (country,port,org)"
-                  className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1.5 text-green-300 outline-none transition-colors focus:border-green-500/60"
+                  placeholder="country,port,org"
+                  className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-green-300 outline-none transition-colors focus:border-green-500/60"
                 />
                 {mode === 'search' && (
                   <input
@@ -598,52 +637,34 @@ export default function ShodanPanel({
                     max={2}
                     value={page}
                     onChange={(e) => setPage(Math.max(1, Math.min(2, Number(e.target.value) || 1)))}
-                    className="w-16 border border-green-900/50 bg-black/70 px-2 py-1.5 text-green-300 outline-none transition-colors focus:border-green-500/60"
+                    title="Page number"
+                    className="w-12 border border-green-900/50 bg-black/70 px-1.5 py-1 text-center text-green-300 outline-none transition-colors focus:border-green-500/60"
                   />
                 )}
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2">
-              <Server size={12} className="text-green-500" />
+            <div className="flex items-center gap-1.5">
+              <Server size={11} className="text-green-500 shrink-0" />
               <input
                 value={hostIp}
                 onChange={(e) => setHostIp(e.target.value)}
-                placeholder="host IP (e.g. 8.8.8.8)"
-                className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1.5 text-green-300 outline-none transition-colors focus:border-green-500/60"
+                onKeyDown={(e) => e.key === 'Enter' && void handleHost()}
+                placeholder="8.8.8.8"
+                className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-green-300 outline-none transition-colors focus:border-green-500/60"
               />
             </div>
           )}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 text-[13px] font-mono">
-          {mode === 'search' && (
-            <button
-              onClick={() => void handleSearch()}
-              disabled={busy || !status?.configured}
-              className="border border-green-600/40 px-2.5 py-1.5 text-green-400 transition-colors hover:border-green-500/70 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              SEARCH / MAP
-            </button>
-          )}
-          {mode === 'count' && (
-            <button
-              onClick={() => void handleCount()}
-              disabled={busy || !status?.configured}
-              className="border border-green-600/40 px-2.5 py-1.5 text-green-400 transition-colors hover:border-green-500/70 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              COUNT / FACETS
-            </button>
-          )}
-          {mode === 'host' && (
-            <button
-              onClick={() => void handleHost()}
-              disabled={busy || !status?.configured}
-              className="border border-green-600/40 px-2.5 py-1.5 text-green-400 transition-colors hover:border-green-500/70 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              LOOKUP / MAP
-            </button>
-          )}
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-mono">
+          <button
+            onClick={() => mode === 'host' ? void handleHost() : mode === 'count' ? void handleCount() : void handleSearch()}
+            disabled={busy || !status?.configured}
+            className="flex-1 border border-green-600/40 py-1.5 text-center text-green-400 transition-colors hover:border-green-500/70 hover:bg-green-950/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? '...' : mode === 'host' ? 'LOOKUP' : mode === 'count' ? 'COUNT' : 'SEARCH'}
+          </button>
           <button
             onClick={handleClear}
             className="border border-green-900/40 px-2.5 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400"
@@ -652,24 +673,22 @@ export default function ShodanPanel({
           </button>
         </div>
 
-        {/* ── Marker Style Configurator ── */}
-        <div className="mt-3 border border-green-900/40 bg-black/80 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[13px] font-mono tracking-[0.22em] text-green-500">MARKER STYLE</span>
-            <span className="text-[14px] leading-none" style={{ color: styleConfig.color }}>
+        {/* ── Marker Style ── */}
+        <div className="mt-2 border border-green-900/40 bg-black/60 px-2.5 py-2">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-mono tracking-widest text-green-600 uppercase">Style</span>
+            <span className="text-[13px] leading-none" style={{ color: styleConfig.color }}>
               {SHAPE_OPTIONS.find((s) => s.value === styleConfig.shape)?.glyph ?? '●'}
             </span>
           </div>
-
-          {/* Shape */}
-          <div className="mb-2">
-            <div className="mb-1 text-[12px] font-mono tracking-widest text-green-600">SHAPE</div>
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
+            {/* Shape */}
+            <div className="flex items-center gap-1">
               {SHAPE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => updateStyle({ shape: opt.value })}
-                  className={`flex items-center justify-center w-8 h-7 border text-[13px] transition-colors ${
+                  className={`flex items-center justify-center w-6 h-6 border text-[11px] transition-colors ${
                     styleConfig.shape === opt.value
                       ? 'border-green-500/60 bg-green-950/40 text-green-300'
                       : 'border-green-900/40 text-green-700 hover:border-green-700/60 hover:text-green-400'
@@ -680,50 +699,14 @@ export default function ShodanPanel({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Color */}
-          <div className="mb-2">
-            <div className="mb-1 text-[12px] font-mono tracking-widest text-green-600">COLOR</div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {COLOR_SWATCHES.map((hex) => (
-                <button
-                  key={hex}
-                  onClick={() => { updateStyle({ color: hex }); setCustomHex(''); }}
-                  className={`w-5 h-5 border transition-all ${
-                    styleConfig.color === hex && !customHex
-                      ? 'border-white scale-110'
-                      : 'border-green-900/40 hover:border-green-600/60'
-                  }`}
-                  style={{ backgroundColor: hex }}
-                  title={hex}
-                />
-              ))}
-              <input
-                value={customHex}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setCustomHex(v);
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                    updateStyle({ color: v });
-                  }
-                }}
-                placeholder="#hex"
-                maxLength={7}
-                className="w-16 border border-green-900/50 bg-black/70 px-1.5 py-0.5 text-[13px] font-mono text-green-300 outline-none focus:border-green-500/60"
-              />
-            </div>
-          </div>
-
-          {/* Size */}
-          <div>
-            <div className="mb-1 text-[12px] font-mono tracking-widest text-green-600">SIZE</div>
-            <div className="flex items-center gap-1.5">
+            <div className="w-px h-5 bg-green-900/40" />
+            {/* Size */}
+            <div className="flex items-center gap-1">
               {SIZE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => updateStyle({ size: opt.value })}
-                  className={`px-2.5 py-1 border text-[13px] font-mono tracking-wider transition-colors ${
+                  className={`px-1.5 py-0.5 border text-[10px] font-mono transition-colors ${
                     styleConfig.size === opt.value
                       ? 'border-green-500/60 bg-green-950/40 text-green-300'
                       : 'border-green-900/40 text-green-700 hover:border-green-700/60 hover:text-green-400'
@@ -733,133 +716,91 @@ export default function ShodanPanel({
                 </button>
               ))}
             </div>
+            <div className="w-px h-5 bg-green-900/40" />
+            {/* Color swatches */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {COLOR_SWATCHES.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => { updateStyle({ color: hex }); setCustomHex(''); }}
+                  className={`w-4 h-4 border transition-all ${
+                    styleConfig.color === hex && !customHex
+                      ? 'border-white scale-110'
+                      : 'border-green-900/40 hover:border-green-600/60'
+                  }`}
+                  style={{ backgroundColor: hex }}
+                  title={hex}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="mt-3 border border-green-900/40 bg-black/80 px-3 py-2">
-          <div className="mb-2 text-[13px] font-mono tracking-[0.22em] text-green-500">PRESETS / EXPORT</div>
-          <div className="mb-2 flex items-center gap-2">
+        {/* ── Presets & Data ── */}
+        <div className="mt-2 border border-green-900/40 bg-black/60 px-2.5 py-2">
+          <div className="mb-1.5 text-[10px] font-mono tracking-widest text-green-600 uppercase">Presets</div>
+          <div className="flex items-center gap-1.5 mb-1.5">
             <input
               value={presetLabel}
               onChange={(e) => setPresetLabel(e.target.value)}
-              placeholder="preset label"
-              className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1.5 text-sm text-green-300 outline-none transition-colors focus:border-green-500/60"
+              placeholder="label"
+              className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60"
             />
-            <button
-              onClick={handleSavePreset}
-              className="border border-green-600/40 px-2 py-1.5 text-[13px] font-mono text-green-400 transition-colors hover:border-green-500/70"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Save size={10} /> SAVE
-              </span>
+            <button onClick={handleSavePreset} title="Save preset" className="border border-green-600/40 p-1 text-green-400 transition-colors hover:border-green-500/70">
+              <Save size={11} />
             </button>
-          </div>
-          <div className="flex flex-wrap gap-2 text-[13px] font-mono">
-            <button
-              onClick={exportPresets}
-              disabled={!presets.length}
-              className="border border-green-900/40 px-2 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400 disabled:opacity-40"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Download size={10} /> EXPORT PRESETS
-              </span>
+            <button onClick={exportPresets} disabled={!presets.length} title="Export presets" className="border border-green-900/40 p-1 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400 disabled:opacity-40">
+              <Download size={11} />
             </button>
-            <button
-              onClick={() => presetImportRef.current?.click()}
-              className="border border-green-900/40 px-2 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Upload size={10} /> IMPORT PRESETS
-              </span>
+            <button onClick={() => presetImportRef.current?.click()} title="Import presets" className="border border-green-900/40 p-1 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400">
+              <Upload size={11} />
             </button>
-            <button
-              onClick={exportResultsJson}
-              disabled={!currentResults.length}
-              className="border border-green-900/40 px-2 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400 disabled:opacity-40"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Download size={10} /> RESULTS JSON
-              </span>
-            </button>
-            <button
-              onClick={exportResultsCsv}
-              disabled={!currentResults.length}
-              className="border border-green-900/40 px-2 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400 disabled:opacity-40"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Download size={10} /> RESULTS CSV
-              </span>
-            </button>
-            <button
-              onClick={() => resultImportRef.current?.click()}
-              className="border border-green-900/40 px-2 py-1.5 text-green-600 transition-colors hover:border-green-700/60 hover:text-green-400"
-            >
-              <span className="inline-flex items-center gap-1">
-                <Upload size={10} /> IMPORT RESULTS
-              </span>
-            </button>
-            <input
-              ref={presetImportRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={(e) => void importPresets(e)}
-            />
-            <input
-              ref={resultImportRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={(e) => void importResults(e)}
-            />
           </div>
           {presets.length > 0 && (
-            <div className="mt-3 max-h-32 space-y-1 overflow-y-auto styled-scrollbar">
+            <div className="max-h-20 space-y-0.5 overflow-y-auto styled-scrollbar mb-1.5">
               {presets.map((preset) => (
-                <div
-                  key={preset.id}
-                  className="flex items-center justify-between border border-green-950/40 bg-green-950/10 px-2 py-1.5"
-                >
-                  <button
-                    onClick={() => applyPreset(preset)}
-                    className="min-w-0 flex-1 truncate text-left text-sm font-mono text-green-300 transition-colors hover:text-green-200"
-                  >
+                <div key={preset.id} className="flex items-center justify-between bg-green-950/10 px-2 py-0.5">
+                  <button onClick={() => applyPreset(preset)} className="min-w-0 flex-1 truncate text-left text-[11px] font-mono text-green-300 transition-colors hover:text-green-200">
                     {preset.label}
                   </button>
-                  <button
-                    onClick={() => removePreset(preset.id)}
-                    className="ml-2 text-[13px] font-mono text-green-700/70 transition-colors hover:text-red-300"
-                  >
-                    DELETE
-                  </button>
+                  <button onClick={() => removePreset(preset.id)} title="Delete preset" className="ml-1.5 text-[10px] font-mono text-green-700/70 transition-colors hover:text-red-300">✕</button>
                 </div>
               ))}
             </div>
           )}
-        </div>
-
-        <div className="mt-3 border border-green-900/40 bg-black/80 px-3 py-2 text-sm font-mono">
-          <div className="mb-1 flex items-center gap-2 text-green-500">
-            <ShieldAlert size={12} />
-            <span className="tracking-[0.25em]">SESSION STATUS</span>
-          </div>
-          <div className="text-green-300/90">{resultSummary}</div>
-          {status?.warning && <div className="mt-1 text-green-500/80">{status.warning}</div>}
-          {error && (
-            <div className="mt-2 flex items-center justify-between border border-red-900/40 bg-red-950/20 px-2 py-1.5 text-red-300">
-              <span>{error}</span>
-              {lastAction && (
-                <button
-                  onClick={() => { setError(null); lastAction(); }}
-                  disabled={busy}
-                  className="ml-2 inline-flex shrink-0 items-center gap-1 border border-red-700/40 px-1.5 py-0.5 text-[13px] font-mono text-red-300 transition-colors hover:border-red-500/60 hover:text-red-200 disabled:opacity-40"
-                >
-                  <RefreshCw size={9} /> RETRY
-                </button>
-              )}
+          {currentResults.length > 0 && (
+            <div className="flex items-center gap-1.5 pt-1.5 border-t border-green-900/30">
+              <span className="text-[10px] font-mono text-green-600">Export:</span>
+              <button onClick={exportResultsJson} className="text-[10px] font-mono text-green-500 hover:text-green-300 transition-colors">JSON</button>
+              <span className="text-green-900">·</span>
+              <button onClick={exportResultsCsv} className="text-[10px] font-mono text-green-500 hover:text-green-300 transition-colors">CSV</button>
+              <span className="text-green-900">·</span>
+              <button onClick={() => resultImportRef.current?.click()} className="text-[10px] font-mono text-green-500 hover:text-green-300 transition-colors">Import</button>
             </div>
           )}
+          <input ref={presetImportRef} type="file" accept=".json,application/json" className="hidden" title="Import presets file" onChange={(e) => void importPresets(e)} />
+          <input ref={resultImportRef} type="file" accept=".json,application/json" className="hidden" title="Import results file" onChange={(e) => void importResults(e)} />
         </div>
+
+        {/* Status / Errors */}
+        <div className="mt-2 px-0.5 text-[11px] font-mono text-green-500/70">
+          {resultSummary}
+          {status?.warning && <span className="ml-1 text-yellow-500/70">· {status.warning}</span>}
+        </div>
+        {error && (
+          <div className="mt-1.5 flex items-center justify-between border border-red-900/40 bg-red-950/20 px-2 py-1 text-[11px] font-mono text-red-300">
+            <span className="truncate">{error}</span>
+            {lastAction && (
+              <button
+                onClick={() => { setError(null); lastAction(); }}
+                disabled={busy}
+                className="ml-1.5 shrink-0 text-red-400 hover:text-red-200 transition-colors disabled:opacity-40"
+              >
+                <RefreshCw size={10} />
+              </button>
+            )}
+          </div>
+        )}
 
         {countSummary && (
           <div className="mt-3 max-h-40 space-y-2 overflow-y-auto border border-green-900/40 bg-black/80 p-3 styled-scrollbar">

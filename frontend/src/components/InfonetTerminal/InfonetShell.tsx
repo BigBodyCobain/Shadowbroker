@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Terminal, Radio, Globe, Key, LogOut, Activity, Vote, User, ArrowRightLeft, Briefcase, Mail } from 'lucide-react';
+import { Terminal, Radio, Globe, Key, LogOut, Activity, Vote, User, ArrowRightLeft, Briefcase, Mail, Brain, GitBranch, Cpu, KeyRound } from 'lucide-react';
 import { getNodeIdentity, getWormholeIdentityDescriptor } from '@/mesh/meshIdentity';
 import {
   activateWormholeGatePersona,
@@ -19,6 +19,13 @@ import WeatherWidget from './WeatherWidget';
 import TrendingPosts from './TrendingPosts';
 import HashchainEvents from './HashchainEvents';
 import NetworkStats from './NetworkStats';
+import AIQueryView from './AIQueryView';
+import PetitionsView from './PetitionsView';
+import UpgradeView from './UpgradeView';
+import ResolutionView from './ResolutionView';
+import GateShutdownView from './GateShutdownView';
+import BootstrapView from './BootstrapView';
+import FunctionKeyView from './FunctionKeyView';
 
 
 const ASCII_HEADER = `
@@ -38,11 +45,8 @@ const ASCII_HEADER = `
 `;
 
 const COMING_SOON_MODULES: Record<string, { title: string; desc: string; status: string }> = {
-  BALLOT: {
-    title: 'BALLOT — DEMOCRACY FOR ALL SOON',
-    desc: 'Governance surfaces are not live in this testnet shell yet. When they arrive, they should reflect real community demand, clear rules, and verifiable participation instead of placeholder politics.',
-    status: 'MODULE STATUS: HOLDING SCREEN ONLY — NO LIVE BALLOTS OR COUNTS',
-  },
+  // BALLOT entry removed 2026-04-28: the BALLOT command now navigates
+  // to PetitionsView (live governance DSL + petition lifecycle).
   GIGS: {
     title: 'GIGS — NETWORK BOUNTIES',
     desc: 'Decentralized work contracts, intelligence bounties, and mesh task allocation. Accept jobs, deliver payloads, and earn credits through verified proof-of-work completion.',
@@ -60,6 +64,19 @@ const GATES = [
   'ukraine-front', 'iran-front', 'world-news', 'prediction-markets',
   'finance', 'cryptography', 'cryptocurrencies', 'meet-chat', 'opsec-lab'
 ];
+const GATE_LAUNCH_RETRY_DELAY_MS = 3000;
+const GATE_LAUNCH_RETRY_ATTEMPTS = 20;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function isGateLaneStartingError(detail: string): boolean {
+  const lowered = String(detail || '').trim().toLowerCase();
+  return lowered.includes('obfuscated lane is still starting');
+}
 
 const SHELL_ANON_PERSONAS_KEY = 'sb_infonet_shell_anon_personas';
 
@@ -99,7 +116,11 @@ function allocateShellAnonPersona(): string {
 
 const SECTIONS = [
   { name: 'HELP', icon: <Terminal size={14} className="mr-2" /> },
+  { name: 'AI', icon: <Brain size={14} className="mr-2" /> },
   { name: 'BALLOT', icon: <Vote size={14} className="mr-2" /> },
+  { name: 'UPGRADES', icon: <GitBranch size={14} className="mr-2" /> },
+  { name: 'BOOTSTRAP', icon: <Cpu size={14} className="mr-2" /> },
+  { name: 'F-KEYS', icon: <KeyRound size={14} className="mr-2" /> },
   { name: 'GIGS', icon: <Briefcase size={14} className="mr-2" /> },
   { name: 'MESH', icon: <Globe size={14} className="mr-2" /> },
   { name: 'GATES', icon: <Key size={14} className="mr-2" /> },
@@ -119,16 +140,26 @@ interface InfonetShellProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenLiveGate?: (gate: string) => void;
+  onOpenDeadDrop?: (peerId: string, options?: { showSas?: boolean }) => void;
 }
 
-export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: InfonetShellProps) {
+export default function InfonetShell({
+  isOpen,
+  onClose,
+  onOpenLiveGate,
+  onOpenDeadDrop,
+}: InfonetShellProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<CommandHistory[]>([]);
   const [isBooting, setIsBooting] = useState(true);
   const [bootText, setBootText] = useState<string[]>([]);
 
   // Navigation & State
-  const [currentView, setCurrentView] = useState<'terminal' | 'gate' | 'market' | 'profile' | 'messages'>('terminal');
+  type ViewName =
+    | 'terminal' | 'gate' | 'market' | 'profile' | 'messages' | 'ai'
+    | 'petitions' | 'upgrades' | 'resolution' | 'gate-shutdown'
+    | 'bootstrap' | 'function-keys';
+  const [currentView, setCurrentView] = useState<ViewName>('terminal');
   const [activeGate, setActiveGate] = useState<string | null>(null);
   const [persona, setPersona] = useState<string | null>(null);
   const [activeGateMode, setActiveGateMode] = useState<'anonymous' | 'persona' | null>(null);
@@ -137,10 +168,15 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
   const [isCitizen] = useState(false);
   const [comingSoonModule, setComingSoonModule] = useState<string | null>(null);
   const [wormholePromptKey, setWormholePromptKey] = useState('');
+  // Targets for parameterized economy views.
+  const [resolutionMarketId, setResolutionMarketId] = useState<string | null>(null);
+  const [shutdownGateId, setShutdownGateId] = useState<string | null>(null);
+  const [bootstrapMarketId, setBootstrapMarketId] = useState<string | null>(null);
 
   const endOfTerminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const gateLaunchAttemptRef = useRef(0);
 
   // Real mesh identity
   const nodeIdentity = useMemo(() => getNodeIdentity(), []);
@@ -167,6 +203,7 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
     setInputMode('normal');
     setPendingGate(null);
     setInput('');
+    gateLaunchAttemptRef.current += 1;
     setIsBooting(true);
     setBootText([]);
 
@@ -235,7 +272,7 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
     endOfTerminalRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history]);
 
-  const handleNavigate = (view: 'terminal' | 'gate' | 'market' | 'profile' | 'messages', gate?: string) => {
+  const handleNavigate = (view: 'terminal' | 'gate' | 'market' | 'profile' | 'messages' | 'ai', gate?: string) => {
     if (view === 'gate' && gate) {
       if (onOpenLiveGate) {
         setPendingGate(gate);
@@ -260,6 +297,58 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
       setActiveGateMode(persona ? 'persona' : 'anonymous');
     }
     setCurrentView(view);
+  };
+
+  const openGateWhenReady = async (
+    gateTarget: string,
+    operation: () => Promise<void>,
+    options: { commandLabel: string; waitingOutput: React.ReactNode; failurePrefix: string },
+  ) => {
+    const launchId = ++gateLaunchAttemptRef.current;
+    let waitingShown = false;
+    for (let attempt = 0; attempt < GATE_LAUNCH_RETRY_ATTEMPTS; attempt += 1) {
+      if (gateLaunchAttemptRef.current !== launchId) {
+        return;
+      }
+      try {
+        await operation();
+        return;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : options.failurePrefix;
+        if (!isGateLaneStartingError(detail)) {
+          if (gateLaunchAttemptRef.current !== launchId) {
+            return;
+          }
+          setHistory(prev => [...prev, {
+            command: options.commandLabel,
+            output: <span className="text-red-400">ERR: {detail}</span>,
+          }]);
+          return;
+        }
+        if (!waitingShown) {
+          waitingShown = true;
+          setHistory(prev => [...prev, {
+            command: options.commandLabel,
+            output: options.waitingOutput,
+          }]);
+        }
+        if (attempt === GATE_LAUNCH_RETRY_ATTEMPTS - 1) {
+          if (gateLaunchAttemptRef.current !== launchId) {
+            return;
+          }
+          setHistory(prev => [...prev, {
+            command: options.commandLabel,
+            output: (
+              <span className="text-red-400">
+                ERR: The obfuscated lane is taking too long to come online. It is still warming up in the background.
+              </span>
+            ),
+          }]);
+          return;
+        }
+        await sleep(GATE_LAUNCH_RETRY_DELAY_MS);
+      }
+    }
   };
 
   const handleCommand = (cmd: string) => {
@@ -293,18 +382,24 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
         setHistory(prev => [...prev, { command: cmd, output }]);
         setPendingGate(null);
         void (async () => {
-          try {
-            await enterWormholeGate(gateTarget, true);
-            setActiveGateMode('anonymous');
-            setActiveGate(gateTarget);
-            setCurrentView('gate');
-          } catch (error) {
-            const detail = error instanceof Error ? error.message : 'anonymous_gate_enter_failed';
-            setHistory(prev => [...prev, {
-              command: `gate ${gateTarget}`,
-              output: <span className="text-red-400">ERR: {detail}</span>,
-            }]);
-          }
+          await openGateWhenReady(
+            gateTarget,
+            async () => {
+              await enterWormholeGate(gateTarget, true);
+              setActiveGateMode('anonymous');
+              setActiveGate(gateTarget);
+              setCurrentView('gate');
+            },
+            {
+              commandLabel: `gate ${gateTarget}`,
+              waitingOutput: (
+                <span className="text-cyan-400">
+                  Warming the obfuscated lane for g/{gateTarget}. The room will open automatically as soon as it is ready.
+                </span>
+              ),
+              failurePrefix: 'anonymous_gate_enter_failed',
+            },
+          );
         })();
         return;
       }
@@ -312,30 +407,36 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
       setHistory(prev => [...prev, { command: cmd, output }]);
       setPendingGate(null);
       void (async () => {
-        try {
-          const personas = await listWormholeGatePersonas(gateTarget);
-          const existing = Array.isArray(personas?.personas)
-            ? personas.personas.find(
-                (candidate) =>
-                  String(candidate?.label || '').trim().toLowerCase() === chosenPersona.toLowerCase(),
-              )
-            : null;
-          const result = existing?.persona_id
-            ? await activateWormholeGatePersona(gateTarget, existing.persona_id)
-            : await createWormholeGatePersona(gateTarget, chosenPersona);
-          if (!result?.ok) {
-            throw new Error(result?.detail || 'gate_face_create_failed');
-          }
-          setActiveGateMode('persona');
-          setActiveGate(gateTarget);
-          setCurrentView('gate');
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : 'gate_face_create_failed';
-          setHistory(prev => [...prev, {
-            command: `join ${gateTarget}`,
-            output: <span className="text-red-400">ERR: {detail}</span>,
-          }]);
-        }
+        await openGateWhenReady(
+          gateTarget,
+          async () => {
+            const personas = await listWormholeGatePersonas(gateTarget);
+            const existing = Array.isArray(personas?.personas)
+              ? personas.personas.find(
+                  (candidate) =>
+                    String(candidate?.label || '').trim().toLowerCase() === chosenPersona.toLowerCase(),
+                )
+              : null;
+            const result = existing?.persona_id
+              ? await activateWormholeGatePersona(gateTarget, existing.persona_id)
+              : await createWormholeGatePersona(gateTarget, chosenPersona);
+            if (!result?.ok) {
+              throw new Error(result?.detail || 'gate_face_create_failed');
+            }
+            setActiveGateMode('persona');
+            setActiveGate(gateTarget);
+            setCurrentView('gate');
+          },
+          {
+            commandLabel: `join ${gateTarget}`,
+            waitingOutput: (
+              <span className="text-cyan-400">
+                Warming the obfuscated lane for g/{gateTarget}. Your gate face will open automatically when the room is ready.
+              </span>
+            ),
+            failurePrefix: 'gate_face_create_failed',
+          },
+        );
       })();
       return;
     }
@@ -351,7 +452,12 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
             <li><span className="text-gray-300 font-bold">radio</span> - Open SIGINT / radio surfaces</li>
             <li><span className="text-gray-300 font-bold">messages</span> - Open Secure Comms</li>
             <li><span className="text-gray-300 font-bold">profile</span> - View sovereign identity & ledger</li>
-            <li><span className="text-gray-300 font-bold">ballot</span> - View democratic proposals</li>
+            <li><span className="text-gray-300 font-bold">ballot / petitions / governance</span> - File / sign / vote on petitions (DSL executor)</li>
+            <li><span className="text-gray-300 font-bold">upgrades</span> - Upgrade-hash governance + Heavy-Node readiness</li>
+            <li><span className="text-gray-300 font-bold">resolution [market_id]</span> - Evidence + dispute view</li>
+            <li><span className="text-gray-300 font-bold">shutdown [gate_id]</span> - Gate suspend / shutdown / appeal lifecycle</li>
+            <li><span className="text-gray-300 font-bold">bootstrap</span> - Bootstrap-mode resolution + ramp milestones</li>
+            <li><span className="text-gray-300 font-bold">fkeys / function-keys</span> - Anonymous citizenship proof design</li>
             <li><span className="text-gray-300 font-bold">gigs</span> - View network bounties & jobs</li>
             <li><span className="text-gray-300 font-bold">markets</span> - View prediction markets</li>
             <li><span className="text-gray-300 font-bold">exchange</span> - Decentralized crypto exchange</li>
@@ -387,6 +493,9 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
       } else {
         output = <span className="text-red-400">ERR: Gate &apos;{target}&apos; not found or access denied.</span>;
       }
+    } else if (trimmedCmd === 'ai' || trimmedCmd === 'copilot' || trimmedCmd === 'openclaw') {
+      handleNavigate('ai');
+      return;
     } else if (trimmedCmd === 'markets') {
       handleNavigate('market');
       return;
@@ -396,9 +505,35 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
     } else if (trimmedCmd === 'profile') {
       handleNavigate('profile');
       return;
-    } else if (trimmedCmd === 'ballot') {
-      setComingSoonModule('BALLOT');
+    } else if (trimmedCmd === 'ballot' || trimmedCmd === 'petitions' || trimmedCmd === 'governance') {
+      setCurrentView('petitions');
       return;
+    } else if (trimmedCmd === 'upgrades' || trimmedCmd === 'upgrade') {
+      setCurrentView('upgrades');
+      return;
+    } else if (trimmedCmd === 'bootstrap') {
+      setBootstrapMarketId(null);
+      setCurrentView('bootstrap');
+      return;
+    } else if (trimmedCmd === 'function-keys' || trimmedCmd === 'fkeys') {
+      setCurrentView('function-keys');
+      return;
+    } else if (trimmedCmd.startsWith('resolution ')) {
+      const mid = trimmedCmd.slice('resolution '.length).trim();
+      if (mid) {
+        setResolutionMarketId(mid);
+        setCurrentView('resolution');
+        return;
+      }
+      output = <span className="text-red-400">Usage: resolution &lt;market_id&gt;</span>;
+    } else if (trimmedCmd.startsWith('shutdown ')) {
+      const gid = trimmedCmd.slice('shutdown '.length).trim();
+      if (gid) {
+        setShutdownGateId(gid);
+        setCurrentView('gate-shutdown');
+        return;
+      }
+      output = <span className="text-red-400">Usage: shutdown &lt;gate_id&gt;</span>;
     } else if (trimmedCmd === 'work' || trimmedCmd === 'gigs') {
       setComingSoonModule('GIGS');
       return;
@@ -495,7 +630,11 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
               {SECTIONS.map((section) => (
                 <button
                   key={section.name}
-                  onClick={() => handleCommand(section.name === 'PROFILE' ? 'profile' : section.name.toLowerCase())}
+                  onClick={() => handleCommand(
+                    section.name === 'PROFILE' ? 'profile' :
+                    section.name === 'F-KEYS' ? 'fkeys' :
+                    section.name.toLowerCase()
+                  )}
                   className="flex items-center px-2 py-1 bg-cyan-900/10 border border-cyan-900/50 text-cyan-500 hover:bg-cyan-900/30 hover:text-cyan-400 hover:border-cyan-500/50 transition-all text-sm md:text-xs uppercase tracking-widest whitespace-nowrap"
                 >
                   {section.icon}
@@ -593,6 +732,10 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
           onBack={() => handleNavigate('terminal')}
           onNavigateGate={(gate) => handleNavigate('gate', gate)}
           onOpenLiveGate={onOpenLiveGate}
+          onOpenShutdownPetition={(gate) => {
+            setShutdownGateId(gate);
+            setCurrentView('gate-shutdown');
+          }}
           availableGates={GATES}
         />
       )}
@@ -612,7 +755,44 @@ export default function InfonetShell({ isOpen, onClose, onOpenLiveGate }: Infone
       )}
 
       {currentView === 'messages' && (
-        <MessagesView onBack={() => handleNavigate('terminal')} />
+        <MessagesView onBack={() => handleNavigate('terminal')} onOpenDeadDrop={onOpenDeadDrop} />
+      )}
+
+      {currentView === 'ai' && (
+        <AIQueryView onBack={() => handleNavigate('terminal')} />
+      )}
+
+      {currentView === 'petitions' && (
+        <PetitionsView onBack={() => setCurrentView('terminal')} />
+      )}
+
+      {currentView === 'upgrades' && (
+        <UpgradeView onBack={() => setCurrentView('terminal')} />
+      )}
+
+      {currentView === 'resolution' && resolutionMarketId && (
+        <ResolutionView
+          marketId={resolutionMarketId}
+          onBack={() => setCurrentView('terminal')}
+        />
+      )}
+
+      {currentView === 'gate-shutdown' && shutdownGateId && (
+        <GateShutdownView
+          gateId={shutdownGateId}
+          onBack={() => setCurrentView('terminal')}
+        />
+      )}
+
+      {currentView === 'bootstrap' && (
+        <BootstrapView
+          marketId={bootstrapMarketId ?? undefined}
+          onBack={() => setCurrentView('terminal')}
+        />
+      )}
+
+      {currentView === 'function-keys' && (
+        <FunctionKeyView onBack={() => setCurrentView('terminal')} />
       )}
 
       {/* Coming Soon Popup */}

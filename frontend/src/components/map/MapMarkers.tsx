@@ -321,6 +321,13 @@ export function ThreatMarkers({
         const riskColor = getRiskColor(score);
         const alertKey = n.alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`;
 
+        // Color-blind accessible border pattern based on severity
+        const threatBorderClass =
+          score >= 9 ? 'threat-border-critical' :
+          score >= 7 ? 'threat-border-high' :
+          score >= 4 ? 'threat-border-medium' :
+                       'threat-border-low';
+
         let isVisible = zoom >= 1;
         if (selectedEntity) {
           if (selectedEntity.type === 'news') {
@@ -371,12 +378,12 @@ export function ThreatMarkers({
               )}
 
               <div
-                className="cursor-pointer transition-opacity duration-300 relative"
+                className={`cursor-pointer transition-opacity duration-300 relative ${threatBorderClass}`}
                 style={{
                   opacity: isVisible ? 1.0 : 0.0,
                   pointerEvents: isVisible ? 'auto' : 'none',
                   backgroundColor: 'rgba(5, 5, 5, 0.96)',
-                  border: `2px solid ${riskColor}`,
+                  borderColor: riskColor,
                   borderRadius: '4px',
                   padding: '8px 20px 8px 12px',
                   color: riskColor,
@@ -384,7 +391,6 @@ export function ThreatMarkers({
                   fontSize: '12px',
                   fontWeight: 'bold',
                   textAlign: 'center',
-                  boxShadow: `0 0 20px ${riskColor}80, 0 0 40px ${riskColor}30`,
                   zIndex: 10,
                   lineHeight: '1.3',
                   minWidth: '200px',

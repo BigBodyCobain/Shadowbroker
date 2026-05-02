@@ -121,6 +121,11 @@ describe('meshIdentity contact storage hardening', () => {
       remotePrekeySequence: 3,
       remotePrekeySignedAt: 444,
       remotePrekeyMismatch: false,
+      remotePrekeyTransparencyHead: 'head-1',
+      remotePrekeyTransparencySize: 2,
+      remotePrekeyTransparencySeenAt: 555,
+      remotePrekeyTransparencyConflict: false,
+      remotePrekeyLookupMode: 'legacy_agent_id',
     });
     const stored = await waitForEncryptedContacts();
     expect(String(stored ?? '')).toMatch(/^enc:/);
@@ -137,6 +142,11 @@ describe('meshIdentity contact storage hardening', () => {
     expect(hydrated.alice.remotePrekeySequence).toBe(3);
     expect(hydrated.alice.remotePrekeySignedAt).toBe(444);
     expect(hydrated.alice.remotePrekeyMismatch).toBe(false);
+    expect(hydrated.alice.remotePrekeyTransparencyHead).toBe('head-1');
+    expect(hydrated.alice.remotePrekeyTransparencySize).toBe(2);
+    expect(hydrated.alice.remotePrekeyTransparencySeenAt).toBe(555);
+    expect(hydrated.alice.remotePrekeyTransparencyConflict).toBe(false);
+    expect(hydrated.alice.remotePrekeyLookupMode).toBe('legacy_agent_id');
   });
 
   it('migrates legacy plaintext contacts to encrypted storage on first hydrate', async () => {
@@ -239,6 +249,19 @@ describe('meshIdentity contact storage hardening', () => {
     idbStore.set('sb_mesh_dh_priv', keyPair.privateKey);
 
     const rotated = await mailboxClaimToken('requests', '!sb_contacts123456');
+    expect(rotated).not.toBe(first);
+  });
+
+  it('rotates mailbox claim tokens across mailbox epochs', async () => {
+    const { mailboxClaimToken } = await import('@/mesh/meshMailbox');
+    const mod = await import('@/mesh/meshIdentity');
+    await provisionLocalIdentity(mod);
+
+    const first = await mailboxClaimToken('requests', '!sb_contacts123456', 100);
+    const second = await mailboxClaimToken('requests', '!sb_contacts123456', 100);
+    const rotated = await mailboxClaimToken('requests', '!sb_contacts123456', 21_700);
+
+    expect(second).toBe(first);
     expect(rotated).not.toBe(first);
   });
 });

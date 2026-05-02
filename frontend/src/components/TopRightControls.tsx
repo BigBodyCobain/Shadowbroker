@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Github,
-  MessageSquare,
   Download,
   AlertCircle,
   CheckCircle2,
@@ -18,19 +17,31 @@ import {
 import { API_BASE } from '@/lib/api';
 import { controlPlaneFetch } from '@/lib/controlPlane';
 import {
+  checkDesktopUpdaterUpdate,
+  classifyUpdateRuntime,
+  getDesktopUpdateContext,
+  getPreferredManualUpdateUrl,
+  getUpdateAction,
+  installDesktopUpdaterUpdate,
+  type GitHubLatestRelease,
+  type UpdateActionKind,
+} from '@/lib/updateRuntime';
+import {
   requestMeshTerminalOpen,
   subscribeSecureMeshTerminalLauncherOpen,
 } from '@/lib/meshTerminalLauncher';
 import { purgeBrowserContactGraph, purgeBrowserSigningMaterial, setSecureModeCached, getNodeIdentity, generateNodeKeys } from '@/mesh/meshIdentity';
 import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
 import {
+  DEFAULT_INFONET_SEED_URL,
   fetchInfonetNodeStatusSnapshot,
   type InfonetNodeStatusSnapshot,
 } from '@/mesh/controlPlaneStatusClient';
 import {
   fetchWormholeStatus,
+  prepareWormholeInteractiveLane,
 } from '@/mesh/wormholeIdentityClient';
-import { fetchWormholeSettings, joinWormhole } from '@/mesh/wormholeClient';
+import { fetchWormholeSettings } from '@/mesh/wormholeClient';
 import packageJson from '../../package.json';
 
 type UpdateStatus =
@@ -46,6 +57,17 @@ type UpdateStatus =
   | 'docker_update';
 
 const DEFAULT_RELEASES_URL = 'https://github.com/BigBodyCobain/Shadowbroker/releases/latest';
+const AUTO_UPDATE_DETAIL =
+  'This runtime can use the backend-managed update path. Docker deployments will show pull instructions instead of modifying files in place.';
+const DESKTOP_UPDATER_DETAIL =
+  'This packaged desktop app can install the signed update in place. It will restart ShadowBroker after the installer finishes.';
+
+function packagedUpdateDetail(ownsLocalBackend: boolean): string {
+  if (ownsLocalBackend) {
+    return 'This desktop installer updates the app and its bundled local backend together.';
+  }
+  return 'This packaged desktop app updates through a new installer download. It does not update the separately running backend service.';
+}
 
 interface TopRightControlsProps {
   onTerminalToggle?: () => void;
@@ -65,7 +87,10 @@ export default function TopRightControls({
   const [latestVersion, setLatestVersion] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState('');
   const [manualUpdateUrl, setManualUpdateUrl] = useState(DEFAULT_RELEASES_URL);
+  const [releasePageUrl, setReleasePageUrl] = useState(DEFAULT_RELEASES_URL);
   const [dockerCommands, setDockerCommands] = useState('');
+  const [updateAction, setUpdateAction] = useState<UpdateActionKind>('auto_apply');
+  const [updateDetail, setUpdateDetail] = useState(AUTO_UPDATE_DETAIL);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [launcherOpen, setLauncherOpen] = useState(false);
@@ -138,45 +163,39 @@ export default function TopRightControls({
     setTerminalLaunchError('');
   };
 
-  const activateWormholeAndLaunchTerminal = async () => {
-    setTerminalLaunchBusy(true);
-    setTerminalLaunchError('');
+  const applySecureModeBoundary = async (enabled: boolean) => {
+    setSecureModeCached(enabled);
+    if (!enabled) return;
+    purgeBrowserSigningMaterial();
+    purgeBrowserContactGraph();
+    await purgeBrowserDmState();
+  };
+
+  const continueTerminalLaunchInBackground = useCallback(async () => {
     try {
+      const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
       const settings = await fetchWormholeSettings(true).catch(() => null);
       let runtime = await fetchWormholeStatus().catch(() => null);
-
-      let enabled = Boolean(settings?.enabled ?? runtime?.running ?? runtime?.ready ?? false);
-      let ready = Boolean(runtime?.ready);
-      let identityNodeId = '';
-
-      const joined = await joinWormhole();
-      enabled = Boolean(joined.settings?.enabled ?? joined.runtime?.configured ?? true);
-      identityNodeId = String(joined.identity?.node_id || '').trim();
+      const enabled = Boolean(
+        settings?.enabled ?? prepared.settingsEnabled ?? runtime?.running ?? runtime?.ready ?? false,
+      );
+      const identityNodeId = String(prepared.identity?.node_id || '').trim();
       await applySecureModeBoundary(enabled);
-
-      runtime = joined.runtime ?? runtime;
-      ready = Boolean(runtime?.ready);
-      const deadline = Date.now() + 12000;
-      while (!ready && Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, 700));
-        runtime = await fetchWormholeStatus().catch(() => null);
-        ready = Boolean(runtime?.ready);
-      }
-      if (!ready) {
-        throw new Error('Wormhole is starting up. Give it a few seconds, then try again.');
-      }
 
       runtime = await fetchWormholeStatus().catch(() => runtime);
 
       setTerminalPrivateEnabled(enabled);
-      setTerminalPrivateReady(Boolean(runtime?.ready ?? true));
+      setTerminalPrivateReady(Boolean(runtime?.ready ?? prepared.ready ?? false));
       setTerminalTransportTier(
-        String(runtime?.transport_tier || runtime?.transport_active || 'private_strong'),
+        String(
+          runtime?.transport_tier ||
+            runtime?.transport_active ||
+            prepared.transportTier ||
+            'private_control_only',
+        ),
       );
-      setTerminalLauncherOpen(false);
       setTerminalLaunchError('');
-      setSecureModeCached(true);
-      launchTerminalDirect();
+      setSecureModeCached(enabled);
       if (identityNodeId) {
         console.info('[top-right] Wormhole terminal launch ready', identityNodeId);
       }
@@ -185,18 +204,27 @@ export default function TopRightControls({
         typeof error === 'object' && error !== null && 'message' in error
           ? String((error as { message?: string }).message || '')
           : '';
-      setTerminalLaunchError(message || 'Failed to enter Wormhole.');
+      const settings = await fetchWormholeSettings(true).catch(() => null);
+      const runtime = await fetchWormholeStatus().catch(() => null);
+      setTerminalPrivateEnabled(Boolean(settings?.enabled ?? runtime?.running ?? runtime?.ready ?? false));
+      setTerminalPrivateReady(Boolean(runtime?.ready));
+      setTerminalTransportTier(
+        String(runtime?.transport_tier || runtime?.transport_active || 'public_degraded'),
+      );
+      setTerminalLaunchError(message || 'Wormhole is still warming up in the background.');
     } finally {
       setTerminalLaunchBusy(false);
     }
-  };
+  }, [applySecureModeBoundary]);
 
-  const applySecureModeBoundary = async (enabled: boolean) => {
-    setSecureModeCached(enabled);
-    if (!enabled) return;
-    purgeBrowserSigningMaterial();
-    purgeBrowserContactGraph();
-    await purgeBrowserDmState();
+  const activateWormholeAndLaunchTerminal = async () => {
+    setTerminalLaunchBusy(true);
+    setTerminalLaunchError('');
+    setTerminalPrivateEnabled(true);
+    setTerminalPrivateReady(false);
+    setTerminalLauncherOpen(false);
+    launchTerminalDirect();
+    void continueTerminalLaunchInBackground();
   };
 
   // Cleanup polling on unmount
@@ -261,7 +289,7 @@ export default function TopRightControls({
             const snap = await fetchInfonetNodeStatusSnapshot(true);
             setNodeStatus(snap);
             const outcome = String(snap?.sync_runtime?.last_outcome || '').toLowerCase();
-            if (outcome === 'ok') {
+            if (outcome === 'ok' || outcome === 'solo') {
               setActivatingPhase('done');
               stopActivatingPolls();
               // Auto-transition to 'disable' after brief success display
@@ -337,11 +365,13 @@ export default function TopRightControls({
   const checkForUpdates = async () => {
     setUpdateStatus('checking');
     try {
+      const desktopContext = await getDesktopUpdateContext();
+      const runtime = classifyUpdateRuntime(desktopContext);
       const res = await fetch(
         'https://api.github.com/repos/BigBodyCobain/Shadowbroker/releases/latest',
       );
       if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
+      const data = (await res.json()) as GitHubLatestRelease;
 
       const latest = data.tag_name?.replace('v', '') || data.name?.replace('v', '');
       const current = currentVersion.replace('v', '');
@@ -349,7 +379,37 @@ export default function TopRightControls({
         typeof data.html_url === 'string' && data.html_url.trim().length > 0
           ? data.html_url
           : DEFAULT_RELEASES_URL;
-      setManualUpdateUrl(releaseUrl);
+      const platform = desktopContext?.platform || 'unknown';
+      const ownsLocalBackend = Boolean(desktopContext?.owns_local_backend);
+      setReleasePageUrl(releaseUrl);
+      setManualUpdateUrl(getPreferredManualUpdateUrl(data, runtime, platform));
+      let resolvedAction = getUpdateAction(runtime);
+      let resolvedDetail =
+        runtime === 'desktop_packaged'
+          ? packagedUpdateDetail(ownsLocalBackend)
+          : AUTO_UPDATE_DETAIL;
+
+      if (runtime === 'desktop_packaged') {
+        try {
+          const desktopUpdate = await checkDesktopUpdaterUpdate();
+          if (desktopUpdate?.version) {
+            resolvedAction = 'desktop_updater';
+            resolvedDetail = DESKTOP_UPDATER_DETAIL;
+            setLatestVersion(desktopUpdate.version.replace(/^v/i, ''));
+            setUpdateAction(resolvedAction);
+            setUpdateDetail(resolvedDetail);
+            setUpdateStatus('available');
+            return;
+          }
+        } catch (desktopUpdaterError) {
+          console.warn('Desktop updater check failed; falling back to release download:', desktopUpdaterError);
+        }
+      }
+
+      setUpdateAction(resolvedAction);
+      setUpdateDetail(
+        resolvedDetail,
+      );
 
       if (latest && latest !== current) {
         setLatestVersion(latest);
@@ -391,6 +451,33 @@ export default function TopRightControls({
   };
 
   const triggerUpdate = async () => {
+    if (updateAction === 'manual_download') {
+      window.open(manualUpdateUrl, '_blank', 'noopener,noreferrer');
+      setUpdateStatus('idle');
+      return;
+    }
+
+    if (updateAction === 'desktop_updater') {
+      setUpdateStatus('updating');
+      setErrorMessage('');
+      try {
+        await installDesktopUpdaterUpdate();
+        setUpdateStatus('restarting');
+      } catch (err) {
+        const message =
+          typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message?: string }).message)
+            : '';
+        setErrorMessage(
+          message === 'desktop_update_installed_restart_required'
+            ? 'Update installed. Restart ShadowBroker to finish applying it.'
+            : message || 'Desktop updater failed. Use manual download if this keeps happening.',
+        );
+        setUpdateStatus('update_error');
+      }
+      return;
+    }
+
     setUpdateStatus('updating');
     setErrorMessage('');
     try {
@@ -401,14 +488,27 @@ export default function TopRightControls({
         message?: string;
         detail?: string;
         manual_url?: string;
+        release_url?: string;
         docker_commands?: string;
       };
       if (typeof data.manual_url === 'string' && data.manual_url.trim().length > 0) {
         setManualUpdateUrl(data.manual_url);
       }
+      if (typeof data.release_url === 'string' && data.release_url.trim().length > 0) {
+        setReleasePageUrl(data.release_url);
+      }
       if (data?.status === 'docker') {
         setDockerCommands(data.docker_commands || 'docker compose pull && docker compose up -d');
         setUpdateStatus('docker_update');
+        return;
+      }
+      if (data?.status === 'manual') {
+        const targetUrl =
+          typeof data.manual_url === 'string' && data.manual_url.trim().length > 0
+            ? data.manual_url
+            : manualUpdateUrl;
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        setUpdateStatus('idle');
         return;
       }
       if (!res.ok || data?.ok === false || data?.status === 'error') {
@@ -464,22 +564,29 @@ export default function TopRightControls({
 
         {/* Actions */}
         <div className="p-3 flex flex-col gap-2">
+          <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
+            {updateDetail}
+          </p>
           <button
             onClick={triggerUpdate}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/40 hover:bg-cyan-500/20 transition-all text-[10px] text-cyan-400 font-mono tracking-widest"
           >
             <Download size={12} />
-            AUTO UPDATE
+            {updateAction === 'manual_download'
+              ? 'DOWNLOAD INSTALLER'
+              : updateAction === 'desktop_updater'
+                ? 'INSTALL UPDATE'
+                : 'AUTO UPDATE'}
           </button>
 
           <a
-            href={manualUpdateUrl}
+            href={updateAction === 'manual_download' ? releasePageUrl : manualUpdateUrl}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
           >
             <ExternalLink size={12} />
-            MANUAL DOWNLOAD
+            {updateAction === 'manual_download' ? 'VIEW RELEASE' : 'MANUAL DOWNLOAD'}
           </a>
 
           <button
@@ -512,13 +619,13 @@ export default function TopRightControls({
             TRY AGAIN
           </button>
           <a
-            href={manualUpdateUrl}
+            href={updateAction === 'manual_download' ? releasePageUrl : manualUpdateUrl}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
           >
             <ExternalLink size={12} />
-            MANUAL DOWNLOAD
+            {updateAction === 'manual_download' ? 'VIEW RELEASE' : 'MANUAL DOWNLOAD'}
           </a>
         </div>
       </div>
@@ -556,7 +663,7 @@ export default function TopRightControls({
             </button>
           </div>
           <a
-            href={manualUpdateUrl}
+            href={releasePageUrl}
             target="_blank"
             rel="noreferrer"
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
@@ -577,7 +684,7 @@ export default function TopRightControls({
   const syncError = String(nodeStatus?.sync_runtime?.last_error || '').trim().toLowerCase();
   const syncOutcome = !nodeEnabled
     ? 'OFF'
-    : syncError === 'no active sync peers'
+    : syncOutcomeRaw === 'solo' || syncError === 'no active sync peers'
       ? 'SOLO'
       : syncOutcomeRaw === 'ok'
         ? 'CONNECTED'
@@ -592,7 +699,7 @@ export default function TopRightControls({
   const nodeIndicatorClass =
     !nodeEnabled
       ? 'bg-rose-400'
-      : syncError === 'no active sync peers'
+      : syncOutcomeRaw === 'solo' || syncError === 'no active sync peers'
         ? 'bg-cyan-400'
       : syncOutcomeRaw === 'ok'
       ? 'bg-green-400'
@@ -615,7 +722,7 @@ export default function TopRightControls({
   };
 
   // Uniform button style (matches UPDATES button)
-  const btnBase = 'flex items-center justify-center gap-1 px-2 py-1.5 bg-[var(--bg-primary)]/70 border border-[var(--border-primary)] hover:border-cyan-500/50 hover:bg-[var(--hover-accent)] transition-all text-[10px] text-[var(--text-secondary)] font-mono cursor-pointer min-w-[100px]';
+  const btnBase = 'flex items-center justify-center gap-1 px-2 py-1.5 bg-[var(--bg-primary)]/70 border border-[var(--border-primary)] hover:border-cyan-500/50 hover:bg-[var(--hover-accent)] transition-all text-[10px] text-[var(--text-secondary)] font-mono cursor-pointer flex-1';
 
   const nodeLauncherModal =
     portalReady && launcherOpen
@@ -667,7 +774,7 @@ export default function TopRightControls({
                         {(nodeStatus?.total_events ?? 0) > 0 && <span>{nodeStatus?.total_events} events</span>}
                         {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && <span>{nodeStatus?.bootstrap?.sync_peer_count} peers</span>}
                       </div>
-                      <div className="mt-3 text-[8px] text-[var(--text-muted)] normal-case tracking-normal leading-[1.8]">
+                      <div className="mt-3 text-[11px] text-[var(--text-muted)] normal-case tracking-normal leading-[1.8]">
                         Your node keeps syncing as long as the backend is running — you can close this browser tab. To run a headless node without the dashboard, use <span className="text-cyan-400">meshnode.bat</span> (Windows) or <span className="text-cyan-400">meshnode.sh</span> (macOS/Linux).
                       </div>
                     </div>
@@ -709,7 +816,7 @@ export default function TopRightControls({
                           {activatingPhase === 'keys' ? 'Generating identity...' : 'Identity ready'}
                         </span>
                         {activatingPhase !== 'keys' && (() => { const id = getNodeIdentity(); return id?.nodeId ? (
-                          <span className="text-[8px] text-cyan-400/70 ml-auto">{id.nodeId}</span>
+                          <span className="text-[11px] text-cyan-400/70 ml-auto">{id.nodeId}</span>
                         ) : null; })()}
                       </div>
                       {/* Step: Connect to relay */}
@@ -726,9 +833,9 @@ export default function TopRightControls({
                           : activatingPhase === 'peers' ? 'text-cyan-300'
                           : 'text-green-300'
                         }>
-                          {activatingPhase === 'keys' ? 'Connecting to relay...'
-                          : activatingPhase === 'peers' ? 'Connecting to relay...'
-                          : 'Relay connected'}
+                          {activatingPhase === 'keys' ? 'Connecting to default seed...'
+                          : activatingPhase === 'peers' ? 'Connecting to default seed...'
+                          : 'Default seed connected'}
                         </span>
                       </div>
                       {/* Step: Sync chain */}
@@ -746,7 +853,9 @@ export default function TopRightControls({
                           : 'text-green-300'
                         }>
                           {activatingPhase === 'done'
-                            ? `Synced — ${nodeStatus?.total_events ?? 0} events`
+                            ? (syncOutcomeRaw === 'solo'
+                              ? `Solo node ready — ${nodeStatus?.total_events ?? 0} events`
+                              : `Synced — ${nodeStatus?.total_events ?? 0} events`)
                             : activatingPhase === 'sync'
                               ? `Syncing chain...${(nodeStatus?.total_events ?? 0) > 0 ? ` ${nodeStatus?.total_events} events` : ''}`
                               : 'Syncing chain...'}
@@ -758,7 +867,7 @@ export default function TopRightControls({
                           <div className="mt-2 border border-green-500/30 bg-green-950/20 px-3 py-2 text-[10px] font-mono text-green-300 tracking-[0.15em] text-center">
                             NODE ONLINE
                           </div>
-                          <div className="mt-1 text-[8px] font-mono text-[var(--text-muted)] leading-[1.8] normal-case tracking-normal">
+                          <div className="mt-1 text-[11px] font-mono text-[var(--text-muted)] leading-[1.8] normal-case tracking-normal">
                             Your node keeps syncing as long as the backend is running — you can close this browser tab.
                             To run a headless node without the dashboard, use <span className="text-cyan-400">meshnode.bat</span> (Windows) or <span className="text-cyan-400">meshnode.sh</span> (macOS/Linux).
                           </div>
@@ -790,7 +899,7 @@ export default function TopRightControls({
                     <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[10px] font-mono text-cyan-100 leading-[1.8]">
                       Do you want to activate a node on this install?
                       <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal">
-                        This turns on your local participant node and lets this install keep syncing the public Infonet chain.
+                        This turns on your local participant node and lets this install keep syncing the public Infonet chain from <span className="text-cyan-300">{DEFAULT_INFONET_SEED_URL}</span>.
                       </div>
                     </div>
                     {(bootstrapFailed || nodeStatusError || nodeToggleError) && (
@@ -821,12 +930,13 @@ export default function TopRightControls({
                       <div className="text-cyan-300 tracking-[0.18em]">BY CONTINUING YOU AGREE:</div>
                       <ul className="mt-3 space-y-2 list-disc pl-5">
                         <li>This install can keep a local copy of the public Infonet chain.</li>
+                        <li>Fresh installs pull from the bundled default seed at {DEFAULT_INFONET_SEED_URL}.</li>
                         <li>Participant-node sync is public-facing unless you separately use obfuscated-lane features.</li>
                         <li>Your backend may sync with configured or bundled bootstrap peers in the background.</li>
-                        <li>Wormhole is only required for obfuscated gates, experimental inbox, and stronger obfuscated posture.</li>
+                        <li>Wormhole provides gates (transitional private lane) and Dead Drop / DM (stronger private lane) as separate postures.</li>
                       </ul>
                     </div>
-                    <div className="text-[8px] font-mono uppercase tracking-[0.2em] text-cyan-300/80">
+                    <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300/80">
                       {nodeMode} • {syncOutcome}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -914,7 +1024,7 @@ export default function TopRightControls({
                 <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[12px] font-mono text-slate-200 leading-[1.85]">
                   <div className="text-cyan-300 tracking-[0.18em]">BEFORE YOU ENTER:</div>
                   <ul className="mt-3 space-y-2 list-disc pl-5">
-                    <li>The terminal is for Wormhole, gates, and experimental mail.</li>
+                    <li>The terminal is for Wormhole gates (transitional private lane) and Dead Drop / DM (stronger private lane).</li>
                     <li>Your participant node can stay active separately without changing this obfuscated identity lane.</li>
                     <li>Mesh remains the public perimeter. Wormhole is the obfuscated commons.</li>
                   </ul>
@@ -973,33 +1083,7 @@ export default function TopRightControls({
     <>
     {terminalLauncherModal}
     {nodeLauncherModal}
-    <div className="relative flex items-center gap-1.5 mb-1 justify-end">
-      {/* Terminal toggle */}
-      <button
-        onClick={() => void openTerminalLauncher()}
-        className={`relative ${btnBase}`}
-        title="Mesh Terminal"
-      >
-        <Terminal size={11} className="text-cyan-400" />
-        <span className="tracking-wider">TERMINAL</span>
-        {(dmCount ?? 0) > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[7px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 shadow-[0_0_6px_rgba(239,68,68,0.5)]">
-            {(dmCount ?? 0) > 9 ? '9+' : dmCount}
-          </span>
-        )}
-      </button>
-
-      {/* Discussions link */}
-      <a
-        href="https://github.com/BigBodyCobain/Shadowbroker/discussions"
-        target="_blank"
-        rel="noreferrer"
-        className={btnBase}
-      >
-        <MessageSquare size={11} className="text-cyan-400" />
-        <span className="tracking-wider">DISCUSS</span>
-      </a>
-
+    <div className="relative flex items-center gap-1.5 mb-1 w-full">
       {/* Node runtime / private lane */}
       <button
         type="button"
@@ -1016,7 +1100,7 @@ export default function TopRightControls({
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${nodeIndicatorClass}`} />
       </button>
 
-      {/* Terminal toggle (secondary position) */}
+      {/* Terminal toggle */}
       <button
         type="button"
         onClick={() => void openTerminalLauncher()}
@@ -1025,6 +1109,11 @@ export default function TopRightControls({
       >
         <Terminal size={11} className="text-cyan-400" />
         <span className="tracking-wider">TERMINAL</span>
+        {(dmCount ?? 0) > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 shadow-[0_0_6px_rgba(239,68,68,0.5)]">
+            {(dmCount ?? 0) > 9 ? '9+' : dmCount}
+          </span>
+        )}
       </button>
 
       {/* ── Update Available → opens confirmation ── */}

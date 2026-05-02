@@ -10,16 +10,19 @@ import Map, {
   Popup,
   Marker,
   MapLayerMouseEvent,
+  AttributionControl,
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
 import { darkStyle, lightStyle } from '@/components/map/styles/mapStyles';
 import maplibregl from 'maplibre-gl';
-import { AlertTriangle, Radio, Activity, Play, Pause, Satellite } from 'lucide-react';
-import HlsVideo, { type HlsVideoHandle } from '@/components/HlsVideo';
+import { AlertTriangle, Radio, Activity, Play, Satellite } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
-import ExternalImage from '@/components/ExternalImage';
+import FishingDestinationRoute from '@/components/map/FishingDestinationRoute';
 import { useTheme } from '@/lib/ThemeContext';
+import { PIN_CATEGORY_LABELS, PIN_CATEGORY_COLORS, type PinCategory } from '@/types/aiIntel';
+import { getAllPinIcons } from '@/components/map/pinIcons';
+import { AIIntelPinDetail } from '@/components/map/AIIntelPinDetail';
 
 import {
   svgPlaneCyan,
@@ -139,8 +142,10 @@ import {
   makeVolcanoSvg,
   VOLCANO_ICON_SPECS,
   WEATHER_ICON_SPECS,
+  CT_ICON_SPECS,
 } from '@/components/map/icons/AircraftIcons';
 import { makeSatSvg, makeISSSvg, makeTrainSvg } from '@/components/map/icons/SatelliteIcons';
+import { makeUfoSvg, makeUfoClusterSvg, makeWaterDropSvg, makeWaterDropClusterSvg } from '@/components/map/icons/OverlayIcons';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 import { useImperativeSource } from '@/components/map/hooks/useImperativeSource';
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
@@ -154,14 +159,23 @@ import {
   EarthquakeLabels,
   ThreatMarkers,
 } from '@/components/map/MapMarkers';
-import type { KiwiSDR, MaplibreViewerProps, Scanner, SigintSignal } from '@/types/dashboard';
-import { useDataSnapshot } from '@/hooks/useDataStore';
+import type { DashboardData, KiwiSDR, MaplibreViewerProps, Scanner, SigintSignal } from '@/types/dashboard';
+import { useDataKeys } from '@/hooks/useDataStore';
 import { useInterpolation } from '@/components/map/hooks/useInterpolation';
 import { useClusterLabels } from '@/components/map/hooks/useClusterLabels';
 import { spreadAlertItems } from '@/utils/alertSpread';
-import { SigintSendForm, MeshtasticChannelFeed } from '@/components/map/panels/SigintPanels';
+
 import { useViewportBounds } from '@/components/map/hooks/useViewportBounds';
 import { MeasurementLayers } from '@/components/map/layers/MeasurementLayers';
+import { buildCctvProxyUrl } from '@/lib/cctvProxy';
+import { CctvFullscreenModal } from '@/components/MaplibreViewer/CctvFullscreenModal';
+import { SatellitePopup } from '@/components/MaplibreViewer/popups/SatellitePopup';
+import { ShipPopup } from '@/components/MaplibreViewer/popups/ShipPopup';
+import { SigintPopup } from '@/components/MaplibreViewer/popups/SigintPopup';
+import { CorrelationPopup } from '@/components/MaplibreViewer/popups/CorrelationPopup';
+import { WastewaterPopup } from '@/components/MaplibreViewer/popups/WastewaterPopup';
+import { MilitaryBasePopup } from '@/components/MaplibreViewer/popups/MilitaryBasePopup';
+import { RegionDossierPanel } from '@/components/MaplibreViewer/popups/RegionDossierPanel';
 import {
   buildSentinelTileUrl,
   hasSentinelCredentials,
@@ -174,6 +188,8 @@ import {
   buildCorrelationsGeoJSON,
   buildTinygsGeoJSON,
   buildShodanGeoJSON,
+  buildAIIntelGeoJSON,
+  type AIIntelPinData,
   buildFrontlineGeoJSON,
   buildUavGeoJSON,
   buildSatellitesGeoJSON,
@@ -185,6 +201,8 @@ import {
   buildUkraineAlertLabelsGeoJSON,
   buildWeatherAlertsGeoJSON,
   buildWeatherAlertLabelsGeoJSON,
+  buildSarAnomaliesGeoJSON,
+  buildSarAoisGeoJSON,
   type FlightLayerConfig,
 } from '@/components/map/geoJSONBuilders';
 
@@ -207,6 +225,41 @@ type GeoExtras = {
 type KiwiProps = Partial<KiwiSDR> & GeoExtras;
 type ScannerProps = Partial<Scanner> & GeoExtras;
 type SigintProps = Partial<SigintSignal> & GeoExtras;
+
+const MAP_EXTRA_DATA_KEYS = [
+  'air_quality',
+  'cctv',
+  'commercial_flights',
+  'correlations',
+  'crowdthreat',
+  'datacenters',
+  'firms_fires',
+  'fishing_activity',
+  'frontlines',
+  'gps_jamming',
+  'internet_outages',
+  'kiwisdr',
+  'military_bases',
+  'military_flights',
+  'power_plants',
+  'private_flights',
+  'private_jets',
+  'psk_reporter',
+  'sar_anomalies',
+  'satellite_analysis',
+  'satellites',
+  'satnogs_stations',
+  'scanners',
+  'sigint',
+  'tinygs_satellites',
+  'trains',
+  'uap_sightings',
+  'ukraine_alerts',
+  'viirs_change_nodes',
+  'volcanoes',
+  'wastewater',
+  'weather_alerts',
+] as const satisfies readonly (keyof DashboardData)[];
 
 const VIIRS_TILE_TEMPLATES = [
   // The older daily Day/Night Band path now 404s in GIBS. Black Marble is the
@@ -240,382 +293,6 @@ function probeRasterTile(url: string): Promise<boolean> {
   });
 }
 
-// ─── OPTIC INTERCEPT — fullscreen CCTV modal ──────────────────────────────
-function CctvFullscreenModal({
-  url,
-  mediaType,
-  isVideo,
-  cameraName,
-  sourceAgency,
-  cameraId,
-  onClose,
-}: {
-  url: string;
-  mediaType: string;
-  isVideo: boolean;
-  cameraName: string;
-  sourceAgency: string;
-  cameraId: string;
-  onClose: () => void;
-}) {
-  const [paused, setPaused] = useState(false);
-  const [mediaError, setMediaError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<HlsVideoHandle>(null);
-
-  const togglePlay = useCallback(() => {
-    if (mediaType === 'hls') {
-      if (hlsRef.current?.paused) hlsRef.current.play();
-      else hlsRef.current?.pause();
-      setPaused(!hlsRef.current?.paused);
-    } else if (videoRef.current) {
-      if (videoRef.current.paused) videoRef.current.play();
-      else videoRef.current.pause();
-      setPaused(videoRef.current.paused);
-    }
-  }, [mediaType]);
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-        background: 'rgba(0,0,0,0.88)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '60px 20px 80px 20px',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === 'Escape') onClose();
-      }}
-      tabIndex={-1}
-      ref={(el) => el?.focus()}
-    >
-      <div
-        style={{
-          background: 'rgba(0,0,0,0.95)',
-          border: '1px solid rgba(8,145,178,0.5)',
-          borderRadius: 12,
-          overflow: 'hidden',
-          maxWidth: 'calc(100vw - 40px)',
-          maxHeight: 'calc(100vh - 80px)',
-          width: 900,
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 0 60px rgba(8,145,178,0.25), inset 0 0 30px rgba(0,0,0,0.5)',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 16px',
-            background: 'rgba(8,51,68,0.4)',
-            borderBottom: '1px solid rgba(8,145,178,0.3)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertTriangle size={12} style={{ color: '#ef4444' }} />
-            <span
-              style={{
-                fontSize: 11,
-                color: '#22d3ee',
-                fontFamily: 'monospace',
-                letterSpacing: '0.2em',
-                fontWeight: 'bold',
-              }}
-            >
-              OPTIC INTERCEPT
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span
-              style={{
-                fontSize: 10,
-                color: 'rgba(8,145,178,0.6)',
-                fontFamily: 'monospace',
-              }}
-            >
-              ID: {cameraId}
-            </span>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'rgba(239,68,68,0.2)',
-                border: '1px solid rgba(239,68,68,0.4)',
-                borderRadius: 6,
-                color: '#ef4444',
-                fontSize: 10,
-                fontFamily: 'monospace',
-                padding: '4px 10px',
-                cursor: 'pointer',
-                letterSpacing: '0.1em',
-              }}
-            >
-              ✕ CLOSE
-            </button>
-          </div>
-        </div>
-
-        {/* Metadata row */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 16px',
-            fontSize: 10,
-            fontFamily: 'monospace',
-            borderBottom: '1px solid rgba(8,51,68,0.5)',
-          }}
-        >
-          <span style={{ color: '#22d3ee', letterSpacing: '0.15em' }}>{sourceAgency}</span>
-          <span style={{ color: '#ef4444', letterSpacing: '0.1em', fontWeight: 'bold' }}>
-            REC // {new Date().toLocaleTimeString('en-GB', { hour12: false })}
-          </span>
-          <span
-            style={{
-              color: 'rgba(8,145,178,0.7)',
-              letterSpacing: '0.1em',
-              background: 'rgba(8,145,178,0.1)',
-              border: '1px solid rgba(8,145,178,0.2)',
-              borderRadius: 4,
-              padding: '2px 8px',
-            }}
-          >
-            {mediaType.toUpperCase()}
-          </span>
-        </div>
-
-        {/* Media area */}
-        <div
-          style={{
-            flex: 1,
-            position: 'relative',
-            background: '#000',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: 400,
-            overflow: 'hidden',
-          }}
-        >
-          {url ? (
-            <>
-              {mediaType === 'video' && !mediaError && (
-                <video
-                  ref={videoRef}
-                  src={url}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  onError={() => setMediaError(true)}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 260px)',
-                    objectFit: 'contain',
-                    filter: 'contrast(1.25) saturate(0.5)',
-                  }}
-                />
-              )}
-              {mediaType === 'hls' && !mediaError && (
-                <HlsVideo
-                  ref={hlsRef}
-                  url={url}
-                  onError={() => setMediaError(true)}
-                  className=""
-                />
-              )}
-              {mediaType === 'mjpeg' && (
-                <img
-                  src={url}
-                  alt="MJPEG Feed"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 260px)',
-                    objectFit: 'contain',
-                    filter: 'contrast(1.25) saturate(0.5)',
-                  }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              )}
-              {(mediaType === 'image' || mediaType === 'satellite') && (
-                <img
-                  src={url}
-                  alt="CCTV Feed"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 260px)',
-                    objectFit: 'contain',
-                    filter: 'contrast(1.25) saturate(0.5)',
-                  }}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-              )}
-
-              {/* Media error fallback */}
-              {mediaError && (
-                <div style={{ fontSize: 11, color: 'rgba(239,68,68,0.7)', fontFamily: 'monospace', letterSpacing: '0.15em', textAlign: 'center', padding: 40 }}>
-                  FEED UNAVAILABLE<br />
-                  <span style={{ fontSize: 9, color: 'rgba(148,163,184,0.5)' }}>stream failed to load — source may be offline</span>
-                </div>
-              )}
-
-              {/* REC overlay */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 12,
-                  left: 14,
-                  fontSize: 9,
-                  color: '#22d3ee',
-                  background: 'rgba(0,0,0,0.6)',
-                  padding: '2px 6px',
-                  fontFamily: 'monospace',
-                  letterSpacing: '0.1em',
-                  borderRadius: 2,
-                }}
-              >
-                REC // 00:00:00:00
-              </div>
-
-              {/* Play/Pause overlay for video streams */}
-              {isVideo && (
-                <button
-                  onClick={togglePlay}
-                  style={{
-                    position: 'absolute',
-                    bottom: 14,
-                    right: 14,
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.7)',
-                    border: '1px solid rgba(8,145,178,0.5)',
-                    color: '#22d3ee',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.target as HTMLElement).style.background = 'rgba(8,51,68,0.8)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.background = 'rgba(0,0,0,0.7)';
-                  }}
-                >
-                  {paused ? <Play size={18} /> : <Pause size={18} />}
-                </button>
-              )}
-            </>
-          ) : (
-            <div
-              style={{
-                fontSize: 12,
-                color: 'rgba(8,145,178,0.4)',
-                fontFamily: 'monospace',
-                letterSpacing: '0.2em',
-              }}
-            >
-              NO SIGNAL
-            </div>
-          )}
-        </div>
-
-        {/* Location bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 16px',
-            background: 'rgba(8,51,68,0.3)',
-            borderTop: '1px solid rgba(8,145,178,0.2)',
-          }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              color: '#22d3ee',
-              fontFamily: 'monospace',
-              letterSpacing: '0.15em',
-              fontWeight: 'bold',
-            }}
-          >
-            {cameraName}
-          </span>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {url && (
-              <>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    background: 'rgba(8,145,178,0.2)',
-                    border: '1px solid rgba(8,145,178,0.5)',
-                    borderRadius: 6,
-                    color: '#22d3ee',
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    padding: '5px 14px',
-                    cursor: 'pointer',
-                    textDecoration: 'none',
-                    letterSpacing: '0.15em',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  OPEN SOURCE ↗
-                </a>
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(url);
-                    } catch { /* ignore */ }
-                  }}
-                  style={{
-                    background: 'rgba(8,145,178,0.15)',
-                    border: '1px solid rgba(8,145,178,0.4)',
-                    borderRadius: 6,
-                    color: '#22d3ee',
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    padding: '5px 14px',
-                    cursor: 'pointer',
-                    letterSpacing: '0.15em',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  COPY URL
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const MaplibreViewer = ({
   activeLayers,
   activeFilters,
@@ -640,8 +317,23 @@ const MaplibreViewer = ({
   setTrackedScanner,
   shodanResults,
   shodanStyle,
+  pinPlacementMode,
+  onPinPlaced,
+  sarAoiDropMode,
+  onSarAoiDropped,
+  sarAoiListVersion,
 }: Omit<MaplibreViewerProps, 'data'>) => {
-  const data = useDataSnapshot() as import('@/types/dashboard').DashboardData;
+  const coreData = useDataKeys([
+    'tracked_flights',
+    'news',
+    'ships',
+    'uavs',
+    'earthquakes',
+    'gdelt',
+    'liveuamap',
+  ]);
+  const extraData = useDataKeys(MAP_EXTRA_DATA_KEYS);
+  const data = useMemo(() => ({ ...coreData, ...extraData }) as DashboardData, [coreData, extraData]);
   const mapRef = useRef<MapRef>(null);
   const mapInitRef = useRef(false);
   const { theme } = useTheme();
@@ -663,8 +355,66 @@ const MaplibreViewer = ({
   );
   const viewStateRef = useRef<ViewState>(initialViewState);
   const [mapZoom, setMapZoom] = useState(initialViewState.zoom);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [viirsResolvedTileTemplate, setViirsResolvedTileTemplate] = useState<string | null>(null);
   const [isMapInteracting, setIsMapInteracting] = useState(false);
+
+  // Pin placement state
+  const [pendingPin, setPendingPin] = useState<{
+    lat: number;
+    lng: number;
+    entity: { entity_type: string; entity_id: string; entity_label: string } | null;
+  } | null>(null);
+  const [pinLabel, setPinLabel] = useState('');
+  const [pinNotes, setPinNotes] = useState('');
+  const [pinCategory, setPinCategory] = useState<PinCategory>('custom');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [aiIntelPins, setAiIntelPins] = useState<AIIntelPinData[]>([]);
+  const [aiIntelRefreshTick, setAiIntelRefreshTick] = useState(0);
+  // Currently-open AI Intel pin detail popup (pin id)
+  const [openPinDetailId, setOpenPinDetailId] = useState<string | null>(null);
+  const pinLabelInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Force focus to the label input whenever the pin dialog opens — the
+  // maplibre canvas otherwise keeps focus and global hotkeys eat keystrokes.
+  useEffect(() => {
+    if (!pendingPin) return;
+    const t = setTimeout(() => pinLabelInputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [pendingPin]);
+
+  const handleSavePin = useCallback(async () => {
+    if (!pendingPin || !pinLabel.trim()) return;
+    setPinSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        lat: pendingPin.lat,
+        lng: pendingPin.lng,
+        label: pinLabel.trim(),
+        description: pinNotes.trim(),
+        source: 'user',
+        category: pinCategory,
+      };
+      if (pendingPin.entity) {
+        body.entity_attachment = pendingPin.entity;
+      }
+      await fetch(`${API_BASE}/api/ai/pins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      setPendingPin(null);
+      setPinLabel('');
+      setPinNotes('');
+      setPinCategory('custom');
+      setAiIntelRefreshTick((t) => t + 1);
+      onPinPlaced?.();
+    } catch (err) {
+      console.error('Failed to save pin:', err);
+    }
+    setPinSaving(false);
+  }, [pendingPin, pinLabel, pinNotes, pinCategory, onPinPlaced]);
+
   const showImageryReferenceOverlay =
     activeLayers.highres_satellite ||
     activeLayers.gibs_imagery ||
@@ -732,10 +482,8 @@ const MaplibreViewer = ({
     market?: { title: string; consensus_pct: number | null } | null;
   } | null>(null);
 
-  // Global Incidents popup: dismiss state
-  // Keys use stable content hash (title+coords) to survive data.news array replacement on refresh
-  // NOTE: Using Set (not Map) to avoid collision with the `Map` react-map-gl import
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  // Global Incidents popup: dismiss no longer permanently removes alerts.
+  // Clicking × just deselects, allowing re-opening from the right-panel feed.
 
   // --- Smooth interpolation via extracted hook ---
   const {
@@ -863,8 +611,15 @@ const MaplibreViewer = ({
   );
 
   const correlationsGeoJSON = useMemo(
-    () => (activeLayers.correlations ? buildCorrelationsGeoJSON(data?.correlations) : null),
-    [activeLayers.correlations, data?.correlations],
+    () => {
+      if (!activeLayers.correlations && !activeLayers.contradictions) return null;
+      const alerts = data?.correlations?.filter((a) => {
+        if (a.type === 'contradiction') return activeLayers.contradictions;
+        return activeLayers.correlations;
+      });
+      return buildCorrelationsGeoJSON(alerts);
+    },
+    [activeLayers.correlations, activeLayers.contradictions, data?.correlations],
   );
 
   const tinygsGeoJSON = useMemo(
@@ -878,6 +633,32 @@ const MaplibreViewer = ({
   const shodanGeoJSON = useMemo(
     () => (activeLayers.shodan_overlay ? buildShodanGeoJSON(shodanResults) : null),
     [activeLayers.shodan_overlay, shodanResults],
+  );
+
+  // AI Intel layer — pins from OpenClaw and the AI co-pilot
+  useEffect(() => {
+    if (!activeLayers.ai_intel) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/ai/pins/geojson`);
+        if (!resp.ok || cancelled) return;
+        const gj = await resp.json();
+        const pins = (gj.features || []).map((f: any) => ({
+          ...f.properties,
+          lat: f.geometry?.coordinates?.[1],
+          lng: f.geometry?.coordinates?.[0],
+        }));
+        if (!cancelled) setAiIntelPins(pins);
+      } catch {}
+    };
+    poll();
+    const tid = setInterval(poll, 15_000); // poll every 15s
+    return () => { cancelled = true; clearInterval(tid); };
+  }, [activeLayers.ai_intel, aiIntelRefreshTick]);
+  const aiIntelGeoJSON = useMemo(
+    () => (activeLayers.ai_intel ? buildAIIntelGeoJSON(aiIntelPins, data) : null),
+    [activeLayers.ai_intel, aiIntelPins, data],
   );
 
   const ukraineAlertsGeoJSON = useMemo(
@@ -955,6 +736,11 @@ const MaplibreViewer = ({
         };
       }
     });
+
+    // AI Intel teardrop pin icons — one per category color
+    for (const [id, url] of getAllPinIcons()) {
+      loadImg(id, url);
+    }
 
     // Critical icons — needed immediately for default-on layers
     loadImg('svgPlaneCyan', svgPlaneCyan);
@@ -1100,6 +886,18 @@ const MaplibreViewer = ({
       for (const spec of WEATHER_ICON_SPECS) {
         loadImg(spec.id, spec.svg);
       }
+      // CrowdThreat category icons
+      for (const spec of CT_ICON_SPECS) {
+        loadImg(spec.id, spec.svg);
+      }
+      // UAP (UFO) icons — individual + cluster
+      loadImg('ufo-icon', makeUfoSvg());
+      loadImg('ufo-cluster', makeUfoClusterSvg());
+      // Wastewater water drop icons — individual + cluster
+      loadImg('ww-clean', makeWaterDropSvg('#00e5ff'));
+      loadImg('ww-alert', makeWaterDropSvg('#ff2222', '#ff4444'));
+      loadImg('ww-stale', makeWaterDropSvg('#556677'));
+      loadImg('ww-cluster', makeWaterDropClusterSvg('#00e5ff'));
     }, 0);
 
   }, []);
@@ -1206,6 +1004,9 @@ const MaplibreViewer = ({
   const staticVolcanoes = activeLayers.volcanoes ? data?.volcanoes : undefined;
   const staticFishingActivity = activeLayers.fishing_activity ? data?.fishing_activity : undefined;
   const staticTrains = activeLayers.trains ? data?.trains : undefined;
+  const staticUapSightings = activeLayers.uap_sightings ? data?.uap_sightings : undefined;
+  const staticWastewater = activeLayers.wastewater ? data?.wastewater : undefined;
+  const staticCrowdthreat = activeLayers.crowdthreat ? data?.crowdthreat : undefined;
 
   const dynamicMapLayers = useDynamicMapLayersWorker(
     {
@@ -1292,7 +1093,11 @@ const MaplibreViewer = ({
       airQuality: staticAirQuality,
       volcanoes: staticVolcanoes,
       fishingActivity: staticFishingActivity,
+      ships: data?.ships,
       trains: staticTrains,
+      uapSightings: staticUapSightings,
+      wastewater: staticWastewater,
+      crowdthreat: staticCrowdthreat,
     },
     [
       staticCctv,
@@ -1311,7 +1116,11 @@ const MaplibreViewer = ({
       staticAirQuality,
       staticVolcanoes,
       staticFishingActivity,
+      data?.ships,
       staticTrains,
+      staticUapSightings,
+      staticWastewater,
+      staticCrowdthreat,
     ],
     {
       bounds: mapBounds,
@@ -1332,6 +1141,9 @@ const MaplibreViewer = ({
         volcanoes: activeLayers.volcanoes,
         fishing_activity: activeLayers.fishing_activity,
         trains: activeLayers.trains,
+        uap_sightings: activeLayers.uap_sightings,
+        wastewater: activeLayers.wastewater,
+        crowdthreat: activeLayers.crowdthreat,
       },
     },
     [
@@ -1352,6 +1164,9 @@ const MaplibreViewer = ({
       activeLayers.volcanoes,
       activeLayers.fishing_activity,
       activeLayers.trains,
+      activeLayers.uap_sightings,
+      activeLayers.wastewater,
+      activeLayers.crowdthreat,
     ],
   );
 
@@ -1384,6 +1199,9 @@ const MaplibreViewer = ({
     volcanoesGeoJSON,
     fishingGeoJSON,
     trainsGeoJSON,
+    uapSightingsGeoJSON,
+    wastewaterGeoJSON,
+    crowdthreatGeoJSON,
   } = staticMapLayers;
 
   // Extract cluster label positions via shared hook
@@ -1393,6 +1211,53 @@ const MaplibreViewer = ({
   const carriersGeoJSON = useMemo(
     () => (activeLayers.ships_military ? buildCarriersGeoJSON(data?.ships) : null),
     [activeLayers.ships_military, data?.ships],
+  );
+
+  // SAR anomaly pins (Mode B) + AOI watchbox circles.  AOIs render whenever
+  // the SAR layer is on; anomalies only appear when Mode B has produced
+  // something.  The render path is fully imperative via useImperativeSource.
+  //
+  // AOIs come from their own endpoint (/api/sar/aois) rather than the
+  // dashboard payload because they're operator-managed metadata, not a
+  // polled feed — the list rarely changes and we don't want to bloat
+  // dashboard responses with it.
+  const [sarAoisList, setSarAoisList] = useState<
+    import('@/types/dashboard').SarAoi[]
+  >([]);
+  useEffect(() => {
+    if (!activeLayers.sar) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/sar/aois`, {
+          credentials: 'include',
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.aois)) {
+          setSarAoisList(body.aois);
+        }
+      } catch {
+        // ignore — AOIs are a nice-to-have
+      }
+    };
+    run();
+    // Refresh every 2 minutes while the layer is on so operator edits
+    // propagate without a full page reload.
+    const iv = setInterval(run, 120_000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [activeLayers.sar, sarAoiListVersion]);
+
+  const sarAnomaliesGeoJSON = useMemo(
+    () => (activeLayers.sar ? buildSarAnomaliesGeoJSON(data?.sar_anomalies) : null),
+    [activeLayers.sar, data?.sar_anomalies],
+  );
+  const sarAoisGeoJSON = useMemo(
+    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),
+    [activeLayers.sar, sarAoisList],
   );
 
   const getSelectedEntityLiveCoords = useCallback(
@@ -1475,29 +1340,57 @@ const MaplibreViewer = ({
     const entity = findSelectedEntity(selectedEntity, data);
     if (!entity || !('trail' in entity) || !entity.trail || entity.trail.length < 2) return null;
 
-    const coords = (
-      entity.trail as Array<{ lat?: number; lng?: number } | [number, number]>
+    // Parse trail points — backend sends [lat, lng, alt, ts] arrays
+    type TrailPt = { lng: number; lat: number; alt: number; ts: number };
+    const points: TrailPt[] = (
+      entity.trail as Array<{ lat?: number; lng?: number; alt?: number; ts?: number } | number[]>
     ).map((p) => {
       if (Array.isArray(p)) {
-        return [p[1], p[0]];
+        return { lat: p[0] as number, lng: p[1] as number, alt: (p[2] as number) || 0, ts: (p[3] as number) || 0 };
       }
-      return [p.lng ?? 0, p.lat ?? 0];
-    });
+      return { lat: p.lat ?? 0, lng: p.lng ?? 0, alt: p.alt ?? 0, ts: p.ts ?? 0 };
+    }).filter((p) => p.lat !== 0 || p.lng !== 0);
+
     const currentLoc = getSelectedEntityLiveCoords(entity);
-    if (currentLoc) {
-      coords.push(currentLoc);
+    if (currentLoc && points.length > 0) {
+      const lastPt = points[points.length - 1];
+      points.push({ lng: currentLoc[0], lat: currentLoc[1], alt: lastPt.alt, ts: Date.now() / 1000 });
     }
 
-    return {
-      type: 'FeatureCollection' as const,
-      features: [
-        {
-          type: 'Feature' as const,
-          properties: { type: 'trail' },
-          geometry: { type: 'LineString' as const, coordinates: coords },
-        },
-      ],
+    if (points.length < 2) return null;
+
+    // Split into segments colored by altitude for gradient effect
+    // Color ramp: ground(magenta) → low(blue) → mid(cyan) → high(green) → very high(yellow) → max(orange/red)
+    const altToColor = (altM: number): string => {
+      const ft = altM / 0.3048;
+      if (ft < 1000) return '#ff44ff';     // magenta — ground/taxi
+      if (ft < 5000) return '#6366f1';     // indigo — low
+      if (ft < 15000) return '#22d3ee';    // cyan — mid climb/descent
+      if (ft < 25000) return '#22c55e';    // green — medium
+      if (ft < 35000) return '#eab308';    // yellow — high
+      return '#f97316';                     // orange — cruise
     };
+
+    const features: GeoJSON.Feature[] = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i], b = points[i + 1];
+      const progress = i / (points.length - 1);
+      features.push({
+        type: 'Feature' as const,
+        properties: {
+          type: 'trail',
+          color: altToColor((a.alt + b.alt) / 2),
+          opacity: 0.4 + progress * 0.5, // older segments more transparent
+          segIndex: i,
+        },
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [[a.lng, a.lat], [b.lng, b.lat]],
+        },
+      });
+    }
+
+    return { type: 'FeatureCollection' as const, features };
   }, [selectedEntity, data, getSelectedEntityLiveCoords, interpTick]);
 
   // Predictive vector GeoJSON: dotted line projecting ~5 min ahead based on heading + speed
@@ -1541,7 +1434,7 @@ const MaplibreViewer = ({
     const maxAlerts = mapZoom < 4 ? 6 : mapZoom < 6 ? 10 : 16;
     const sorted = [...data.news].sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
     return spreadAlertItems(sorted.slice(0, maxAlerts), mapZoom, dismissedAlerts);
-  }, [data?.news, dismissedAlerts, mapZoom]);
+  }, [data?.news, mapZoom, dismissedAlerts]);
 
   const uavGeoJSON = useMemo(
     () => (activeLayers.military ? buildUavGeoJSON(data?.uavs, inView) : null),
@@ -1603,9 +1496,60 @@ const MaplibreViewer = ({
     weatherAlertLabelsGeoJSON && 'weather-alert-icons',
     airQualityGeoJSON && 'air-quality-layer',
     volcanoesGeoJSON && 'volcanoes-layer',
+    fishingGeoJSON && 'fishing-clusters',
     fishingGeoJSON && 'fishing-layer',
     trainsGeoJSON && 'trains-layer',
+    uapSightingsGeoJSON && 'uap-sightings-cluster-bg',
+    uapSightingsGeoJSON && 'uap-sightings-clusters',
+    uapSightingsGeoJSON && 'uap-sightings-dot',
+    uapSightingsGeoJSON && 'uap-sightings-layer',
+    wastewaterGeoJSON && 'wastewater-cluster-bg',
+    wastewaterGeoJSON && 'wastewater-clusters',
+    wastewaterGeoJSON && 'wastewater-dot',
+    wastewaterGeoJSON && 'wastewater-layer',
+    crowdthreatGeoJSON && 'crowdthreat-layer',
+    sarAnomaliesGeoJSON && 'sar-anomalies-layer',
+    sarAoisGeoJSON && 'sar-aois-fill',
+    aiIntelGeoJSON && 'ai-intel-clusters',
+    aiIntelGeoJSON && 'ai-intel-pin-layer',
+    correlationsGeoJSON && 'corr-rf-fill',
+    correlationsGeoJSON && 'corr-mil-fill',
+    correlationsGeoJSON && 'corr-infra-fill',
+    correlationsGeoJSON && 'corr-contra-fill',
+    correlationsGeoJSON && 'corr-analysis-fill',
   ].filter(Boolean) as string[];
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    const emphasizedLayers = [
+      'uap-sightings-cluster-bg',
+      'uap-sightings-clusters',
+      'uap-sightings-dot',
+      'uap-sightings-layer',
+      'wastewater-cluster-bg',
+      'wastewater-clusters',
+      'wastewater-dot',
+      'wastewater-layer',
+    ];
+
+    const moveEmphasizedLayersToTop = () => {
+      for (const layerId of emphasizedLayers) {
+        if (map.getLayer(layerId)) {
+          map.moveLayer(layerId);
+        }
+      }
+    };
+
+    const rafId = window.requestAnimationFrame(moveEmphasizedLayersToTop);
+    const timeoutId = window.setTimeout(moveEmphasizedLayersToTop, 120);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeLayers.uap_sightings, activeLayers.wastewater, theme]);
 
   // --- Imperative source updates: bypass React reconciliation for GeoJSON layers ---
   const mapForHook = mapRef.current;
@@ -1633,10 +1577,15 @@ const MaplibreViewer = ({
   useImperativeSource(mapForHook, 'air-quality-source', airQualityGeoJSON, 100);
   useImperativeSource(mapForHook, 'volcanoes-source', volcanoesGeoJSON, 100);
   useImperativeSource(mapForHook, 'fishing-source', fishingGeoJSON, 100);
+  useImperativeSource(mapForHook, 'uap-sightings-source', uapSightingsGeoJSON, 100);
+  useImperativeSource(mapForHook, 'wastewater-source', wastewaterGeoJSON, 100);
+  useImperativeSource(mapForHook, 'crowdthreat-source', crowdthreatGeoJSON, 100);
   useImperativeSource(mapForHook, 'ships', shipsGeoJSON, 75);
   useImperativeSource(mapForHook, 'meshtastic-source', meshtasticGeoJSON, 60);
   useImperativeSource(mapForHook, 'aprs-source', aprsGeoJSON, 60);
   useImperativeSource(mapForHook, 'trains', trainsGeoJSON, 60);
+  useImperativeSource(mapForHook, 'sar-aois', sarAoisGeoJSON, 120);
+  useImperativeSource(mapForHook, 'sar-anomalies', sarAnomaliesGeoJSON, 120);
 
   const handleMouseMove = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -1662,6 +1611,7 @@ const MaplibreViewer = ({
   return (
     <div
       className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
+      style={pinPlacementMode || sarAoiDropMode ? { cursor: 'crosshair' } : undefined}
     >
       <Map
         ref={mapRef}
@@ -1695,6 +1645,7 @@ const MaplibreViewer = ({
         }}
         mapStyle={mapThemeStyle}
         mapLib={maplibregl}
+        attributionControl={false}
         onLoad={onMapLoad}
         onStyleData={onMapStyleData}
         onIdle={() => {
@@ -1708,10 +1659,48 @@ const MaplibreViewer = ({
             onMeasureClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
             return;
           }
+          // SAR AOI drop mode
+          if (sarAoiDropMode) {
+            onSarAoiDropped?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+            return;
+          }
+          // Pin placement mode
+          if (pinPlacementMode) {
+            const clickedFeature = e.features?.[0];
+            const clickedProps = clickedFeature?.properties || {};
+            const isEntity = clickedFeature && clickedProps.type && clickedProps.id && !clickedProps.cluster;
+            setPendingPin({
+              lat: e.lngLat.lat,
+              lng: e.lngLat.lng,
+              entity: isEntity ? {
+                entity_type: String(clickedProps.type || ''),
+                entity_id: String(clickedProps.id || ''),
+                entity_label: String(clickedProps.name || clickedProps.callsign || clickedProps.label || ''),
+              } : null,
+            });
+            return;
+          }
+          // AI Intel pin click → open detail popup (takes precedence over entity selection)
+          if (e.features && e.features.length > 0) {
+            const aiPin = e.features.find(
+              (f) => f.layer?.id === 'ai-intel-pin-layer' && !(f.properties as Record<string, unknown> | null)?.cluster,
+            );
+            if (aiPin && aiPin.properties?.id) {
+              setOpenPinDetailId(String(aiPin.properties.id));
+              return;
+            }
+          }
           if (selectedEntity) {
             onEntityClick?.(null);
           } else if (e.features && e.features.length > 0) {
-            const feature = e.features[0];
+            // SAR AOI fill spans large polygons (often hundreds of km wide)
+            // and renders above entity layers. If an entity (flight, ship,
+            // SDR receiver, etc.) is also under the cursor, prefer it — the
+            // AOI should only win when the user clicks empty space inside it.
+            const nonAoiFeature = e.features.find(
+              (f) => f.layer?.id !== 'sar-aois-fill',
+            );
+            const feature = nonAoiFeature ?? e.features[0];
             const props = feature.properties || {};
 
             // If the clicked feature is a cluster, zoom into it instead of selecting an entity
@@ -1736,6 +1725,20 @@ const MaplibreViewer = ({
           }
         }}
       >
+        <AttributionControl
+          compact
+          customAttribution={[
+            '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
+            '<a href="https://carto.com/attribution" target="_blank" rel="noopener">CARTO</a>',
+            '<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol (ODbL)</a>',
+            '<a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a>',
+            '<a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>',
+            '<a href="https://aisstream.io" target="_blank" rel="noopener">aisstream.io</a>',
+            '<a href="https://meshtastic.liamcottle.net" target="_blank" rel="noopener">Meshtastic map by Liam Cottle</a>',
+            'NASA · NOAA · USGS · GDELT',
+            '<a href="https://github.com/BigBodyCobain/Shadowbroker/blob/main/DATA-ATTRIBUTION.md" target="_blank" rel="noopener">full sources</a>',
+          ]}
+        />
         {/* Esri World Imagery — high-res static satellite (zoom 0-18+) */}
         {activeLayers.highres_satellite && (
           <Source
@@ -2129,6 +2132,99 @@ const MaplibreViewer = ({
             }}
             paint={{
               'text-color': '#9ca3af',
+              'text-halo-color': '#000000',
+              'text-halo-width': 1.5,
+            }}
+          />
+          {/* Possible Contradiction — amber pulsing, hypothesis not verdict */}
+          <Layer
+            id="corr-contra-fill"
+            type="fill"
+            filter={['==', ['get', 'corr_type'], 'contradiction']}
+            minzoom={2}
+            paint={{
+              'fill-color': '#f59e0b',
+              'fill-opacity': ['get', 'opacity'],
+            }}
+          />
+          <Layer
+            id="corr-contra-outline"
+            type="line"
+            filter={['==', ['get', 'corr_type'], 'contradiction']}
+            minzoom={2}
+            paint={{
+              'line-color': '#f59e0b',
+              'line-width': 2,
+              'line-opacity': 0.7,
+              'line-dasharray': [6, 3],
+            }}
+          />
+          <Layer
+            id="corr-contra-label"
+            type="symbol"
+            filter={['==', ['get', 'corr_type'], 'contradiction']}
+            minzoom={2}
+            layout={{
+              'text-field': ['concat', '? CONTRADICTION\n', ['get', 'context'], ' · ', ['get', 'drivers']],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
+              'text-allow-overlap': false,
+              'text-ignore-placement': false,
+            }}
+            paint={{
+              'text-color': '#fbbf24',
+              'text-halo-color': '#000000',
+              'text-halo-width': 1.5,
+            }}
+          />
+          {/* Analysis Zone fill */}
+          <Layer
+            id="corr-analysis-fill"
+            type="fill"
+            filter={['==', ['get', 'corr_type'], 'analysis_zone']}
+            paint={{
+              'fill-color': ['match', ['get', 'zone_category'],
+                'contradiction', '#f59e0b',
+                'warning', '#ef4444',
+                'observation', '#3b82f6',
+                'hypothesis', '#a855f7',
+                '#06b6d4',
+              ],
+              'fill-opacity': ['get', 'opacity'],
+            }}
+          />
+          {/* Analysis Zone dashed outline */}
+          <Layer
+            id="corr-analysis-outline"
+            type="line"
+            filter={['==', ['get', 'corr_type'], 'analysis_zone']}
+            paint={{
+              'line-color': ['match', ['get', 'zone_category'],
+                'contradiction', '#f59e0b',
+                'warning', '#ef4444',
+                'observation', '#3b82f6',
+                'hypothesis', '#a855f7',
+                '#06b6d4',
+              ],
+              'line-width': 1.5,
+              'line-dasharray': [4, 3],
+              'line-opacity': 0.7,
+            }}
+          />
+          {/* Analysis Zone label */}
+          <Layer
+            id="corr-analysis-label"
+            type="symbol"
+            filter={['==', ['get', 'corr_type'], 'analysis_zone']}
+            minzoom={2}
+            layout={{
+              'text-field': ['concat', ['get', 'zone_title'], '\n', ['get', 'drivers']],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
+              'text-allow-overlap': false,
+              'text-ignore-placement': false,
+              'text-max-width': 18,
+            }}
+            paint={{
+              'text-color': '#67e8f9',
               'text-halo-color': '#000000',
               'text-halo-width': 1.5,
             }}
@@ -2717,6 +2813,116 @@ const MaplibreViewer = ({
             </Source>
         )}
 
+        {/* SAR AOIs — operator watchbox circles, drawn beneath anomaly pins */}
+        {sarAoisGeoJSON && (
+          <Source id="sar-aois" type="geojson" data={EMPTY_FC}>
+            <Layer
+              id="sar-aois-fill"
+              type="fill"
+              paint={{
+                'fill-color': [
+                  'match',
+                  ['get', 'category'],
+                  'conflict', '#ef4444',
+                  'geohazard', '#f97316',
+                  'infrastructure', '#06b6d4',
+                  'geopolitical', '#a855f7',
+                  '#eab308',
+                ],
+                'fill-opacity': 0.08,
+              }}
+            />
+            <Layer
+              id="sar-aois-outline"
+              type="line"
+              paint={{
+                'line-color': [
+                  'match',
+                  ['get', 'category'],
+                  'conflict', '#ef4444',
+                  'geohazard', '#f97316',
+                  'infrastructure', '#06b6d4',
+                  'geopolitical', '#a855f7',
+                  '#eab308',
+                ],
+                'line-width': 1.2,
+                'line-opacity': 0.55,
+                'line-dasharray': [2, 2],
+              }}
+            />
+            <Layer
+              id="sar-aois-label"
+              type="symbol"
+              minzoom={4}
+              layout={{
+                'text-field': ['get', 'name'],
+                'text-font': ['Noto Sans Regular'],
+                'text-size': 10,
+                'text-offset': [0, 0.5],
+                'text-anchor': 'top',
+                'text-allow-overlap': false,
+              }}
+              paint={{
+                'text-color': '#fde68a',
+                'text-halo-color': 'rgba(0,0,0,0.9)',
+                'text-halo-width': 1,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* SAR Anomalies — Mode B pre-processed findings (OPERA/EGMS/GFM/EMS/UNOSAT) */}
+        {sarAnomaliesGeoJSON && (
+          <Source id="sar-anomalies" type="geojson" data={EMPTY_FC}>
+            <Layer
+              id="sar-anomalies-halo"
+              type="circle"
+              paint={{
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  2, 6, 6, 10, 10, 16,
+                ],
+                'circle-color': ['get', 'color'],
+                'circle-opacity': 0.2,
+                'circle-blur': 0.6,
+              }}
+            />
+            <Layer
+              id="sar-anomalies-layer"
+              type="circle"
+              paint={{
+                'circle-radius': [
+                  'interpolate', ['linear'], ['zoom'],
+                  2, 3, 6, 5, 10, 8,
+                ],
+                'circle-color': ['get', 'color'],
+                'circle-opacity': 0.9,
+                'circle-stroke-width': 1.5,
+                'circle-stroke-color': '#000',
+              }}
+            />
+            <Layer
+              id="sar-anomalies-label"
+              type="symbol"
+              minzoom={7}
+              layout={{
+                'text-field': ['get', 'title'],
+                'text-font': ['Noto Sans Regular'],
+                'text-size': 10,
+                'text-offset': [0, 1.2],
+                'text-anchor': 'top',
+                'text-allow-overlap': false,
+                'text-max-width': 12,
+              }}
+              paint={{
+                'text-color': '#fef3c7',
+                'text-halo-color': 'rgba(0,0,0,0.9)',
+                'text-halo-width': 1,
+              }}
+            />
+          </Source>
+        )}
+
         {/* Shodan — operator-triggered local overlay, clustered and clearly distinct */}
         {(() => {
           const sc = shodanStyle ?? { shape: 'circle' as const, color: '#16a34a', size: 'md' as const };
@@ -2819,6 +3025,65 @@ const MaplibreViewer = ({
             </Source>
           );
         })()}
+
+        {/* AI Intel Layer — pins from OpenClaw / AI co-pilot */}
+        {aiIntelGeoJSON && (
+          <Source
+            id="ai-intel-source"
+            type="geojson"
+            data={aiIntelGeoJSON}
+            cluster={true}
+            clusterRadius={40}
+            clusterMaxZoom={10}
+          >
+            <Layer
+              id="ai-intel-clusters"
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={{
+                'circle-color': '#8b5cf6',
+                'circle-radius': ['step', ['get', 'point_count'], 14, 5, 18, 20, 22, 100, 28],
+                'circle-opacity': 0.85,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#a78bfa66',
+              }}
+            />
+            <Layer
+              id="ai-intel-cluster-count"
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={{
+                'text-field': '{point_count_abbreviated}',
+                'text-font': ['Noto Sans Bold'],
+                'text-size': 12,
+              }}
+              paint={{ 'text-color': '#ffffff' }}
+            />
+            <Layer
+              id="ai-intel-pin-layer"
+              type="symbol"
+              filter={['!', ['has', 'point_count']]}
+              layout={{
+                'icon-image': ['concat', 'ai-pin-', ['get', 'category']],
+                'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.45, 6, 0.7, 10, 0.9, 14, 1.0],
+                'icon-anchor': 'bottom',
+                'icon-allow-overlap': true,
+                'icon-ignore-placement': true,
+                'text-field': ['step', ['zoom'], '', 6, ['get', 'label']],
+                'text-font': ['Noto Sans Bold'],
+                'text-size': 11,
+                'text-offset': [0, 0.5],
+                'text-anchor': 'top',
+                'text-optional': true,
+              }}
+              paint={{
+                'text-color': ['get', 'color'],
+                'text-halo-color': 'rgba(0,0,0,0.85)',
+                'text-halo-width': 1,
+              }}
+            />
+          </Source>
+        )}
 
         {/* Military Bases — per-country colors */}
         <Source id="military-bases" type="geojson" data={EMPTY_FC}>
@@ -2992,32 +3257,285 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        {/* Fishing Activity — sky blue clustered circles */}
-        <Source id="fishing-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={6} clusterRadius={50}>
+        {/* Fishing Activity — AIS-style ship clusters and icons */}
+        <Source
+          id="fishing-source"
+          type="geojson"
+          data={EMPTY_FC}
+          cluster={true}
+          clusterMaxZoom={6}
+          clusterRadius={50}
+          clusterProperties={{
+            cargo_count: ['+', ['case', ['==', ['get', 'shipCategory'], 'cargo'], 1, 0]],
+            passenger_count: ['+', ['case', ['==', ['get', 'shipCategory'], 'passenger'], 1, 0]],
+            military_count: ['+', ['case', ['==', ['get', 'shipCategory'], 'military'], 1, 0]],
+            yacht_count: ['+', ['case', ['==', ['get', 'shipCategory'], 'yacht'], 1, 0]],
+            civilian_count: ['+', ['case', ['==', ['get', 'shipCategory'], 'civilian'], 1, 0]],
+          }}
+        >
           <Layer
             id="fishing-clusters"
-            type="circle"
+            type="symbol"
             filter={['has', 'point_count']}
+            layout={{
+              'icon-image': 'svgShipBlue',
+              'icon-size': ['step', ['get', 'point_count'], 1.35, 10, 1.55, 50, 1.8, 250, 2.05, 1000, 2.3],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-rotate': 90,
+              'icon-rotation-alignment': 'viewport',
+            }}
             paint={{
-              'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 22],
-              'circle-color': '#0ea5e9',
-              'circle-opacity': 0.6,
+              'icon-opacity': 0.98,
+            }}
+          />
+          <Layer
+            id="fishing-cluster-count"
+            type="symbol"
+            filter={['has', 'point_count']}
+            layout={{
+              'text-field': '{point_count_abbreviated}',
+              'text-font': ['Noto Sans Bold'],
+              'text-size': ['step', ['get', 'point_count'], 10, 10, 11, 50, 12, 250, 13, 1000, 14],
+              'text-offset': [0, 0.82],
+              'text-anchor': 'center',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            }}
+            paint={{
+              'text-color': '#ffffff',
+              'text-halo-color': 'rgba(0, 0, 0, 0.95)',
+              'text-halo-width': 1.8,
             }}
           />
           <Layer
             id="fishing-layer"
-            type="circle"
+            type="symbol"
             filter={['!', ['has', 'point_count']]}
+            layout={{
+              'icon-image': ['get', 'iconId'],
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.4, 6, 0.65, 10, 0.9],
+              'icon-allow-overlap': true,
+              'icon-rotate': ['get', 'rotation'],
+              'icon-rotation-alignment': 'map',
+            }}
             paint={{
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 5, 10, 7],
-              'circle-color': '#0ea5e9',
-              'circle-opacity': 0.7,
-              'circle-stroke-width': 1,
-              'circle-stroke-color': '#0369a1',
+              'icon-opacity': 0.85,
             }}
           />
         </Source>
 
+        {/* UAP Sightings — purple UFO icons with detail labels */}
+        <Source id="uap-sightings-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={10} clusterRadius={40}>
+          {/* Cluster glow — faint backdrop behind UFO icon */}
+          <Layer
+            id="uap-sightings-cluster-bg"
+            type="circle"
+            filter={['has', 'point_count']}
+            paint={{
+              'circle-radius': ['step', ['get', 'point_count'], 12, 10, 14, 50, 18],
+              'circle-color': 'rgba(139, 92, 246, 0.10)',
+              'circle-stroke-width': 0,
+              'circle-stroke-color': 'transparent',
+            }}
+          />
+          {/* Cluster UFO icon + count */}
+          <Layer
+            id="uap-sightings-clusters"
+            type="symbol"
+            filter={['has', 'point_count']}
+            layout={{
+              'icon-image': 'ufo-cluster',
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 0, 1.45, 2, 1.5, 4, 1.52, 6, 1.48, 8, 1.44, 10, 1.4],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': '{point_count_abbreviated}',
+              'text-font': ['Noto Sans Bold'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 4, 11, 8, 12],
+              'text-offset': [0, 0.05],
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            }}
+            paint={{
+              'icon-opacity': 1,
+              'text-color': '#ffffff',
+              'text-halo-color': 'rgba(88, 28, 135, 1)',
+              'text-halo-width': 2.4,
+            }}
+          />
+          {/* Individual glow — faint backdrop behind UFO icon */}
+          <Layer
+            id="uap-sightings-dot"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 4, 10, 5],
+              'circle-color': 'rgba(139, 92, 246, 0.20)',
+              'circle-stroke-width': 0.75,
+              'circle-stroke-color': 'rgba(216, 180, 254, 0.25)',
+            }}
+          />
+          {/* Individual UFO icon overlay */}
+          <Layer
+            id="uap-sightings-layer"
+            type="symbol"
+            filter={['!', ['has', 'point_count']]}
+            layout={{
+              'icon-image': 'ufo-icon',
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.7, 3, 0.8, 6, 0.95, 10, 1.1, 14, 1.2],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': ['step', ['zoom'], '', 5, ['get', 'label']],
+              'text-font': ['Noto Sans Bold'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 5, 9, 10, 11],
+              'text-offset': [0, 2.0],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+              'text-optional': true,
+              'text-max-width': 16,
+            }}
+            paint={{
+              'icon-opacity': 1,
+              'text-color': '#d8b4fe',
+              'text-halo-color': 'rgba(0,0,0,0.98)',
+              'text-halo-width': 1.25,
+            }}
+          />
+        </Source>
+
+        {/* WastewaterSCAN — pathogen surveillance network (water drops) */}
+        <Source id="wastewater-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={10} clusterRadius={35}>
+          {/* Cluster glow — faint backdrop behind water drop icon */}
+          <Layer
+            id="wastewater-cluster-bg"
+            type="circle"
+            filter={['has', 'point_count']}
+            paint={{
+              'circle-radius': ['step', ['get', 'point_count'], 12, 10, 14, 50, 18],
+              'circle-color': 'rgba(0, 229, 255, 0.10)',
+              'circle-stroke-width': 0,
+              'circle-stroke-color': 'transparent',
+            }}
+          />
+          {/* Cluster water drop icon + count */}
+          <Layer
+            id="wastewater-clusters"
+            type="symbol"
+            filter={['has', 'point_count']}
+            layout={{
+              'icon-image': 'ww-cluster',
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 0, 1.5, 2, 1.55, 4, 1.57, 6, 1.52, 8, 1.46, 10, 1.4],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': '{point_count_abbreviated}',
+              'text-font': ['Noto Sans Bold'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 4, 11, 8, 12],
+              'text-offset': [0, 0.1],
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            }}
+            paint={{
+              'icon-opacity': 1,
+              'text-color': '#ffffff',
+              'text-halo-color': 'rgba(0, 80, 100, 1)',
+              'text-halo-width': 2.4,
+            }}
+          />
+          {/* Individual glow — faint backdrop behind water drop icon */}
+          <Layer
+            id="wastewater-dot"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 8, 4, 12, 5, 16, 6],
+              'circle-color': ['case', ['>', ['get', 'alert_count'], 0], 'rgba(255, 34, 34, 0.20)', 'rgba(0, 229, 255, 0.20)'],
+              'circle-stroke-width': 0.75,
+              'circle-stroke-color': ['case', ['>', ['get', 'alert_count'], 0], 'rgba(255, 82, 82, 0.25)', 'rgba(128, 222, 234, 0.25)'],
+            }}
+          />
+          {/* Individual water drop icon overlay */}
+          <Layer
+            id="wastewater-layer"
+            type="symbol"
+            filter={['!', ['has', 'point_count']]}
+            layout={{
+              'icon-image': ['get', 'icon'],
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 1, 0.7, 3, 0.8, 6, 0.95, 10, 1.1, 14, 1.2],
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': ['step', ['zoom'], '', 7, ['get', 'label']],
+              'text-font': ['Noto Sans Bold'],
+              'text-size': ['interpolate', ['linear'], ['zoom'], 7, 9, 10, 11],
+              'text-offset': [0, 2.0],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+              'text-optional': true,
+              'text-max-width': 16,
+            }}
+            paint={{
+              'icon-opacity': 1,
+              'text-color': ['case', ['>', ['get', 'alert_count'], 0], '#ff5252', '#80deea'],
+              'text-halo-color': 'rgba(0,0,0,0.98)',
+              'text-halo-width': 1.25,
+            }}
+          />
+        </Source>
+
+        {/* CrowdThreat — crowdsourced threat intelligence with category icons */}
+        <Source id="crowdthreat-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={8} clusterRadius={40}>
+          <Layer
+            id="crowdthreat-clusters"
+            type="circle"
+            filter={['has', 'point_count']}
+            paint={{
+              'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 24],
+              'circle-color': 'rgba(239, 68, 68, 0.7)',
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ef4444',
+            }}
+          />
+          <Layer
+            id="crowdthreat-cluster-count"
+            type="symbol"
+            filter={['has', 'point_count']}
+            layout={{
+              'text-field': '{point_count_abbreviated}',
+              'text-font': ['Noto Sans Bold'],
+              'text-size': 12,
+            }}
+            paint={{
+              'text-color': '#ffffff',
+            }}
+          />
+          <Layer
+            id="crowdthreat-layer"
+            type="symbol"
+            filter={['!', ['has', 'point_count']]}
+            layout={{
+              'icon-image': ['get', 'iconId'],
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.6, 6, 0.8, 10, 1.0],
+              'icon-allow-overlap': true,
+            }}
+          />
+          <Layer
+            id="crowdthreat-label"
+            type="symbol"
+            filter={['!', ['has', 'point_count']]}
+            layout={{
+              'text-field': ['step', ['zoom'], '', 8, ['get', 'threat_type']],
+              'text-font': ['Noto Sans Bold'],
+              'text-size': 9,
+              'text-offset': [0, 1.6],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+            }}
+            paint={{
+              'text-color': '#fca5a5',
+              'text-halo-color': 'rgba(0,0,0,0.9)',
+              'text-halo-width': 1,
+            }}
+          />
+        </Source>
 
         {/* Ships — rendered below flights (water surface level) */}
         <Source
@@ -3398,15 +3916,19 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        {/* Flight trail history (where the aircraft has been) */}
+        {/* Flight trail history (where the aircraft has been) — altitude-colored gradient */}
         <Source id="flight-trail" type="geojson" data={(trailGeoJSON ?? EMPTY_FC)}>
           <Layer
             id="flight-trail-layer"
             type="line"
             paint={{
-              'line-color': '#22d3ee',
-              'line-width': 2,
-              'line-opacity': 0.6,
+              'line-color': ['get', 'color'],
+              'line-width': 3,
+              'line-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+            }}
+            layout={{
+              'line-cap': 'round',
+              'line-join': 'round',
             }}
           />
         </Source>
@@ -3612,7 +4134,7 @@ const MaplibreViewer = ({
             onEntityClick={onEntityClick}
             onDismiss={(alertKey: string) => {
               setDismissedAlerts((prev) => new Set(prev).add(alertKey));
-              if (selectedEntity?.type === 'news') onEntityClick?.(null);
+              onEntityClick?.(null);
             }}
           />
         )}
@@ -3658,106 +4180,148 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        {/* Satellite click popup (with ISS live feed) */}
+        {/* Satellite click popup (with ISS live feed + maneuver alerts) */}
         {selectedEntity?.type === 'satellite' &&
           (() => {
             const sat = data?.satellites?.find((s) => s.id === selectedEntity.id);
             if (!sat) return null;
-            const isISS = sat.mission === 'space_station' && sat.name?.includes('ISS');
-            const missionLabels: Record<string, string> = {
-              military_recon: '🔴 MILITARY RECON',
-              military_sar: '🔴 MILITARY SAR',
-              sar: '🔷 SAR IMAGING',
-              sigint: '🟠 SIGINT / ELINT',
-              navigation: '🔵 NAVIGATION',
-              early_warning: '🟣 EARLY WARNING',
-              commercial_imaging: '🟢 COMMERCIAL IMAGING',
-              space_station: '🏠 SPACE STATION',
-              communication: '📡 COMMUNICATION',
-            };
+            const maneuverAlert = data?.satellite_analysis?.maneuvers?.find(
+              (m) => m.norad_id === sat.id
+            );
             return (
-              <Popup
-                longitude={sat.lng}
-                latitude={sat.lat}
-                closeButton={false}
-                closeOnClick={false}
+              <SatellitePopup
+                sat={sat}
+                maneuverAlert={maneuverAlert}
                 onClose={() => onEntityClick?.(null)}
-                anchor="bottom"
-                offset={isISS ? 20 : 12}
-                maxWidth={isISS ? '320px' : '260px'}
-              >
-                <div className={`map-popup ${isISS ? 'border border-yellow-500/50' : 'border border-cyan-500/30'}`}>
-                  <div className="flex justify-between items-start">
-                    <div className={`map-popup-title ${isISS ? 'text-[#ffdd00]' : 'text-[#00c8ff]'}`}>
-                      🛰️ {sat.name}
-                    </div>
-                    {isISS && (
-                      <span className="text-[8px] font-mono tracking-widest text-yellow-500/80 border border-yellow-500/30 px-1 rounded">LIVE</span>
-                    )}
+              />
+            );
+          })()}
+
+        {/* Correlation / Contradiction click popup */}
+        {selectedEntity?.type === 'correlation' &&
+          (() => {
+            const corrIndex = typeof selectedEntity.extra?.corr_index === 'number'
+              ? selectedEntity.extra.corr_index
+              : parseInt(String(selectedEntity.id).replace('corr-', ''), 10);
+            const alert = data?.correlations?.[corrIndex];
+            if (!alert) return null;
+            return (
+              <CorrelationPopup
+                alert={alert}
+                onClose={() => onEntityClick?.(null)}
+              />
+            );
+          })()}
+
+        {/* UAP Sighting popup */}
+        {selectedEntity?.type === 'uap_sighting' &&
+          (() => {
+            const props = selectedEntity.extra || {};
+            const sighting = data?.uap_sightings?.find((s) => s.id === selectedEntity.id);
+            const lat = sighting?.lat ?? props.lat;
+            const lng = sighting?.lng ?? props.lng;
+            if (lat == null || lng == null) return null;
+            const location = [props.city, props.state, props.country].filter(Boolean).join(', ') || 'Unknown location';
+            const count = props.count ?? 1;
+            const hasShape = props.shape && props.shape !== 'unknown';
+            const hasSummary = props.summary && props.summary !== 'Sighting reported' && !props.summary?.match(/^\d+ sighting\(s\) reported$/);
+            return (
+              <Popup longitude={lng} latitude={lat} closeButton={false} closeOnClick={false} onClose={() => onEntityClick?.(null)} className="threat-popup" maxWidth="320px">
+                <div className="map-popup bg-[#1a0a30] min-w-[220px]" style={{ borderColor: '#a855f766' }}>
+                  <div className="map-popup-title pb-1 flex items-center gap-2" style={{ color: '#c084fc', borderBottom: '1px solid #a855f733' }}>
+                    <span style={{ fontSize: 16 }}>👽</span>
+                    <span>UAP Sighting</span>
+                    <button onClick={() => onEntityClick?.(null)} className="ml-auto text-[var(--text-secondary)] hover:text-[var(--text-primary)]">✕</button>
                   </div>
-                  <div className="map-popup-row text-[#8899aa]">
-                    NORAD ID: <span className="text-white">{sat.id}</span>
-                  </div>
-                  {sat.sat_type && (
-                    <div className="map-popup-row">
-                      Type: <span className="text-[#ffcc00]">{sat.sat_type}</span>
+
+                  {/* Core details */}
+                  <div className="map-popup-row">Location: <span className="text-white">{location}</span></div>
+                  {props.date_time && <div className="map-popup-row">Date: <span className="text-white">{props.date_time}</span></div>}
+                  {count > 1 && <div className="map-popup-row">Sightings: <span className="text-purple-300 font-bold">{count}</span></div>}
+
+                  {/* Enriched details from NUFORC database */}
+                  {(hasShape || props.duration) && (
+                    <div className="mt-1.5 pt-1.5 border-t border-purple-500/20">
+                      {hasShape && (
+                        <div className="map-popup-row">Shape: <span className="text-purple-200 font-semibold">{props.shape_raw || props.shape}</span></div>
+                      )}
+                      {props.duration && (
+                        <div className="map-popup-row">Duration: <span className="text-white">{props.duration}</span></div>
+                      )}
                     </div>
                   )}
-                  {sat.country && (
-                    <div className="map-popup-row">
-                      Country: <span className="text-white">{sat.country}</span>
-                    </div>
-                  )}
-                  {sat.mission && (
-                    <div className="map-popup-row font-semibold">
-                      {missionLabels[sat.mission] || `⚪ ${sat.mission.toUpperCase()}`}
-                    </div>
-                  )}
-                  <div className="map-popup-row">
-                    Altitude:{' '}
-                    <span className="text-[#44ff88]">{sat.alt_km?.toLocaleString()} km</span>
-                  </div>
-                  {isISS && (
-                    <div className="map-popup-row text-[#8899aa]">
-                      Speed: <span className="text-white">{sat.speed_knots ? `${Math.round(sat.speed_knots * 1.852).toLocaleString()} km/h` : '~28,000 km/h'}</span>
-                    </div>
-                  )}
-                  {isISS && (
-                    <div className="mt-2 pt-2 border-t border-yellow-500/20">
-                      <div className="text-[8px] font-mono tracking-widest text-yellow-500/60 mb-1.5">NASA EHDC LIVE FEED</div>
-                      <div className="relative w-full rounded overflow-hidden bg-black/60" style={{ paddingBottom: '56.25%' }}>
-                        <iframe
-                          src="https://video.ibm.com/embed/17074538?autoplay=0&html5ui"
-                          className="absolute inset-0 w-full h-full"
-                          allow="autoplay"
-                          allowFullScreen
-                          style={{ border: 'none' }}
-                        />
+
+                  {/* Witness summary */}
+                  {hasSummary && (
+                    <div className="mt-1.5 pt-1.5 border-t border-purple-500/20">
+                      <div className="text-[11px] font-mono tracking-widest text-purple-400/50 mb-1">WITNESS REPORT</div>
+                      <div className="text-[10px] leading-relaxed" style={{ color: '#d8b4fe' }}>
+                        &ldquo;{props.summary}&rdquo;
                       </div>
-                      <div className="text-[7px] text-[#8899aa] mt-1 text-center">
-                        Earth view from ISS external cameras • Dark = nightside pass
-                      </div>
                     </div>
                   )}
-                  {sat.wiki && !isISS && (
-                    <div className="mt-2 border-t border-[var(--border-primary)]/50 pt-2">
-                      <WikiImage
-                        wikiUrl={sat.wiki}
-                        label={sat.sat_type || sat.name}
-                        maxH="max-h-28"
-                        accent="hover:border-cyan-500/50"
-                      />
+
+                  <div className="mt-2 pt-1 border-t border-purple-500/10 text-[11px] tracking-wider" style={{ color: '#a855f799' }}>
+                    {props.source || 'NUFORC'} — UAP SIGHTING REPORT
+                  </div>
+                </div>
+              </Popup>
+            );
+          })()}
+
+        {/* Wastewater plant popup */}
+        {selectedEntity?.type === 'wastewater' &&
+          (() => {
+            const plant = data?.wastewater?.find((w) => w.id === selectedEntity.id);
+            if (!plant) return null;
+            return (
+              <WastewaterPopup
+                plant={plant}
+                onClose={() => onEntityClick?.(null)}
+              />
+            );
+          })()}
+
+        {/* CrowdThreat popup */}
+        {selectedEntity?.type === 'crowdthreat' &&
+          (() => {
+            const props = selectedEntity.extra || {};
+            const ct = data?.crowdthreat?.find((c) => `ct-${c.id}` === selectedEntity.id);
+            const lat = ct?.lat ?? props.lat;
+            const lng = ct?.lng ?? props.lng;
+            if (lat == null || lng == null) return null;
+            const accent = props.category_colour || '#6b7280';
+            const location = [props.address || props.city, props.country].filter(Boolean).join(', ') || 'Unknown';
+            return (
+              <Popup longitude={lng} latitude={lat} closeButton={false} closeOnClick={false} onClose={() => onEntityClick?.(null)} className="threat-popup" maxWidth="320px">
+                <div className="map-popup min-w-[220px]" style={{ borderColor: `${accent}66`, background: 'var(--bg-secondary)' }}>
+                  <div className="map-popup-title pb-1 flex items-center gap-2" style={{ color: accent, borderBottom: `1px solid ${accent}33` }}>
+                    <span className="font-bold text-[11px] leading-tight flex-1">{props.title}</span>
+                    <button onClick={() => onEntityClick?.(null)} className="ml-auto text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0">✕</button>
+                  </div>
+                  {props.summary && (
+                    <div className="text-[10px] text-white/80 leading-relaxed mt-1 mb-1.5">{props.summary}</div>
+                  )}
+                  <div className="map-popup-row">Category: <span className="font-semibold" style={{ color: accent }}>{props.category}</span></div>
+                  {props.subcategory && <div className="map-popup-row">Subcategory: <span className="text-white">{props.subcategory}</span></div>}
+                  {props.threat_type && <div className="map-popup-row">Type: <span className="text-white">{props.threat_type}</span></div>}
+                  <div className="map-popup-row">Location: <span className="text-white">{location}</span></div>
+                  {props.occurred && <div className="map-popup-row">Occurred: <span className="text-white">{props.occurred}</span></div>}
+                  {props.timeago && <div className="map-popup-row">Reported: <span className="text-white">{props.timeago}</span></div>}
+                  {props.verification && (
+                    <div className="map-popup-row">Status: <span className={props.verification === 'approved' ? 'text-green-400 font-bold' : 'text-yellow-400'}>{props.verification.toUpperCase()}</span></div>
+                  )}
+                  {props.severity && (
+                    <div className="map-popup-row">Severity: <span className="text-red-400 font-bold">{props.severity}</span></div>
+                  )}
+                  {props.source_url && (
+                    <div className="mt-1.5 pt-1.5 border-t border-[var(--border-primary)]">
+                      <a href={props.source_url} target="_blank" rel="noreferrer" className="text-[9px] font-bold underline" style={{ color: accent }}>View Source</a>
                     </div>
                   )}
-                  {isISS && sat.wiki && (
-                    <div className="mt-1.5">
-                      <a href={sat.wiki} target="_blank" rel="noopener noreferrer"
-                        className="block text-center px-2 py-1 rounded bg-yellow-900/30 border border-yellow-500/20
-                          hover:bg-yellow-800/40 hover:border-yellow-400/40 text-yellow-300 text-[9px] font-mono tracking-widest">
-                        WIKIPEDIA ↗
-                      </a>
-                    </div>
-                  )}
+                  <div className="mt-1.5 text-[11px] tracking-wider" style={{ color: `${accent}88` }}>
+                    CROWDTHREAT — VERIFIED THREAT INTELLIGENCE
+                  </div>
                 </div>
               </Popup>
             );
@@ -4108,9 +4672,9 @@ const MaplibreViewer = ({
                   <div className="map-popup-subtitle text-purple-600/80 border-b border-purple-900/30 pb-1 flex items-center gap-1.5">
                     <Satellite size={10} /> LORA SATELLITE
                     {props.tinygs_confirmed ? (
-                      <span className="text-green-400 text-[8px] ml-1">TINYGS LIVE</span>
+                      <span className="text-green-400 text-[11px] ml-1">TINYGS LIVE</span>
                     ) : props.sgp4_propagated ? (
-                      <span className="text-purple-400 text-[8px] ml-1">SGP4 ORBIT</span>
+                      <span className="text-purple-400 text-[11px] ml-1">SGP4 ORBIT</span>
                     ) : null}
                   </div>
                   {Number(props.alt_km || 0) > 0 && (
@@ -4235,24 +4799,10 @@ const MaplibreViewer = ({
                           });
                         }
                         onEntityClick?.(null);
-                        // Auto-play latest intercept
-                        if (sn) {
-                          try {
-                            const res = await fetch(`${API_BASE}/api/radio/openmhz/calls/${sn}`);
-                            if (res.ok) {
-                              const calls = await res.json();
-                              if (calls?.length) {
-                                const audio = new Audio(calls[0].url);
-                                audio.volume = 0.8;
-                                audio.play().catch(() => { });
-                              }
-                            }
-                          } catch { }
-                        }
                       }}
                       className="flex-1 text-center px-2 py-1.5 rounded bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 hover:border-red-400 text-red-300 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
                     >
-                      <Play size={10} /> EAVESDROP
+                      <Play size={10} /> OPEN PLAYER
                     </button>
                   </div>
                 </div>
@@ -4271,270 +4821,15 @@ const MaplibreViewer = ({
             const lat = sig?.lat ?? props.geometry?.coordinates?.[1];
             const lng = sig?.lng ?? props.geometry?.coordinates?.[0];
             if (lat == null || lng == null) return null;
-            const sourceColors: Record<string, string> = {
-              aprs: '#f472b6',
-              meshtastic: '#22c55e',
-              js8call: '#f472b6',
-            };
-            const sourceLabels: Record<string, string> = {
-              aprs: 'APRS-IS',
-              meshtastic: 'MESHTASTIC',
-              js8call: 'JS8CALL',
-            };
-            const src = d.source || 'unknown';
-            const isEmergency = d.emergency === true;
-            const color = isEmergency ? '#ef4444' : sourceColors[src] || '#94a3b8';
-            const stationType = d.station_type || 'Station';
-            const status = d.status || d.comment || '';
-            const isApiNode = d.from_api === true;
-            // Compute human-readable age from position_updated_at
-            const posAge = (() => {
-              const ts = d.position_updated_at || d.timestamp;
-              if (!ts) return null;
-              try {
-                const then = new Date(ts).getTime();
-                const diffMs = Date.now() - then;
-                if (diffMs < 0 || isNaN(diffMs)) return null;
-                const mins = Math.floor(diffMs / 60000);
-                if (mins < 1) return 'just now';
-                if (mins < 60) return `${mins}m ago`;
-                const hrs = Math.floor(mins / 60);
-                if (hrs < 24) return `${hrs}h ago`;
-                const days = Math.floor(hrs / 24);
-                return `${days}d ago`;
-              } catch {
-                return null;
-              }
-            })();
-
-            // Find nearest KiwiSDR for "Tune In" (skip for Meshtastic — LoRa isn't receivable by KiwiSDR)
-            const nearestSdr = (() => {
-              if (src === 'meshtastic') return null;
-              const sdrs = data?.kiwisdr;
-              if (!sdrs || !sdrs.length) return null;
-              let best: KiwiSDR | null = null;
-              let bestDist = Infinity;
-              for (const sdr of sdrs) {
-                const slat = sdr.lat;
-                const slng = sdr.lon;
-                if (slat == null || slng == null || !sdr.url) continue;
-                const dist = Math.sqrt((lat - slat) ** 2 + (lng - slng) ** 2);
-                if (dist < bestDist) {
-                  bestDist = dist;
-                  best = sdr;
-                }
-              }
-              return best;
-            })();
-
             return (
-              <Popup
-                longitude={lng}
-                latitude={lat}
-                closeButton={false}
-                closeOnClick={false}
+              <SigintPopup
+                data={d}
+                lat={lat}
+                lng={lng}
+                kiwisdrs={data?.kiwisdr || []}
+                setTrackedSdr={setTrackedSdr}
                 onClose={() => onEntityClick?.(null)}
-                anchor="bottom"
-                offset={12}
-              >
-                <div
-                  className="map-popup"
-                  style={{ borderWidth: 1, borderStyle: 'solid', borderColor: `${color}66` }}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="map-popup-title" style={{ color }}>
-                      {isEmergency && (
-                        <AlertTriangle
-                          size={12}
-                          className="inline mr-1 animate-pulse"
-                          style={{ color: '#ef4444' }}
-                        />
-                      )}
-                      {(d.callsign || 'UNKNOWN').toUpperCase()}
-                    </div>
-                    <button
-                      onClick={() => onEntityClick?.(null)}
-                      className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] ml-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div
-                    className="map-popup-subtitle border-b pb-1 flex items-center gap-1.5 flex-wrap"
-                    style={{ color: `${color}99`, borderColor: `${color}30` }}
-                  >
-                    <Radio size={10} />
-                    <span
-                      className="font-mono text-[9px] px-1.5 py-0.5 rounded"
-                      style={{ backgroundColor: `${color}20`, color }}
-                    >
-                      {sourceLabels[src] || src.toUpperCase()}
-                    </span>
-                    <span className="text-[var(--text-muted)]">{stationType}</span>
-                    {isEmergency && (
-                      <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-red-900/60 text-red-400 animate-pulse tracking-wider">
-                        EMERGENCY
-                      </span>
-                    )}
-                    {src === 'meshtastic' && d.channel && (
-                      <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-green-900/50 text-green-300 border border-green-500/30">
-                        {d.channel}
-                      </span>
-                    )}
-                    {src === 'meshtastic' && d.region && (
-                      <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-slate-800/60 text-slate-300 border border-slate-500/30">
-                        {d.region}
-                      </span>
-                    )}
-                    {isApiNode && (
-                      <span className="font-mono text-[8px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-500/30">
-                        MAP API
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Long name + hardware (API nodes) */}
-                  {src === 'meshtastic' && (d.long_name || d.hardware) && (
-                    <div className="map-popup-row mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      {d.long_name && <span className="text-[10px] text-white">{d.long_name}</span>}
-                      {d.hardware && (
-                        <span className="text-[8px] text-slate-400">({d.hardware})</span>
-                      )}
-                      {d.role && d.role !== 'CLIENT' && (
-                        <span className="font-mono text-[8px] px-1 py-0.5 rounded bg-amber-900/40 text-amber-300 border border-amber-500/30">
-                          {d.role}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Position age — so user knows how stale this data is */}
-                  {posAge && (
-                    <div className="map-popup-row mt-0.5">
-                      <span className="text-[9px] text-[var(--text-muted)]">
-                        Last heard: <span className="text-slate-300">{posAge}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Status / what they're broadcasting */}
-                  {status && (
-                    <div className="map-popup-row mt-1">
-                      <span
-                        className={`text-[10px] ${isEmergency ? 'text-red-300 font-bold' : 'text-white'}`}
-                      >
-                        {status}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Key telemetry in a compact grid */}
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1">
-                    {d.frequency && (
-                      <div className="map-popup-row">
-                        Freq: <span className="text-cyan-400">{d.frequency}</span>
-                      </div>
-                    )}
-                    {(d.altitude_ft ?? 0) > 0 && (
-                      <div className="map-popup-row">
-                        Alt:{' '}
-                        <span className="text-white">
-                          {Number(d.altitude_ft).toLocaleString()} ft
-                        </span>
-                      </div>
-                    )}
-                    {(d.speed_knots ?? 0) > 0 && (
-                      <div className="map-popup-row">
-                        Speed:{' '}
-                        <span className="text-white">
-                          {d.speed_knots} kts / {d.course || 0}°
-                        </span>
-                      </div>
-                    )}
-                    {(d.power_watts ?? 0) > 0 && (
-                      <div className="map-popup-row">
-                        TX Power: <span className="text-amber-400">{d.power_watts}W</span>
-                      </div>
-                    )}
-                    {(d.battery_v ?? 0) > 0 && (
-                      <div className="map-popup-row">
-                        Battery: <span className="text-white">{d.battery_v}V</span>
-                      </div>
-                    )}
-                    {!d.battery_v && d.battery_level != null && d.battery_level <= 100 && (
-                      <div className="map-popup-row">
-                        Battery: <span className="text-white">{d.battery_level}%</span>
-                      </div>
-                    )}
-                    {d.snr != null && (
-                      <div className="map-popup-row">
-                        SNR: <span className="text-white">{d.snr} dB</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action buttons: Tune In via nearest KiwiSDR (in-app) */}
-                  <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-[var(--border-primary)]/30">
-                    {nearestSdr?.url && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (setTrackedSdr) {
-                            setTrackedSdr({
-                              lat: nearestSdr.lat,
-                              lon: nearestSdr.lon,
-                              name: nearestSdr.name,
-                              url: nearestSdr.url,
-                              users: nearestSdr.users,
-                              users_max: nearestSdr.users_max,
-                              bands: nearestSdr.bands,
-                              antenna: nearestSdr.antenna,
-                              location: nearestSdr.location,
-                            });
-                          }
-                          onEntityClick?.(null);
-                        }}
-                        className="flex-1 text-center px-2 py-1.5 rounded bg-cyan-950/40 border border-cyan-500/30 hover:bg-cyan-900/60 hover:border-cyan-400 text-cyan-400 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
-                        title={`Listen via ${nearestSdr.name}`}
-                      >
-                        <Play size={10} className="fill-cyan-400/20" /> TUNE IN
-                      </button>
-                    )}
-                    <span className="text-[#666] text-[9px]">
-                      {Number(lat).toFixed(4)}, {Number(lng).toFixed(4)}
-                    </span>
-                  </div>
-                  {nearestSdr && (
-                    <div className="text-[8px] text-[#555] mt-0.5">
-                      via {nearestSdr.name} ({nearestSdr.location || 'SDR'})
-                    </div>
-                  )}
-
-                  {/* Meshtastic channel feed — shows recent signals from same region/channel */}
-                  {src === 'meshtastic' && d.region && (
-                    <MeshtasticChannelFeed region={d.region} channel={d.channel || 'LongFast'} />
-                  )}
-
-                  {/* Send Message — broadcasts to channel, not DM (APRS/JS8Call are receive-only) */}
-                  {src === 'meshtastic' && (
-                    <SigintSendForm
-                      destination={
-                        typeof d.callsign === 'string' && /^![0-9a-f]{8}$/i.test(d.callsign)
-                          ? d.callsign
-                          : d.channel || 'LongFast'
-                      }
-                      source={src}
-                      region={d.region}
-                      channel={d.channel || 'LongFast'}
-                    />
-                  )}
-                  {src === 'aprs' && (
-                    <div className="mt-2 pt-1.5 border-t border-[var(--border-primary)]/30 text-[8px] text-[#555] italic">
-                      APRS is receive-only — transmitting requires a ham radio license
-                    </div>
-                  )}
-                </div>
-              </Popup>
+              />
             );
           })()}
 
@@ -4550,174 +4845,187 @@ const MaplibreViewer = ({
             if (!ship) return null;
             const [iLng, iLat] = interpShip(ship);
             return (
-              <Popup
+              <ShipPopup
+                ship={ship}
                 longitude={iLng}
                 latitude={iLat}
+                onClose={() => onEntityClick?.(null)}
+              />
+            );
+          })()}
+
+        {/* SAR anomaly click popup */}
+        {selectedEntity?.type === 'sar_anomaly' &&
+          (() => {
+            const extra = (selectedEntity.extra || {}) as Record<string, unknown>;
+            const anomaly = data?.sar_anomalies?.find(
+              (a) => a.anomaly_id === selectedEntity.id,
+            );
+            const a = anomaly || extra;
+            const lat = typeof a.lat === 'number' ? a.lat : Number(extra.center_lat);
+            const lng =
+              typeof (a as { lon?: number }).lon === 'number'
+                ? (a as { lon: number }).lon
+                : Number(extra.center_lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            const kind = String(a.kind || extra.kind || 'anomaly');
+            const title = String(a.title || extra.title || `SAR ${kind}`);
+            const summary = String(a.summary || extra.summary || '');
+            const solver = String(a.solver || extra.solver || '');
+            const constellation = String(
+              (a as { source_constellation?: string }).source_constellation ||
+                extra.source_constellation ||
+                '',
+            );
+            const magnitude = Number(a.magnitude ?? extra.magnitude ?? 0);
+            const unit = String(a.magnitude_unit || extra.magnitude_unit || '');
+            const confidence = Number(a.confidence ?? extra.confidence ?? 0);
+            const lastSeen = Number(a.last_seen ?? extra.last_seen ?? 0);
+            const provenance = String(a.provenance_url || extra.provenance_url || '');
+            const aoiId = String(a.aoi_id || extra.aoi_id || '');
+            const color = String(extra.color || '#eab308');
+            return (
+              <Popup
+                longitude={lng}
+                latitude={lat}
                 closeButton={false}
                 closeOnClick={false}
                 onClose={() => onEntityClick?.(null)}
-                anchor="bottom"
-                offset={12}
+                className="threat-popup"
+                maxWidth="320px"
               >
                 <div
-                  className="map-popup"
-                  style={{
-                    borderWidth: 1,
-                    borderStyle: 'solid',
-                    borderColor: ship.yacht_alert
-                      ? 'rgba(255,105,180,0.5)'
-                      : ship.type === 'carrier'
-                        ? 'rgba(255,170,0,0.5)'
-                        : 'rgba(59,130,246,0.4)',
-                  }}
+                  className="map-popup bg-zinc-950/95 text-amber-100 min-w-[240px]"
+                  style={{ border: `1px solid ${color}66` }}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <div
-                      className="map-popup-title"
-                      style={{
-                        color: ship.yacht_alert
-                          ? '#FF69B4'
-                          : ship.type === 'carrier'
-                            ? '#ffaa00'
-                            : '#3b82f6',
-                      }}
-                    >
-                      {ship.name || 'UNKNOWN VESSEL'}
-                    </div>
+                  <div
+                    className="map-popup-title flex items-center justify-between gap-2 border-b pb-1"
+                    style={{ borderColor: `${color}33`, color }}
+                  >
+                    <span className="font-semibold">{title}</span>
                     <button
+                      type="button"
                       onClick={() => onEntityClick?.(null)}
-                      className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] ml-2"
+                      className="text-amber-200/60 hover:text-amber-100"
+                      aria-label="Close"
                     >
                       ✕
                     </button>
                   </div>
-                  {ship.estimated && (
-                    <div className="map-popup-subtitle text-[#ff6644] border-b border-[#ff664450] pb-1">
-                      ESTIMATED POSITION — {ship.source || 'OSINT DERIVED'}
+                  {summary && (
+                    <div className="map-popup-row text-[11px] text-amber-100/80 leading-snug">
+                      {summary}
                     </div>
                   )}
-                  {ship.type && (
-                    <div className="map-popup-row">
-                      Type:{' '}
-                      <span className="text-white capitalize">{ship.type.replace('_', ' ')}</span>
-                    </div>
-                  )}
-                  {ship.mmsi && (
-                    <div className="map-popup-row">
-                      MMSI: <span className="text-[#888]">{ship.mmsi}</span>
-                    </div>
-                  )}
-                  {ship.imo && (
-                    <div className="map-popup-row">
-                      IMO: <span className="text-[#888]">{ship.imo}</span>
-                    </div>
-                  )}
-                  {ship.callsign && (
-                    <div className="map-popup-row">
-                      Callsign: <span className="text-[#00e5ff]">{ship.callsign}</span>
-                    </div>
-                  )}
-                  {ship.country && (
-                    <div className="map-popup-row">
-                      Flag: <span className="text-white">{ship.country}</span>
-                    </div>
-                  )}
-                  {ship.destination && (
-                    <div className="map-popup-row">
-                      Destination: <span className="text-[#44ff88]">{ship.destination}</span>
-                    </div>
-                  )}
-                  {typeof ship.sog === 'number' && ship.sog > 0 && (
-                    <div className="map-popup-row">
-                      Speed: <span className="text-[#00e5ff]">{ship.sog.toFixed(1)} kn</span>
-                    </div>
-                  )}
-                  <div className="map-popup-row">
-                    Heading:{' '}
-                    <span style={{ color: ship.heading != null ? '#888' : '#ff6644' }}>
-                      {ship.heading != null ? `${Math.round(ship.heading)}°` : 'UNKNOWN'}
+                  <div className="map-popup-row text-[11px]">
+                    Kind:{' '}
+                    <span className="text-amber-200 font-mono">
+                      {kind.replace(/_/g, ' ')}
                     </span>
                   </div>
-                  {ship.type === 'carrier' && ship.source && (
-                    <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,170,0,0.08)] border border-[rgba(255,170,0,0.3)] rounded text-[9px] tracking-wide">
-                      <div className="text-[#ffaa00] mb-0.5">
-                        SOURCE:{' '}
-                        {ship.source_url ? (
-                          <a
-                            href={ship.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#00e5ff] underline"
-                          >
-                            {ship.source}
-                          </a>
-                        ) : (
-                          <span className="text-white">{ship.source}</span>
-                        )}
-                      </div>
-                      {ship.last_osint_update && (
-                        <div className="text-[#888]">
-                          LAST OSINT UPDATE:{' '}
-                          {new Date(ship.last_osint_update).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </div>
-                      )}
-                      {ship.desc && (
-                        <div className="text-[#aaa] mt-0.5 text-[8px] leading-tight">
-                          {ship.desc}
-                        </div>
-                      )}
+                  {solver && (
+                    <div className="map-popup-row text-[11px]">
+                      Solver: <span className="text-amber-200">{solver}</span>
                     </div>
                   )}
-                  {ship.type !== 'carrier' && ship.last_osint_update && (
-                    <div className="map-popup-row">
-                      Last OSINT Update:{' '}
-                      <span className="text-[#888]">
-                        {new Date(ship.last_osint_update).toLocaleDateString()}
+                  {constellation && (
+                    <div className="map-popup-row text-[11px]">
+                      Source: <span className="text-amber-200">{constellation}</span>
+                    </div>
+                  )}
+                  {magnitude !== 0 && (
+                    <div className="map-popup-row text-[11px]">
+                      Magnitude:{' '}
+                      <span className="text-amber-200">
+                        {magnitude.toFixed(3)} {unit}
                       </span>
                     </div>
                   )}
-                  {ship.yacht_alert && (
-                    <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,105,180,0.08)] border border-[rgba(255,105,180,0.3)] rounded text-[9px] tracking-wide">
-                      <div className="text-[#FF69B4] font-bold mb-0.5">TRACKED YACHT</div>
-                      <div>
-                        Owner: <span className="text-white">{ship.yacht_owner}</span>
-                      </div>
-                      {ship.yacht_builder && (
-                        <div>
-                          Builder: <span className="text-[#888]">{ship.yacht_builder}</span>
-                        </div>
-                      )}
-                      {(ship.yacht_length ?? 0) > 0 && (
-                        <div>
-                          Length: <span className="text-[#888]">{ship.yacht_length}m</span>
-                        </div>
-                      )}
-                      {(ship.yacht_year ?? 0) > 0 && (
-                        <div>
-                          Year: <span className="text-[#888]">{ship.yacht_year}</span>
-                        </div>
-                      )}
-                      {ship.yacht_category && (
-                        <div>
-                          Category: <span className="text-[#FF69B4]">{ship.yacht_category}</span>
-                        </div>
-                      )}
-                      {ship.yacht_link && (
-                        <a
-                          href={ship.yacht_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#00e5ff] underline"
-                        >
-                          Wikipedia
-                        </a>
-                      )}
+                  <div className="map-popup-row text-[11px]">
+                    Confidence:{' '}
+                    <span className="text-amber-200">{(confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  {lastSeen > 0 && (
+                    <div className="map-popup-row text-[11px]">
+                      Last seen:{' '}
+                      <span className="text-amber-200">
+                        {new Date(lastSeen * 1000).toISOString().replace('T', ' ').slice(0, 19)}Z
+                      </span>
                     </div>
                   )}
+                  {aoiId && (
+                    <div className="map-popup-row text-[11px]">
+                      AOI: <span className="text-amber-200 font-mono">{aoiId}</span>
+                    </div>
+                  )}
+                  {provenance && (
+                    <div className="map-popup-row text-[11px]">
+                      <a
+                        href={provenance}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-300 hover:text-cyan-200 underline"
+                      >
+                        Provenance ↗
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            );
+          })()}
+
+        {/* SAR AOI click popup — operator watchbox details */}
+        {selectedEntity?.type === 'sar_aoi' &&
+          (() => {
+            const extra = (selectedEntity.extra || {}) as Record<string, unknown>;
+            const lat = Number(extra.center_lat);
+            const lng = Number(extra.center_lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            const name = String(extra.name || selectedEntity.id);
+            const description = String(extra.description || '');
+            const category = String(extra.category || 'watchlist');
+            const radius = Number(extra.radius_km || 0);
+            return (
+              <Popup
+                longitude={lng}
+                latitude={lat}
+                closeButton={false}
+                closeOnClick={false}
+                onClose={() => onEntityClick?.(null)}
+                className="threat-popup"
+                maxWidth="300px"
+              >
+                <div className="map-popup bg-zinc-950/95 border border-amber-400/40 text-amber-100 min-w-[220px]">
+                  <div className="map-popup-title flex items-center justify-between gap-2 text-amber-300 border-b border-amber-400/20 pb-1">
+                    <span>AOI · {name}</span>
+                    <button
+                      type="button"
+                      onClick={() => onEntityClick?.(null)}
+                      className="text-amber-200/60 hover:text-amber-100"
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {description && (
+                    <div className="map-popup-row text-[11px] text-amber-100/80 leading-snug">
+                      {description}
+                    </div>
+                  )}
+                  <div className="map-popup-row text-[11px]">
+                    Category:{' '}
+                    <span className="text-amber-200 font-mono">{category}</span>
+                  </div>
+                  <div className="map-popup-row text-[11px]">
+                    Radius: <span className="text-amber-200">{radius.toFixed(0)} km</span>
+                  </div>
+                  <div className="map-popup-row text-[11px]">
+                    Center:{' '}
+                    <span className="text-amber-200 font-mono">
+                      {lat.toFixed(3)}, {lng.toFixed(3)}
+                    </span>
+                  </div>
                 </div>
               </Popup>
             );
@@ -4883,65 +5191,12 @@ const MaplibreViewer = ({
               (_, i: number) => `milbase-${i}` === selectedEntity.id,
             );
             if (!base) return null;
-            const branchLabel: Record<string, string> = {
-              air_force: 'AIR FORCE', navy: 'NAVY', marines: 'MARINES', army: 'ARMY',
-              gsdf: 'GSDF', msdf: 'MSDF', asdf: 'ASDF',
-              missile: 'MISSILE FORCES', nuclear: 'NUCLEAR FACILITY',
-            };
-            // Per-country color for popup styling
-            const colorMap: Record<string, string> = {
-              'United States': '#3b82f6', 'Guam': '#3b82f6', 'Hawaii': '#3b82f6', 'BIOT': '#3b82f6',
-              'China': '#ef4444', 'Japan': '#e5e7eb',
-              'North Korea': '#92400e', 'Russia': '#9ca3af', 'Iran': '#f97316', 'Taiwan': '#22c55e',
-              'Philippines': '#eab308', 'Australia': '#14b8a6', 'South Korea': '#a855f7',
-              'United Kingdom': '#6366f1',
-            };
-            const accent = colorMap[base.country] || '#ec4899';
             return (
-              <Popup
-                longitude={base.lng}
-                latitude={base.lat}
-                closeButton={false}
-                closeOnClick={false}
+              <MilitaryBasePopup
+                base={base}
+                oracleIntel={oracleIntel}
                 onClose={() => onEntityClick?.(null)}
-                className="threat-popup"
-                maxWidth="280px"
-              >
-                <div className="map-popup bg-[#1a1035] min-w-[200px]" style={{ borderColor: `${accent}66`, color: accent }}>
-                  <div className="map-popup-title pb-1" style={{ color: accent, borderBottom: `1px solid ${accent}33` }}>
-                    {base.name}
-                  </div>
-                  <div className="map-popup-row">
-                    Operator: <span className="text-white">{base.operator}</span>
-                  </div>
-                  <div className="map-popup-row">
-                    Country: <span className="text-white">{base.country}</span>
-                  </div>
-                  <div className="mt-1.5 text-[9px] tracking-wider" style={{ color: `${accent}99` }}>
-                    MILITARY BASE — {branchLabel[base.branch] || base.branch.toUpperCase()}
-                  </div>
-                  {oracleIntel?.found && (
-                    <div className="mt-2 pt-2 border-t border-cyan-500/20">
-                      <div className="text-[8px] font-mono text-cyan-400 tracking-wider mb-1">ORACLE INTEL</div>
-                      <div className="text-[8px] font-mono text-cyan-300/80">
-                        <span className={oracleIntel.tier === 'CRITICAL' ? 'text-red-400' : oracleIntel.tier === 'ELEVATED' ? 'text-yellow-400' : 'text-green-400'}>
-                          {oracleIntel.tier}
-                        </span>
-                        {' // '}
-                        <span className={oracleIntel.avg_sentiment != null && oracleIntel.avg_sentiment < -0.05 ? 'text-red-400' : 'text-gray-400'}>
-                          {oracleIntel.avg_sentiment != null ? `${oracleIntel.avg_sentiment > 0 ? '+' : ''}${oracleIntel.avg_sentiment.toFixed(2)} SENT` : ''}
-                        </span>
-                        {oracleIntel.market && (
-                          <span className="text-purple-400"> // {oracleIntel.market.consensus_pct}%</span>
-                        )}
-                      </div>
-                      {oracleIntel.top_headline && (
-                        <div className="text-[7px] text-white/60 mt-0.5 truncate">{oracleIntel.top_headline}</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Popup>
+              />
             );
           })()}
 
@@ -5050,25 +5305,69 @@ const MaplibreViewer = ({
             );
           })()}
 
-        {/* Fishing Event popup */}
+        {/* Fishing Event popup — cross-references with AIS when available */}
         {selectedEntity?.type === 'fishing_event' &&
           (() => {
             const event = data?.fishing_activity?.find((e) => (e.id || '') === selectedEntity.id);
             if (!event) return null;
+            // Cross-reference with AIS ships by vessel name
+            const vesselNameUpper = (event.vessel_name || '').toUpperCase().trim();
+            const aisMatch = vesselNameUpper && data?.ships?.find((s) => {
+              const shipName = (s.name || '').toUpperCase().trim();
+              return shipName && (shipName === vesselNameUpper || shipName.includes(vesselNameUpper) || vesselNameUpper.includes(shipName));
+            });
             return (
-              <Popup longitude={event.lng} latitude={event.lat} closeButton={false} closeOnClick={false} onClose={() => onEntityClick?.(null)} className="threat-popup" maxWidth="260px">
-                <div className="map-popup bg-[#1a1035] min-w-[180px]" style={{ borderColor: '#0ea5e966' }}>
-                  <div className="map-popup-title pb-1" style={{ color: '#0ea5e9', borderBottom: '1px solid #0ea5e933' }}>
-                    {event.vessel_name}
+              <Popup longitude={event.lng} latitude={event.lat} closeButton={false} closeOnClick={false} onClose={() => onEntityClick?.(null)} className="threat-popup" maxWidth="320px">
+                <div className="map-popup bg-[#1a1035] min-w-[220px]" style={{ borderColor: '#0ea5e966' }}>
+                  <div className="flex justify-between items-start">
+                    <div className="map-popup-title pb-1 flex-1" style={{ color: '#0ea5e9', borderBottom: '1px solid #0ea5e933' }}>
+                      {event.vessel_name}
+                    </div>
+                    <button onClick={() => onEntityClick?.(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] ml-2 shrink-0">✕</button>
                   </div>
                   <div className="map-popup-row">Flag: <span className="text-white">{event.vessel_flag || 'Unknown'}</span></div>
-                  <div className="map-popup-row">Activity: <span className="text-white capitalize">{event.type}</span></div>
+                  <div className="map-popup-row">Activity: <span className="text-cyan-400 capitalize">{event.type}</span></div>
                   <div className="map-popup-row">Duration: <span className="text-white">{event.duration_hrs}h</span></div>
                   {event.start && <div className="map-popup-row">Start: <span className="text-white">{new Date(event.start).toLocaleDateString()}</span></div>}
-                  <div className="mt-1.5 text-[9px] tracking-wider text-gray-500">FISHING — GLOBAL FISHING WATCH</div>
+
+                  {/* AIS cross-reference data */}
+                  {aisMatch && (
+                    <div className="mt-2 pt-2 border-t border-cyan-500/20">
+                      <div className="text-[11px] font-mono text-cyan-400 tracking-wider mb-1">AIS CROSS-REFERENCE</div>
+                      {aisMatch.mmsi && <div className="map-popup-row">MMSI: <span className="text-white">{aisMatch.mmsi}</span></div>}
+                      {aisMatch.callsign && <div className="map-popup-row">Callsign: <span className="text-white">{aisMatch.callsign}</span></div>}
+                      {aisMatch.type && <div className="map-popup-row">Vessel Type: <span className="text-cyan-400 uppercase">{aisMatch.type}</span></div>}
+                      {aisMatch.destination && <div className="map-popup-row">Destination: <span className="text-cyan-400">{aisMatch.destination}</span></div>}
+                      {aisMatch.sog > 0 && <div className="map-popup-row">Speed: <span className="text-white">{aisMatch.sog} kts</span></div>}
+                      {aisMatch.cog > 0 && <div className="map-popup-row">Course: <span className="text-white">{Math.round(aisMatch.cog)}°</span></div>}
+                      {aisMatch.country && <div className="map-popup-row">Country: <span className="text-white">{aisMatch.country}</span></div>}
+                      {aisMatch.imo && <div className="map-popup-row">IMO: <span className="text-white">{aisMatch.imo}</span></div>}
+                    </div>
+                  )}
+
+                  <div className="mt-1.5 text-[11px] tracking-wider text-gray-500">
+                    FISHING — GLOBAL FISHING WATCH
+                    {aisMatch && <span className="text-cyan-500"> + AIS</span>}
+                  </div>
                 </div>
               </Popup>
             );
+          })()}
+
+        {/* Fishing vessel → AIS destination route line */}
+        {selectedEntity?.type === 'fishing_event' &&
+          (() => {
+            const event = data?.fishing_activity?.find((e) => (e.id || '') === selectedEntity.id);
+            if (!event) return null;
+            const vesselNameUpper = (event.vessel_name || '').toUpperCase().trim();
+            if (!vesselNameUpper) return null;
+            const aisMatch = data?.ships?.find((s) => {
+              const shipName = (s.name || '').toUpperCase().trim();
+              return shipName && (shipName === vesselNameUpper || shipName.includes(vesselNameUpper) || vesselNameUpper.includes(shipName));
+            });
+            const dest = aisMatch?.destination;
+            if (!dest || dest === 'UNKNOWN') return null;
+            return <FishingDestinationRoute vesselLat={event.lat} vesselLng={event.lng} destination={dest} />;
           })()}
 
         {(() => {
@@ -5087,10 +5386,10 @@ const MaplibreViewer = ({
               anchor="bottom"
               offset={15}
             >
-              <div className="bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-orange-800 rounded-lg flex flex-col z-[100] font-mono shadow-[0_4px_30px_rgba(255,140,0,0.4)] pointer-events-auto overflow-hidden w-[300px]">
+              <div className="bg-[var(--bg-secondary)]/90 backdrop-blur-md border border-orange-800 rounded-lg flex flex-col z-[100] font-mono shadow-[0_4px_30px_rgba(255,140,0,0.4)] pointer-events-auto overflow-hidden w-[440px]">
                 <div className="p-2 border-b border-orange-500/30 bg-orange-950/40 flex justify-between items-center">
-                  <h2 className="text-[10px] tracking-widest font-bold text-orange-400 flex items-center gap-1">
-                    <AlertTriangle size={12} className="text-orange-400" /> NEWS ON THE GROUND
+                  <h2 className="text-[11px] tracking-widest font-bold text-orange-400 flex items-center gap-1">
+                    <AlertTriangle size={13} className="text-orange-400" /> NEWS ON THE GROUND
                   </h2>
                   <button
                     onClick={() => onEntityClick?.(null)}
@@ -5101,27 +5400,72 @@ const MaplibreViewer = ({
                 </div>
                 <div className="p-3 flex flex-col gap-2">
                   <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
-                    <span className="text-[var(--text-muted)] text-[9px]">LOCATION</span>
-                    <span className="text-white text-[10px] font-bold text-right ml-2 break-words max-w-[150px]">
+                    <span className="text-[var(--text-muted)] text-[10px]">LOCATION</span>
+                    <span className="text-white text-[12px] font-bold text-right ml-2 break-words max-w-[260px]">
                       {item.properties?.name || 'UNKNOWN REGION'}
                     </span>
                   </div>
+                  {/* Enriched GDELT fields */}
+                  {item.properties?.event_date && (
+                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                      <span className="text-[var(--text-muted)] text-[10px]">DATE</span>
+                      <span className="text-white text-[11px] font-bold">
+                        {String(item.properties.event_date).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}
+                      </span>
+                    </div>
+                  )}
+                  {((item.properties?.actors?.length ?? 0) > 0) && (
+                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                      <span className="text-[var(--text-muted)] text-[10px]">ACTORS</span>
+                      <span className="text-orange-300 text-[11px] font-bold text-right ml-2 max-w-[280px] truncate">
+                        {item.properties.actors!.join(' vs ')}
+                      </span>
+                    </div>
+                  )}
+                  {item.properties?.goldstein != null && item.properties.goldstein !== 0 && (
+                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                      <span className="text-[var(--text-muted)] text-[10px]">INTENSITY</span>
+                      <span className={`text-[11px] font-bold ${item.properties.goldstein <= -5 ? 'text-red-400' : item.properties.goldstein <= -2 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                        {item.properties.goldstein > 0 ? '+' : ''}{item.properties.goldstein} Goldstein
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex gap-3 border-b border-[var(--border-primary)] pb-1">
+                    <div className="flex-1 flex justify-between items-center">
+                      <span className="text-[var(--text-muted)] text-[10px]">EVENTS</span>
+                      <span className="text-white text-[11px] font-bold">{item.properties?.count || 1}</span>
+                    </div>
+                    {(item.properties?.num_sources ?? 0) > 0 && (
+                      <div className="flex-1 flex justify-between items-center">
+                        <span className="text-[var(--text-muted)] text-[10px]">SOURCES</span>
+                        <span className="text-white text-[11px] font-bold">{item.properties.num_sources}</span>
+                      </div>
+                    )}
+                    {(item.properties?.num_articles ?? 0) > 0 && (
+                      <div className="flex-1 flex justify-between items-center">
+                        <span className="text-[var(--text-muted)] text-[10px]">ARTICLES</span>
+                        <span className="text-white text-[11px] font-bold">{item.properties.num_articles}</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex flex-col gap-1 mt-1">
-                    <span className="text-[var(--text-muted)] text-[9px]">
-                      LATEST REPORTS: ({item.properties?.count || 1})
+                    <span className="text-[var(--text-muted)] text-[10px]">
+                      LATEST REPORTS: ({(item.properties?._urls_list || []).length})
                     </span>
-                    <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto styled-scrollbar mt-1">
+                    <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto styled-scrollbar mt-1">
                       {(() => {
                         const urls: string[] = item.properties?._urls_list || [];
                         const headlines: string[] = item.properties?._headlines_list || [];
+                        const snippets: string[] = item.properties?._snippets_list || [];
                         if (urls.length === 0)
                           return (
-                            <span className="text-[var(--text-muted)] text-[10px]">
+                            <span className="text-[var(--text-muted)] text-[11px]">
                               No articles available.
                             </span>
                           );
                         return urls.map((url: string, idx: number) => {
                           const headline = headlines[idx] || '';
+                          const snippet = snippets[idx] || '';
                           let domain = '';
                           try {
                             domain = new URL(url).hostname.replace('www.', '');
@@ -5135,14 +5479,19 @@ const MaplibreViewer = ({
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="block py-1.5 border-b border-[var(--border-primary)]/50 last:border-0 cursor-pointer group"
+                              className="block py-2 border-b border-[var(--border-primary)]/50 last:border-0 cursor-pointer group"
                               style={{ pointerEvents: 'all' }}
                             >
-                              <span className="text-orange-400 text-[11px] font-bold leading-tight group-hover:text-orange-300 block">
+                              <span className="text-orange-400 text-[13px] font-bold leading-snug group-hover:text-orange-300 block">
                                 {headline || domain || 'View Article'}
                               </span>
-                              {headline && domain && (
-                                <span className="text-[var(--text-muted)] text-[9px] block mt-0.5">
+                              {snippet && (
+                                <span className="text-[var(--text-secondary)] text-[11px] leading-relaxed block mt-1">
+                                  {snippet}
+                                </span>
+                              )}
+                              {domain && (
+                                <span className="text-[var(--text-muted)] text-[10px] block mt-1">
                                   {domain}
                                 </span>
                               )}
@@ -5192,12 +5541,33 @@ const MaplibreViewer = ({
                         {item.title}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1 mt-1">
+                    {item.description && (
+                      <div className="text-[9px] text-white/70 leading-relaxed border-b border-[var(--border-primary)] pb-1.5">
+                        {item.description}
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                      <span className="text-[var(--text-muted)] text-[9px]">REGION</span>
+                      <span className="text-white text-[9px] font-bold">{item.region || 'Unknown'}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
                       <span className="text-[var(--text-muted)] text-[9px]">TIME</span>
                       <span className="text-white text-[9px] font-bold">
-                        {item.timestamp || 'UNKNOWN'}
+                        {item.date || (item.timestamp ? new Date(Number(item.timestamp) * 1000).toLocaleString() : 'UNKNOWN')}
                       </span>
                     </div>
+                    {item.category && (
+                      <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                        <span className="text-[var(--text-muted)] text-[9px]">TYPE</span>
+                        <span className="text-yellow-300 text-[9px] font-bold">{item.category}</span>
+                      </div>
+                    )}
+                    {item.source && (
+                      <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
+                        <span className="text-[var(--text-muted)] text-[9px]">SOURCE</span>
+                        <span className="text-white/60 text-[9px]">{item.source}</span>
+                      </div>
+                    )}
                     {item.link && (
                       <div className="flex justify-between items-center mt-1">
                         <a
@@ -5212,8 +5582,8 @@ const MaplibreViewer = ({
                     )}
                     {oracleIntel?.found && (
                       <div className="mt-2 pt-2 border-t border-cyan-500/20">
-                        <div className="text-[8px] font-mono text-cyan-400 tracking-wider mb-1">ORACLE INTEL</div>
-                        <div className="text-[8px] font-mono text-cyan-300/80">
+                        <div className="text-[11px] font-mono text-cyan-400 tracking-wider mb-1">ORACLE INTEL</div>
+                        <div className="text-[11px] font-mono text-cyan-300/80">
                           <span className={oracleIntel.tier === 'CRITICAL' ? 'text-red-400' : oracleIntel.tier === 'ELEVATED' ? 'text-yellow-400' : 'text-green-400'}>
                             {oracleIntel.tier}
                           </span>
@@ -5222,11 +5592,11 @@ const MaplibreViewer = ({
                             {oracleIntel.avg_sentiment != null ? `${oracleIntel.avg_sentiment > 0 ? '+' : ''}${oracleIntel.avg_sentiment.toFixed(2)} SENT` : ''}
                           </span>
                           {oracleIntel.market && (
-                            <span className="text-purple-400"> // {oracleIntel.market.consensus_pct}%</span>
+                            <span className="text-purple-400">{' // '}{oracleIntel.market.consensus_pct}%</span>
                           )}
                         </div>
                         {oracleIntel.top_headline && (
-                          <div className="text-[7px] text-white/60 mt-0.5 truncate">{oracleIntel.top_headline}</div>
+                          <div className="text-[10px] text-white/60 mt-0.5 truncate">{oracleIntel.top_headline}</div>
                         )}
                       </div>
                     )}
@@ -5504,274 +5874,14 @@ const MaplibreViewer = ({
         {/* SENTINEL-2 IMAGERY — fullscreen overlay modal */}
         {selectedEntity?.type === 'region_dossier' &&
           selectedEntity.extra &&
-          regionDossier?.sentinel2 &&
-          (() => {
-            const s2 = regionDossier.sentinel2;
-            const imgUrl = s2.fullres_url || s2.thumbnail_url;
-            return (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  zIndex: 9999,
-                  background: 'rgba(0,0,0,0.85)',
-                  backdropFilter: 'blur(8px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '80px 40px 80px 40px',
-                }}
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) onEntityClick(null);
-                }}
-                onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-                  if (e.key === 'Escape') onEntityClick(null);
-                }}
-                tabIndex={-1}
-                ref={(el) => el?.focus()}
-              >
-                <div
-                  style={{
-                    background: 'rgba(0,0,0,0.95)',
-                    border: '1px solid rgba(34,197,94,0.5)',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    maxWidth: 'calc(100vw - 120px)',
-                    maxHeight: 'calc(100vh - 160px)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    boxShadow: '0 0 60px rgba(34,197,94,0.3)',
-                  }}
-                >
-                  {/* Header bar */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 16px',
-                      background: 'rgba(20,83,45,0.4)',
-                      borderBottom: '1px solid rgba(34,197,94,0.3)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: '#4ade80',
-                          animation: 'pulse 2s infinite',
-                        }}
-                      />
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: '#4ade80',
-                          fontFamily: 'monospace',
-                          letterSpacing: '0.2em',
-                          fontWeight: 'bold',
-                        }}
-                      >
-                        SENTINEL-2 IMAGERY
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          color: 'rgba(134,239,172,0.6)',
-                          fontFamily: 'monospace',
-                        }}
-                      >
-                        {selectedEntity.extra.lat.toFixed(4)}, {selectedEntity.extra.lng.toFixed(4)}
-                      </span>
-                      <button
-                        onClick={() => onEntityClick(null)}
-                        style={{
-                          background: 'rgba(239,68,68,0.2)',
-                          border: '1px solid rgba(239,68,68,0.4)',
-                          borderRadius: 6,
-                          color: '#ef4444',
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          padding: '4px 10px',
-                          cursor: 'pointer',
-                          letterSpacing: '0.1em',
-                        }}
-                      >
-                        ✕ CLOSE
-                      </button>
-                    </div>
-                  </div>
-
-                  {s2.found ? (
-                    <>
-                      {/* Metadata row */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 16px',
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          borderBottom: '1px solid rgba(20,83,45,0.4)',
-                        }}
-                      >
-                        <span style={{ color: '#86efac' }}>{s2.platform}</span>
-                        <span style={{ color: '#4ade80', fontWeight: 'bold' }}>
-                          {s2.datetime?.slice(0, 10) || (s2.fallback ? 'DATE UNAVAILABLE' : 'UNKNOWN DATE')}
-                        </span>
-                        <span style={{ color: '#86efac' }}>
-                          {s2.cloud_cover != null ? `${s2.cloud_cover?.toFixed(0)}% cloud` : (s2.fallback ? 'fallback imagery' : 'cloud unknown')}
-                        </span>
-                      </div>
-
-                      {/* Image */}
-                      {imgUrl ? (
-                        <div
-                          style={{
-                            flex: 1,
-                            overflow: 'auto',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            minHeight: 400,
-                          }}
-                        >
-                          <ExternalImage
-                            src={imgUrl}
-                            alt="Sentinel-2 scene"
-                            width={1024}
-                            height={1024}
-                            style={{
-                              maxWidth: '100%',
-                              maxHeight: 'calc(100vh - 220px)',
-                              objectFit: 'contain',
-                              display: 'block',
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            padding: '40px 16px',
-                            fontSize: 11,
-                            color: 'rgba(134,239,172,0.5)',
-                            fontFamily: 'monospace',
-                            textAlign: 'center',
-                          }}
-                        >
-                          Scene found — no preview available
-                        </div>
-                      )}
-
-                      {/* Action buttons */}
-                      {imgUrl && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 12,
-                            padding: '10px 16px',
-                            background: 'rgba(20,83,45,0.3)',
-                            borderTop: '1px solid rgba(34,197,94,0.2)',
-                          }}
-                        >
-                          <a
-                            href={imgUrl}
-                            download={`sentinel2_${selectedEntity.extra.lat.toFixed(4)}_${selectedEntity.extra.lng.toFixed(4)}.jpg`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              background: 'rgba(34,197,94,0.2)',
-                              border: '1px solid rgba(34,197,94,0.5)',
-                              borderRadius: 6,
-                              color: '#4ade80',
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              padding: '6px 16px',
-                              cursor: 'pointer',
-                              textDecoration: 'none',
-                              letterSpacing: '0.15em',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            ⬇ DOWNLOAD
-                          </a>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const resp = await fetch(imgUrl);
-                                const blob = await resp.blob();
-                                await navigator.clipboard.write([
-                                  new ClipboardItem({ [blob.type]: blob }),
-                                ]);
-                              } catch {
-                                // fallback: copy URL
-                                await navigator.clipboard.writeText(imgUrl);
-                              }
-                            }}
-                            style={{
-                              background: 'rgba(34,197,94,0.15)',
-                              border: '1px solid rgba(34,197,94,0.4)',
-                              borderRadius: 6,
-                              color: '#4ade80',
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              padding: '6px 16px',
-                              cursor: 'pointer',
-                              letterSpacing: '0.15em',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            📋 COPY
-                          </button>
-                          <a
-                            href={imgUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              background: 'rgba(16,185,129,0.15)',
-                              border: '1px solid rgba(16,185,129,0.4)',
-                              borderRadius: 6,
-                              color: '#10b981',
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              padding: '6px 16px',
-                              cursor: 'pointer',
-                              textDecoration: 'none',
-                              letterSpacing: '0.15em',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            ↗ OPEN FULL RES
-                          </a>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div
-                      style={{
-                        padding: '40px 16px',
-                        fontSize: 11,
-                        color: 'rgba(134,239,172,0.5)',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                      }}
-                    >
-                      No clear imagery in last 30 days
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          regionDossier?.sentinel2 && (
+            <RegionDossierPanel
+              sentinel2={regionDossier.sentinel2}
+              lat={selectedEntity.extra.lat}
+              lng={selectedEntity.extra.lng}
+              onClose={() => onEntityClick(null)}
+            />
+          )}
 
         {/* OPTIC INTERCEPT — fullscreen CCTV camera modal */}
         {selectedEntity?.type === 'cctv' &&
@@ -5784,9 +5894,7 @@ const MaplibreViewer = ({
                   rawUrl.includes('.mjpg') || rawUrl.includes('.mjpeg') || rawUrl.includes('mjpg') ? 'mjpeg' : 'image'
             ));
             // Proxy external URLs through backend to bypass CORS
-            const url = rawUrl.startsWith('http')
-              ? `/api/cctv/media?url=${encodeURIComponent(rawUrl)}`
-              : rawUrl;
+            const url = buildCctvProxyUrl(rawUrl);
             const isVideo = mt === 'video' || mt === 'hls';
             const cameraName = String(selectedEntity.name || props.name || 'UNKNOWN MOUNT').toUpperCase();
             const sourceAgency = String(props.source_agency || 'CCTV').toUpperCase();
@@ -5803,6 +5911,206 @@ const MaplibreViewer = ({
               />
             );
           })()}
+
+        {/* ── AI Intel Pin Detail popup ── */}
+        {openPinDetailId && (
+          <AIIntelPinDetail
+            pinId={openPinDetailId}
+            onClose={() => setOpenPinDetailId(null)}
+            onDeleted={() => {
+              setOpenPinDetailId(null);
+              setAiIntelRefreshTick((t) => t + 1);
+              onPinPlaced?.();
+            }}
+            onUpdated={() => setAiIntelRefreshTick((t) => t + 1)}
+          />
+        )}
+
+        {/* ── Pin Placement Dialog (offset marker + connecting line) ── */}
+        {pendingPin && (
+          <Marker
+            latitude={pendingPin.lat}
+            longitude={pendingPin.lng}
+            anchor="center"
+            offset={[0, -120]}
+            style={{ zIndex: 9990 }}
+          >
+            <div
+              className="relative"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                // Prevent global hotkeys (l/r/m/s/k/f/space) from firing while
+                // typing in the pin dialog — the maplibre canvas is still in
+                // the document and document-level listeners otherwise fire.
+                e.stopPropagation();
+                e.nativeEvent.stopImmediatePropagation();
+              }}
+              onKeyUp={(e) => {
+                e.stopPropagation();
+                e.nativeEvent.stopImmediatePropagation();
+              }}
+            >
+              {/* Connecting line + dot at actual pin location */}
+              <svg
+                className="absolute pointer-events-none"
+                style={{
+                  left: '50%',
+                  top: '50%',
+                  width: 1,
+                  height: 1,
+                  overflow: 'visible',
+                  zIndex: -1,
+                }}
+              >
+                <line
+                  x1={0}
+                  y1={0}
+                  x2={0}
+                  y2={120}
+                  stroke="#8b5cf6"
+                  strokeWidth="1.5"
+                  strokeDasharray="4,3"
+                  className="opacity-80"
+                />
+                <circle cx={0} cy={120} r="4" fill="#8b5cf6" stroke="#0a0a14" strokeWidth="1.5" />
+              </svg>
+
+              {/* Arrow triangle pointing down to pin */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '-6px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderTop: '6px solid #8b5cf6',
+                }}
+              />
+
+              {/* Dialog box */}
+              <div
+                className="bg-[#0a0a14] border-2 border-violet-500/60 p-3 font-mono"
+                style={{ minWidth: 260, maxWidth: 300, transform: 'translateX(-50%)', marginLeft: '50%' }}
+              >
+                {/* Close button */}
+                <button
+                  onClick={() => { setPendingPin(null); setPinLabel(''); setPinNotes(''); }}
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 8,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#8b5cf6',
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    lineHeight: 1,
+                    opacity: 0.7,
+                    zIndex: 20,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                >
+                  &times;
+                </button>
+
+                <div className="text-[12px] text-violet-400 tracking-widest mb-2 font-bold">
+                  {pendingPin.entity ? 'PIN TO ENTITY' : 'PIN TO LOCATION'}
+                </div>
+                {pendingPin.entity && (
+                  <div className="text-[10px] text-cyan-400 mb-2 px-2 py-1 bg-cyan-500/10 border border-cyan-500/20">
+                    Tracking: {pendingPin.entity.entity_label || pendingPin.entity.entity_id}
+                    <span className="text-cyan-600 ml-1">({pendingPin.entity.entity_type})</span>
+                  </div>
+                )}
+                {/* Category selector */}
+                <select
+                  title="Pin category"
+                  aria-label="Pin category"
+                  value={pinCategory}
+                  onChange={(e) => setPinCategory(e.target.value as PinCategory)}
+                  className="w-full px-2 py-1.5 text-[11px] font-mono bg-black/50 border border-violet-500/30 text-white focus:border-violet-500/60 outline-none mb-1.5 border-l-4"
+                  style={{ borderLeftColor: PIN_CATEGORY_COLORS[pinCategory] }}
+                >
+                  {(Object.keys(PIN_CATEGORY_LABELS) as PinCategory[]).map((cat) => (
+                    <option key={cat} value={cat} className="bg-[#0a0a14]">
+                      {PIN_CATEGORY_LABELS[cat]}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  ref={pinLabelInputRef}
+                  type="text"
+                  value={pinLabel}
+                  onChange={(e) => setPinLabel(e.target.value)}
+                  placeholder="Label..."
+                  autoFocus
+                  className="w-full px-2 py-1.5 text-[12px] font-mono bg-black/50 border border-violet-500/30 text-white placeholder:text-gray-600 focus:border-violet-500/60 outline-none mb-1.5"
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    if (e.key === 'Enter' && pinLabel.trim()) {
+                      e.preventDefault();
+                      handleSavePin();
+                    }
+                    if (e.key === 'Escape') {
+                      setPendingPin(null); setPinLabel(''); setPinNotes(''); setPinCategory('custom');
+                    }
+                  }}
+                />
+                <textarea
+                  value={pinNotes}
+                  onChange={(e) => setPinNotes(e.target.value)}
+                  placeholder="Notes (optional)..."
+                  rows={2}
+                  className="w-full px-2 py-1 text-[11px] font-mono bg-black/50 border border-violet-500/20 text-gray-300 placeholder:text-gray-600 focus:border-violet-500/40 outline-none resize-none mb-2"
+                  onMouseDown={(e) => {
+                    // Force-focus the textarea on click — the maplibre canvas
+                    // otherwise steals focus back and typing gets swallowed.
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLTextAreaElement).focus();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLTextAreaElement).focus();
+                  }}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    if (e.key === 'Escape') {
+                      setPendingPin(null); setPinLabel(''); setPinNotes(''); setPinCategory('custom');
+                    }
+                  }}
+                />
+                <div className="text-[9px] text-gray-500 mb-2">
+                  {pendingPin.lat.toFixed(5)}, {pendingPin.lng.toFixed(5)}
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    disabled={!pinLabel.trim() || pinSaving}
+                    onClick={handleSavePin}
+                    className="flex-1 py-1.5 text-[11px] font-mono tracking-wider bg-violet-600/30 border border-violet-500/50 text-violet-300 hover:bg-violet-600/50 transition-colors disabled:opacity-40"
+                  >
+                    {pinSaving ? '...' : 'CONFIRM'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPendingPin(null); setPinLabel(''); setPinNotes(''); }}
+                    className="px-3 py-1.5 text-[11px] font-mono tracking-wider border border-gray-600/40 text-gray-400 hover:text-gray-300 transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Marker>
+        )}
 
         <MeasurementLayers measurePoints={measurePoints} />
       </Map>

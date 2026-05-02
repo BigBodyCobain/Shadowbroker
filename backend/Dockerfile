@@ -1,9 +1,16 @@
 # ---- Stage 1: Compile privacy-core Rust library ----
-FROM rust:1.88-slim-bookworm AS rust-builder
+FROM --platform=$BUILDPLATFORM rust:1.88-slim-bookworm AS rust-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev \
+    ca-certificates \
+    git \
+    pkg-config \
+    libssl-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 COPY privacy-core /build/privacy-core
 WORKDIR /build/privacy-core
@@ -17,6 +24,7 @@ WORKDIR /app
 
 # Install Node.js (for AIS WebSocket proxy) and curl (for network fallback)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \

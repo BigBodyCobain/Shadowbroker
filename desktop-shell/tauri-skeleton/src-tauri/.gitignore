@@ -1,0 +1,8 @@
+# Rust build artifacts
+target/
+
+# Companion server static assets (copied by build.sh from frontend/out)
+companion-www/
+
+# Managed backend runtime bundle (copied by build scripts from backend/)
+backend-runtime/

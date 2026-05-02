@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, User, Eye, EyeOff, Wallet, Activity, ShieldCheck, AlertCircle } from 'lucide-react';
+import QRCode from 'qrcode';
 
 import { API_BASE } from '@/lib/api';
+import { exportWormholeDmInvite } from '@/mesh/wormholeIdentityClient';
 
 interface ProfileViewProps {
   onBack: () => void;
@@ -49,6 +51,11 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
   const [showTransactions, setShowTransactions] = useState(false);
   const [reputation, setReputation] = useState<ReputationSummary>(EMPTY_REPUTATION);
   const [oracleProfile, setOracleProfile] = useState<OracleProfileSummary>(EMPTY_ORACLE_PROFILE);
+  const [dmInviteBusy, setDmInviteBusy] = useState(false);
+  const [dmInviteBlob, setDmInviteBlob] = useState('');
+  const [dmInviteQrSrc, setDmInviteQrSrc] = useState('');
+  const [dmInviteFingerprint, setDmInviteFingerprint] = useState('');
+  const [dmInviteStatus, setDmInviteStatus] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +125,40 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
     };
   }, [nodeId]);
 
+  useEffect(() => {
+    let active = true;
+    if (!dmInviteBlob) {
+      setDmInviteQrSrc('');
+      return () => {
+        active = false;
+      };
+    }
+
+    void QRCode.toDataURL(dmInviteBlob, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 320,
+      color: {
+        dark: '#34d399',
+        light: '#05080d',
+      },
+    })
+      .then((dataUrl) => {
+        if (active) {
+          setDmInviteQrSrc(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setDmInviteQrSrc('');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [dmInviteBlob]);
+
   const displayNodeId = nodeId?.trim() || 'NOT PROVISIONED';
   const displayPersona = persona?.trim() || 'unassigned';
   const creditsReference = publicKey?.trim() || 'Not provisioned';
@@ -140,6 +181,45 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
   const oracleRepTotal = oracleProfile.oracle_rep_total;
   const oracleRepLocked = oracleProfile.oracle_rep_locked;
   const oracleProgress = oracleRepTotal > 0 ? Math.max(0, Math.min(100, (oracleRep / oracleRepTotal) * 100)) : 0;
+
+  const handleGenerateDmInvite = async () => {
+    setDmInviteBusy(true);
+    setDmInviteStatus(null);
+    try {
+      const exported = await exportWormholeDmInvite();
+      setDmInviteBlob(JSON.stringify(exported, null, 2));
+      setDmInviteFingerprint(String(exported.trust_fingerprint || ''));
+      setDmInviteStatus({
+        type: 'ok',
+        text: 'Signed DM invite generated. Share it only over a trusted out-of-band channel.',
+      });
+    } catch (error) {
+      setDmInviteStatus({
+        type: 'err',
+        text: error instanceof Error ? error.message : 'dm_invite_export_failed',
+      });
+    } finally {
+      setDmInviteBusy(false);
+    }
+  };
+
+  const handleCopyDmInvite = async () => {
+    if (!dmInviteBlob || !navigator?.clipboard?.writeText) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(dmInviteBlob);
+      setDmInviteStatus({
+        type: 'ok',
+        text: 'Signed DM invite copied to clipboard.',
+      });
+    } catch (error) {
+      setDmInviteStatus({
+        type: 'err',
+        text: error instanceof Error ? error.message : 'clipboard_write_failed',
+      });
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -322,6 +402,76 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
               <p className="text-sm text-gray-500 uppercase tracking-widest">Credits</p>
               <p className="text-xs text-gray-300 font-bold">0.00 AVAILABLE</p>
             </div>
+          </div>
+        </div>
+
+        <div className="border border-gray-800 bg-gray-900/20 p-4">
+          <h2 className="text-cyan-400 font-bold mb-4 border-b border-gray-800 pb-2 flex items-center">
+            <ShieldCheck size={16} className="mr-2" /> FIRST-CONTACT BOOTSTRAP
+          </h2>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400 leading-[1.7]">
+              Export a signed DM invite for trusted out-of-band exchange. This pins first contact to
+              your messaging identity instead of plain first-sight TOFU. It does not link wallet,
+              reputation, or other personas.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => void handleGenerateDmInvite()}
+                disabled={dmInviteBusy}
+                className="px-4 py-2 border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
+              >
+                {dmInviteBusy ? 'Generating...' : 'Generate Signed DM Invite'}
+              </button>
+              <button
+                onClick={() => void handleCopyDmInvite()}
+                disabled={!dmInviteBlob}
+                className="px-4 py-2 border border-emerald-500/40 bg-emerald-950/20 text-emerald-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
+              >
+                Copy Invite
+              </button>
+            </div>
+            {dmInviteFingerprint && (
+              <div className="text-sm text-emerald-300 font-mono">
+                Trust fingerprint: {dmInviteFingerprint}
+              </div>
+            )}
+            {dmInviteStatus && (
+              <div
+                className={`px-3 py-2 border text-sm ${
+                  dmInviteStatus.type === 'ok'
+                    ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300'
+                    : 'border-red-500/30 bg-red-950/20 text-red-300'
+                }`}
+              >
+                {dmInviteStatus.text}
+              </div>
+            )}
+            <textarea
+              value={dmInviteBlob}
+              readOnly
+              className="w-full min-h-[220px] bg-[#0a0a0a] border border-gray-800 px-4 py-3 text-sm text-gray-300 font-mono outline-none"
+              placeholder="Generate a signed DM invite to display the export blob here."
+              spellCheck={false}
+            />
+            {dmInviteQrSrc && (
+              <div className="border border-emerald-500/20 bg-[#0a0a0a] p-4">
+                <div className="text-xs text-emerald-300 uppercase tracking-[0.18em] mb-3">
+                  QR Invite
+                </div>
+                <div className="flex flex-col items-center gap-3">
+                  <img
+                    src={dmInviteQrSrc}
+                    alt="Signed DM invite QR"
+                    className="w-[320px] max-w-full border border-gray-800 bg-black p-3"
+                  />
+                  <div className="text-xs text-gray-500 text-center leading-[1.65] max-w-[32rem]">
+                    Scan this over a trusted out-of-band channel. The QR carries the same signed DM
+                    invite shown above, including the trust fingerprint and signature envelope.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

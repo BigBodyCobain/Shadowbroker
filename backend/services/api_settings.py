@@ -4,11 +4,12 @@ Keys are stored in the backend .env file and loaded via python-dotenv.
 """
 
 import os
-import re
 from pathlib import Path
 
 # Path to the backend .env file
 ENV_PATH = Path(__file__).parent.parent / ".env"
+# Path to the example template that ships with the repo
+ENV_EXAMPLE_PATH = Path(__file__).parent.parent.parent / ".env.example"
 
 # ---------------------------------------------------------------------------
 # API Registry — every external service the dashboard depends on
@@ -143,15 +144,33 @@ API_REGISTRY = [
 ]
 
 
-def _obfuscate(value: str) -> str:
-    """Show first 4 chars, mask the rest with bullets."""
-    if not value or len(value) <= 4:
-        return "••••••••"
-    return value[:4] + "•" * (len(value) - 4)
+def get_env_path_info() -> dict:
+    """Return absolute paths for the backend .env and .env.example template.
+
+    Surfaced to the frontend so the API Keys settings panel can tell users
+    exactly where to put their keys when in-app editing fails (admin-not-set,
+    file permissions, read-only filesystem, etc.).
+    """
+    env_path = ENV_PATH.resolve()
+    example_path = ENV_EXAMPLE_PATH.resolve()
+    return {
+        "env_path": str(env_path),
+        "env_path_exists": env_path.exists(),
+        "env_path_writable": os.access(env_path.parent, os.W_OK)
+            and (not env_path.exists() or os.access(env_path, os.W_OK)),
+        "env_example_path": str(example_path),
+        "env_example_path_exists": example_path.exists(),
+    }
 
 
 def get_api_keys():
-    """Return the full API registry with obfuscated key values."""
+    """Return the API registry with a binary set/unset flag per key.
+
+    Key values themselves are NEVER returned to the client — not even an
+    obfuscated prefix. Users edit the .env file directly; the panel uses
+    `is_set` to render a CONFIGURED / NOT CONFIGURED badge and the path
+    info from `get_env_path_info()` to tell them where to put each key.
+    """
     result = []
     for api in API_REGISTRY:
         entry = {
@@ -163,41 +182,10 @@ def get_api_keys():
             "required": api["required"],
             "has_key": api["env_key"] is not None,
             "env_key": api["env_key"],
-            "value_obfuscated": None,
             "is_set": False,
         }
         if api["env_key"]:
             raw = os.environ.get(api["env_key"], "")
-            entry["value_obfuscated"] = _obfuscate(raw)
             entry["is_set"] = bool(raw)
         result.append(entry)
     return result
-
-
-def update_api_key(env_key: str, new_value: str) -> bool:
-    """Update a single key in the .env file and in the current process env."""
-    valid_keys = {api["env_key"] for api in API_REGISTRY if api.get("env_key")}
-    if env_key not in valid_keys:
-        return False
-
-    if not isinstance(new_value, str):
-        return False
-    if "\n" in new_value or "\r" in new_value:
-        return False
-
-    if not ENV_PATH.exists():
-        ENV_PATH.write_text("", encoding="utf-8")
-
-    # Update os.environ immediately
-    os.environ[env_key] = new_value
-
-    # Update the .env file on disk
-    content = ENV_PATH.read_text(encoding="utf-8")
-    pattern = re.compile(rf"^{re.escape(env_key)}=.*$", re.MULTILINE)
-    if pattern.search(content):
-        content = pattern.sub(f"{env_key}={new_value}", content)
-    else:
-        content = content.rstrip("\n") + f"\n{env_key}={new_value}\n"
-
-    ENV_PATH.write_text(content, encoding="utf-8")
-    return True

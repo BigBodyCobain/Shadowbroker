@@ -69,8 +69,7 @@ def test_meshtastic_transport_lock_stays_on_public_direct_path(monkeypatch):
     fake_router = _FakeMeshRouter(fake_meshtastic)
     fake_bridge = SimpleNamespace(messages=deque(maxlen=10))
 
-    monkeypatch.setattr(main, "_verify_signed_event", lambda **_: (True, "ok"))
-    monkeypatch.setattr(main, "_preflight_signed_event_integrity", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(sigint_grid, "mesh", fake_bridge)
@@ -99,8 +98,7 @@ def test_meshtastic_transport_lock_does_not_fallback_when_unreachable(monkeypatc
     fake_meshtastic = _FakeMeshtasticTransport(can_reach=False, send_ok=False)
     fake_router = _FakeMeshRouter(fake_meshtastic)
 
-    monkeypatch.setattr(main, "_verify_signed_event", lambda **_: (True, "ok"))
-    monkeypatch.setattr(main, "_preflight_signed_event_integrity", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
 
@@ -144,8 +142,11 @@ def test_meshtastic_transport_lock_allows_two_messages_per_minute(monkeypatch):
     assert "1 message per 30s" in reason_second
 
 
-def test_private_trust_tier_skips_public_transports():
+def test_private_trust_tier_skips_public_transports(monkeypatch):
+    from services.mesh import mesh_router
     from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    monkeypatch.setattr(mesh_router, "_supervisor_verified_trust_tier", lambda: "private_strong")
 
     class _FakeTransport:
         def __init__(self, name):
@@ -181,8 +182,11 @@ def test_private_trust_tier_skips_public_transports():
     assert len(router.internet.sent) == 0
 
 
-def test_private_route_recognizes_tor_arti_and_falls_back_to_internet():
+def test_private_route_recognizes_tor_arti_and_falls_back_to_internet(monkeypatch):
+    from services.mesh import mesh_router
     from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    monkeypatch.setattr(mesh_router, "_supervisor_verified_trust_tier", lambda: "private_strong")
 
     class _FakeTransport:
         def __init__(self, name, ok=True):
@@ -231,8 +235,7 @@ def test_private_tier_blocks_meshtastic_transport_lock(monkeypatch):
     fake_meshtastic = _FakeMeshtasticTransport(can_reach=True, send_ok=True)
     fake_router = _FakeMeshRouter(fake_meshtastic)
 
-    monkeypatch.setattr(main, "_verify_signed_event", lambda **_: (True, "ok"))
-    monkeypatch.setattr(main, "_preflight_signed_event_integrity", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: "private_transitional")
@@ -274,8 +277,7 @@ def test_envelope_trust_tier_set_from_wormhole_state(monkeypatch):
     fake_router = _CapturingRouter()
     fake_bridge = SimpleNamespace(messages=deque(maxlen=10))
 
-    monkeypatch.setattr(main, "_verify_signed_event", lambda **_: (True, "ok"))
-    monkeypatch.setattr(main, "_preflight_signed_event_integrity", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(sigint_grid, "mesh", fake_bridge)

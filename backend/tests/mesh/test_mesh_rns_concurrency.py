@@ -204,10 +204,11 @@ def test_rns_shard_reassembly_with_loss_and_delay(monkeypatch) -> None:
 
 def test_rns_publish_gate_event_freezes_current_v1_signer_bundle(monkeypatch) -> None:
     from services import config as config_mod
-    from services.mesh import mesh_rns as mesh_rns_mod
+    from services.mesh import mesh_hashchain as mesh_hashchain_mod, mesh_rns as mesh_rns_mod
 
     bridge = RNSBridge()
     sent: list[tuple[bytes, str | None]] = []
+    peer_urls: list[str] = []
     settings = SimpleNamespace(
         MESH_PEER_PUSH_SECRET="peer-secret",
         MESH_RNS_MAX_PAYLOAD=8192,
@@ -220,12 +221,18 @@ def test_rns_publish_gate_event_freezes_current_v1_signer_bundle(monkeypatch) ->
     monkeypatch.setattr(bridge, "_maybe_rotate_session", lambda: None)
     monkeypatch.setattr(bridge, "_seen", lambda _message_id: False)
     monkeypatch.setattr(bridge, "_make_message_id", lambda prefix: f"{prefix}-wire-id")
+    monkeypatch.setattr(bridge, "_local_hash", lambda: "abcd1234")
     monkeypatch.setattr(bridge, "_dandelion_hops", lambda: 3)
     monkeypatch.setattr(bridge, "_pick_stem_peer", lambda: None)
     monkeypatch.setattr(
         bridge,
         "_send_diffuse",
         lambda payload, exclude=None: sent.append((payload, exclude)),
+    )
+    monkeypatch.setattr(
+        mesh_hashchain_mod,
+        "build_gate_wire_ref",
+        lambda gate_id, event, peer_url="": peer_urls.append(peer_url) or "opaque-ref-1",
     )
 
     bridge.publish_gate_event(
@@ -260,6 +267,7 @@ def test_rns_publish_gate_event_freezes_current_v1_signer_bundle(monkeypatch) ->
     assert decoded["type"] == "gate_event"
     assert decoded["meta"] == {
         "message_id": "gate-wire-id",
+        "reply_to": "abcd1234",
         "dandelion": {"phase": "stem", "hops": 0, "max_hops": 3},
     }
     assert set(event.keys()) == {
@@ -287,7 +295,8 @@ def test_rns_publish_gate_event_freezes_current_v1_signer_bundle(monkeypatch) ->
     assert event["payload"]["nonce"] == "nonce-7"
     assert event["payload"]["sender_ref"] == "sender-ref-7"
     assert event["payload"]["epoch"] == 4
-    assert event["payload"]["gate_ref"]
+    assert event["payload"]["gate_ref"] == "opaque-ref-1"
+    assert peer_urls == ["rns://abcd1234"]
     assert "gate" not in event["payload"]
 
 
@@ -297,12 +306,17 @@ def test_rns_inbound_gate_event_resolves_gate_ref_before_local_ingest(monkeypatc
 
     bridge = RNSBridge()
     ingested: list[tuple[str, list[dict]]] = []
+    resolved_peer_urls: list[str] = []
     settings = SimpleNamespace(MESH_RNS_DANDELION_HOPS=3)
 
     monkeypatch.setattr(config_mod, "get_settings", lambda: settings)
     monkeypatch.setattr(mesh_rns_mod, "get_settings", lambda: settings)
     monkeypatch.setattr(bridge, "_seen", lambda _message_id: False)
-    monkeypatch.setattr(mesh_hashchain_mod, "resolve_gate_wire_ref", lambda gate_ref, event: "finance")
+    monkeypatch.setattr(
+        mesh_hashchain_mod,
+        "resolve_gate_wire_ref",
+        lambda gate_ref, event, *, peer_url="": resolved_peer_urls.append(peer_url) or "finance",
+    )
     monkeypatch.setattr(
         mesh_hashchain_mod.gate_store,
         "ingest_peer_events",
@@ -332,7 +346,7 @@ def test_rns_inbound_gate_event_resolves_gate_ref_before_local_ingest(monkeypatc
                 },
             }
         },
-        meta={"message_id": "gate-inbound-1", "dandelion": {"phase": "diffuse"}},
+        meta={"message_id": "gate-inbound-1", "reply_to": "abcd1234", "dandelion": {"phase": "diffuse"}},
     ).encode()
 
     bridge._on_packet(packet)
@@ -355,6 +369,7 @@ def test_rns_inbound_gate_event_resolves_gate_ref_before_local_ingest(monkeypatc
     assert event["payload"]["nonce"] == "nonce-7"
     assert event["payload"]["sender_ref"] == "sender-ref-7"
     assert event["payload"]["epoch"] == 4
+    assert resolved_peer_urls == ["rns://abcd1234"]
 
 
 def test_rns_inbound_gate_event_blind_forwards_when_gate_cannot_be_resolved(monkeypatch) -> None:
@@ -375,7 +390,11 @@ def test_rns_inbound_gate_event_blind_forwards_when_gate_cannot_be_resolved(monk
         "_send_to_peer",
         lambda peer, payload: forwarded.append((peer, json.loads(payload.decode("utf-8")))),
     )
-    monkeypatch.setattr(mesh_hashchain_mod, "resolve_gate_wire_ref", lambda gate_ref, event: "")
+    monkeypatch.setattr(
+        mesh_hashchain_mod,
+        "resolve_gate_wire_ref",
+        lambda gate_ref, event, *, peer_url="": "",
+    )
     monkeypatch.setattr(
         mesh_hashchain_mod.gate_store,
         "ingest_peer_events",
@@ -404,7 +423,11 @@ def test_rns_inbound_gate_event_blind_forwards_when_gate_cannot_be_resolved(monk
     packet = mesh_rns_mod.RNSMessage(
         msg_type="gate_event",
         body={"event": original_event},
-        meta={"message_id": "gate-inbound-2", "dandelion": {"phase": "stem", "hops": 0, "max_hops": 2}},
+        meta={
+            "message_id": "gate-inbound-2",
+            "reply_to": "abcd1234",
+            "dandelion": {"phase": "stem", "hops": 0, "max_hops": 2},
+        },
     ).encode()
 
     bridge._on_packet(packet)
@@ -416,6 +439,7 @@ def test_rns_inbound_gate_event_blind_forwards_when_gate_cannot_be_resolved(monk
     assert forwarded_msg["type"] == "gate_event"
     assert forwarded_msg["meta"] == {
         "message_id": "gate-inbound-2",
+        "reply_to": "abcd1234",
         "dandelion": {"phase": "stem", "hops": 1, "max_hops": 2},
     }
     assert forwarded_msg["body"]["event"] == original_event

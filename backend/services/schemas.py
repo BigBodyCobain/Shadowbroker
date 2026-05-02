@@ -9,6 +9,11 @@ class HealthResponse(BaseModel):
     sources: Dict[str, int]
     freshness: Dict[str, str]
     uptime_seconds: int
+    # SLO status block — per-source red/yellow/green derived from the
+    # SLO registry. Keys are source names, values are status dicts
+    # ({status, age_s, row_count, slo, stale, empty, description}).
+    slo: Optional[Dict[str, Any]] = None
+    slo_summary: Optional[Dict[str, int]] = None
 
 
 class RefreshResponse(BaseModel):

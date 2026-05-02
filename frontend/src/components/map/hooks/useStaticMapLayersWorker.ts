@@ -45,6 +45,9 @@ const EMPTY_RESULT: StaticMapLayersResult = {
   volcanoesGeoJSON: null,
   fishingGeoJSON: null,
   trainsGeoJSON: null,
+  uapSightingsGeoJSON: null,
+  wastewaterGeoJSON: null,
+  crowdthreatGeoJSON: null,
 };
 
 let worker: Worker | null = null;

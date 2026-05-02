@@ -80,6 +80,32 @@ export const HELI_TYPES = new Set([
   'MRLX',
   'A149',
   'A119',
+  // Common heli typecodes seen on the wire that were missing
+  'B47G',  // Bell 47
+  'H500',  // MD 500 / Hughes 500
+  'H269',  // Hughes 269/300
+  'EC30',  // EC130 / H130 (also alias)
+  'EC35',  // EC135 (also alias)
+  'EC45',  // EC145 (also alias)
+  'EC75',  // EC175
+  'A169',  // AW169
+  'A189',  // AW189
+  'AW69',  // AW69
+  'H60',   // UH-60 / S-70 Black Hawk (military variants on the wire)
+  'H47',   // CH-47 Chinook
+  'H53',   // CH-53
+  'H64',   // AH-64 Apache (alt code seen on the wire)
+  'V22',   // V-22 Osprey (rotorcraft for icon purposes)
+  'KA32',  // Kamov Ka-32
+  'KA50',  // Ka-50
+  'MI17',  // Mi-17
+  'MI171', // Mi-171
+  'MI2',   // Mi-2
+  'M530',  // MD 530
+  'EXPL',  // MD Explorer
+  'GA6C',  // (some heli ICAOs)
+  'CABR',  // Cabri G2
+  'SK76',  // Sikorsky S-76 alt
 ]);
 export const TURBOPROP_TYPES = new Set([
   'AT43',
@@ -201,6 +227,98 @@ export const TURBOPROP_TYPES = new Set([
   'DR40',
   'TB20',
   'AA5',
+  // Common GA / sport / utility / military-utility typecodes seen on the wire
+  // that were defaulting to airliner shape
+  'AN2',   // Antonov An-2
+  'T6',    // T-6 Texan / II
+  'TEX2',  // T-6A Texan II
+  'PA11',  // PA-11 Cub
+  'PA22',  // PA-22 Tri-Pacer
+  'PA24',  // PA-24 Comanche
+  'PA25',  // PA-25 Pawnee
+  'PA38',  // PA-38 Tomahawk
+  'PA46',  // PA-46 Malibu / Mirage / Matrix
+  'P32R',  // PA-32R Lance/Saratoga
+  'P46T',  // PA-46 Meridian (turboprop)
+  'C150',  // Cessna 150
+  'C152',  // Cessna 152
+  'C170',  // Cessna 170
+  'C177',  // Cessna 177 Cardinal
+  'C180',  // Cessna 180
+  'C185',  // Cessna 185
+  'C140',  // Cessna 140
+  'C120',  // Cessna 120
+  'C175',  // Cessna 175
+  'C72R',  // Cessna 172 RG
+  'C77R',  // Cessna 177 RG
+  'C82R',  // Cessna 182 RG
+  'C82S',  // Cessna 182 S
+  'C82T',  // Cessna 182 T
+  'T206',  // Cessna T206 Stationair
+  'T210',  // Cessna T210 Centurion
+  'C340',  // Cessna 340
+  'C56X',  // Citation Excel/XLS  (covered in BIZJET, but harmless)
+  'M7',    // Maule M-7
+  'M20T',  // Mooney M20 Turbo
+  'BE9T',  // King Air F90
+  'BE9L',  // King Air 90 (already in main)
+  'BE10',  // King Air 100
+  'BE30',  // King Air 300 (already in main)
+  'BE76',  // Beech Duchess
+  'BE95',  // Beech Travel Air
+  'BE23',  // Sundowner
+  'BE40',  // Beechjet 400 (also in BIZJET, harmless)
+  'BE55',  // Baron 55 (already)
+  'GA8',   // GippsAero Airvan
+  'AC68',  // Aero Commander 680
+  'AC80',  // Aero Commander 680
+  'AC90',  // Aero Commander 90
+  'AC95',  // Aero Commander 95
+  'CH7A',  // Champion 7A
+  'CH7B',  // Champion 7B
+  'CH60',  // Champion 60
+  'BL8',   // Bellanca 8 Decathlon
+  'TBM7',  // (also already)
+  'TBM8',
+  'TBM9',
+  'M600',  // Piper M600
+  'PC21',  // Pilatus PC-21
+  'P180',  // Piaggio Avanti
+  'CN35',  // CASA CN-235
+  'C295',  // CASA C-295
+  'C212',  // CASA C-212
+  'D228',  // Dornier 228
+  'D328',  // Dornier 328
+  'L410',  // LET L-410
+  'AN24',  // Antonov An-24
+  'AN26',  // An-26
+  'AN30',  // An-30
+  'AN32',  // An-32
+  'YK40',  // Yak-40
+  'YK42',  // Yak-42 (regional)
+  'PARA',  // skydiving
+  'GLID',  // glider
+  'BALL',  // balloon
+  'ULAC',  // ultralight
+  'GYRO',  // gyrocopter
+  'DRON',  // drone
+  'FOX',   // Aviat Husky / sim variants
+  'HUSK',  // Husky
+  'NAVI',  // Navion
+  'AC11',  // Grumman AA-1
+  'AA5',   // Grumman AA-5
+  'RV4', 'RV6', 'RV7', 'RV8', 'RV9', 'RV10', 'RV12',
+  'GLAS',  // Glasair
+  'ERCO',  // Ercoupe
+  'TAYB',  // Taylorcraft
+  'S108',  // Stinson 108
+  'S22T',  // SR22T
+  'DV20',  // Diamond Katana
+  'DA40', 'DA42', 'DA62',
+  'SR20', 'SR22',
+  'M20P',
+  'P28A', 'P28B', 'P28R', 'P28', 'P32R',
+  'C172', 'C182', 'C206',
 ]);
 export const BIZJET_TYPES = new Set([
   'ASTR',
@@ -287,5 +405,9 @@ export function classifyAircraft(
   if (category === 'heli' || HELI_TYPES.has(m)) return 'heli';
   if (BIZJET_TYPES.has(m)) return 'bizjet';
   if (TURBOPROP_TYPES.has(m)) return 'turboprop';
+  // Default airliner shape — restores the original behavior where unknown /
+  // unrecognized types render as the standard plane silhouette. The earlier
+  // attempt to default-down to turboprop made every unidentified flight look
+  // smaller and slimmer than it should.
   return 'airliner';
 }

@@ -1,0 +1,106 @@
+{
+  "_comment": "Fault-injection vectors — corrupted/downgraded/tier-spoofed/replayed messages for test_fault_injection.py",
+  "corrupted_ciphertext": {
+    "category": "corruption",
+    "description": "Bit-flip in MLS ciphertext; decrypt must fail cleanly without panic",
+    "gate_id": "finance",
+    "mutation": "flip_byte_0"
+  },
+  "truncated_ciphertext": {
+    "category": "corruption",
+    "description": "Ciphertext truncated to 16 bytes; decrypt must fail cleanly",
+    "gate_id": "finance",
+    "mutation": "truncate_16"
+  },
+  "empty_ciphertext": {
+    "category": "corruption",
+    "description": "Empty ciphertext string; schema validation must reject",
+    "gate_id": "finance",
+    "mutation": "empty"
+  },
+  "oversized_ciphertext": {
+    "category": "corruption",
+    "description": "Ciphertext exceeding reasonable bounds; should be rejected before MLS",
+    "gate_id": "finance",
+    "mutation": "oversized_1mb"
+  },
+  "wrong_epoch_ciphertext": {
+    "category": "replay",
+    "description": "Ciphertext from epoch N sent with epoch N+1 header; epoch binding must reject",
+    "gate_id": "finance",
+    "mutation": "epoch_mismatch"
+  },
+  "replayed_event_id": {
+    "category": "replay",
+    "description": "Same event_id submitted twice; replay filter must reject",
+    "event_type": "message",
+    "mutation": "duplicate_event_id"
+  },
+  "sequence_rollback": {
+    "category": "replay",
+    "description": "Event with sequence < last seen for same node; must be rejected",
+    "event_type": "message",
+    "mutation": "sequence_decrease"
+  },
+  "format_downgrade_gate": {
+    "category": "downgrade",
+    "description": "Gate message with format=legacy_cleartext; must be rejected by schema",
+    "gate_id": "finance",
+    "format": "legacy_cleartext"
+  },
+  "format_downgrade_dm": {
+    "category": "downgrade",
+    "description": "DM with format=dm1 when MLS lock is active; must be hard-failed",
+    "format": "dm1"
+  },
+  "tier_spoof_private_to_public": {
+    "category": "tier_spoof",
+    "description": "Envelope claiming private_strong when supervisor reports public_degraded; must be clamped",
+    "claimed_tier": "private_strong",
+    "actual_tier": "public_degraded",
+    "expected_clamped_tier": "public_degraded"
+  },
+  "tier_spoof_private_transitional_to_strong": {
+    "category": "tier_spoof",
+    "description": "Envelope claiming private_strong when only transitional is available; must be clamped",
+    "claimed_tier": "private_strong",
+    "actual_tier": "private_transitional",
+    "expected_clamped_tier": "private_transitional"
+  },
+  "forbidden_field_injection_ip": {
+    "category": "field_injection",
+    "description": "Public ledger event with ip_address field; must be rejected",
+    "event_type": "message",
+    "injected_field": "ip_address",
+    "injected_value": "10.0.0.1"
+  },
+  "forbidden_field_injection_transport": {
+    "category": "field_injection",
+    "description": "Public ledger event with transport_lock field; must be rejected",
+    "event_type": "message",
+    "injected_field": "transport_lock",
+    "injected_value": "meshtastic"
+  },
+  "forbidden_field_injection_secret": {
+    "category": "field_injection",
+    "description": "Public ledger event with session_key field; must be rejected by validate_public_ledger_payload",
+    "event_type": "message",
+    "injected_field": "session_key",
+    "injected_value": "s3cret"
+  },
+  "invalid_signature_on_event": {
+    "category": "integrity",
+    "description": "Valid event with corrupted signature; must fail strict signature verification",
+    "mutation": "corrupt_signature"
+  },
+  "node_id_binding_mismatch": {
+    "category": "integrity",
+    "description": "Event where node_id does not match SHA-256(public_key); must be rejected",
+    "mutation": "wrong_node_id"
+  },
+  "revoked_key_event": {
+    "category": "integrity",
+    "description": "Event signed by a revoked key; must be rejected for all types except key_revoke",
+    "mutation": "use_revoked_key"
+  }
+}

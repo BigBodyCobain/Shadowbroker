@@ -109,6 +109,30 @@ def _seal_payload_version(sender_seal: str) -> tuple[str, str, str]:
     return "legacy", "", value
 
 
+def _resolve_contact_dh_pub(peer_id: str, dh_pub: str = "") -> str:
+    explicit = str(dh_pub or "").strip()
+    if explicit:
+        return explicit
+    try:
+        from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+
+        contact = dict(list_wormhole_dm_contacts().get(str(peer_id or "").strip(), {}) or {})
+        resolved = str(contact.get("dhPubKey", "") or contact.get("invitePinnedDhPubKey", "") or "").strip()
+        if resolved:
+            return resolved
+    except Exception:
+        return ""
+    try:
+        from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
+
+        bundle = fetch_dm_prekey_bundle(agent_id=str(peer_id or "").strip())
+        if bool(bundle.get("ok")):
+            return str(bundle.get("identity_dh_pub_key", "") or "").strip()
+    except Exception:
+        return ""
+    return ""
+
+
 def _legacy_seal_allowed() -> bool:
     try:
         settings = read_wormhole_settings()
@@ -127,7 +151,7 @@ def build_sender_seal(
     timestamp: int,
 ) -> dict[str, Any]:
     recipient_id = str(recipient_id or "").strip()
-    recipient_dh_pub = str(recipient_dh_pub or "").strip()
+    recipient_dh_pub = _resolve_contact_dh_pub(recipient_id, recipient_dh_pub)
     msg_id = str(msg_id or "").strip()
     timestamp = int(timestamp or 0)
     if not recipient_id or not recipient_dh_pub or not msg_id or timestamp <= 0:
@@ -197,8 +221,12 @@ def open_sender_seal(
     recipient_id: str,
     expected_msg_id: str,
 ) -> dict[str, Any]:
-    if not sender_seal or not candidate_dh_pub or not recipient_id or not expected_msg_id:
-        return {"ok": False, "detail": "Missing sender_seal, candidate_dh_pub, recipient_id, or expected_msg_id"}
+    sender_seal = str(sender_seal or "").strip()
+    candidate_dh_pub = str(candidate_dh_pub or "").strip()
+    recipient_id = str(recipient_id or "").strip()
+    expected_msg_id = str(expected_msg_id or "").strip()
+    if not sender_seal or not recipient_id or not expected_msg_id:
+        return {"ok": False, "detail": "Missing sender_seal, recipient_id, or expected_msg_id"}
 
     identity = read_wormhole_identity()
     if not identity.get("bootstrapped"):
@@ -213,10 +241,14 @@ def open_sender_seal(
         if seal_version == "v3":
             key = _derive_seal_key_v3(my_private, ephemeral_pub, recipient_id, expected_msg_id, ephemeral_pub)
         elif seal_version == "v2":
+            if not candidate_dh_pub:
+                return {"ok": False, "detail": "candidate_dh_pub required for v2 sender seals"}
             key = _derive_seal_key_v2(my_private, candidate_dh_pub, recipient_id, expected_msg_id)
         else:
             if not _legacy_seal_allowed():
                 return {"ok": False, "detail": "Legacy sender seals are disabled in hardened modes"}
+            if not candidate_dh_pub:
+                return {"ok": False, "detail": "candidate_dh_pub required for legacy sender seals"}
             key = _derive_aes_key(my_private, candidate_dh_pub)
         combined = _unb64(encoded)
         iv = combined[:12]

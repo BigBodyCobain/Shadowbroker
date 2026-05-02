@@ -25,9 +25,18 @@ use mls_rs::identity::{
     SigningIdentity,
 };
 use mls_rs::mls_rs_codec::{MlsDecode, MlsEncode};
-use mls_rs::{CipherSuite, CipherSuiteProvider, Client, CryptoProvider, ExtensionList, MlsMessage};
+use mls_rs::{
+    CipherSuite, CipherSuiteProvider, Client, CryptoProvider, ExtensionList, GroupStateStorage,
+    MlsMessage,
+};
+use mls_rs_core::crypto::SignatureSecretKey;
+use mls_rs_core::group::GroupState as MlsGroupState;
 use mls_rs_crypto_rustcrypto::RustCryptoProvider;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+use zeroize::Zeroizing;
 
 type IdentityHandle = u64;
 type KeyPackageHandle = u64;
@@ -73,6 +82,7 @@ struct IdentityState {
     client: PrivacyClient,
     signing_identity: SigningIdentity,
     label: Vec<u8>,
+    signer_secret_bytes: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -169,7 +179,8 @@ fn pending_dm_outputs() -> &'static Mutex<HashMap<(u8, u64, u64), (Vec<u8>, Inst
     PENDING_DM_OUTPUTS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn pending_dm_output_lookups() -> &'static Mutex<HashMap<(u8, u64, u64), VecDeque<(u8, u64, u64)>>> {
+fn pending_dm_output_lookups() -> &'static Mutex<HashMap<(u8, u64, u64), VecDeque<(u8, u64, u64)>>>
+{
     PENDING_DM_OUTPUT_LOOKUPS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -242,7 +253,16 @@ fn map_err<E: std::fmt::Display>(err: E) -> String {
     err.to_string()
 }
 
-fn make_client(label: &[u8]) -> Result<(PrivacyClient, SigningIdentity), String> {
+#[cfg(target_arch = "wasm32")]
+fn wasm_handles_from_json(json: &str) -> Result<Vec<u64>, String> {
+    let trimmed = json.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str::<Vec<u64>>(trimmed).map_err(map_err)
+}
+
+fn make_client(label: &[u8]) -> Result<(PrivacyClient, SigningIdentity, Vec<u8>), String> {
     let crypto_provider = RustCryptoProvider::default();
     let cipher_suite_provider = crypto_provider
         .cipher_suite_provider(CIPHER_SUITE)
@@ -250,6 +270,7 @@ fn make_client(label: &[u8]) -> Result<(PrivacyClient, SigningIdentity), String>
     let (secret, public) = cipher_suite_provider
         .signature_key_generate()
         .map_err(map_err)?;
+    let signer_bytes = secret.as_bytes().to_vec();
     let credential = BasicCredential::new(label.to_vec());
     let signing_identity = SigningIdentity::new(credential.into_credential(), public);
     let client = Client::builder()
@@ -257,7 +278,22 @@ fn make_client(label: &[u8]) -> Result<(PrivacyClient, SigningIdentity), String>
         .crypto_provider(crypto_provider)
         .signing_identity(signing_identity.clone(), secret, CIPHER_SUITE)
         .build();
-    Ok((client, signing_identity))
+    Ok((client, signing_identity, signer_bytes))
+}
+
+fn make_client_from_parts(
+    label: &[u8],
+    signing_identity: SigningIdentity,
+    signer_secret_bytes: &[u8],
+) -> Result<PrivacyClient, String> {
+    let crypto_provider = RustCryptoProvider::default();
+    let secret = SignatureSecretKey::new(signer_secret_bytes.to_vec());
+    let client = Client::builder()
+        .identity_provider(BasicIdentityProvider::new())
+        .crypto_provider(crypto_provider)
+        .signing_identity(signing_identity, secret, CIPHER_SUITE)
+        .build();
+    Ok(client)
 }
 
 fn family_handles(family_id: FamilyId) -> Vec<GroupHandle> {
@@ -334,7 +370,7 @@ fn remove_group_handles(handles_to_remove: &[GroupHandle]) {
 pub fn create_identity() -> Result<IdentityHandle, String> {
     let handle = next_handle();
     let label = format!("identity-{handle}").into_bytes();
-    let (client, signing_identity) = make_client(&label)?;
+    let (client, signing_identity, signer_secret_bytes) = make_client(&label)?;
     let mut guard = identities().lock().expect("identities mutex poisoned");
     if guard.len() >= MAX_IDENTITIES {
         return Err("identity limit reached".to_string());
@@ -345,6 +381,7 @@ pub fn create_identity() -> Result<IdentityHandle, String> {
             client,
             signing_identity,
             label,
+            signer_secret_bytes,
         },
     );
     Ok(handle)
@@ -431,7 +468,10 @@ pub fn create_group(creator: IdentityHandle) -> Result<GroupHandle, String> {
     Ok(handle)
 }
 
-pub fn add_member(group_handle: GroupHandle, key_package: KeyPackageHandle) -> Result<CommitHandle, String> {
+pub fn add_member(
+    group_handle: GroupHandle,
+    key_package: KeyPackageHandle,
+) -> Result<CommitHandle, String> {
     let package_state = key_packages()
         .lock()
         .expect("key packages mutex poisoned")
@@ -490,31 +530,38 @@ pub fn add_member(group_handle: GroupHandle, key_package: KeyPackageHandle) -> R
             .join_group(None, &welcome, None)
             .map_err(map_err)?;
 
-        vec![register_group_handle(family_id, owner_identity, joined_group)?]
+        vec![register_group_handle(
+            family_id,
+            owner_identity,
+            joined_group,
+        )?]
     } else {
         Vec::new()
     };
     let commit_handle = next_handle();
-    commits()
-        .lock()
-        .expect("commits mutex poisoned")
-        .insert(
-            commit_handle,
-            CommitState {
-                family_id,
-                commit_message: commit_output.commit_message.mls_encode_to_vec().map_err(map_err)?,
-                welcome_messages: commit_output
-                    .welcome_messages
-                    .iter()
-                    .map(|message| message.mls_encode_to_vec().map_err(map_err))
-                    .collect::<Result<Vec<_>, _>>()?,
-                joined_group_handles,
-            },
-        );
+    commits().lock().expect("commits mutex poisoned").insert(
+        commit_handle,
+        CommitState {
+            family_id,
+            commit_message: commit_output
+                .commit_message
+                .mls_encode_to_vec()
+                .map_err(map_err)?,
+            welcome_messages: commit_output
+                .welcome_messages
+                .iter()
+                .map(|message| message.mls_encode_to_vec().map_err(map_err))
+                .collect::<Result<Vec<_>, _>>()?,
+            joined_group_handles,
+        },
+    );
     Ok(commit_handle)
 }
 
-pub fn remove_member(group_handle: GroupHandle, member_ref: MemberRef) -> Result<CommitHandle, String> {
+pub fn remove_member(
+    group_handle: GroupHandle,
+    member_ref: MemberRef,
+) -> Result<CommitHandle, String> {
     let (family_id, target_signing_identity) = {
         let groups_guard = groups().lock().expect("groups mutex poisoned");
         let group_state = groups_guard
@@ -562,26 +609,29 @@ pub fn remove_member(group_handle: GroupHandle, member_ref: MemberRef) -> Result
     remove_group_handles(&handles_to_remove);
 
     let commit_handle = next_handle();
-    commits()
-        .lock()
-        .expect("commits mutex poisoned")
-        .insert(
-            commit_handle,
-            CommitState {
-                family_id,
-                commit_message: commit_output.commit_message.mls_encode_to_vec().map_err(map_err)?,
-                welcome_messages: commit_output
-                    .welcome_messages
-                    .iter()
-                    .map(|message| message.mls_encode_to_vec().map_err(map_err))
-                    .collect::<Result<Vec<_>, _>>()?,
-                joined_group_handles: Vec::new(),
-            },
-        );
+    commits().lock().expect("commits mutex poisoned").insert(
+        commit_handle,
+        CommitState {
+            family_id,
+            commit_message: commit_output
+                .commit_message
+                .mls_encode_to_vec()
+                .map_err(map_err)?,
+            welcome_messages: commit_output
+                .welcome_messages
+                .iter()
+                .map(|message| message.mls_encode_to_vec().map_err(map_err))
+                .collect::<Result<Vec<_>, _>>()?,
+            joined_group_handles: Vec::new(),
+        },
+    );
     Ok(commit_handle)
 }
 
-pub fn encrypt_group_message(group_handle: GroupHandle, plaintext: &[u8]) -> Result<Vec<u8>, String> {
+pub fn encrypt_group_message(
+    group_handle: GroupHandle,
+    plaintext: &[u8],
+) -> Result<Vec<u8>, String> {
     if plaintext.len() > MAX_GROUP_PLAINTEXT_SIZE {
         return Err(format!(
             "group plaintext too large: {} bytes (max {})",
@@ -601,7 +651,10 @@ pub fn encrypt_group_message(group_handle: GroupHandle, plaintext: &[u8]) -> Res
         .map_err(map_err)
 }
 
-pub fn decrypt_group_message(group_handle: GroupHandle, ciphertext: &[u8]) -> Result<Vec<u8>, String> {
+pub fn decrypt_group_message(
+    group_handle: GroupHandle,
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, String> {
     let mut cursor = ciphertext;
     let message = MlsMessage::mls_decode(&mut cursor).map_err(map_err)?;
     let mut groups_guard = groups().lock().expect("groups mutex poisoned");
@@ -616,6 +669,69 @@ pub fn decrypt_group_message(group_handle: GroupHandle, ciphertext: &[u8]) -> Re
         ReceivedMessage::ApplicationMessage(description) => Ok(description.data().to_vec()),
         other => Err(format!("expected application message, received {other:?}")),
     }
+}
+
+pub fn release_identity(handle: IdentityHandle) -> bool {
+    identities()
+        .lock()
+        .expect("identities mutex poisoned")
+        .remove(&handle)
+        .is_some()
+}
+
+pub fn release_group(handle: GroupHandle) -> bool {
+    if let Some(state) = groups()
+        .lock()
+        .expect("groups mutex poisoned")
+        .remove(&handle)
+    {
+        let mut families_guard = families().lock().expect("families mutex poisoned");
+        if let Some(handles) = families_guard.get_mut(&state.family_id) {
+            handles.retain(|existing| *existing != handle);
+            if handles.is_empty() {
+                families_guard.remove(&state.family_id);
+            }
+        }
+        true
+    } else {
+        false
+    }
+}
+
+pub fn reset_all_state() -> bool {
+    identities()
+        .lock()
+        .expect("identities mutex poisoned")
+        .clear();
+    key_packages()
+        .lock()
+        .expect("key packages mutex poisoned")
+        .clear();
+    groups().lock().expect("groups mutex poisoned").clear();
+    commits().lock().expect("commits mutex poisoned").clear();
+    dm_sessions()
+        .lock()
+        .expect("dm sessions mutex poisoned")
+        .clear();
+    families().lock().expect("families mutex poisoned").clear();
+    exported_key_packages()
+        .lock()
+        .expect("exported key packages mutex poisoned")
+        .clear();
+    pending_dm_outputs()
+        .lock()
+        .expect("pending dm outputs mutex poisoned")
+        .clear();
+    pending_dm_output_lookups()
+        .lock()
+        .expect("pending dm output lookups mutex poisoned")
+        .clear();
+    pending_dm_output_counters()
+        .lock()
+        .expect("pending dm output counters mutex poisoned")
+        .clear();
+    clear_last_error();
+    true
 }
 
 pub fn create_dm_session(
@@ -715,6 +831,37 @@ pub fn dm_session_welcome(session: DMSessionHandle) -> Result<Vec<u8>, String> {
     Ok(state.welcome_message.clone())
 }
 
+pub fn dm_session_fingerprint(session: DMSessionHandle) -> Result<Vec<u8>, String> {
+    let (owner_identity, group_id) = {
+        let mut sessions_guard = dm_sessions().lock().expect("dm sessions mutex poisoned");
+        let state = sessions_guard
+            .get_mut(&session)
+            .ok_or_else(|| format!("unknown dm session handle: {session}"))?;
+        state.group.write_to_storage().map_err(map_err)?;
+        (state.owner_identity, state.group.group_id().to_vec())
+    };
+
+    let state_bytes = {
+        let identities_guard = identities().lock().expect("identities mutex poisoned");
+        let id_state = identities_guard
+            .get(&owner_identity)
+            .ok_or_else(|| format!("identity {owner_identity} not found for dm session fingerprint"))?;
+        let storage = id_state.client.group_state_storage();
+        let state = storage
+            .state(&group_id)
+            .unwrap_or(None)
+            .ok_or_else(|| "dm session fingerprint missing group state".to_string())?;
+        storage.delete_group(&group_id);
+        state.to_vec()
+    };
+
+    let digest = Sha256::digest(&state_bytes);
+    Ok(digest
+        .iter()
+        .flat_map(|byte| format!("{byte:02x}").into_bytes())
+        .collect())
+}
+
 pub fn join_dm_session(
     responder_identity: IdentityHandle,
     welcome_bytes: &[u8],
@@ -728,7 +875,9 @@ pub fn join_dm_session(
 
     let mut cursor = welcome_bytes;
     let welcome = MlsMessage::mls_decode(&mut cursor).map_err(map_err)?;
-    let (group, _) = responder_client.join_group(None, &welcome, None).map_err(map_err)?;
+    let (group, _) = responder_client
+        .join_group(None, &welcome, None)
+        .map_err(map_err)?;
     let handle = next_handle();
     let mut sessions_guard = dm_sessions().lock().expect("dm sessions mutex poisoned");
     if sessions_guard.len() >= MAX_DM_SESSIONS {
@@ -745,11 +894,502 @@ pub fn join_dm_session(
     Ok(handle)
 }
 
+const DM_STATE_MAGIC: &[u8; 4] = b"SBD1";
+const DM_STATE_VERSION: u32 = 1;
+
+fn write_u32_be(buf: &mut Vec<u8>, v: u32) {
+    buf.extend_from_slice(&v.to_be_bytes());
+}
+
+fn write_u64_be(buf: &mut Vec<u8>, v: u64) {
+    buf.extend_from_slice(&v.to_be_bytes());
+}
+
+fn write_blob(buf: &mut Vec<u8>, data: &[u8]) {
+    write_u32_be(buf, data.len() as u32);
+    buf.extend_from_slice(data);
+}
+
+fn read_u32_be(data: &[u8], offset: &mut usize) -> Result<u32, String> {
+    if *offset + 4 > data.len() {
+        return Err("dm state blob truncated (u32)".to_string());
+    }
+    let v = u32::from_be_bytes(data[*offset..*offset + 4].try_into().unwrap());
+    *offset += 4;
+    Ok(v)
+}
+
+fn read_u64_be(data: &[u8], offset: &mut usize) -> Result<u64, String> {
+    if *offset + 8 > data.len() {
+        return Err("dm state blob truncated (u64)".to_string());
+    }
+    let v = u64::from_be_bytes(data[*offset..*offset + 8].try_into().unwrap());
+    *offset += 8;
+    Ok(v)
+}
+
+fn read_blob(data: &[u8], offset: &mut usize) -> Result<Vec<u8>, String> {
+    let len = read_u32_be(data, offset)? as usize;
+    if *offset + len > data.len() {
+        return Err("dm state blob truncated (blob)".to_string());
+    }
+    let v = data[*offset..*offset + len].to_vec();
+    *offset += len;
+    Ok(v)
+}
+
+pub fn export_dm_state() -> Result<Vec<u8>, String> {
+    // Phase 1: snapshot identity data (under identities lock only).
+    struct IdSnapshot {
+        handle: u64,
+        label: Vec<u8>,
+        signer_secret_bytes: Vec<u8>,
+        signing_identity_bytes: Vec<u8>,
+    }
+    let mut id_snapshots: HashMap<u64, IdSnapshot> = HashMap::new();
+    {
+        let guard = identities().lock().expect("identities mutex poisoned");
+        for (&handle, state) in guard.iter() {
+            let si_bytes = state
+                .signing_identity
+                .mls_encode_to_vec()
+                .map_err(map_err)?;
+            id_snapshots.insert(
+                handle,
+                IdSnapshot {
+                    handle,
+                    label: state.label.clone(),
+                    signer_secret_bytes: state.signer_secret_bytes.clone(),
+                    signing_identity_bytes: si_bytes,
+                },
+            );
+        }
+    }
+    // identities lock released
+
+    // Phase 2: snapshot DM sessions (under dm_sessions lock), call write_to_storage.
+    struct SessionSnapshot {
+        handle: u64,
+        owner_identity: u64,
+        group_id: Vec<u8>,
+        welcome: Vec<u8>,
+    }
+    let mut session_snapshots: Vec<SessionSnapshot> = Vec::new();
+    {
+        let mut sessions_guard = dm_sessions().lock().expect("dm sessions mutex poisoned");
+        for (&handle, state) in sessions_guard.iter_mut() {
+            state.group.write_to_storage().map_err(map_err)?;
+            session_snapshots.push(SessionSnapshot {
+                handle,
+                owner_identity: state.owner_identity,
+                group_id: state.group.group_id().to_vec(),
+                welcome: state.welcome_message.clone(),
+            });
+        }
+    }
+    // dm_sessions lock released
+
+    // Phase 3: read group state bytes from identity storages (no global locks needed).
+    // Filter identities to only those referenced by DM sessions.
+    let referenced_ids: std::collections::HashSet<u64> =
+        session_snapshots.iter().map(|s| s.owner_identity).collect();
+    let id_list: Vec<&IdSnapshot> = id_snapshots
+        .values()
+        .filter(|snap| referenced_ids.contains(&snap.handle))
+        .collect();
+
+    // Read group state bytes from each identity's storage.
+    let mut session_group_states: HashMap<u64, Vec<u8>> = HashMap::new();
+    {
+        let guard = identities().lock().expect("identities mutex poisoned");
+        for session in &session_snapshots {
+            let id_state = guard.get(&session.owner_identity).ok_or_else(|| {
+                format!(
+                    "identity {} not found for dm session export",
+                    session.owner_identity
+                )
+            })?;
+            let storage = id_state.client.group_state_storage();
+            let state_bytes = storage
+                .state(&session.group_id)
+                .unwrap_or(None)
+                .ok_or_else(|| {
+                    "group state not found in storage after write_to_storage".to_string()
+                })?;
+            session_group_states.insert(session.handle, state_bytes.to_vec());
+            // Clean up storage entry.
+            storage.delete_group(&session.group_id);
+        }
+    }
+
+    // Phase 4: serialize the blob.
+    let mut buf = Vec::new();
+    buf.extend_from_slice(DM_STATE_MAGIC);
+    write_u32_be(&mut buf, DM_STATE_VERSION);
+    write_u32_be(&mut buf, id_list.len() as u32);
+    for snap in &id_list {
+        write_u64_be(&mut buf, snap.handle);
+        write_blob(&mut buf, &snap.label);
+        write_blob(&mut buf, &snap.signer_secret_bytes);
+        write_blob(&mut buf, &snap.signing_identity_bytes);
+    }
+    write_u32_be(&mut buf, session_snapshots.len() as u32);
+    for session in &session_snapshots {
+        write_u64_be(&mut buf, session.handle);
+        write_u64_be(&mut buf, session.owner_identity);
+        write_blob(&mut buf, &session.group_id);
+        let group_state = session_group_states
+            .get(&session.handle)
+            .ok_or_else(|| "missing group state for session".to_string())?;
+        write_blob(&mut buf, group_state);
+        write_blob(&mut buf, &session.welcome);
+    }
+    Ok(buf)
+}
+
+pub fn import_dm_state(data: &[u8]) -> Result<Vec<u8>, String> {
+    // Validate magic and version.
+    if data.len() < 8 {
+        return Err("dm state blob too short".to_string());
+    }
+    if &data[0..4] != DM_STATE_MAGIC {
+        return Err("dm state blob invalid magic".to_string());
+    }
+    let mut offset = 4;
+    let version = read_u32_be(data, &mut offset)?;
+    if version != DM_STATE_VERSION {
+        return Err(format!(
+            "dm state blob version mismatch: expected {DM_STATE_VERSION}, got {version}"
+        ));
+    }
+
+    // Parse and import identities.
+    let num_identities = read_u32_be(data, &mut offset)? as usize;
+    let mut id_handle_map: HashMap<u64, u64> = HashMap::new(); // old→new
+    {
+        let mut guard = identities().lock().expect("identities mutex poisoned");
+        for _ in 0..num_identities {
+            let old_handle = read_u64_be(data, &mut offset)?;
+            let label = read_blob(data, &mut offset)?;
+            let signer_bytes = read_blob(data, &mut offset)?;
+            let si_bytes = read_blob(data, &mut offset)?;
+            let mut si_cursor = &si_bytes[..];
+            let signing_identity = SigningIdentity::mls_decode(&mut si_cursor).map_err(map_err)?;
+            let client = make_client_from_parts(&label, signing_identity.clone(), &signer_bytes)?;
+            if guard.len() >= MAX_IDENTITIES {
+                return Err("identity limit reached during dm state import".to_string());
+            }
+            let new_handle = next_handle();
+            guard.insert(
+                new_handle,
+                IdentityState {
+                    client,
+                    signing_identity,
+                    label,
+                    signer_secret_bytes: signer_bytes,
+                },
+            );
+            id_handle_map.insert(old_handle, new_handle);
+        }
+    }
+
+    // Parse and import DM sessions.
+    let num_sessions = read_u32_be(data, &mut offset)? as usize;
+    let mut session_handle_map: HashMap<u64, u64> = HashMap::new(); // old→new
+    for _ in 0..num_sessions {
+        let old_handle = read_u64_be(data, &mut offset)?;
+        let old_owner = read_u64_be(data, &mut offset)?;
+        let group_id = read_blob(data, &mut offset)?;
+        let group_state_bytes = read_blob(data, &mut offset)?;
+        let welcome = read_blob(data, &mut offset)?;
+
+        let new_owner = *id_handle_map
+            .get(&old_owner)
+            .ok_or_else(|| format!("dm session references unknown identity {old_owner}"))?;
+
+        // Inject group state into the identity's storage and load the group.
+        let group = {
+            let guard = identities().lock().expect("identities mutex poisoned");
+            let id_state = guard
+                .get(&new_owner)
+                .ok_or_else(|| format!("imported identity {new_owner} not found"))?;
+            let mut storage = id_state.client.group_state_storage();
+            storage
+                .write(
+                    MlsGroupState {
+                        id: group_id.clone(),
+                        data: Zeroizing::new(group_state_bytes),
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                )
+                .map_err(|e| format!("storage write failed: {e:?}"))?;
+            let loaded = id_state.client.load_group(&group_id).map_err(map_err)?;
+            storage.delete_group(&group_id);
+            loaded
+        };
+
+        let new_handle = next_handle();
+        let mut sessions_guard = dm_sessions().lock().expect("dm sessions mutex poisoned");
+        if sessions_guard.len() >= MAX_DM_SESSIONS {
+            return Err("dm session limit reached during import".to_string());
+        }
+        sessions_guard.insert(
+            new_handle,
+            DMSessionState {
+                owner_identity: new_owner,
+                group,
+                welcome_message: welcome,
+            },
+        );
+        drop(sessions_guard);
+        session_handle_map.insert(old_handle, new_handle);
+    }
+
+    // Return JSON handle mapping.
+    let result = serde_json::json!({
+        "version": DM_STATE_VERSION,
+        "identities": id_handle_map.iter().map(|(k, v)| (k.to_string(), *v)).collect::<HashMap<String, u64>>(),
+        "dm_sessions": session_handle_map.iter().map(|(k, v)| (k.to_string(), *v)).collect::<HashMap<String, u64>>(),
+    });
+    serde_json::to_vec(&result).map_err(map_err)
+}
+
 pub fn release_dm_session(handle: DMSessionHandle) -> Result<i32, String> {
     let Ok(mut sessions_guard) = dm_sessions().lock() else {
         return Err("dm sessions mutex poisoned".to_string());
     };
-    Ok(if sessions_guard.remove(&handle).is_some() { 1 } else { 0 })
+    Ok(if sessions_guard.remove(&handle).is_some() {
+        1
+    } else {
+        0
+    })
+}
+
+const GATE_STATE_MAGIC: &[u8; 4] = b"SBG1";
+const GATE_STATE_VERSION: u32 = 1;
+
+pub fn export_gate_state(
+    identity_handles: &[u64],
+    group_handles: &[u64],
+) -> Result<Vec<u8>, String> {
+    // Phase 1: snapshot requested identities.
+    struct IdSnapshot {
+        handle: u64,
+        label: Vec<u8>,
+        signer_secret_bytes: Vec<u8>,
+        signing_identity_bytes: Vec<u8>,
+    }
+    let mut id_snapshots: Vec<IdSnapshot> = Vec::new();
+    {
+        let guard = identities().lock().expect("identities mutex poisoned");
+        for &handle in identity_handles {
+            let state = guard
+                .get(&handle)
+                .ok_or_else(|| format!("identity {} not found for gate state export", handle))?;
+            let si_bytes = state
+                .signing_identity
+                .mls_encode_to_vec()
+                .map_err(map_err)?;
+            id_snapshots.push(IdSnapshot {
+                handle,
+                label: state.label.clone(),
+                signer_secret_bytes: state.signer_secret_bytes.clone(),
+                signing_identity_bytes: si_bytes,
+            });
+        }
+    }
+
+    // Phase 2: snapshot requested groups — call write_to_storage to flush.
+    struct GroupSnapshot {
+        handle: u64,
+        owner_identity: u64,
+        family_id: u64,
+        group_id: Vec<u8>,
+    }
+    let mut group_snapshots: Vec<GroupSnapshot> = Vec::new();
+    {
+        let mut guard = groups().lock().expect("groups mutex poisoned");
+        for &handle in group_handles {
+            let state = guard
+                .get_mut(&handle)
+                .ok_or_else(|| format!("group {} not found for gate state export", handle))?;
+            state.group.write_to_storage().map_err(map_err)?;
+            group_snapshots.push(GroupSnapshot {
+                handle,
+                owner_identity: state.owner_identity,
+                family_id: state.family_id,
+                group_id: state.group.group_id().to_vec(),
+            });
+        }
+    }
+
+    // Phase 3: read group state bytes from identity storages.
+    let mut group_state_bytes: HashMap<u64, Vec<u8>> = HashMap::new();
+    {
+        let guard = identities().lock().expect("identities mutex poisoned");
+        for snapshot in &group_snapshots {
+            let id_state = guard.get(&snapshot.owner_identity).ok_or_else(|| {
+                format!(
+                    "identity {} not found for gate group export",
+                    snapshot.owner_identity
+                )
+            })?;
+            let storage = id_state.client.group_state_storage();
+            let state_bytes = storage
+                .state(&snapshot.group_id)
+                .unwrap_or(None)
+                .ok_or_else(|| {
+                    "group state not found in storage after write_to_storage".to_string()
+                })?;
+            group_state_bytes.insert(snapshot.handle, state_bytes.to_vec());
+            storage.delete_group(&snapshot.group_id);
+        }
+    }
+
+    // Phase 4: serialize the blob.
+    let mut buf = Vec::new();
+    buf.extend_from_slice(GATE_STATE_MAGIC);
+    write_u32_be(&mut buf, GATE_STATE_VERSION);
+    write_u32_be(&mut buf, id_snapshots.len() as u32);
+    for snap in &id_snapshots {
+        write_u64_be(&mut buf, snap.handle);
+        write_blob(&mut buf, &snap.label);
+        write_blob(&mut buf, &snap.signer_secret_bytes);
+        write_blob(&mut buf, &snap.signing_identity_bytes);
+    }
+    write_u32_be(&mut buf, group_snapshots.len() as u32);
+    for snapshot in &group_snapshots {
+        write_u64_be(&mut buf, snapshot.handle);
+        write_u64_be(&mut buf, snapshot.owner_identity);
+        write_u64_be(&mut buf, snapshot.family_id);
+        write_blob(&mut buf, &snapshot.group_id);
+        let state = group_state_bytes
+            .get(&snapshot.handle)
+            .ok_or_else(|| "missing group state for gate export".to_string())?;
+        write_blob(&mut buf, state);
+    }
+    Ok(buf)
+}
+
+pub fn import_gate_state(data: &[u8]) -> Result<Vec<u8>, String> {
+    if data.len() < 8 {
+        return Err("gate state blob too short".to_string());
+    }
+    if &data[0..4] != GATE_STATE_MAGIC {
+        return Err("gate state blob invalid magic".to_string());
+    }
+    let mut offset = 4;
+    let version = read_u32_be(data, &mut offset)?;
+    if version != GATE_STATE_VERSION {
+        return Err(format!(
+            "gate state blob version mismatch: expected {GATE_STATE_VERSION}, got {version}"
+        ));
+    }
+
+    // Import identities.
+    let num_identities = read_u32_be(data, &mut offset)? as usize;
+    let mut id_handle_map: HashMap<u64, u64> = HashMap::new();
+    {
+        let mut guard = identities().lock().expect("identities mutex poisoned");
+        for _ in 0..num_identities {
+            let old_handle = read_u64_be(data, &mut offset)?;
+            let label = read_blob(data, &mut offset)?;
+            let signer_bytes = read_blob(data, &mut offset)?;
+            let si_bytes = read_blob(data, &mut offset)?;
+            let mut si_cursor = &si_bytes[..];
+            let signing_identity = SigningIdentity::mls_decode(&mut si_cursor).map_err(map_err)?;
+            let client = make_client_from_parts(&label, signing_identity.clone(), &signer_bytes)?;
+            if guard.len() >= MAX_IDENTITIES {
+                return Err("identity limit reached during gate state import".to_string());
+            }
+            let new_handle = next_handle();
+            guard.insert(
+                new_handle,
+                IdentityState {
+                    client,
+                    signing_identity,
+                    label,
+                    signer_secret_bytes: signer_bytes,
+                },
+            );
+            id_handle_map.insert(old_handle, new_handle);
+        }
+    }
+
+    // Import groups with family remapping.
+    let num_groups = read_u32_be(data, &mut offset)? as usize;
+    let mut group_handle_map: HashMap<u64, u64> = HashMap::new();
+    let mut family_id_map: HashMap<u64, u64> = HashMap::new();
+    for _ in 0..num_groups {
+        let old_handle = read_u64_be(data, &mut offset)?;
+        let old_owner = read_u64_be(data, &mut offset)?;
+        let old_family_id = read_u64_be(data, &mut offset)?;
+        let group_id = read_blob(data, &mut offset)?;
+        let group_state_bytes_raw = read_blob(data, &mut offset)?;
+
+        let new_owner = *id_handle_map
+            .get(&old_owner)
+            .ok_or_else(|| format!("gate group references unknown identity {old_owner}"))?;
+        let new_family_id = *family_id_map
+            .entry(old_family_id)
+            .or_insert_with(next_family_id);
+
+        // Load group from persisted state.
+        let group = {
+            let guard = identities().lock().expect("identities mutex poisoned");
+            let id_state = guard
+                .get(&new_owner)
+                .ok_or_else(|| format!("imported identity {new_owner} not found"))?;
+            let mut storage = id_state.client.group_state_storage();
+            storage
+                .write(
+                    MlsGroupState {
+                        id: group_id.clone(),
+                        data: Zeroizing::new(group_state_bytes_raw),
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                )
+                .map_err(|e| format!("storage write failed: {e:?}"))?;
+            let loaded = id_state.client.load_group(&group_id).map_err(map_err)?;
+            storage.delete_group(&group_id);
+            loaded
+        };
+
+        let new_handle = next_handle();
+        let mut groups_guard = groups().lock().expect("groups mutex poisoned");
+        if groups_guard.len() >= MAX_GROUPS {
+            return Err("group limit reached during gate state import".to_string());
+        }
+        groups_guard.insert(
+            new_handle,
+            GroupState {
+                family_id: new_family_id,
+                owner_identity: new_owner,
+                group,
+            },
+        );
+        drop(groups_guard);
+        families()
+            .lock()
+            .expect("families mutex poisoned")
+            .entry(new_family_id)
+            .or_default()
+            .push(new_handle);
+        group_handle_map.insert(old_handle, new_handle);
+    }
+
+    let result = serde_json::json!({
+        "version": GATE_STATE_VERSION,
+        "identities": id_handle_map.iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect::<HashMap<String, u64>>(),
+        "groups": group_handle_map.iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect::<HashMap<String, u64>>(),
+    });
+    serde_json::to_vec(&result).map_err(map_err)
 }
 
 pub fn export_public_bundle(identity: IdentityHandle) -> Result<Vec<u8>, String> {
@@ -772,9 +1412,15 @@ pub fn export_public_bundle(identity: IdentityHandle) -> Result<Vec<u8>, String>
 
 fn handle_stats_json() -> Result<Vec<u8>, String> {
     let stats = HandleStats {
-        identities: identities().lock().expect("identities mutex poisoned").len(),
+        identities: identities()
+            .lock()
+            .expect("identities mutex poisoned")
+            .len(),
         groups: groups().lock().expect("groups mutex poisoned").len(),
-        dm_sessions: dm_sessions().lock().expect("dm sessions mutex poisoned").len(),
+        dm_sessions: dm_sessions()
+            .lock()
+            .expect("dm sessions mutex poisoned")
+            .len(),
         max_identities: MAX_IDENTITIES,
         max_groups: MAX_GROUPS,
         max_dm_sessions: MAX_DM_SESSIONS,
@@ -1058,7 +1704,10 @@ pub extern "C" fn privacy_core_version() -> ByteBuffer {
 
 #[no_mangle]
 pub extern "C" fn privacy_core_last_error_message() -> ByteBuffer {
-    let message = last_error().lock().expect("last error mutex poisoned").clone();
+    let message = last_error()
+        .lock()
+        .expect("last error mutex poisoned")
+        .clone();
     to_buffer(message.into_bytes())
 }
 
@@ -1131,7 +1780,10 @@ pub extern "C" fn privacy_core_commit_message_bytes(commit: u64) -> ByteBuffer {
 }
 
 #[no_mangle]
-pub extern "C" fn privacy_core_commit_welcome_message_bytes(commit: u64, index: usize) -> ByteBuffer {
+pub extern "C" fn privacy_core_commit_welcome_message_bytes(
+    commit: u64,
+    index: usize,
+) -> ByteBuffer {
     with_bytes_result(|| commit_welcome_message_bytes(commit, index))
 }
 
@@ -1141,8 +1793,13 @@ pub extern "C" fn privacy_core_commit_joined_group_handle(commit: u64, index: us
 }
 
 #[no_mangle]
-pub extern "C" fn privacy_core_create_dm_session(initiator_identity: u64, responder_key_package: u64) -> i64 {
-    with_i64_result(|| create_dm_session(initiator_identity, responder_key_package).map(|handle| handle as i64))
+pub extern "C" fn privacy_core_create_dm_session(
+    initiator_identity: u64,
+    responder_key_package: u64,
+) -> i64 {
+    with_i64_result(|| {
+        create_dm_session(initiator_identity, responder_key_package).map(|handle| handle as i64)
+    })
 }
 
 #[no_mangle]
@@ -1183,7 +1840,24 @@ pub extern "C" fn privacy_core_dm_session_welcome(
     out_buf: *mut u8,
     out_cap: usize,
 ) -> i64 {
-    with_i64_result(|| stage_or_write_output(3, session, 0, out_buf, out_cap, || dm_session_welcome(session)))
+    with_i64_result(|| {
+        stage_or_write_output(3, session, 0, out_buf, out_cap, || {
+            dm_session_welcome(session)
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn privacy_core_dm_session_fingerprint(
+    session: u64,
+    out_buf: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    with_i64_result(|| {
+        stage_or_write_output(5, session, 0, out_buf, out_cap, || {
+            dm_session_fingerprint(session)
+        })
+    })
 }
 
 #[no_mangle]
@@ -1192,12 +1866,84 @@ pub extern "C" fn privacy_core_join_dm_session(
     welcome: *const u8,
     len: usize,
 ) -> i64 {
-    with_i64_result(|| join_dm_session(responder_identity, bytes_from_raw(welcome, len)?).map(|handle| handle as i64))
+    with_i64_result(|| {
+        join_dm_session(responder_identity, bytes_from_raw(welcome, len)?)
+            .map(|handle| handle as i64)
+    })
 }
 
 #[no_mangle]
 pub extern "C" fn privacy_core_release_dm_session(session: u64) -> i32 {
     with_i32_result(|| release_dm_session(session))
+}
+
+#[no_mangle]
+pub extern "C" fn privacy_core_export_dm_state(out_buf: *mut u8, out_cap: usize) -> i64 {
+    with_i64_result(|| {
+        let bytes = export_dm_state()?;
+        write_to_output_buffer(&bytes, out_buf, out_cap)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn privacy_core_import_dm_state(
+    data: *const u8,
+    len: usize,
+    out_buf: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    with_i64_result(|| {
+        let input = bytes_from_raw(data, len)?;
+        let fingerprint = input_hash(input);
+        stage_or_write_output(5, 0, fingerprint, out_buf, out_cap, || {
+            import_dm_state(input)
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn privacy_core_export_gate_state(
+    identity_handles: *const u64,
+    num_identities: usize,
+    group_handles: *const u64,
+    num_groups: usize,
+    out_buf: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    with_i64_result(|| {
+        let id_slice = if num_identities == 0 {
+            &[]
+        } else if identity_handles.is_null() {
+            return Err("null identity handles pointer".to_string());
+        } else {
+            unsafe { slice::from_raw_parts(identity_handles, num_identities) }
+        };
+        let group_slice = if num_groups == 0 {
+            &[]
+        } else if group_handles.is_null() {
+            return Err("null group handles pointer".to_string());
+        } else {
+            unsafe { slice::from_raw_parts(group_handles, num_groups) }
+        };
+        let bytes = export_gate_state(id_slice, group_slice)?;
+        write_to_output_buffer(&bytes, out_buf, out_cap)
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn privacy_core_import_gate_state(
+    data: *const u8,
+    len: usize,
+    out_buf: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    with_i64_result(|| {
+        let input = bytes_from_raw(data, len)?;
+        let fingerprint = input_hash(input);
+        stage_or_write_output(6, 0, fingerprint, out_buf, out_cap, || {
+            import_gate_state(input)
+        })
+    })
 }
 
 #[no_mangle]
@@ -1323,6 +2069,62 @@ pub extern "C" fn privacy_core_reset_all_state() -> bool {
     })
 }
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_reset_all_state() -> bool {
+    reset_all_state()
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_gate_import_state(data: &[u8]) -> Result<String, JsValue> {
+    let mapping = import_gate_state(data).map_err(|e| JsValue::from_str(&e))?;
+    String::from_utf8(mapping).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_gate_export_state(
+    identity_handles_json: &str,
+    group_handles_json: &str,
+) -> Result<Box<[u8]>, JsValue> {
+    let identity_handles =
+        wasm_handles_from_json(identity_handles_json).map_err(|e| JsValue::from_str(&e))?;
+    let group_handles =
+        wasm_handles_from_json(group_handles_json).map_err(|e| JsValue::from_str(&e))?;
+    let blob =
+        export_gate_state(&identity_handles, &group_handles).map_err(|e| JsValue::from_str(&e))?;
+    Ok(blob.into_boxed_slice())
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_gate_encrypt(group_handle: u64, plaintext: &[u8]) -> Result<Box<[u8]>, JsValue> {
+    let ciphertext =
+        encrypt_group_message(group_handle, plaintext).map_err(|e| JsValue::from_str(&e))?;
+    Ok(ciphertext.into_boxed_slice())
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_gate_decrypt(group_handle: u64, ciphertext: &[u8]) -> Result<Box<[u8]>, JsValue> {
+    let plaintext =
+        decrypt_group_message(group_handle, ciphertext).map_err(|e| JsValue::from_str(&e))?;
+    Ok(plaintext.into_boxed_slice())
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_release_identity(handle: u64) -> bool {
+    release_identity(handle)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn wasm_release_group(handle: u64) -> bool {
+    release_group(handle)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1341,7 +2143,8 @@ mod tests {
         let alice = create_identity().expect("alice identity");
         let bob = create_identity().expect("bob identity");
         let bob_key_package = export_key_package(bob).expect("bob key package");
-        let bob_package_handle = import_key_package(&bob_key_package).expect("import bob key package");
+        let bob_package_handle =
+            import_key_package(&bob_key_package).expect("import bob key package");
 
         let alice_session = create_dm_session(alice, bob_package_handle).expect("alice session");
         let welcome = dm_session_welcome(alice_session).expect("welcome");
@@ -1357,7 +2160,10 @@ mod tests {
 
         assert_eq!(release_dm_session(alice_session).expect("release alice"), 1);
         assert_eq!(release_dm_session(bob_session).expect("release bob"), 1);
-        assert_eq!(release_dm_session(alice_session).expect("release missing"), 0);
+        assert_eq!(
+            release_dm_session(alice_session).expect("release missing"),
+            0
+        );
     }
 
     #[test]
@@ -1428,10 +2234,11 @@ mod tests {
         assert_eq!(second_required, 13);
 
         let mut first_buf = [0u8; 32];
-        let first_written = stage_or_write_output(1, 77, 99, first_buf.as_mut_ptr(), first_buf.len(), || {
-            Ok(b"unexpected".to_vec())
-        })
-        .expect("retrieve first");
+        let first_written =
+            stage_or_write_output(1, 77, 99, first_buf.as_mut_ptr(), first_buf.len(), || {
+                Ok(b"unexpected".to_vec())
+            })
+            .expect("retrieve first");
         assert_eq!(first_written, 12);
         assert_eq!(&first_buf[..first_written as usize], b"first-output");
 

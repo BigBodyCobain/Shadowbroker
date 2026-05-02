@@ -8,9 +8,13 @@ Correlation types:
   - RF Anomaly:          GPS jamming + internet outage (both required)
   - Military Buildup:    Military flights + naval vessels + GDELT conflict events
   - Infrastructure Cascade: Internet outage + KiwiSDR offline in same zone
+  - Possible Contradiction: Official denial/statement + infrastructure disruption
+                            in same region — hypothesis generator, NOT verdict
 """
 
 import logging
+import math
+import re
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -307,6 +311,427 @@ def _detect_infra_cascades(data: dict) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Possible Contradiction: official denial/statement + infra disruption
+#
+# This is a HYPOTHESIS GENERATOR, not a verdict engine.  It says "LOOK HERE"
+# when an official statement (denial, clarification, refusal) co-locates with
+# infrastructure disruption (internet outage, sigint change).  The human or
+# higher-order reasoning decides what actually happened.
+#
+# Context ratings:
+#   STRONG   — denial + outage + prediction market movement in same region
+#   MODERATE — denial + outage (no market signal)
+#   WEAK     — denial + minor outage or distant co-location
+#   DETECTION_GAP — denial found but NO telemetry to verify (equally valuable)
+# ---------------------------------------------------------------------------
+
+# Denial / official-statement patterns in headlines and URL slugs
+_DENIAL_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"\bden(?:y|ies|ied|ial)\b",
+        r"\brefut(?:e[ds]?|ing)\b",
+        r"\breject(?:s|ed|ing)?\b",
+        r"\bclarif(?:y|ies|ied|ication)\b",
+        r"\bdismiss(?:es|ed|ing)?\b",
+        r"\bno\s+attack\b",
+        r"\bdid\s+not\s+(?:attack|strike|bomb|target|order|invade|kill)\b",
+        r"\bnever\s+(?:attack|strike|bomb|target|order|invade|happen)\b",
+        r"\bfalse\s+(?:report|claim|allegation|rumor|narrative)\b",
+        r"\bmisinformation\b",
+        r"\bdisinformation\b",
+        r"\bpropaganda\b",
+        r"\b(?:army|military|government|ministry|official)\s+(?:says|clarifies|denies|refutes)\b",
+        r"\brumor[s]?\b.*\buntrue\b",
+        r"\bcategorically\b",
+        r"\bbaseless\b",
+    ]
+]
+
+# Broader cell radius for sparse telemetry regions (Africa, Central Asia, etc.)
+# These regions have fewer IODA/RIPE probes so outage data is sparser
+_SPARSE_REGIONS_LAT_RANGES = [
+    (-35, 37),   # Africa roughly
+    (25, 50),    # Central Asia band (when lng 40-90)
+]
+
+
+def _is_sparse_region(lat: float, lng: float) -> bool:
+    """Check if coordinates fall in a region with sparse telemetry coverage."""
+    # Africa
+    if -35 <= lat <= 37 and -20 <= lng <= 55:
+        return True
+    # Central Asia
+    if 25 <= lat <= 50 and 40 <= lng <= 90:
+        return True
+    # South America interior
+    if -55 <= lat <= 12 and -80 <= lng <= -35:
+        return True
+    return False
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km."""
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _matches_denial(text: str) -> bool:
+    """Check if text matches any denial/official-statement pattern."""
+    return any(p.search(text) for p in _DENIAL_PATTERNS)
+
+
+def _detect_contradictions(data: dict) -> list[dict]:
+    """Detect possible contradictions between official statements and telemetry.
+
+    Scans GDELT headlines for denial language, then checks whether internet
+    outages or other infrastructure disruptions exist in the same geographic
+    region.  Scores confidence and lists alternative explanations.
+    """
+    gdelt = data.get("gdelt") or []
+    internet_outages = data.get("internet_outages") or []
+    news = data.get("news") or []
+    prediction_markets = data.get("prediction_markets") or []
+
+    # ── Step 1: Find GDELT events with denial/official-statement language ──
+    denial_events: list[dict] = []
+
+    # GDELT comes as GeoJSON features
+    gdelt_features = gdelt
+    if isinstance(gdelt, dict):
+        gdelt_features = gdelt.get("features", [])
+
+    for feature in gdelt_features:
+        # Handle both GeoJSON features and flat dicts
+        if "properties" in feature and "geometry" in feature:
+            props = feature.get("properties", {})
+            geom = feature.get("geometry", {})
+            coords = geom.get("coordinates", [])
+            if len(coords) >= 2:
+                lng, lat = float(coords[0]), float(coords[1])
+            else:
+                continue
+            headlines = props.get("_headlines_list", [])
+            urls = props.get("_urls_list", [])
+            name = props.get("name", "")
+            count = props.get("count", 1)
+        else:
+            lat = feature.get("lat") or feature.get("actionGeo_Lat")
+            lng = feature.get("lng") or feature.get("lon") or feature.get("actionGeo_Long")
+            if lat is None or lng is None:
+                continue
+            lat, lng = float(lat), float(lng)
+            headlines = [feature.get("title", "")]
+            urls = [feature.get("sourceurl", "")]
+            name = feature.get("name", "")
+            count = 1
+
+        # Check all headlines + URL slugs for denial patterns
+        all_text = " ".join(str(h) for h in headlines if h)
+        all_text += " " + " ".join(str(u) for u in urls if u)
+
+        if _matches_denial(all_text):
+            denial_events.append({
+                "lat": lat,
+                "lng": lng,
+                "headlines": [h for h in headlines if h][:5],
+                "urls": [u for u in urls if u][:3],
+                "location_name": name,
+                "event_count": count,
+            })
+
+    # Also scan news articles for denial language
+    for article in news:
+        title = str(article.get("title", "") or "")
+        desc = str(article.get("description", "") or article.get("summary", "") or "")
+        if not _matches_denial(title + " " + desc):
+            continue
+        # News articles often lack coordinates — try to match to GDELT locations
+        # For now, only include if we have coordinates
+        lat = article.get("lat") or article.get("latitude")
+        lng = article.get("lng") or article.get("lon") or article.get("longitude")
+        if lat is not None and lng is not None:
+            denial_events.append({
+                "lat": float(lat),
+                "lng": float(lng),
+                "headlines": [title],
+                "urls": [article.get("url") or article.get("link") or ""],
+                "location_name": "",
+                "event_count": 1,
+            })
+
+    if not denial_events:
+        return []
+
+    # ── Step 2: Cross-reference with internet outages ──
+    alerts: list[dict] = []
+
+    for denial in denial_events:
+        d_lat, d_lng = denial["lat"], denial["lng"]
+        sparse = _is_sparse_region(d_lat, d_lng)
+        search_radius_km = 1500.0 if sparse else 500.0
+
+        # Find nearby outages
+        nearby_outages: list[dict] = []
+        for outage in internet_outages:
+            o_lat = outage.get("lat") or outage.get("latitude")
+            o_lng = outage.get("lng") or outage.get("lon") or outage.get("longitude")
+            if o_lat is None or o_lng is None:
+                continue
+            try:
+                dist = _haversine_km(d_lat, d_lng, float(o_lat), float(o_lng))
+            except (ValueError, TypeError):
+                continue
+            if dist <= search_radius_km:
+                nearby_outages.append({
+                    "region": outage.get("region_name") or outage.get("country_name", ""),
+                    "severity": _outage_pct(outage),
+                    "distance_km": round(dist, 0),
+                    "level": outage.get("level", ""),
+                })
+
+        # ── Step 3: Check prediction markets for related movements ──
+        denial_text = " ".join(denial["headlines"]).lower()
+        related_markets: list[dict] = []
+        for market in prediction_markets:
+            m_title = str(market.get("title", "") or market.get("question", "") or "").lower()
+            # Look for keyword overlap between denial and market
+            denial_words = set(re.findall(r"[a-z]{4,}", denial_text))
+            market_words = set(re.findall(r"[a-z]{4,}", m_title))
+            overlap = denial_words & market_words - {"that", "this", "with", "from", "have", "been", "were", "will", "says", "said"}
+            if len(overlap) >= 2:
+                prob = market.get("probability") or market.get("lastTradePrice") or market.get("yes_price")
+                if prob is not None:
+                    related_markets.append({
+                        "title": market.get("title") or market.get("question"),
+                        "probability": float(prob),
+                    })
+
+        # ── Step 4: Score confidence and assign context rating ──
+        indicators = 1  # denial itself
+        drivers: list[str] = []
+
+        # Primary driver: the denial headline
+        headline_display = denial["headlines"][0] if denial["headlines"] else "Official statement"
+        if len(headline_display) > 80:
+            headline_display = headline_display[:77] + "..."
+        drivers.append(f'"{headline_display}"')
+
+        # Outage co-location
+        has_outage = False
+        if nearby_outages:
+            best_outage = max(nearby_outages, key=lambda o: o["severity"])
+            if best_outage["severity"] >= 10:
+                indicators += 1
+                has_outage = True
+                drivers.append(
+                    f"Internet outage {best_outage['severity']:.0f}% "
+                    f"({best_outage['region']}, {best_outage['distance_km']:.0f}km away)"
+                )
+            elif best_outage["severity"] > 0:
+                indicators += 0.5  # minor outage, partial indicator
+                has_outage = True
+                drivers.append(
+                    f"Minor outage ({best_outage['region']}, "
+                    f"{best_outage['distance_km']:.0f}km away)"
+                )
+
+        # Prediction market signal
+        has_market = False
+        if related_markets:
+            indicators += 1
+            has_market = True
+            top_market = related_markets[0]
+            drivers.append(
+                f"Market: \"{top_market['title'][:50]}\" "
+                f"at {top_market['probability']:.0%}"
+            )
+
+        # Multiple denial sources strengthen the signal
+        if denial["event_count"] > 1:
+            indicators += 0.5
+            drivers.append(f"{denial['event_count']} sources reporting")
+
+        # Context rating
+        if has_outage and has_market:
+            context = "STRONG"
+        elif has_outage:
+            context = "MODERATE"
+        elif has_market:
+            context = "WEAK"  # market signal without infra disruption
+        else:
+            context = "DETECTION_GAP"
+
+        # Severity mapping
+        if context == "STRONG":
+            sev = "high"
+        elif context == "MODERATE":
+            sev = "medium"
+        else:
+            sev = "low"
+
+        # Alternative explanations (always present — this is a hypothesis generator)
+        alternatives: list[str] = []
+        if has_outage:
+            alternatives.append("Routine infrastructure maintenance or cable damage")
+            alternatives.append("Weather-related outage coinciding with news cycle")
+        if not has_outage and context == "DETECTION_GAP":
+            alternatives.append("Statement may be truthful — no contradicting telemetry found")
+            alternatives.append("Telemetry coverage gap in this region")
+        alternatives.append("Denial may be responding to social media rumors, not real events")
+
+        lat_c, lng_c = _cell_center(_cell_key(d_lat, d_lng))
+        alerts.append({
+            "lat": lat_c,
+            "lng": lng_c,
+            "type": "contradiction",
+            "severity": sev,
+            "score": _severity_score(sev),
+            "drivers": drivers[:4],
+            "cell_size": _CELL_SIZE,
+            "context": context,
+            "alternatives": alternatives[:3],
+            "location_name": denial.get("location_name", ""),
+            "headlines": denial["headlines"][:3],
+            "related_markets": related_markets[:3],
+            "nearby_outages": nearby_outages[:5],
+        })
+
+    # Deduplicate: keep highest-scored alert per cell
+    seen_cells: dict[str, dict] = {}
+    for alert in alerts:
+        key = _cell_key(alert["lat"], alert["lng"])
+        if key not in seen_cells or alert["score"] > seen_cells[key]["score"]:
+            seen_cells[key] = alert
+
+    result = list(seen_cells.values())
+    if result:
+        by_context = defaultdict(int)
+        for a in result:
+            by_context[a["context"]] += 1
+        logger.info(
+            "Contradictions: %d possible (%s)",
+            len(result),
+            ", ".join(f"{v} {k}" for k, v in sorted(by_context.items())),
+        )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Correlation → Pin bridge
+# ---------------------------------------------------------------------------
+
+# Types and their pin categories
+_CORR_PIN_CATEGORIES = {
+    "rf_anomaly": "anomaly",
+    "military_buildup": "military",
+    "infra_cascade": "infrastructure",
+    "contradiction": "research",
+}
+
+# Deduplicate: don't re-pin the same cell within this window (seconds).
+_CORR_PIN_DEDUP_WINDOW = 600  # 10 minutes
+_recent_corr_pins: dict[str, float] = {}
+
+
+def _auto_pin_correlations(alerts: list[dict]) -> int:
+    """Create AI Intel pins for high-severity correlation alerts.
+
+    Only pins alerts with severity >= medium.  Uses cell-key dedup so the
+    same grid cell doesn't get re-pinned every fetch cycle.
+
+    Returns the number of pins created this cycle.
+    """
+    import time as _time
+
+    now = _time.time()
+
+    # Evict stale dedup entries
+    expired = [k for k, ts in _recent_corr_pins.items() if now - ts > _CORR_PIN_DEDUP_WINDOW]
+    for k in expired:
+        _recent_corr_pins.pop(k, None)
+
+    created = 0
+    for alert in alerts:
+        sev = alert.get("severity", "low")
+        if sev == "low":
+            continue  # Don't pin low-severity noise
+
+        lat = alert.get("lat")
+        lng = alert.get("lng")
+        if lat is None or lng is None:
+            continue
+
+        # Dedup key: type + cell
+        dedup_key = f"{alert['type']}:{_cell_key(lat, lng)}"
+        if dedup_key in _recent_corr_pins:
+            continue
+
+        category = _CORR_PIN_CATEGORIES.get(alert["type"], "anomaly")
+        drivers = alert.get("drivers", [])
+        atype = alert["type"]
+
+        if atype == "contradiction":
+            ctx = alert.get("context", "")
+            label = f"[{ctx}] Possible Contradiction"
+            parts = list(drivers)
+            if alert.get("alternatives"):
+                parts.append("Alternatives: " + "; ".join(alert["alternatives"][:2]))
+            description = " | ".join(parts) if parts else "Narrative contradiction detected"
+        else:
+            label = f"[{sev.upper()}] {atype.replace('_', ' ').title()}"
+            description = "; ".join(drivers) if drivers else "Multi-layer correlation alert"
+
+        try:
+            from services.ai_pin_store import create_pin
+
+            meta = {
+                "correlation_type": atype,
+                "severity": sev,
+                "drivers": drivers,
+                "cell_size": alert.get("cell_size", _CELL_SIZE),
+            }
+            # Add contradiction-specific metadata
+            if atype == "contradiction":
+                meta["context_rating"] = alert.get("context", "")
+                meta["alternatives"] = alert.get("alternatives", [])
+                meta["headlines"] = alert.get("headlines", [])
+                meta["location_name"] = alert.get("location_name", "")
+                if alert.get("related_markets"):
+                    meta["related_markets"] = alert["related_markets"]
+
+            create_pin(
+                lat=lat,
+                lng=lng,
+                label=label,
+                category=category,
+                description=description,
+                source="correlation_engine",
+                confidence=alert.get("score", 60) / 100.0,
+                ttl_hours=2.0,  # Auto-expire correlation pins after 2 hours
+                metadata=meta,
+            )
+            _recent_corr_pins[dedup_key] = now
+            created += 1
+        except Exception as exc:
+            logger.warning("Failed to auto-pin correlation: %s", exc)
+
+    if created:
+        logger.info("Correlation engine auto-pinned %d alerts", created)
+    return created
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -330,13 +755,29 @@ def compute_correlations(data: dict) -> list[dict]:
     except Exception as e:
         logger.error("Correlation engine infra cascade error: %s", e)
 
+    # Contradiction detection removed from automated engine — too many false
+    # positives from regex headline matching.  Contradiction/analysis alerts are
+    # now placed by OpenClaw agents via place_analysis_zone, which lets an LLM
+    # reason about the evidence rather than pattern-matching keywords.
+    try:
+        from services.analysis_zone_store import get_live_zones
+        alerts.extend(get_live_zones())
+    except Exception as e:
+        logger.error("Analysis zone merge error: %s", e)
+
     rf = sum(1 for a in alerts if a["type"] == "rf_anomaly")
     mil = sum(1 for a in alerts if a["type"] == "military_buildup")
     infra = sum(1 for a in alerts if a["type"] == "infra_cascade")
+    contra = sum(1 for a in alerts if a["type"] == "contradiction")
     if alerts:
         logger.info(
-            "Correlations: %d alerts (%d rf, %d mil, %d infra)",
-            len(alerts), rf, mil, infra,
+            "Correlations: %d alerts (%d rf, %d mil, %d infra, %d contra)",
+            len(alerts), rf, mil, infra, contra,
         )
+
+    # Correlation alerts are returned in the correlations data feed only.
+    # They are NOT auto-pinned to AI Intel — that layer is reserved for
+    # user / OpenClaw pins.  Correlations are visualised via the dedicated
+    # correlations overlay on the map.
 
     return alerts

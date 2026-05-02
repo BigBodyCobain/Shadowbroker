@@ -10,7 +10,8 @@ _cache: dict | None = None
 _cache_ts: float = 0.0
 _CACHE_TTL = 5.0
 _DEFAULTS = {
-    "enabled": True,
+    "enabled": False,
+    "timemachine_enabled": False,
 }
 
 
@@ -36,6 +37,7 @@ def read_node_settings() -> dict:
         else:
             result = {
                 "enabled": bool(data.get("enabled", _DEFAULTS["enabled"])),
+                "timemachine_enabled": bool(data.get("timemachine_enabled", _DEFAULTS["timemachine_enabled"])),
                 "updated_at": _safe_int(data.get("updated_at", 0) or 0),
             }
     _cache = result
@@ -43,11 +45,12 @@ def read_node_settings() -> dict:
     return result
 
 
-def write_node_settings(*, enabled: bool | None = None) -> dict:
+def write_node_settings(*, enabled: bool | None = None, timemachine_enabled: bool | None = None) -> dict:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     existing = read_node_settings()
     payload = {
         "enabled": bool(existing.get("enabled", _DEFAULTS["enabled"])) if enabled is None else bool(enabled),
+        "timemachine_enabled": bool(existing.get("timemachine_enabled", _DEFAULTS["timemachine_enabled"])) if timemachine_enabled is None else bool(timemachine_enabled),
         "updated_at": int(time.time()),
     }
     NODE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")

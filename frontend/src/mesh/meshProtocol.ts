@@ -83,11 +83,14 @@ export function normalizeStakePayload(payload: Record<string, JsonValue>) {
 }
 
 export function normalizeDmKeyPayload(payload: Record<string, JsonValue>) {
-  return {
+  const normalized: Record<string, JsonValue> = {
     dh_pub_key: String(payload.dh_pub_key ?? ''),
     dh_algo: String(payload.dh_algo ?? ''),
     timestamp: Number(payload.timestamp ?? 0),
   };
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock) normalized.transport_lock = transportLock;
+  return normalized;
 }
 
 export function normalizeDmMessagePayload(payload: Record<string, JsonValue>) {
@@ -112,6 +115,10 @@ export function normalizeDmMessagePayload(payload: Record<string, JsonValue>) {
   if (relaySalt) {
     normalized.relay_salt = String(relaySalt).trim().toLowerCase();
   }
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock) {
+    normalized.transport_lock = transportLock;
+  }
   return normalized;
 }
 
@@ -130,11 +137,16 @@ function normalizeMailboxClaims(payload: Record<string, JsonValue>) {
 }
 
 export function normalizeDmPollPayload(payload: Record<string, JsonValue>) {
-  return {
+  const normalized: Record<string, JsonValue> = {
     mailbox_claims: normalizeMailboxClaims(payload),
     timestamp: Number(payload.timestamp ?? 0),
     nonce: String(payload.nonce ?? ''),
   };
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock) {
+    normalized.transport_lock = transportLock;
+  }
+  return normalized;
 }
 
 export function normalizeDmCountPayload(payload: Record<string, JsonValue>) {
@@ -142,10 +154,15 @@ export function normalizeDmCountPayload(payload: Record<string, JsonValue>) {
 }
 
 export function normalizeDmBlockPayload(payload: Record<string, JsonValue>) {
-  return {
+  const normalized: Record<string, JsonValue> = {
     blocked_id: String(payload.blocked_id ?? ''),
     action: String(payload.action ?? 'block').toLowerCase(),
   };
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock) {
+    normalized.transport_lock = transportLock;
+  }
+  return normalized;
 }
 
 export function normalizeDmKeyWitnessPayload(payload: Record<string, JsonValue>) {

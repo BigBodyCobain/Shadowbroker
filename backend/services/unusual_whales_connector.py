@@ -24,7 +24,7 @@ from cachetools import TTLCache
 logger = logging.getLogger(__name__)
 
 _FINNHUB_BASE = "https://finnhub.io/api/v1"
-_USER_AGENT = "ShadowBroker/0.9.6 Finnhub connector"
+_USER_AGENT = "ShadowBroker/0.9.7 Finnhub connector"
 _REQUEST_TIMEOUT = 12
 _MIN_INTERVAL_SECONDS = 0.35  # Stay well under 60 calls/min
 

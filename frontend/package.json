@@ -1,11 +1,12 @@
 {
   "name": "frontend",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-all.cjs",
     "dev:frontend": "next dev",
     "dev:backend": "node ../start-backend.js",
+    "build:privacy-core-wasm": "node scripts/build-privacy-core-wasm.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -13,19 +14,23 @@
     "format:check": "prettier --check .",
     "bundle:report": "node scripts/report-bundle-size.js",
     "test": "npm run test:ci",
+    "test:runtime-assurance": "set NODE_OPTIONS=--require ./scripts/vite-no-net-use.cjs && vitest run --pool=threads src/__tests__/mesh/gateCompatDecryptUx.test.tsx src/__tests__/mesh/wormholeIdentityClientProfiles.test.ts src/__tests__/mesh/gateMessageSnapshot.test.ts src/__tests__/desktop/desktopBridgeBootstrapPreference.test.ts src/__tests__/desktop/backendEndpoint.test.ts src/__tests__/desktop/desktopControlRouting.test.ts",
     "test:watch": "vitest",
     "test:coverage": "set NODE_OPTIONS=--require ./scripts/vite-no-net-use.cjs && vitest run --coverage --pool=threads",
     "test:ci": "set NODE_OPTIONS=--require ./scripts/vite-no-net-use.cjs && vitest run --pool=threads"
   },
   "dependencies": {
     "@mapbox/point-geometry": "^1.1.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "framer-motion": "^12.38.0",
     "hls.js": "^1.6.15",
     "lucide-react": "^0.575.0",
     "maplibre-gl": "^4.7.1",
     "next": "16.1.6",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "19.2.3",
+    "react-dom": "^19.2.4",
     "react-map-gl": "^8.1.0",
     "satellite.js": "^6.0.2",
     "zod": "^4.3.6"

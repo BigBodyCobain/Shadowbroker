@@ -3,6 +3,7 @@
 import { API_BASE } from '@/lib/api';
 import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
+import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
 import {
   fetchPrivacyProfileSnapshot,
   fetchRnsStatusSnapshot,
@@ -26,7 +27,37 @@ import {
   restartWormhole,
   type WormholeState,
 } from '@/mesh/wormholeClient';
-import { fetchWormholeIdentity } from '@/mesh/wormholeIdentityClient';
+import {
+  fetchWormholeDmRootHealth,
+  fetchWormholeIdentity,
+  type WormholeDmRootHealth,
+} from '@/mesh/wormholeIdentityClient';
+import {
+  formatLegacyCompatibilitySeenAt,
+  hasLegacyCompatibilityActivity,
+  summarizeLegacyCompatibility,
+} from '@/mesh/wormholeCompatibility';
+import {
+  formatGateCompatSeenAt,
+  getGateCompatTelemetryEventName,
+  getGateCompatTelemetrySnapshot,
+  summarizeGateCompatTelemetry,
+  type GateCompatTelemetrySnapshot,
+} from '@/mesh/gateCompatTelemetry';
+import {
+  describeBrowserGateLocalRuntimeStatus,
+  getBrowserGateLocalRuntimeEventName,
+  getBrowserGateLocalRuntimeStatus,
+  type BrowserGateLocalRuntimeStatus,
+} from '@/mesh/meshGateWorkerClient';
+import {
+  isNativeDesktop,
+  companionStatus as fetchCompanionStatus,
+  companionEnable,
+  companionDisable,
+  companionOpenBrowser,
+  type CompanionStatus,
+} from '@/lib/desktopCompanion';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -47,6 +78,7 @@ import {
   EyeOff,
   Copy,
   Check,
+  Radar,
 } from 'lucide-react';
 import {
   clearSentinelCredentials,
@@ -73,7 +105,6 @@ interface ApiEntry {
   required: boolean;
   has_key: boolean;
   env_key: string | null;
-  value_obfuscated: string | null;
   is_set: boolean;
 }
 
@@ -81,6 +112,14 @@ interface FeedEntry {
   name: string;
   url: string;
   weight: number;
+}
+
+interface EnvMeta {
+  env_path: string;
+  env_path_exists: boolean;
+  env_path_writable: boolean;
+  env_example_path: string;
+  env_example_path_exists: boolean;
 }
 
 const WEIGHT_LABELS: Record<number, string> = {
@@ -137,7 +176,58 @@ const CATEGORY_COLORS: Record<string, string> = {
   Reconnaissance: 'text-green-400 border-green-500/30 bg-green-950/20',
 };
 
-type Tab = 'api-keys' | 'news-feeds' | 'sentinel' | 'protocol';
+function dmRootMonitorTone(state: string | undefined): string {
+  switch (String(state || '').toLowerCase()) {
+    case 'ok':
+      return 'border-green-500/35 bg-green-950/16 text-green-300';
+    case 'warning':
+      return 'border-yellow-500/35 bg-yellow-950/16 text-yellow-200';
+    case 'critical':
+      return 'border-red-500/35 bg-red-950/16 text-red-200';
+    default:
+      return 'border-cyan-500/25 bg-cyan-950/10 text-cyan-200';
+  }
+}
+
+function dmRootMonitorLabel(state: string | undefined): string {
+  switch (String(state || '').toLowerCase()) {
+    case 'ok':
+      return 'HEALTHY';
+    case 'warning':
+      return 'ATTENTION';
+    case 'critical':
+      return 'BLOCKED';
+    default:
+      return 'UNKNOWN';
+  }
+}
+
+function dmRootUrgencyTone(urgency: string | undefined): string {
+  switch (String(urgency || '').toLowerCase()) {
+    case 'page':
+      return 'border-red-500/35 bg-red-950/18 text-red-200';
+    case 'ticket':
+      return 'border-yellow-500/35 bg-yellow-950/18 text-yellow-200';
+    case 'watch':
+      return 'border-cyan-500/35 bg-cyan-950/18 text-cyan-200';
+    default:
+      return 'border-slate-600/35 bg-slate-900/18 text-slate-300';
+  }
+}
+
+function formatAgeWindow(ageS?: number, maxS?: number): string {
+  const age = Math.max(0, Number(ageS || 0));
+  const max = Math.max(0, Number(maxS || 0));
+  const fmt = (value: number) => {
+    if (value <= 0) return '0s';
+    if (value < 60) return `${value}s`;
+    if (value < 3600) return `${Math.round(value / 60)}m`;
+    return `${Math.round(value / 3600)}h`;
+  };
+  return max > 0 ? `${fmt(age)} / ${fmt(max)} max` : fmt(age);
+}
+
+type Tab = 'api-keys' | 'news-feeds' | 'sentinel' | 'sar' | 'protocol';
 
 const SettingsPanel = React.memo(function SettingsPanel({
   isOpen,
@@ -147,6 +237,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('api-keys');
+
+  // Native desktop bypass: when the native IPC bridge is present, protected
+  // settings are authenticated through Rust-side admin-key ownership. The
+  // browser admin-session flow is unnecessary and unavailable in packaged mode.
+  const nativeProtected = isNativeProtectedSettingsReady();
 
   // --- Admin Key (for protected endpoints) ---
   const [adminKey, setAdminKey] = useState('');
@@ -177,6 +272,112 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const [showOperatorTools, setShowOperatorTools] = useState(false);
   const [wormholeNodeId, setWormholeNodeId] = useState<string | null>(null);
   const [wormholeKeyCopied, setWormholeKeyCopied] = useState(false);
+  const [gateCompatTelemetry, setGateCompatTelemetry] = useState<GateCompatTelemetrySnapshot>(
+    () => getGateCompatTelemetrySnapshot(),
+  );
+  const [gateLocalRuntimeStatus, setGateLocalRuntimeStatus] = useState<BrowserGateLocalRuntimeStatus>(
+    () => getBrowserGateLocalRuntimeStatus(),
+  );
+  const [dmRootHealth, setDmRootHealth] = useState<WormholeDmRootHealth | null>(null);
+  const [dmRootHealthBusy, setDmRootHealthBusy] = useState(false);
+  const [dmRootHealthMsg, setDmRootHealthMsg] = useState<string | null>(null);
+
+  // --- Time Machine ---
+  const [tmEnabled, setTmEnabled] = useState(false);
+  const [tmSaving, setTmSaving] = useState(false);
+
+  // Fetch Time Machine status when protocol tab opens
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'protocol') return;
+    fetch(`${API_BASE}/api/settings/timemachine`)
+      .then((r) => r.json())
+      .then((d) => setTmEnabled(!!d.enabled))
+      .catch(() => {});
+  }, [isOpen, activeTab]);
+
+  const toggleTimeMachine = useCallback(async () => {
+    setTmSaving(true);
+    try {
+      const res = await controlPlaneFetch('/api/settings/timemachine', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !tmEnabled }),
+        requireAdminSession: false,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTmEnabled(!!data.enabled);
+      }
+    } catch {}
+    setTmSaving(false);
+  }, [tmEnabled]);
+
+  // --- Browser Companion (desktop-only) ---
+  const [companionAvailable] = useState(() => isNativeDesktop());
+  const [companion, setCompanion] = useState<CompanionStatus | null>(null);
+  const [companionBusy, setCompanionBusy] = useState(false);
+  const [companionError, setCompanionError] = useState<string | null>(null);
+
+  const [companionLoadFailed, setCompanionLoadFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'protocol' || !companionAvailable) return;
+    setCompanionLoadFailed(false);
+    fetchCompanionStatus()
+      .then((s) => setCompanion(s))
+      .catch(() => {
+        setCompanion(null);
+        setCompanionLoadFailed(true);
+      });
+  }, [isOpen, activeTab, companionAvailable]);
+
+  useEffect(() => {
+    const refreshTelemetry = () => setGateCompatTelemetry(getGateCompatTelemetrySnapshot());
+    refreshTelemetry();
+    if (typeof window === 'undefined') return;
+    const eventName = getGateCompatTelemetryEventName();
+    window.addEventListener(eventName, refreshTelemetry as EventListener);
+    return () => {
+      window.removeEventListener(eventName, refreshTelemetry as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshRuntimeStatus = () => setGateLocalRuntimeStatus(getBrowserGateLocalRuntimeStatus());
+    refreshRuntimeStatus();
+    if (typeof window === 'undefined') return;
+    const eventName = getBrowserGateLocalRuntimeEventName();
+    window.addEventListener(eventName, refreshRuntimeStatus as EventListener);
+    return () => {
+      window.removeEventListener(eventName, refreshRuntimeStatus as EventListener);
+    };
+  }, []);
+
+  const toggleCompanion = useCallback(async () => {
+    setCompanionBusy(true);
+    setCompanionError(null);
+    try {
+      const result = companion?.enabled
+        ? await companionDisable()
+        : await companionEnable();
+      if (result) setCompanion(result);
+    } catch (e) {
+      setCompanionError(e instanceof Error ? e.message : String(e));
+    }
+    setCompanionBusy(false);
+  }, [companion?.enabled]);
+
+  const openCompanionBrowser = useCallback(async () => {
+    setCompanionBusy(true);
+    setCompanionError(null);
+    try {
+      const result = await companionOpenBrowser();
+      if (result) setCompanion(result);
+    } catch (e) {
+      setCompanionError(e instanceof Error ? e.message : String(e));
+    }
+    setCompanionBusy(false);
+  }, []);
 
   const clearSessionIdentity = () => {
     if (typeof window === 'undefined') return;
@@ -241,6 +442,13 @@ const SettingsPanel = React.memo(function SettingsPanel({
     }
   }, [wormholeEnabled]);
   const refreshAdminSession = useCallback(async () => {
+    // In native desktop mode, protected settings are handled through Rust IPC
+    // with native admin-key ownership — no browser admin-session needed.
+    if (isNativeProtectedSettingsReady()) {
+      setAdminSessionReady(true);
+      setAdminSessionMsg(null);
+      return true;
+    }
     const ready = await hasAdminSession();
     setAdminSessionReady(ready);
     if (!ready) {
@@ -255,6 +463,12 @@ const SettingsPanel = React.memo(function SettingsPanel({
     }
   }, [activeTab]);
   const ensureAdminSession = useCallback(async () => {
+    // Native desktop: already authenticated via Rust IPC admin-key ownership.
+    if (isNativeProtectedSettingsReady()) {
+      setAdminSessionReady(true);
+      setAdminSessionMsg(null);
+      return;
+    }
     try {
       await primeAdminSession(adminKey.trim() || undefined);
       setAdminSessionReady(true);
@@ -279,13 +493,14 @@ const SettingsPanel = React.memo(function SettingsPanel({
   }, [adminKey, refreshAdminSession]);
 
   // --- API Keys state ---
+  // API keys are intentionally NOT editable in-app. The panel is read-only and
+  // tells the user where the .env file lives so they can edit it directly.
+  // This keeps secrets off the wire and out of the browser process.
   const [apis, setApis] = useState<ApiEntry[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [saving, setSaving] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(['Aviation', 'Maritime']),
   );
+  const [envMeta, setEnvMeta] = useState<EnvMeta | null>(null);
 
   // --- News Feeds state ---
   const [feeds, setFeeds] = useState<FeedEntry[]>([]);
@@ -310,6 +525,8 @@ const SettingsPanel = React.memo(function SettingsPanel({
         setApis([]);
         setFeeds([]);
         setFeedsDirty(false);
+        setDmRootHealth(null);
+        setDmRootHealthMsg(message);
       }
       return message;
     },
@@ -325,6 +542,17 @@ const SettingsPanel = React.memo(function SettingsPanel({
       return false;
     }
   }, [handleProtectedSettingsError]);
+
+  const fetchEnvMeta = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/api-keys/meta');
+      if (!res.ok) return;
+      const data: EnvMeta = await res.json();
+      setEnvMeta(data);
+    } catch {
+      // Non-fatal: the panel still works without the path hint.
+    }
+  }, []);
 
   const fetchFeeds = useCallback(async () => {
     try {
@@ -397,6 +625,28 @@ const SettingsPanel = React.memo(function SettingsPanel({
     }
   }, [wormholeNodeId]);
 
+  const fetchDmRootHealth = useCallback(async () => {
+    if (!nativeProtected && !adminSessionReady) {
+      setDmRootHealth(null);
+      setDmRootHealthMsg(null);
+      return false;
+    }
+    setDmRootHealthBusy(true);
+    setDmRootHealthMsg(null);
+    try {
+      const data = await fetchWormholeDmRootHealth();
+      setDmRootHealth(data);
+      return true;
+    } catch (e) {
+      const message = await handleProtectedSettingsError(e);
+      setDmRootHealth(null);
+      setDmRootHealthMsg(message);
+      return false;
+    } finally {
+      setDmRootHealthBusy(false);
+    }
+  }, [adminSessionReady, handleProtectedSettingsError, nativeProtected]);
+
   useEffect(() => {
     if (isOpen) {
       if (typeof window !== 'undefined') {
@@ -466,38 +716,30 @@ const SettingsPanel = React.memo(function SettingsPanel({
     if (!isOpen || !adminSessionReady) return;
     if (activeTab === 'api-keys') {
       void fetchKeys();
+      void fetchEnvMeta();
       return;
     }
     if (activeTab === 'news-feeds') {
       void fetchFeeds();
     }
-  }, [isOpen, adminSessionReady, activeTab, fetchKeys, fetchFeeds]);
+  }, [isOpen, adminSessionReady, activeTab, fetchKeys, fetchEnvMeta, fetchFeeds]);
 
-  // API Keys handlers
-  const startEditing = (api: ApiEntry) => {
-    setEditingId(api.id);
-    setEditValue('');
-  };
-
-  const saveKey = async (api: ApiEntry) => {
-    if (!api.env_key) return;
-    setSaving(true);
-    try {
-      const res = await controlPlaneFetch('/api/settings/api-keys', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ env_key: api.env_key, value: editValue }),
-      });
-      if (res.ok) {
-        setEditingId(null);
-        fetchKeys();
-      }
-    } catch (e) {
-      console.error('Failed to save API key', e);
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'protocol' || !showOperatorTools) return;
+    if (!nativeProtected && !adminSessionReady) {
+      setDmRootHealth(null);
+      setDmRootHealthMsg(null);
+      return;
     }
-  };
+    void fetchDmRootHealth();
+  }, [
+    isOpen,
+    activeTab,
+    showOperatorTools,
+    nativeProtected,
+    adminSessionReady,
+    fetchDmRootHealth,
+  ]);
 
   const toggleCategory = (cat: string) => {
     setExpandedCategories((prev) => {
@@ -763,6 +1005,8 @@ const SettingsPanel = React.memo(function SettingsPanel({
       await clearAdminSession();
       setAdminKey('');
       setAdminSessionReady(false);
+      setDmRootHealth(null);
+      setDmRootHealthMsg(null);
       setAdminSessionMsg('LOCAL SESSION CLEARED');
     } finally {
       setAdminSessionBusy(false);
@@ -782,6 +1026,13 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const recentPrivateFallbackReason =
     wormholeStatus?.recent_private_clearnet_fallback_reason ||
     'An obfuscated-tier payload recently fell back to clearnet relay.';
+  const legacyCompatibilityItems = summarizeLegacyCompatibility(wormholeStatus?.legacy_compatibility);
+  const legacyCompatibilityActivity = hasLegacyCompatibilityActivity(
+    wormholeStatus?.legacy_compatibility,
+  );
+  const legacyCompatibilityAllBlocked =
+    legacyCompatibilityItems.length > 0 && legacyCompatibilityItems.every((item) => item.blocked);
+  const gateCompatTopReasons = summarizeGateCompatTelemetry(gateCompatTelemetry, 3);
   const trustModeLabel = !wormholeEnabled
     ? 'PUBLIC / DEGRADED'
     : wormholeStatus?.ready && rnsReady
@@ -797,6 +1048,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
         : wormholeQuickState === 'ready'
           ? 'READY'
           : 'GET WORMHOLE KEY';
+  const dmRootCardTone = dmRootMonitorTone(
+    showOperatorTools
+      ? dmRootHealth?.monitoring?.state || (dmRootHealthMsg ? 'critical' : 'warning')
+      : 'warning',
+  );
 
   return (
     <AnimatePresence>
@@ -880,14 +1136,17 @@ const SettingsPanel = React.memo(function SettingsPanel({
                         void unlockAdminSession();
                       }
                     }}
+                    disabled={nativeProtected}
                     placeholder={
-                      adminSessionReady
-                        ? 'Operator tools unlocked. Enter key only to reseed or recover...'
-                        : 'Enter operator key for protected settings tabs...'
+                      nativeProtected
+                        ? 'Protected via native desktop bridge'
+                        : adminSessionReady
+                          ? 'Operator tools unlocked. Enter key only to reseed or recover...'
+                          : 'Enter operator key for protected settings tabs...'
                     }
                     className="flex-1 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] px-2 py-1 text-sm font-mono text-[var(--text-secondary)] outline-none focus:border-cyan-700 placeholder:text-[var(--text-muted)]/50"
                   />
-                  {adminSessionReady ? (
+                  {nativeProtected ? null : adminSessionReady ? (
                     <button
                       onClick={() => void lockAdminSession()}
                       disabled={adminSessionBusy}
@@ -917,7 +1176,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
                       adminSessionReady ? 'text-green-400/70' : 'text-yellow-400/70'
                     }`}
                   >
-                    {adminSessionReady ? 'ACTIVE' : 'LOCKED'}
+                    {nativeProtected ? 'NATIVE' : adminSessionReady ? 'ACTIVE' : 'LOCKED'}
                   </span>
                 </div>
                 {adminSessionMsg && (
@@ -988,6 +1247,13 @@ const SettingsPanel = React.memo(function SettingsPanel({
               >
                 <Satellite size={10} />
                 SENTINEL
+              </button>
+              <button
+                onClick={() => setActiveTab('sar')}
+                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+              >
+                <Radar size={10} />
+                SAR
               </button>
               <button
                 onClick={() => setActiveTab('protocol')}
@@ -1089,6 +1355,224 @@ const SettingsPanel = React.memo(function SettingsPanel({
                           {wormholeKeyCopied ? 'COPIED' : 'COPY'}
                         </button>
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className={`mx-4 mt-4 p-3 border ${dmRootCardTone}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-mono tracking-[0.18em]">DM ROOT HEALTH</div>
+                      <div className="mt-2 text-sm font-mono leading-relaxed text-[var(--text-secondary)]">
+                        External witness freshness, transparency readback, and the next operator
+                        action for strong DM trust.
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-1 border text-[11px] font-mono tracking-[0.18em] ${dmRootCardTone}`}
+                      >
+                        {!showOperatorTools
+                          ? 'HIDDEN'
+                          : dmRootHealth
+                            ? dmRootMonitorLabel(dmRootHealth.monitoring?.state)
+                            : dmRootHealthBusy
+                              ? 'LOADING'
+                              : dmRootHealthMsg
+                                ? 'BLOCKED'
+                                : 'UNKNOWN'}
+                      </span>
+                      {showOperatorTools && (nativeProtected || adminSessionReady) && (
+                        <button
+                          onClick={() => void fetchDmRootHealth()}
+                          disabled={dmRootHealthBusy}
+                          className="px-2 py-1 border border-cyan-500/30 text-[12px] font-mono tracking-[0.18em] text-cyan-200 hover:bg-cyan-950/20 disabled:opacity-50"
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <RotateCcw size={11} />
+                            REFRESH
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!showOperatorTools ? (
+                    <div className="mt-3 border border-cyan-500/20 bg-black/20 px-3 py-3 text-sm font-mono text-[var(--text-muted)] leading-relaxed">
+                      Wormhole join stays visible without operator tools. Open operator tools to see
+                      external witness freshness, transparency readback, and remediation guidance.
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setShowOperatorTools(true)}
+                          className="px-3 py-1.5 border border-cyan-500/35 bg-cyan-950/18 text-[13px] font-mono tracking-[0.18em] text-cyan-200 hover:bg-cyan-950/28"
+                        >
+                          SHOW TOOLS
+                        </button>
+                      </div>
+                    </div>
+                  ) : !nativeProtected && !adminSessionReady ? (
+                    <div className="mt-3 border border-yellow-500/25 bg-yellow-950/12 px-3 py-3 text-sm font-mono text-yellow-200/90 leading-relaxed">
+                      Unlock operator tools above to load live DM root health, external witness
+                      freshness, and transparency monitoring status.
+                    </div>
+                  ) : dmRootHealthBusy && !dmRootHealth ? (
+                    <div className="mt-3 border border-cyan-500/20 bg-black/20 px-3 py-3 text-sm font-mono text-cyan-200/80">
+                      Loading current DM root health...
+                    </div>
+                  ) : dmRootHealth ? (
+                    <div className="mt-3 grid gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                          <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                            SUMMARY
+                          </div>
+                          <div className="mt-1 text-[13px] font-mono text-[var(--text-secondary)]">
+                            {String(dmRootHealth.state || '').replaceAll('_', ' ').toUpperCase()}
+                          </div>
+                          <div className="mt-1 text-[12px] font-mono text-[var(--text-muted)] leading-relaxed">
+                            {dmRootHealth.detail}
+                          </div>
+                        </div>
+                        <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                          <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                            STRONG TRUST
+                          </div>
+                          <div
+                            className={`mt-1 text-[13px] font-mono ${
+                              dmRootHealth.strong_trust_blocked ? 'text-red-300' : 'text-green-300'
+                            }`}
+                          >
+                            {dmRootHealth.strong_trust_blocked ? 'BLOCKED' : 'CURRENT'}
+                          </div>
+                          <div className="mt-1 text-[12px] font-mono text-[var(--text-muted)]">
+                            {dmRootHealth.monitoring?.status_line || 'Operator monitoring active.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                              WITNESS
+                            </div>
+                            <span
+                              className={`px-1.5 py-0.5 border text-[11px] font-mono tracking-widest ${dmRootUrgencyTone(
+                                dmRootHealth.witness.health_state === 'error'
+                                  ? 'page'
+                                  : dmRootHealth.witness.health_state === 'warning'
+                                    ? 'ticket'
+                                    : 'watch',
+                              )}`}
+                            >
+                              {String(dmRootHealth.witness.state || '').replaceAll('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-[12px] font-mono text-[var(--text-muted)]">
+                            Age {formatAgeWindow(dmRootHealth.witness.age_s, dmRootHealth.witness.freshness_window_s)}
+                          </div>
+                          <div className="mt-1 text-[12px] font-mono text-[var(--text-muted)]">
+                            {dmRootHealth.witness.source_label ||
+                              dmRootHealth.witness.source_ref ||
+                              dmRootHealth.witness.detail ||
+                              'Configured witness source unavailable.'}
+                          </div>
+                        </div>
+
+                        <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                              TRANSPARENCY
+                            </div>
+                            <span
+                              className={`px-1.5 py-0.5 border text-[11px] font-mono tracking-widest ${dmRootUrgencyTone(
+                                dmRootHealth.transparency.health_state === 'error'
+                                  ? 'page'
+                                  : dmRootHealth.transparency.health_state === 'warning'
+                                    ? 'ticket'
+                                    : 'watch',
+                              )}`}
+                            >
+                              {String(dmRootHealth.transparency.state || '').replaceAll('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-[12px] font-mono text-[var(--text-muted)]">
+                            Age{' '}
+                            {formatAgeWindow(
+                              dmRootHealth.transparency.age_s,
+                              dmRootHealth.transparency.freshness_window_s,
+                            )}
+                          </div>
+                          <div className="mt-1 text-[12px] font-mono text-[var(--text-muted)]">
+                            {dmRootHealth.transparency.source_ref ||
+                              dmRootHealth.transparency.export_path ||
+                              dmRootHealth.transparency.detail ||
+                              'Configured ledger readback unavailable.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {dmRootHealth.alerts.length > 0 && (
+                        <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                          <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                            ACTIVE ALERTS
+                          </div>
+                          <div className="mt-2 grid gap-2">
+                            {dmRootHealth.alerts.slice(0, 2).map((alert) => (
+                              <div
+                                key={`${alert.code}-${alert.target}`}
+                                className={`border px-2 py-2 text-[12px] font-mono leading-relaxed ${
+                                  alert.blocking
+                                    ? 'border-red-500/30 bg-red-950/12 text-red-200'
+                                    : 'border-yellow-500/30 bg-yellow-950/12 text-yellow-200'
+                                }`}
+                              >
+                                <div className="tracking-[0.16em]">
+                                  {alert.code.replaceAll('_', ' ').toUpperCase()}
+                                </div>
+                                <div className="mt-1 text-[var(--text-secondary)]">{alert.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border border-[var(--border-primary)]/50 bg-black/20 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[12px] font-mono tracking-[0.18em] text-[var(--text-muted)]">
+                            NEXT ACTION
+                          </div>
+                          <span
+                            className={`px-1.5 py-0.5 border text-[11px] font-mono tracking-widest ${dmRootUrgencyTone(
+                              dmRootHealth.runbook?.urgency,
+                            )}`}
+                          >
+                            {String(dmRootHealth.runbook?.urgency || 'none').toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-[13px] font-mono text-[var(--text-secondary)]">
+                          {(
+                            dmRootHealth.runbook?.next_action_detail &&
+                            'title' in dmRootHealth.runbook.next_action_detail &&
+                            dmRootHealth.runbook.next_action_detail.title
+                          ) ||
+                            dmRootHealth.runbook?.next_action ||
+                            'No action required.'}
+                        </div>
+                        <div className="mt-1 text-[12px] font-mono text-[var(--text-muted)] leading-relaxed">
+                          {(
+                            dmRootHealth.runbook?.next_action_detail &&
+                            'summary' in dmRootHealth.runbook.next_action_detail &&
+                            dmRootHealth.runbook.next_action_detail.summary
+                          ) ||
+                            dmRootHealth.monitoring?.status_line ||
+                            'Current external assurance is within policy.'}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 border border-red-500/25 bg-red-950/12 px-3 py-3 text-sm font-mono text-red-200/90 leading-relaxed">
+                      {dmRootHealthMsg || 'Could not load DM root health.'}
                     </div>
                   )}
                 </div>
@@ -1473,18 +1957,212 @@ const SettingsPanel = React.memo(function SettingsPanel({
                           {wormholeStatus.last_error}
                         </div>
                       )}
+                      {legacyCompatibilityItems.length > 0 && (
+                        <div className="border border-cyan-900/25 bg-black/20 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[12px] font-mono tracking-[0.18em] text-cyan-300">
+                              LEGACY SUNSET
+                            </div>
+                            <div className="text-[11px] font-mono text-[var(--text-muted)]">
+                              {legacyCompatibilityAllBlocked
+                                ? 'DESKTOP DEFAULT: BLOCKING'
+                                : 'COMPATIBILITY STILL OPEN'}
+                            </div>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {legacyCompatibilityItems.map((item) => (
+                              <div key={item.key} className="space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span
+                                    className={`px-1.5 py-0.5 border ${
+                                      item.blocked
+                                        ? 'border-green-500/40 text-green-300 bg-green-950/20'
+                                        : 'border-yellow-500/40 text-yellow-300 bg-yellow-950/15'
+                                    }`}
+                                  >
+                                    {item.blocked ? 'BLOCKED' : 'ALLOWING'}
+                                  </span>
+                                  <span className="text-[var(--text-secondary)]">{item.label}</span>
+                                  <span className="text-[var(--text-muted)]">
+                                    seen {item.count}
+                                    {item.blockedCount > 0 ? ` • blocked ${item.blockedCount}` : ''}
+                                  </span>
+                                </div>
+                                <div className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+                                  {item.blocked ? 'remove after' : 'target'} {item.targetVersion} / {item.targetDate}
+                                  {item.lastSeenAt > 0
+                                    ? ` • last seen ${formatLegacyCompatibilitySeenAt(item.lastSeenAt)}`
+                                    : ' • never observed'}
+                                </div>
+                                {item.recentTargets.length > 0 && (
+                                  <div className="text-[12px] leading-relaxed text-yellow-200/80">
+                                    recent {item.recentTargets.join(' • ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {!legacyCompatibilityActivity && (
+                            <div className="mt-2 text-[12px] leading-relaxed text-green-300/80">
+                              No live legacy traffic observed in this runtime. When this stays at
+                              zero, the final hard cutoff is low risk.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="border border-amber-900/25 bg-black/20 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[12px] font-mono tracking-[0.18em] text-amber-300">
+                            GATE COMPAT
+                          </div>
+                          <div className="text-[11px] font-mono text-[var(--text-muted)]">
+                            required {gateCompatTelemetry.totalRequired} • used {gateCompatTelemetry.totalUsed}
+                          </div>
+                        </div>
+                        <div className="mt-2 text-[12px] leading-relaxed text-[var(--text-muted)]">
+                          {describeBrowserGateLocalRuntimeStatus(gateLocalRuntimeStatus)}
+                        </div>
+                        {gateCompatTopReasons.length > 0 ? (
+                          <div className="mt-2 space-y-2">
+                            {gateCompatTopReasons.map((item) => (
+                              <div key={item.reason} className="space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[var(--text-secondary)]">{item.label}</span>
+                                  <span className="text-[var(--text-muted)]">
+                                    need {item.requiredCount}
+                                    {item.usedCount > 0 ? ` • used ${item.usedCount}` : ''}
+                                  </span>
+                                </div>
+                                <div className="text-[12px] leading-relaxed text-[var(--text-muted)]">
+                                  {item.lastAt > 0
+                                    ? `last seen ${formatGateCompatSeenAt(item.lastAt)}`
+                                    : 'never observed'}
+                                  {item.recentGates.length > 0
+                                    ? ` • rooms ${item.recentGates.join(' • ')}`
+                                    : ''}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-[12px] leading-relaxed text-green-300/80">
+                            No browser gate compat issues recorded for this profile yet.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
                   </>
                 )}
+
+                {/* ── Time Machine ────────────────────────── */}
+                <div className="mx-4 mt-4 mb-4 p-3 border border-amber-900/30 bg-amber-950/8">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm text-amber-300 font-mono tracking-[0.18em]">
+                        TIME MACHINE
+                      </div>
+                      <div className="mt-1.5 text-[12px] text-[var(--text-secondary)] font-mono leading-relaxed">
+                        Records hourly snapshots of all entity positions (flights, ships, satellites)
+                        for historical playback via the timeline scrubber.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleTimeMachine}
+                      disabled={tmSaving}
+                      className={`px-4 py-1.5 text-[12px] font-mono tracking-[0.18em] border rounded-sm transition-colors whitespace-nowrap ${
+                        tmEnabled
+                          ? 'text-amber-300 border-amber-500/40 bg-amber-950/30 hover:bg-amber-950/50'
+                          : 'text-[var(--text-muted)] border-slate-600/40 bg-slate-900/20 hover:bg-slate-900/40'
+                      } disabled:opacity-40`}
+                    >
+                      {tmSaving ? '...' : tmEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                  <div className="mt-2 p-2 border border-amber-500/15 bg-black/20 text-[11px] font-mono text-amber-200/70 leading-relaxed">
+                    <span className="text-amber-400">STORAGE:</span> ~5-8 MB/day &middot; ~200 MB/month (gzip compressed).
+                    Snapshots are stored locally and never leave your machine.
+                    {tmEnabled && (
+                      <span className="text-amber-300"> Auto-snapshots are running.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Browser Companion (desktop-only) ───── */}
+                {companionAvailable && (companion || companionLoadFailed) && (
+                  <div className="mx-4 mt-4 mb-4 p-3 border border-violet-900/30 bg-violet-950/8">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-violet-300 font-mono tracking-[0.18em]">
+                          BROWSER COMPANION
+                        </div>
+                        <div className="mt-1.5 text-[12px] text-[var(--text-secondary)] font-mono leading-relaxed">
+                          {companionLoadFailed
+                            ? 'Could not load companion status from the native bridge.'
+                            : <>
+                                Open this app in a regular browser on localhost.
+                                {companion?.enabled && companion.url && (
+                                  <span className="text-violet-300"> Active at {companion.url}</span>
+                                )}
+                              </>
+                          }
+                        </div>
+                      </div>
+                      {companion && (
+                        <div className="flex gap-2">
+                          {companion.enabled && (
+                            <button
+                              type="button"
+                              onClick={openCompanionBrowser}
+                              disabled={companionBusy}
+                              className="px-3 py-1.5 text-[12px] font-mono tracking-[0.18em] border text-violet-300 border-violet-500/40 bg-violet-950/30 hover:bg-violet-950/50 rounded-sm transition-colors whitespace-nowrap disabled:opacity-40"
+                            >
+                              {companionBusy ? '...' : 'OPEN'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={toggleCompanion}
+                            disabled={companionBusy}
+                            className={`px-4 py-1.5 text-[12px] font-mono tracking-[0.18em] border rounded-sm transition-colors whitespace-nowrap ${
+                              companion.enabled
+                                ? 'text-violet-300 border-violet-500/40 bg-violet-950/30 hover:bg-violet-950/50'
+                                : 'text-[var(--text-muted)] border-slate-600/40 bg-slate-900/20 hover:bg-slate-900/40'
+                            } disabled:opacity-40`}
+                          >
+                            {companionBusy ? '...' : companion.enabled ? 'ON' : 'OFF'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {companion?.warning && (
+                      <div className="mt-2 p-2 border border-violet-500/15 bg-black/20 text-[11px] font-mono text-violet-200/70 leading-relaxed">
+                        <span className="text-violet-400">REDUCED TRUST:</span>{' '}
+                        {companion.warning}
+                      </div>
+                    )}
+                    {companionLoadFailed && (
+                      <div className="mt-2 p-2 border border-amber-500/20 bg-amber-950/15 text-[11px] font-mono text-amber-300/90 leading-relaxed">
+                        Companion service unavailable. The native bridge did not respond. Try reopening Settings or restarting the app.
+                      </div>
+                    )}
+                    {companionError && (
+                      <div className="mt-2 p-2 border border-red-500/20 bg-red-950/15 text-[11px] font-mono text-red-300/90 leading-relaxed">
+                        {companionError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </div>
             )}
 
             {activeTab === 'api-keys' && (
               <>
                 {/* Info Banner */}
-                <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/10">
+                <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/10 space-y-2">
                   <div className="flex items-start gap-2">
                     <Shield size={12} className="text-cyan-500 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
@@ -1494,6 +2172,33 @@ const SettingsPanel = React.memo(function SettingsPanel({
                       functionality. Public APIs need no key.
                     </p>
                   </div>
+                  {envMeta && (
+                    <div className="pl-5 text-[12px] font-mono text-[var(--text-muted)] leading-relaxed space-y-0.5">
+                      <div>
+                        <span className="text-cyan-500/70">.env path:</span>{' '}
+                        <span className="text-cyan-300 break-all select-all">{envMeta.env_path}</span>{' '}
+                        {envMeta.env_path_exists ? (
+                          <span className="text-green-400/80">[exists]</span>
+                        ) : (
+                          <span className="text-amber-400/80">[will be created on first save]</span>
+                        )}
+                        {envMeta.env_path_exists && !envMeta.env_path_writable && (
+                          <span className="text-red-400/90"> [NOT WRITABLE — edit by hand]</span>
+                        )}
+                      </div>
+                      {envMeta.env_example_path_exists && (
+                        <div>
+                          <span className="text-cyan-500/70">template:</span>{' '}
+                          <span className="text-cyan-300/80 break-all select-all">
+                            {envMeta.env_example_path}
+                          </span>{' '}
+                          <span className="text-[var(--text-muted)]">
+                            (copy to .env and fill in your keys; comments above each entry list the registration URL)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* API List */}
@@ -1583,45 +2288,33 @@ const SettingsPanel = React.memo(function SettingsPanel({
                                     {api.description}
                                   </p>
                                   {api.has_key && (
-                                    <div className="mt-2">
-                                      {editingId === api.id ? (
-                                        <div className="flex gap-2">
-                                          <input
-                                            type="text"
-                                            value={editValue}
-                                            onChange={(e) => setEditValue(e.target.value)}
-                                            className="flex-1 bg-black/60 border border-cyan-900/50 px-2 py-1.5 text-[11px] font-mono text-cyan-300 outline-none focus:border-cyan-500/70 transition-colors"
-                                            placeholder="Enter API key..."
-                                            autoFocus
-                                          />
-                                          <button
-                                            onClick={() => saveKey(api)}
-                                            disabled={saving}
-                                            className="px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/30 transition-colors text-sm font-mono flex items-center gap-1"
-                                          >
-                                            <Save size={10} />
-                                            {saving ? '...' : 'SAVE'}
-                                          </button>
-                                          <button
-                                            onClick={() => setEditingId(null)}
-                                            className="px-2 py-1.5 border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors text-sm font-mono"
-                                          >
-                                            ESC
-                                          </button>
-                                        </div>
+                                    <div className="mt-2 flex items-center gap-2 text-[12px] font-mono">
+                                      {api.is_set ? (
+                                        <>
+                                          <span className="px-2 py-0.5 border border-green-500/40 bg-green-950/20 text-green-300 tracking-wider">
+                                            CONFIGURED
+                                          </span>
+                                          <span className="text-[var(--text-muted)]">
+                                            edit{' '}
+                                            <span className="text-cyan-300 select-all break-all">
+                                              {api.env_key}
+                                            </span>{' '}
+                                            in the .env file (path shown above) and restart the backend.
+                                          </span>
+                                        </>
                                       ) : (
-                                        <div className="flex items-center gap-1.5">
-                                          <div
-                                            className="flex-1 bg-[var(--bg-primary)]/40 border border-[var(--border-primary)] px-2.5 py-1.5 font-mono text-[11px] cursor-pointer hover:border-[var(--border-secondary)] transition-colors select-none"
-                                            onClick={() => startEditing(api)}
-                                          >
-                                            <span className="text-[var(--text-muted)] tracking-wider">
-                                              {api.is_set
-                                                ? api.value_obfuscated
-                                                : 'Click to set key...'}
-                                            </span>
-                                          </div>
-                                        </div>
+                                        <>
+                                          <span className="px-2 py-0.5 border border-amber-500/40 bg-amber-950/20 text-amber-300 tracking-wider">
+                                            NOT CONFIGURED
+                                          </span>
+                                          <span className="text-[var(--text-muted)]">
+                                            add{' '}
+                                            <span className="text-amber-200 select-all break-all">
+                                              {api.env_key}=YOUR_VALUE
+                                            </span>{' '}
+                                            to the .env file (path shown above) and restart the backend.
+                                          </span>
+                                        </>
                                       )}
                                     </div>
                                   )}
@@ -1765,6 +2458,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
 
             {/* ==================== SENTINEL HUB TAB ==================== */}
             {activeTab === 'sentinel' && <SentinelTab />}
+            {activeTab === 'sar' && <SarSettingsTab />}
           </motion.div>
         </>
       )}
@@ -2053,6 +2747,181 @@ function UsageMeter() {
           </div>
           <div className="text-[12px] font-mono text-[var(--text-muted)]">remaining</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SAR Ground-Change Settings Tab ───────────────────────────────────────────
+function SarSettingsTab() {
+  const [status, setStatus] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [disabling, setDisabling] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/sar/status`, { credentials: 'include' });
+      if (res.ok) {
+        const body = await res.json();
+        setStatus(body);
+      }
+    } catch { /* silent */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  const products = (status?.products ?? {}) as Record<string, unknown>;
+  const modeBEnabled = !!products.enabled;
+  const catalogEnabled = !!(status?.catalog as Record<string, unknown>)?.enabled;
+  const openclawEnabled = !!status?.openclaw_enabled;
+
+  const handleDisable = async () => {
+    setDisabling(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/sar/mode-b/disable`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`);
+      }
+      setActionMsg({ type: 'ok', text: 'Mode B disabled. Credentials wiped.' });
+      await fetchStatus();
+    } catch (e) {
+      setActionMsg({
+        type: 'err',
+        text: e instanceof Error ? e.message : 'Failed to disable Mode B',
+      });
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <span className="text-xs font-mono text-[var(--text-muted)] animate-pulse">
+          Loading SAR status...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-y-auto styled-scrollbar">
+      {/* Status Overview */}
+      <div className="mx-4 mt-4 p-3 border border-amber-900/30 bg-amber-950/10">
+        <div className="flex items-start gap-2">
+          <Radar size={12} className="text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed space-y-2">
+            <p className="text-amber-300 font-bold">SAR GROUND-CHANGE STATUS</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${catalogEnabled ? 'bg-green-400' : 'bg-red-400'}`} />
+                <span className="text-[11px]">
+                  <span className="text-amber-300 font-bold">Mode A</span> (Catalog):{' '}
+                  {catalogEnabled ? 'Active' : 'Disabled'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${modeBEnabled ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                <span className="text-[11px]">
+                  <span className="text-amber-300 font-bold">Mode B</span> (Anomalies):{' '}
+                  {modeBEnabled ? 'Active — credentials stored' : 'Not configured'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${openclawEnabled ? 'bg-green-400' : 'bg-gray-500'}`} />
+                <span className="text-[11px]">
+                  OpenClaw SAR integration:{' '}
+                  {openclawEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mode B Controls */}
+      {modeBEnabled && (
+        <div className="mx-4 mt-3 p-3 border border-amber-900/20 bg-amber-950/5 space-y-3">
+          <p className="text-[11px] font-mono text-amber-300 font-bold tracking-wide">
+            MODE B CREDENTIALS
+          </p>
+          <p className="text-[11px] font-mono text-[var(--text-muted)]">
+            Earthdata credentials are stored server-side in{' '}
+            <span className="text-amber-400/80">backend/data/sar_runtime.json</span>.
+            Disabling Mode B wipes them from disk.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleDisable}
+              disabled={disabling}
+              className="px-3 py-1.5 text-[10px] font-mono font-bold tracking-wide border border-red-500/40 text-red-400 hover:bg-red-500/10 transition disabled:opacity-50"
+            >
+              {disabling ? 'DISABLING...' : 'REVOKE & DISABLE MODE B'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Setup Guide (when Mode B not active) */}
+      {!modeBEnabled && (
+        <div className="mx-4 mt-3 p-3 border border-amber-900/20 bg-amber-950/5 space-y-3">
+          <p className="text-[11px] font-mono text-amber-300 font-bold tracking-wide">
+            ENABLE MODE B
+          </p>
+          <p className="text-[11px] font-mono text-[var(--text-muted)]">
+            Mode B requires a free NASA Earthdata account. To set up:
+          </p>
+          <ol className="list-decimal list-inside space-y-1 text-[11px] font-mono text-[var(--text-secondary)]">
+            <li>
+              Register at{' '}
+              <a
+                href="https://urs.earthdata.nasa.gov/users/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-400 underline hover:text-amber-300"
+              >
+                urs.earthdata.nasa.gov
+              </a>
+            </li>
+            <li>Generate a user token from your Earthdata profile page</li>
+            <li>
+              Toggle the <span className="text-white">SAR Ground-Change</span> layer ON
+              in the left panel — the first-run wizard will prompt for your token
+            </li>
+          </ol>
+        </div>
+      )}
+
+      {/* Action feedback */}
+      {actionMsg && (
+        <div
+          className={`mx-4 mt-3 p-2 text-[11px] font-mono border ${
+            actionMsg.type === 'ok'
+              ? 'text-green-400 border-green-500/30 bg-green-950/10'
+              : 'text-red-400 border-red-500/30 bg-red-950/10'
+          }`}
+        >
+          {actionMsg.text}
+        </div>
+      )}
+
+      {/* Info blurb */}
+      <div className="mx-4 mt-3 mb-4 p-3 border border-[var(--border-primary)]/30">
+        <p className="text-[11px] font-mono text-[var(--text-muted)] leading-relaxed">
+          SAR (Synthetic Aperture Radar) detects ground changes through cloud cover, at
+          night, anywhere on Earth. Mode A is a free Sentinel-1 scene catalog from
+          Alaska Satellite Facility. Mode B adds real-time anomaly detection via NASA
+          OPERA DISP, DSWx, DIST-ALERT, and Copernicus EGMS — all free with an
+          Earthdata account.
+        </p>
       </div>
     </div>
   );

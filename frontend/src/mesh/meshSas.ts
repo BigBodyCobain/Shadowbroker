@@ -93,14 +93,20 @@ function bytesToWords(bytes: Uint8Array, count: number): string[] {
   return out;
 }
 
-export async function deriveSasPhrase(peerId: string, peerDhPub: string, words: number = 8): Promise<string> {
+export async function deriveSasPhrase(
+  peerId: string,
+  peerDhPub: string,
+  words: number = 8,
+  peerRef?: string,
+): Promise<string> {
+  const resolvedPeerRef = String(peerRef || peerId || '').trim();
   if (await isWormholeReady()) {
-    const result = await deriveWormholeSasPhrase(peerId, peerDhPub, words).catch(() => null);
+    const result = await deriveWormholeSasPhrase(peerId, peerDhPub, words, resolvedPeerRef).catch(() => null);
     if (result?.ok && result.phrase) {
       return String(result.phrase || '');
     }
   }
-  const ctx = sasContext(peerId);
+  const ctx = sasContext(resolvedPeerRef);
   if (!ctx) return '';
   const secret = await deriveSharedSecret(peerDhPub);
   const digest = await hmacSha256(secret, `sb_sas|v1|${ctx}`);

@@ -199,11 +199,11 @@ const OnboardingModal = React.memo(function OnboardingModal({
                         </div>
                         <div>
                           <span className="text-yellow-300">PRIVATE / TRANSITIONAL</span> —
-                          Wormhole private lane is active, but strongest Reticulum posture is still warming.
+                          Wormhole lane is active. Gate chat runs on this lane, but metadata resistance is reduced until Reticulum is ready.
                         </div>
                         <div>
                           <span className="text-green-300">PRIVATE / STRONG</span> — Wormhole and
-                          Reticulum are both ready.
+                          Reticulum are both ready. Dead Drop / DM requires this tier for the strongest privacy posture.
                         </div>
                       </div>
                       <p className="mt-2 text-sm text-[var(--text-secondary)] font-mono leading-relaxed">

@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronUp,
-  ChevronDown,
+  Minus,
+  Plus,
   TrendingUp,
   Trophy,
   User,
@@ -154,7 +154,7 @@ function MarketCard({ market, onOpenModal }: { market: Market; onOpenModal: (m: 
       onClick={() => onOpenModal(market)}
     >
       <div className="p-2.5">
-        <div className="text-[10px] text-[var(--text-secondary)] font-mono leading-snug mb-1.5">
+        <div className="text-[13px] text-[var(--text-secondary)] font-mono leading-snug mb-1.5">
           {market.title}
         </div>
         {/* Probability — leader name for multi-choice, bar for binary */}
@@ -162,8 +162,8 @@ function MarketCard({ market, onOpenModal }: { market: Market; onOpenModal: (m: 
           const leader = [...market.outcomes].filter(o => o.pct > 0).sort((a, b) => b.pct - a.pct)[0];
           return leader ? (
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] font-mono text-emerald-400 truncate mr-2">{leader.name}</span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold flex-shrink-0">{leader.pct}%</span>
+              <span className="text-[12px] font-mono text-emerald-400 truncate mr-2">{leader.name}</span>
+              <span className="text-[13px] font-mono text-emerald-400 font-bold flex-shrink-0">{leader.pct}%</span>
             </div>
           ) : null;
         })() : (
@@ -172,7 +172,7 @@ function MarketCard({ market, onOpenModal }: { market: Market; onOpenModal: (m: 
               <div className="bg-emerald-500/50 transition-all" style={{ width: `${pct}%` }} />
               <div className="bg-red-500/30 flex-1" />
             </div>
-            <span className="text-[9px] font-mono text-emerald-400 w-10 text-right">{pct}%</span>
+            <span className="text-[12px] font-mono text-emerald-400 w-10 text-right">{pct}%</span>
           </div>
         )}
         {/* Bottom row: source badges + network activity + volume + end date */}
@@ -181,7 +181,7 @@ function MarketCard({ market, onOpenModal }: { market: Market; onOpenModal: (m: 
             {market.sources?.map((s, i) => (
               <span
                 key={i}
-                className={`text-[7px] font-mono px-1 py-0.5 border ${
+                className={`text-[10px] font-mono px-1 py-0.5 border ${
                   s.name === 'POLY'
                     ? 'bg-purple-500/15 text-purple-400 border-purple-500/20'
                     : 'bg-blue-500/15 text-blue-400 border-blue-500/20'
@@ -191,13 +191,13 @@ function MarketCard({ market, onOpenModal }: { market: Market; onOpenModal: (m: 
               </span>
             ))}
             {hasPicks && (
-              <span className="text-[7px] font-mono px-1 py-0.5 border bg-amber-500/10 text-amber-400 border-amber-500/20">
+              <span className="text-[10px] font-mono px-1 py-0.5 border bg-amber-500/10 text-amber-400 border-amber-500/20">
                 {c.total_picks} picks
                 {c.total_staked > 0 ? ` · ${c.total_staked.toFixed(1)} REP` : ''}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-[7px] font-mono text-[var(--text-muted)]">
+          <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--text-muted)]">
             {vol && <span>{vol}</span>}
             {endDate && <span>{endDate}</span>}
           </div>
@@ -572,7 +572,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
     setIsSearching(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/mesh/oracle/search?q=${encodeURIComponent(query)}&limit=20`,
+        `${API_BASE}/api/mesh/oracle/search?q=${encodeURIComponent(query)}&limit=50`,
       );
       if (res.ok) {
         const d = await res.json();
@@ -769,27 +769,29 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.8, delay: 0.2 }}
-        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono text-sm pointer-events-auto flex-shrink-0"
+        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
       >
         {/* Header */}
         <div
-          className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors border-b border-[var(--border-primary)]/50"
+          className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
           onClick={() => setIsMinimized(!isMinimized)}
         >
           <div className="flex items-center gap-2">
-            <Trophy size={12} className="text-[var(--text-muted)]" />
-            <span className="text-[12px] text-[var(--text-muted)] font-mono tracking-widest">
+            <Trophy size={16} className="text-emerald-400" />
+            <span className="text-[12px] text-emerald-400 font-mono tracking-widest font-bold">
               ORACLE PREDICTIONS
             </span>
             {headerCount > 0 && (
-              <span className="text-[8px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-sm font-mono">
+              <span className="text-[11px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 font-mono">
                 {headerCount}
               </span>
             )}
           </div>
-          <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-            {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          </button>
+          {isMinimized ? (
+            <Plus size={16} className="text-emerald-400" />
+          ) : (
+            <Minus size={16} className="text-emerald-400" />
+          )}
         </div>
 
         <AnimatePresence>
@@ -806,7 +808,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
-                    className={`flex-1 py-2 text-[10px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1 ${
+                    className={`flex-1 py-2 text-[12px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1 ${
                       activeTab === t.id
                         ? 'text-emerald-400 border-b border-emerald-400/60 bg-emerald-500/5'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -819,13 +821,13 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
 
               {/* Status bar */}
               {betStatus && (
-                <div className="px-3 py-1 text-[8px] font-mono text-center bg-emerald-500/10 text-emerald-400 border-b border-[var(--border-primary)]/30">
+                <div className="px-3 py-1 text-[11px] font-mono text-center bg-emerald-500/10 text-emerald-400 border-b border-[var(--border-primary)]/30">
                   {betStatus}
                 </div>
               )}
 
               {/* Content */}
-              <div className="overflow-y-auto styled-scrollbar max-h-[280px]">
+              <div className="overflow-y-auto styled-scrollbar max-h-[400px]">
                 {/* ─── MARKETS TAB ─── */}
                 {activeTab === 'markets' && (
                   <div className="flex flex-col">
@@ -840,8 +842,8 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                           type="text"
                           value={searchQuery}
                           onChange={(e) => handleSearchInput(e.target.value)}
-                          placeholder="SEARCH MARKETS..."
-                          className="w-full pl-6 pr-6 py-1.5 text-[9px] font-mono tracking-wider bg-[var(--bg-primary)]/60 border border-[var(--border-primary)]/50 text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500/50"
+                          placeholder="SEARCH ALL POLYMARKET + KALSHI MARKETS..."
+                          className="w-full pl-6 pr-6 py-1.5 text-[12px] font-mono tracking-wider bg-[var(--bg-primary)]/60 border border-[var(--border-primary)]/50 text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-emerald-500/50"
                         />
                         {searchQuery && (
                           <button
@@ -860,13 +862,13 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                     {/* Search results overlay */}
                     {searchQuery.length >= 2 && (
                       <div className="px-3 pb-2 flex flex-col gap-1">
-                        <div className="text-[7px] font-mono tracking-widest text-[var(--text-muted)] mb-1">
+                        <div className="text-[11px] font-mono tracking-widest text-[var(--text-muted)] mb-1">
                           {isSearching
                             ? 'SEARCHING ALL MARKETS...'
                             : `${searchResults.length} RESULTS FROM POLYMARKET + KALSHI`}
                         </div>
                         {!isSearching && searchResults.length === 0 && (
-                          <div className="text-[8px] text-[var(--text-muted)] font-mono text-center py-3">
+                          <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-3">
                             NO RESULTS FOR &quot;{searchQuery.toUpperCase()}&quot;
                           </div>
                         )}
@@ -890,19 +892,19 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                               {/* Category header */}
                               <button
                                 onClick={() => toggleCategory(cat.id)}
-                                className="w-full flex items-center justify-between px-3 py-2 text-[9px] font-mono tracking-widest hover:bg-[var(--bg-secondary)]/30 transition-colors"
+                                className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-mono tracking-widest hover:bg-[var(--bg-secondary)]/30 transition-colors"
                               >
                                 <div className="flex items-center gap-1.5">
-                                  <cat.icon size={10} className={cat.color} />
+                                  <cat.icon size={12} className={cat.color} />
                                   <span className={cat.color}>{cat.label}</span>
-                                  <span className="text-[7px] text-[var(--text-muted)]">
+                                  <span className="text-[10px] text-[var(--text-muted)]">
                                     ({catMarkets.length})
                                   </span>
                                 </div>
                                 {isExpanded ? (
-                                  <ChevronUp size={10} className="text-[var(--text-muted)]" />
+                                  <Minus size={10} className="text-[var(--text-muted)]" />
                                 ) : (
-                                  <ChevronDown size={10} className="text-[var(--text-muted)]" />
+                                  <Plus size={10} className="text-[var(--text-muted)]" />
                                 )}
                               </button>
                               {/* Category markets */}
@@ -916,7 +918,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                                   >
                                     <div className="flex flex-col gap-1 px-3 pb-2">
                                       {catMarkets.length === 0 && (
-                                        <div className="text-[8px] text-[var(--text-muted)] text-center py-2 font-mono">
+                                        <div className="text-[11px] text-[var(--text-muted)] text-center py-2 font-mono">
                                           NO MARKETS
                                         </div>
                                       )}
@@ -933,7 +935,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                                           <button
                                             onClick={() => loadMoreMarkets(cat.id)}
                                             disabled={loadingMore.has(cat.id)}
-                                            className="w-full py-1.5 text-[8px] font-mono tracking-widest text-[var(--text-muted)] hover:text-emerald-400 border border-[var(--border-primary)]/30 hover:border-emerald-500/30 transition-colors disabled:opacity-50"
+                                            className="w-full py-1.5 text-[11px] font-mono tracking-widest text-[var(--text-muted)] hover:text-emerald-400 border border-[var(--border-primary)]/30 hover:border-emerald-500/30 transition-colors disabled:opacity-50"
                                           >
                                             {loadingMore.has(cat.id)
                                               ? 'LOADING...'
@@ -965,12 +967,12 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                       if (newsLinked.length === 0) return null;
                       return (
                         <>
-                          <div className="text-[7px] font-mono tracking-widest text-amber-400 mb-1">
+                          <div className="text-[11px] font-mono tracking-widest text-amber-400 mb-1">
                             LINKED TO CURRENT HEADLINES
                           </div>
                           {newsLinked.map((m: any, i: number) => (
                             <div key={`nl-${i}`} className="border border-amber-500/30 bg-amber-950/20 p-2">
-                              <div className="text-[9px] text-[var(--text-secondary)] font-mono leading-snug mb-1">
+                              <div className="text-[12px] text-[var(--text-secondary)] font-mono leading-snug mb-1">
                                 {m.title}
                               </div>
                               <div className="flex items-center gap-2">
@@ -978,16 +980,16 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                                   <div className="bg-amber-500/50 transition-all" style={{ width: `${m.consensus_pct}%` }} />
                                   <div className="bg-red-500/20 flex-1" />
                                 </div>
-                                <span className="text-[8px] font-mono text-amber-400 font-bold">{m.consensus_pct}%</span>
+                                <span className="text-[11px] font-mono text-amber-400 font-bold">{m.consensus_pct}%</span>
                               </div>
                               <div className="flex gap-1 mt-1">
                                 {m.polymarket_pct != null && (
-                                  <span className="text-[7px] font-mono px-1 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/20">
+                                  <span className="text-[10px] font-mono px-1 py-0.5 bg-purple-500/15 text-purple-400 border border-purple-500/20">
                                     POLY {m.polymarket_pct}%
                                   </span>
                                 )}
                                 {m.kalshi_pct != null && (
-                                  <span className="text-[7px] font-mono px-1 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                                  <span className="text-[10px] font-mono px-1 py-0.5 bg-blue-500/15 text-blue-400 border border-blue-500/20">
                                     KALSHI {m.kalshi_pct}%
                                   </span>
                                 )}
@@ -1000,11 +1002,11 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                     })()}
 
                     {/* Trending by Delta */}
-                    <div className="text-[7px] font-mono tracking-widest text-[var(--text-muted)] mb-1">
+                    <div className="text-[11px] font-mono tracking-widest text-[var(--text-muted)] mb-1">
                       BIGGEST PROBABILITY SWINGS
                     </div>
                     {(!trending_markets || trending_markets.length === 0) ? (
-                      <div className="text-[8px] text-[var(--text-muted)] font-mono text-center py-4">
+                      <div className="text-[11px] text-[var(--text-muted)] font-mono text-center py-4">
                         NO SWINGS DETECTED YET — DELTAS APPEAR AFTER 2+ FETCH CYCLES
                       </div>
                     ) : (
@@ -1032,7 +1034,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                               setModalMarket(fakeMarket);
                             }}
                           >
-                            <div className="text-[9px] text-[var(--text-secondary)] font-mono leading-snug mb-1">
+                            <div className="text-[12px] text-[var(--text-secondary)] font-mono leading-snug mb-1">
                               {m.title}
                             </div>
                             <div className="flex items-center gap-2">
@@ -1040,8 +1042,8 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                                 <div className="bg-emerald-500/50 transition-all" style={{ width: `${m.consensus_pct ?? 50}%` }} />
                                 <div className="bg-red-500/30 flex-1" />
                               </div>
-                              <span className="text-[8px] font-mono text-emerald-400">{m.consensus_pct ?? '?'}%</span>
-                              <span className={`text-[8px] font-mono font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+                              <span className="text-[11px] font-mono text-emerald-400">{m.consensus_pct ?? '?'}%</span>
+                              <span className={`text-[11px] font-mono font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
                                 {isUp ? '\u25B2' : '\u25BC'}{Math.abs(delta).toFixed(1)}%
                               </span>
                             </div>
@@ -1056,12 +1058,12 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                 {activeTab === 'active' && (
                   <div className="flex flex-col gap-1 p-3">
                     {!nodeId && (
-                      <div className="text-[9px] text-[var(--text-muted)] font-mono text-center py-6">
+                      <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
                         CONNECT WORMHOLE OR GENERATE IDENTITY IN MESH CHAT FIRST
                       </div>
                     )}
                     {nodeId && predictions.length === 0 && (
-                      <div className="text-[9px] text-[var(--text-muted)] font-mono text-center py-6">
+                      <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
                         NO ACTIVE PREDICTIONS
                       </div>
                     )}
@@ -1070,10 +1072,10 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                         key={i}
                         className="p-2 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20"
                       >
-                        <div className="text-[9px] text-[var(--text-secondary)] font-mono leading-snug mb-1.5">
+                        <div className="text-[12px] text-[var(--text-secondary)] font-mono leading-snug mb-1.5">
                           {p.market_title}
                         </div>
-                        <div className="flex items-center gap-2 text-[8px] font-mono flex-wrap">
+                        <div className="flex items-center gap-2 text-[11px] font-mono flex-wrap">
                           <span
                             className={`px-1.5 py-0.5 rounded-sm border ${
                               p.side.toLowerCase() === 'no'
@@ -1106,63 +1108,63 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                 {activeTab === 'profile' && (
                   <div className="p-3">
                     {!nodeId && (
-                      <div className="text-[9px] text-[var(--text-muted)] font-mono text-center py-6">
+                      <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
                         CONNECT WORMHOLE OR GENERATE IDENTITY IN MESH CHAT FIRST
                       </div>
                     )}
                     {nodeId && !profile && (
-                      <div className="text-[9px] text-[var(--text-muted)] font-mono text-center py-6">
+                      <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
                         PLACE YOUR FIRST PREDICTION
                       </div>
                     )}
                     {profile && (
-                      <div className="flex flex-col gap-3">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="p-2 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
-                            <div className="text-[14px] font-bold text-emerald-400 font-mono">
+                      <div className="flex flex-col gap-1.5">
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <div className="p-1.5 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
+                            <div className="text-[14px] font-bold text-blue-400 font-mono">
                               {profile.oracle_rep.toFixed(1)}
                             </div>
-                            <div className="text-[7px] text-[var(--text-muted)] font-mono tracking-widest mt-0.5">
+                            <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">
                               ORACLE REP
                             </div>
                           </div>
-                          <div className="p-2 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
-                            <div className="text-[14px] font-bold text-cyan-400 font-mono">
+                          <div className="p-1.5 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
+                            <div className="text-[14px] font-bold text-blue-400 font-mono">
                               {profile.win_rate}%
                             </div>
-                            <div className="text-[7px] text-[var(--text-muted)] font-mono tracking-widest mt-0.5">
+                            <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">
                               WIN RATE
                             </div>
                           </div>
-                          <div className="p-2 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
-                            <div className="text-[14px] font-bold text-amber-400 font-mono">
+                          <div className="p-1.5 border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 text-center">
+                            <div className="text-[14px] font-bold text-blue-400 font-mono">
                               {profile.predictions_won + profile.predictions_lost}
                             </div>
-                            <div className="text-[7px] text-[var(--text-muted)] font-mono tracking-widest mt-0.5">
+                            <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">
                               TOTAL BETS
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-1 text-[9px] font-mono">
-                          <div className="flex justify-between px-1">
+                        <div className="flex flex-col text-[12px] font-mono">
+                          <div className="flex justify-between px-1 py-0.5">
                             <span className="text-[var(--text-muted)]">Available Rep</span>
-                            <span className="text-emerald-400">
+                            <span className="text-blue-400">
                               {profile.oracle_rep.toFixed(2)}
                             </span>
                           </div>
-                          <div className="flex justify-between px-1">
+                          <div className="flex justify-between px-1 py-0.5">
                             <span className="text-[var(--text-muted)]">Locked Rep</span>
-                            <span className="text-amber-400">
+                            <span className="text-blue-400">
                               {profile.oracle_rep_locked.toFixed(2)}
                             </span>
                           </div>
-                          <div className="flex justify-between px-1">
+                          <div className="flex justify-between px-1 py-0.5">
                             <span className="text-[var(--text-muted)]">W / L</span>
                             <span className="text-[var(--text-secondary)]">
                               {profile.predictions_won} / {profile.predictions_lost}
                             </span>
                           </div>
-                          <div className="flex justify-between px-1">
+                          <div className="flex justify-between px-1 py-0.5">
                             <span className="text-[var(--text-muted)]">Farming Score</span>
                             <span
                               className={
@@ -1175,7 +1177,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                             </span>
                           </div>
                         </div>
-                        <div className="text-[7px] text-[var(--text-muted)] font-mono text-center mt-1 opacity-60 truncate">
+                        <div className="text-[10px] text-[var(--text-muted)] font-mono text-center opacity-60 truncate">
                           {nodeId}
                         </div>
                       </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   describeNativeControlError,
+  extractNativeGateResyncTarget,
   extractGateTargetRef,
 } from '../../lib/desktopControlContract';
 
@@ -20,6 +21,12 @@ describe('extractGateTargetRef', () => {
 
   it('extracts gate_id from gate proof payload', () => {
     expect(extractGateTargetRef('wormhole.gate.proof', { gate_id: 'alpha' })).toBe('alpha');
+  });
+
+  it('extracts gate_id from gate state resync payload', () => {
+    expect(extractGateTargetRef('wormhole.gate.state.resync', { gate_id: 'alpha' })).toBe(
+      'alpha',
+    );
   });
 
   it('extracts gate_id from gate message post payload', () => {
@@ -86,9 +93,30 @@ describe('describeNativeControlError', () => {
     expect(describeNativeControlError(undefined)).toBeNull();
   });
 
+  it('describes native gate resync requirement errors', () => {
+    expect(
+      describeNativeControlError('native_gate_state_resync_required:ops'),
+    ).toContain('gate resync');
+  });
+
   it('handles plain string errors', () => {
     expect(
       describeNativeControlError('native_control_profile_mismatch:foo'),
     ).toContain('Denied');
+  });
+});
+
+describe('extractNativeGateResyncTarget', () => {
+  it('extracts the gate id from native resync-required errors', () => {
+    expect(extractNativeGateResyncTarget('native_gate_state_resync_required:ops')).toBe('ops');
+    expect(extractNativeGateResyncTarget(new Error('native_gate_state_resync_required:infonet'))).toBe(
+      'infonet',
+    );
+  });
+
+  it('returns null for unrelated errors', () => {
+    expect(extractNativeGateResyncTarget(new Error('network_error'))).toBeNull();
+    expect(extractNativeGateResyncTarget('native_control_profile_mismatch:foo')).toBeNull();
+    expect(extractNativeGateResyncTarget(null)).toBeNull();
   });
 });

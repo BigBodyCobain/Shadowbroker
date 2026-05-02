@@ -419,7 +419,7 @@ export default function RadioInterceptPanel({
                         <Activity size={10} />
                         {feed.listeners.toLocaleString()}
                       </span>
-                      <span className="text-[8px] text-[var(--text-muted)] font-mono mt-0.5">
+                      <span className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
                         LSTN
                       </span>
                     </div>
@@ -435,7 +435,7 @@ export default function RadioInterceptPanel({
                   <span className="text-[9px] font-mono tracking-widest text-emerald-400 font-bold">
                     SIGINT GRID
                   </span>
-                  <div className="flex items-center gap-2 text-[8px] font-mono">
+                  <div className="flex items-center gap-2 text-[11px] font-mono">
                     <span className="text-green-400">
                       APRS:{data.sigint.filter((s: SigintSignal) => s.source === 'aprs').length}
                     </span>
@@ -484,12 +484,12 @@ export default function RadioInterceptPanel({
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {sig.emergency && (
-                              <span className="text-[7px] font-mono text-red-400 bg-red-500/20 px-1 tracking-wider">
+                              <span className="text-[10px] font-mono text-red-400 bg-red-500/20 px-1 tracking-wider">
                                 SOS
                               </span>
                             )}
                             <span
-                              className="text-[7px] font-mono tracking-wider px-1"
+                              className="text-[10px] font-mono tracking-wider px-1"
                               style={{ color: srcColor, backgroundColor: `${srcColor}15` }}
                             >
                               {(sig.source || '').toUpperCase()}
@@ -499,17 +499,17 @@ export default function RadioInterceptPanel({
                         {(stationType || freq) && (
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {stationType && (
-                              <span className="text-[8px] text-cyan-500/70 font-mono truncate">
+                              <span className="text-[11px] text-cyan-500/70 font-mono truncate">
                                 {stationType}
                               </span>
                             )}
                             {freq && (
-                              <span className="text-[8px] text-amber-500/70 font-mono">{freq}</span>
+                              <span className="text-[11px] text-amber-500/70 font-mono">{freq}</span>
                             )}
                           </div>
                         )}
                         {context && (
-                          <p className="text-[8px] text-gray-400 font-mono truncate mt-0.5 leading-tight">
+                          <p className="text-[11px] text-gray-400 font-mono truncate mt-0.5 leading-tight">
                             {context.slice(0, 70)}
                           </p>
                         )}

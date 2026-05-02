@@ -18,7 +18,16 @@ type BuildRequest = {
   payload: DynamicMapLayersBuildPayload;
 };
 
-type WorkerRequest = SyncRequest | BuildRequest;
+type SyncAndBuildRequest = {
+  id: string;
+  action: 'sync_and_build_dynamic_layers';
+  payload: {
+    data: DynamicMapLayersDataPayload;
+    build: DynamicMapLayersBuildPayload;
+  };
+};
+
+type WorkerRequest = SyncRequest | BuildRequest | SyncAndBuildRequest;
 
 type WorkerResponse = {
   id: string;
@@ -87,16 +96,26 @@ export function useDynamicMapLayersWorker(
   const [syncVersion, setSyncVersion] = useState(0);
   const syncVersionRef = useRef(0);
   const requestVersionRef = useRef(0);
+  const hasSyncedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    const id = `mapw_sync_${Date.now()}_${reqCounter++}`;
+    const id = `mapw_sync_build_${Date.now()}_${reqCounter++}`;
     const currentSyncVersion = ++syncVersionRef.current;
+    const requestVersion = ++requestVersionRef.current;
 
-    callWorker({ id, action: 'sync_dynamic_layers', payload: dataPayload })
-      .then(() => {
+    callWorker({
+      id,
+      action: 'sync_and_build_dynamic_layers',
+      payload: { data: dataPayload, build: buildPayload },
+    })
+      .then((next) => {
         if (!cancelled) {
+          hasSyncedRef.current = true;
           setSyncVersion(currentSyncVersion);
+          if (requestVersion === requestVersionRef.current) {
+            setResult(next);
+          }
         }
       })
       .catch((error) => {
@@ -111,6 +130,7 @@ export function useDynamicMapLayersWorker(
   }, dataDeps);
 
   useEffect(() => {
+    if (!hasSyncedRef.current) return;
     let cancelled = false;
     const requestVersion = ++requestVersionRef.current;
     const id = `mapw_build_${Date.now()}_${reqCounter++}`;

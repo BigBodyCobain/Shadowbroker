@@ -1,6 +1,8 @@
 """News fetching, geocoding, clustering, and risk assessment."""
 import re
+import time
 import logging
+import calendar
 import concurrent.futures
 import requests
 import feedparser
@@ -10,6 +12,10 @@ from services.fetchers.retry import with_retry
 from services.oracle_service import enrich_news_items, compute_global_threat_level, detect_breaking_events
 
 logger = logging.getLogger("services.data_fetcher")
+
+# Maximum article age in seconds.  Anything older than this is dropped
+# during each fetch cycle so the threat feed stays current.
+_MAX_ARTICLE_AGE_SECS = 48 * 3600  # 48 hours
 
 
 # Keyword -> coordinate mapping for geocoding news articles
@@ -178,6 +184,17 @@ def fetch_news():
         if not feed:
             continue
         for entry in feed.entries[:5]:
+            # Drop articles older than the max-age threshold so the
+            # threat feed doesn't show stale stories across cycles.
+            pp = entry.get("published_parsed")
+            if pp:
+                try:
+                    entry_epoch = calendar.timegm(pp)
+                    if time.time() - entry_epoch > _MAX_ARTICLE_AGE_SECS:
+                        continue
+                except (TypeError, ValueError, OverflowError):
+                    pass  # unparseable date — keep the article
+
             title = entry.get('title', '')
             summary = entry.get('summary', '')
 

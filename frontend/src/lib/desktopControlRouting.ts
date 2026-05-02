@@ -1,5 +1,4 @@
 import type {
-  DesktopApiKeyPayload,
   DesktopControlCommand,
   DesktopGateComposePayload,
   DesktopGateDecryptBatchPayload,
@@ -20,7 +19,6 @@ export type DesktopControlHttpRequest = {
   payload?:
     | DesktopWormholeSettingsPayload
     | DesktopPrivacySettingsPayload
-    | DesktopApiKeyPayload
     | DesktopNewsFeedPayload[]
     | DesktopGateRequestPayload
     | DesktopGatePersonaCreatePayload
@@ -99,6 +97,12 @@ export function commandToHttpRequest(
         method: 'POST',
         payload: payload as DesktopGateRotatePayload,
       };
+    case 'wormhole.gate.state.resync':
+      return {
+        path: '/api/wormhole/gate/state/export',
+        method: 'POST',
+        payload: payload as DesktopGateRequestPayload,
+      };
     case 'wormhole.gate.proof':
       return {
         path: '/api/wormhole/gate/proof',
@@ -143,8 +147,6 @@ export function commandToHttpRequest(
       };
     case 'settings.api_keys.get':
       return { path: '/api/settings/api-keys', method: 'GET' };
-    case 'settings.api_keys.set':
-      return { path: '/api/settings/api-keys', method: 'PUT', payload: payload as DesktopApiKeyPayload };
     case 'settings.news.get':
       return { path: '/api/settings/news-feeds', method: 'GET' };
     case 'settings.news.set':
@@ -205,6 +207,9 @@ export function httpRequestToInvokeRequest(
   if (upperMethod === 'POST' && path === '/api/wormhole/gate/key/rotate') {
     return { command: 'wormhole.gate.key.rotate', payload: payload as DesktopGateRotatePayload };
   }
+  if (upperMethod === 'POST' && path === '/api/wormhole/gate/state/export') {
+    return { command: 'wormhole.gate.state.resync', payload: payload as DesktopGateRequestPayload };
+  }
   if (upperMethod === 'POST' && path === '/api/wormhole/gate/proof') {
     return { command: 'wormhole.gate.proof', payload: payload as DesktopGateRequestPayload };
   }
@@ -237,9 +242,6 @@ export function httpRequestToInvokeRequest(
   }
   if (upperMethod === 'GET' && path === '/api/settings/api-keys') {
     return { command: 'settings.api_keys.get', payload: undefined };
-  }
-  if (upperMethod === 'PUT' && path === '/api/settings/api-keys') {
-    return { command: 'settings.api_keys.set', payload: payload as DesktopApiKeyPayload };
   }
   if (upperMethod === 'GET' && path === '/api/settings/news-feeds') {
     return { command: 'settings.news.get', payload: undefined };

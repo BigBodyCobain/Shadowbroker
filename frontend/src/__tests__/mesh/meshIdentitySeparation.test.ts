@@ -80,10 +80,11 @@ describe('mesh identity storage separation', () => {
     expect(mod.getWormholeIdentityDescriptor()).toBeNull();
   });
 
-  it('migrates legacy browser and Wormhole node ids to the current format', async () => {
+  it('migrates stored browser and Wormhole node ids from 8-hex and 16-hex forms', async () => {
     const mod = await import('@/mesh/meshIdentity');
     const publicKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
     const currentNodeId = await mod.deriveNodeIdFromPublicKey(publicKey);
+    const compatNodeId = currentNodeId.slice(0, '!sb_'.length + 16);
 
     mod.cachePublicIdentity({
       nodeId: '!sb_deadbeef',
@@ -108,5 +109,42 @@ describe('mesh identity storage separation', () => {
       publicKey,
       publicKeyAlgo: 'Ed25519',
     });
+
+    mod.cachePublicIdentity({
+      nodeId: compatNodeId,
+      publicKey,
+      publicKeyAlgo: 'Ed25519',
+    });
+    mod.cacheWormholeIdentityDescriptor({
+      nodeId: compatNodeId,
+      publicKey,
+      publicKeyAlgo: 'Ed25519',
+    });
+
+    await mod.migrateLegacyNodeIds();
+
+    expect(mod.getStoredNodeDescriptor()).toEqual({
+      nodeId: currentNodeId,
+      publicKey,
+      publicKeyAlgo: 'Ed25519',
+    });
+    expect(mod.getWormholeIdentityDescriptor()).toEqual({
+      nodeId: currentNodeId,
+      publicKey,
+      publicKeyAlgo: 'Ed25519',
+    });
+  });
+
+  it('accepts 32-hex current node ids and 16-hex compatibility ids, but not 8-hex ids', async () => {
+    const mod = await import('@/mesh/meshIdentity');
+    const publicKey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    const currentNodeId = await mod.deriveNodeIdFromPublicKey(publicKey);
+    const compatNodeId = currentNodeId.slice(0, '!sb_'.length + 16);
+
+    await expect(mod.verifyNodeIdBindingFromPublicKey(publicKey, currentNodeId)).resolves.toBe(true);
+    await expect(mod.verifyNodeIdBindingFromPublicKey(publicKey, compatNodeId)).resolves.toBe(true);
+    await expect(mod.verifyNodeIdBindingFromPublicKey(publicKey, '!sb_deadbeef')).resolves.toBe(
+      false,
+    );
   });
 });

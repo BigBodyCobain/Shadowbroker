@@ -60,6 +60,10 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   if (joined === 'system/update') return true;
   if (pathSegments[0] === 'settings') return true;
   if (joined === 'mesh/infonet/ingest') return true;
+  // mesh/peers and all tools/* use require_local_operator on the backend and
+  // need X-Admin-Key injected on the server-side proxy leg.
+  if (pathSegments[0] === 'mesh' && pathSegments[1] === 'peers') return true;
+  if (pathSegments[0] === 'tools') return true;
   return false;
 }
 

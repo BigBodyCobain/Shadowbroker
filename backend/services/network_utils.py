@@ -54,7 +54,7 @@ class _DummyResponse:
             raise Exception(f"HTTP {self.status_code}: {self.text[:100]}")
 
 
-def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None):
+def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None, follow_redirects=False):
     """Wrapper to bypass aggressive local firewall that blocks Python but permits curl.
 
     Falls back to running curl through Git bash, which has the TLS features
@@ -62,7 +62,7 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None)
     both Python requests and the barebones Windows system curl.
     """
     default_headers = {
-        "User-Agent": "ShadowBroker-OSINT/1.0 (live-risk-dashboard)",
+        "User-Agent": "ShadowBroker-OSINT/0.9.7 (+https://github.com/BigBodyCobain/Shadowbroker; contact: bigbodycobain@gmail.com)",
     }
     if headers:
         default_headers.update(headers)
@@ -105,6 +105,8 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None)
     # Curl fallback — reached from both _skip_requests and requests-exception paths
     _CURL_PATH = shutil.which("curl") or "curl"
     cmd = [_CURL_PATH, "-s", "-w", "\n%{http_code}"]
+    if follow_redirects:
+        cmd.append("-L")
     for k, v in default_headers.items():
         cmd += ["-H", f"{k}: {v}"]
     if method == "POST" and json_data:

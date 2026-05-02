@@ -512,6 +512,83 @@ export const svgWeatherGeneric = weatherSvg(
   `<circle cx="16" cy="28" r="1.8" fill="#f59e0b"/>`,
 );
 
+// ─── CrowdThreat Icons ───────────────────────────────────────────────────────
+// Filled circle markers with inner symbol, matching CrowdThreat category colours.
+
+function ctSvg(fill: string, inner: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">` +
+    `<circle cx="12" cy="12" r="10" fill="${fill}" stroke="#0a0a0a" stroke-width="1.5"/>` +
+    `<circle cx="12" cy="12" r="10" fill="none" stroke="${fill}" stroke-width="0.5" stroke-opacity="0.4"/>` +
+    inner +
+    `</svg>`
+  )}`;
+}
+
+// Security & Conflict — red, crosshair
+export const svgCtSecurity = ctSvg('#ef4444',
+  `<circle cx="12" cy="12" r="3.5" fill="none" stroke="#fff" stroke-width="1.4"/>` +
+  `<line x1="12" y1="5" x2="12" y2="8" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>` +
+  `<line x1="12" y1="16" x2="12" y2="19" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>` +
+  `<line x1="5" y1="12" x2="8" y2="12" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>` +
+  `<line x1="16" y1="12" x2="19" y2="12" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>`
+);
+
+// Crime & Safety — blue, shield
+export const svgCtCrime = ctSvg('#3b82f6',
+  `<path d="M12 5.5L7.5 7.5V11.5C7.5 14.5 9.5 17 12 18C14.5 17 16.5 14.5 16.5 11.5V7.5L12 5.5Z" fill="none" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>`
+);
+
+// Aviation — green, plane
+export const svgCtAviation = ctSvg('#22c55e',
+  `<path d="M16.5 13v-1l-4-2.5V6.25c0-.42-.34-.75-.75-.75s-.75.34-.75.75V9.5L7 12v1l4.25-1.25V15L10 16v.75L11.75 16 13.5 16.75V16L12.25 15V11.75L16.5 13z" fill="#fff"/>`
+);
+
+// Maritime — teal, anchor
+export const svgCtMaritime = ctSvg('#14b8a6',
+  `<circle cx="12" cy="8" r="1.5" fill="none" stroke="#fff" stroke-width="1.2"/>` +
+  `<line x1="12" y1="9.5" x2="12" y2="17" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>` +
+  `<path d="M8 15C8 17.2 9.8 19 12 19C14.2 19 16 17.2 16 15" fill="none" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>` +
+  `<line x1="10" y1="12" x2="14" y2="12" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>`
+);
+
+// Industrial & Infrastructure — orange, bolt
+export const svgCtInfrastructure = ctSvg('#f97316',
+  `<path d="M13 5.5L8 13h4l-.5 5.5L17 11h-4l.5-5.5z" fill="#fff" stroke="none"/>`
+);
+
+// Special Threats — purple, warning triangle
+export const svgCtSpecial = ctSvg('#a855f7',
+  `<path d="M12 6L6.5 17h11L12 6z" fill="none" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>` +
+  `<line x1="12" y1="10" x2="12" y2="13.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>` +
+  `<circle cx="12" cy="15.5" r="0.8" fill="#fff"/>`
+);
+
+// Social & Political — pink, people
+export const svgCtSocial = ctSvg('#ec4899',
+  `<circle cx="10" cy="9" r="2" fill="#fff"/>` +
+  `<circle cx="14.5" cy="9" r="2" fill="#fff"/>` +
+  `<path d="M6 16.5C6 14 7.8 13 10 13C11 13 11.8 13.3 12.2 13.7" fill="none" stroke="#fff" stroke-width="1.2"/>` +
+  `<path d="M10.8 13.7C11.2 13.3 12 13 13 13C15.2 13 17 14 17 16.5" fill="none" stroke="#fff" stroke-width="1.2"/>`
+);
+
+// Other — gray, question mark
+export const svgCtOther = ctSvg('#6b7280',
+  `<text x="12" y="16" text-anchor="middle" fill="#fff" font-size="11" font-weight="bold" font-family="sans-serif">?</text>`
+);
+
+/** All CrowdThreat icon specs for preloading. */
+export const CT_ICON_SPECS: { id: string; svg: string }[] = [
+  { id: 'ct-security',       svg: svgCtSecurity },
+  { id: 'ct-crime',          svg: svgCtCrime },
+  { id: 'ct-aviation',       svg: svgCtAviation },
+  { id: 'ct-maritime',       svg: svgCtMaritime },
+  { id: 'ct-infrastructure', svg: svgCtInfrastructure },
+  { id: 'ct-special',        svg: svgCtSpecial },
+  { id: 'ct-social',         svg: svgCtSocial },
+  { id: 'ct-other',          svg: svgCtOther },
+];
+
 /** Map event name keywords → weather icon ID */
 export function weatherIconId(event: string): string {
   const e = event.toLowerCase();

@@ -15,6 +15,7 @@ export function createWormholeHandlers(): Pick<
   | 'wormhole.gate.persona.clear'
   | 'wormhole.gate.key.get'
   | 'wormhole.gate.key.rotate'
+  | 'wormhole.gate.state.resync'
   | 'wormhole.gate.message.compose'
   | 'wormhole.gate.message.decrypt'
   | 'wormhole.gate.message.post'
@@ -52,6 +53,12 @@ export function createWormholeHandlers(): Pick<
       exec(`/api/wormhole/gate/${encodeURIComponent(String(payload?.gate_id || ''))}/key`),
     'wormhole.gate.key.rotate': async (payload, _ctx, exec) =>
       exec('/api/wormhole/gate/key/rotate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    'wormhole.gate.state.resync': async (payload, _ctx, exec) =>
+      exec('/api/wormhole/gate/state/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

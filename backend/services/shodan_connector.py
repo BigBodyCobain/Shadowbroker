@@ -20,7 +20,7 @@ from cachetools import TTLCache
 logger = logging.getLogger(__name__)
 
 _SHODAN_BASE = "https://api.shodan.io"
-_USER_AGENT = "ShadowBroker/0.9.6 local Shodan connector"
+_USER_AGENT = "ShadowBroker/0.9.7 local Shodan connector"
 _REQUEST_TIMEOUT = 15
 _MIN_INTERVAL_SECONDS = 1.05  # Shodan docs say API plans are rate limited to ~1 req/sec.
 _DEFAULT_SEARCH_PAGES = 1

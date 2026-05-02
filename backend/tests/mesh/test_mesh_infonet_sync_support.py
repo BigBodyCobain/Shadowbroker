@@ -3,6 +3,7 @@ from services.mesh.mesh_infonet_sync_support import (
     begin_sync,
     eligible_sync_peers,
     finish_sync,
+    finish_solo_sync,
     should_run_sync,
 )
 from services.mesh.mesh_peer_store import make_bootstrap_peer_record, make_sync_peer_record
@@ -73,3 +74,22 @@ def test_finish_sync_failure_surfaces_fork_without_auto_merging():
     assert finished.next_sync_due_at == 165
     assert should_run_sync(finished, now=150) is False
     assert should_run_sync(finished, now=165) is True
+
+
+def test_finish_solo_sync_marks_first_node_ready_without_peer_failure():
+    state = SyncWorkerState(current_head="genesis")
+    finished = finish_solo_sync(
+        state,
+        current_head="abc123",
+        now=200,
+        interval_s=300,
+    )
+
+    assert finished.last_outcome == "solo"
+    assert finished.last_error == ""
+    assert finished.last_peer_url == ""
+    assert finished.current_head == "abc123"
+    assert finished.consecutive_failures == 0
+    assert finished.next_sync_due_at == 500
+    assert should_run_sync(finished, now=499) is False
+    assert should_run_sync(finished, now=500) is True

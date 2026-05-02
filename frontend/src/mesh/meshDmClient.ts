@@ -35,6 +35,7 @@ export type MailboxClaim = { type: 'self' | 'requests' | 'shared'; token?: strin
 export type DmPublicKeyBundle = {
   ok: boolean;
   agent_id: string;
+  lookup_mode?: string;
   dh_pub_key: string;
   dh_algo?: string;
   timestamp?: number;
@@ -44,6 +45,11 @@ export type DmPublicKeyBundle = {
   protocol_version?: string;
   sequence?: number;
   bundle_fingerprint?: string;
+  prekey_transparency_head?: string;
+  prekey_transparency_size?: number;
+  prekey_transparency_fingerprint?: string;
+  witness_count?: number;
+  witness_latest_at?: number;
 };
 
 export type DmMessageEnvelope = {
@@ -63,6 +69,7 @@ export type DmPollResponse = {
   ok: boolean;
   messages: DmMessageEnvelope[];
   count: number;
+  has_more?: boolean;
   detail?: string;
 };
 
@@ -77,6 +84,9 @@ export type DmSendResponse = {
   msg_id?: string;
   detail?: string;
   transport?: 'reticulum' | 'relay';
+  queued?: boolean;
+  outbox_id?: string;
+  private_transport_pending?: boolean;
 };
 
 export type DmSendRequest = {
@@ -106,6 +116,7 @@ const MAILBOX_SHARED_CLAIM_EXPERIMENT_ENABLED =
 export const MAILBOX_SHARED_CLAIM_SHAPE_VERSION = MAILBOX_SHARED_CLAIM_EXPERIMENT_ENABLED
   ? 'rfc2a-bucketed-v1'
   : 'legacy-floor-v1';
+const PRIVATE_DM_TRANSPORT_LOCK = 'private_strong';
 const senderTokenCache = new Map<string, Array<{ sender_token: string; expires_at: number }>>();
 let bundleFingerprintCache = '';
 
@@ -322,7 +333,12 @@ export async function ensureRegisteredDmKey(
   }
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const payload = { dh_pub_key: dhPubKey, dh_algo: dhAlgo, timestamp };
+  const payload = {
+    dh_pub_key: dhPubKey,
+    dh_algo: dhAlgo,
+    timestamp,
+    transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
+  };
   const valid = validateEventPayload('dm_key', payload as Record<string, JsonValue>);
   if (!valid.ok) return { ok: false, detail: valid.reason };
   const sequence = nextSequence();
@@ -335,6 +351,7 @@ export async function ensureRegisteredDmKey(
       dh_pub_key: dhPubKey,
       dh_algo: dhAlgo,
       timestamp,
+      transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
       public_key: signed.context.publicKey,
       public_key_algo: signed.context.publicKeyAlgo,
       signature: signed.signature,
@@ -359,8 +376,22 @@ export async function ensureRegisteredDmKey(
 export async function fetchDmPublicKey(
   apiBase: string,
   agentId: string,
+  lookupToken?: string,
+  options?: { allowLegacyAgentId?: boolean },
 ): Promise<DmPublicKeyBundle | null> {
-  const res = await fetch(`${apiBase}/api/mesh/dm/pubkey?agent_id=${encodeURIComponent(agentId)}`);
+  const normalizedLookupToken = String(lookupToken || '').trim();
+  const normalizedAgentId = String(agentId || '').trim();
+  if (!normalizedLookupToken && !options?.allowLegacyAgentId) {
+    return null;
+  }
+  const params = new URLSearchParams();
+  if (normalizedLookupToken) {
+    params.set('lookup_token', normalizedLookupToken);
+  }
+  if (normalizedAgentId && !normalizedLookupToken && options?.allowLegacyAgentId) {
+    params.set('agent_id', normalizedAgentId);
+  }
+  const res = await fetch(`${apiBase}/api/mesh/dm/pubkey?${params.toString()}`);
   const data = await res.json();
   return data.ok ? data : null;
 }
@@ -435,8 +466,11 @@ async function buildBucketedSharedMailboxClaims(sharedTokens: string[]): Promise
   return interleaveSharedClaims(sharedTokens, decoyTokens);
 }
 
-export async function buildMailboxClaims(contacts: Record<string, Contact>): Promise<MailboxClaim[]> {
-  const identity = getNodeIdentity();
+export async function buildMailboxClaims(
+  contacts: Record<string, Contact>,
+  identityOverride?: Pick<NodeIdentity, 'nodeId'> | null,
+): Promise<MailboxClaim[]> {
+  const identity = identityOverride?.nodeId ? identityOverride : getNodeIdentity();
   if (!identity?.nodeId) {
     throw new Error('No local identity available for mailbox claims');
   }
@@ -468,6 +502,7 @@ async function signedMailboxRequest(
     })),
     timestamp: Math.floor(Date.now() / 1000),
     nonce: randomHex(16),
+    transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
   };
   const valid = validateEventPayload(eventType, payload as Record<string, JsonValue>);
   if (!valid.ok) {
@@ -483,6 +518,7 @@ async function signedMailboxRequest(
       mailbox_claims: payload.mailbox_claims,
       timestamp: payload.timestamp,
       nonce: payload.nonce,
+      transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
       public_key: signed.context.publicKey,
       public_key_algo: signed.context.publicKeyAlgo,
       signature: signed.signature,
@@ -583,6 +619,7 @@ export async function sendDmMessage(request: DmSendRequest): Promise<DmSendRespo
     msg_id: request.msgId,
     timestamp: request.timestamp,
     format: payloadFormat,
+    transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
   };
   if (request.sessionWelcome) {
     dmPayload.session_welcome = request.sessionWelcome;
@@ -599,7 +636,7 @@ export async function sendDmMessage(request: DmSendRequest): Promise<DmSendRespo
   }
   const sequence = nextSequence();
   const signed = await signMeshEvent('dm_message', dmPayload, sequence);
-  if (senderSeal && signed.context.source === 'wormhole') {
+  if (request.deliveryClass === 'request' || request.deliveryClass === 'shared' || senderSeal) {
     try {
       senderToken = takeCachedSenderToken(
         request.recipientId,
@@ -636,6 +673,7 @@ export async function sendDmMessage(request: DmSendRequest): Promise<DmSendRespo
       recipient_token: request.recipientToken || '',
       ciphertext: request.ciphertext,
       format: payloadFormat,
+      transport_lock: PRIVATE_DM_TRANSPORT_LOCK,
       session_welcome: request.sessionWelcome || '',
       sender_seal: senderSeal,
       relay_salt: relaySalt,

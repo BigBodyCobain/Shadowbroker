@@ -91,6 +91,10 @@ function validateDmKey(payload: Record<string, JsonValue>): ValidationResult {
   if (!['X25519', 'ECDH', 'ECDH_P256'].includes(algo)) {
     return { ok: false, reason: 'Invalid dh_algo' };
   }
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock && transportLock !== 'private_strong') {
+    return { ok: false, reason: 'Invalid transport_lock' };
+  }
   return { ok: true };
 }
 
@@ -110,6 +114,10 @@ function validateDmMessage(payload: Record<string, JsonValue>): ValidationResult
   }
   if (deliveryClass === 'shared' && !String(payload.recipient_token ?? '').trim()) {
     return { ok: false, reason: 'recipient_token required for shared delivery' };
+  }
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock && transportLock !== 'private_strong') {
+    return { ok: false, reason: 'Invalid transport_lock' };
   }
   return { ok: true };
 }
@@ -139,6 +147,10 @@ function validateMailboxClaims(
 function validateDmPoll(payload: Record<string, JsonValue>): ValidationResult {
   const req = requireFields(payload, ['mailbox_claims', 'timestamp', 'nonce']);
   if (!req.ok) return req;
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock && transportLock !== 'private_strong') {
+    return { ok: false, reason: 'Invalid transport_lock' };
+  }
   return validateMailboxClaims(payload.mailbox_claims);
 }
 
@@ -152,6 +164,10 @@ function validateDmBlock(payload: Record<string, JsonValue>): ValidationResult {
   const action = String(payload.action ?? '');
   if (!['block', 'unblock'].includes(action)) {
     return { ok: false, reason: 'Invalid action' };
+  }
+  const transportLock = String(payload.transport_lock ?? '').trim().toLowerCase();
+  if (transportLock && transportLock !== 'private_strong') {
+    return { ok: false, reason: 'Invalid transport_lock' };
   }
   return { ok: true };
 }

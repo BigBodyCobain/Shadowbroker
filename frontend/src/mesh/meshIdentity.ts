@@ -9,6 +9,7 @@
  */
 
 import { buildSignaturePayload, PROTOCOL_VERSION, type JsonValue } from '@/mesh/meshProtocol';
+import type { ContactTrustSummary } from '@/mesh/contactTrustTypes';
 import { deleteKey, getKey, setKey } from '@/mesh/meshKeyStore';
 import { purgeMailboxClaimKey } from '@/mesh/meshMailbox';
 import { controlPlaneJson } from '@/lib/controlPlane';
@@ -155,7 +156,7 @@ async function deleteDatabaseIfPresent(name: string): Promise<void> {
 export interface NodeIdentity {
   publicKey: string; // Base64-encoded public key
   privateKey: string; // Base64-encoded private key (never sent to server)
-  nodeId: string; // !sb_ + first 16 hex chars of public key hash
+  nodeId: string; // !sb_ + first 32 hex chars of public key hash
 }
 
 export interface NodeDescriptor {
@@ -164,18 +165,34 @@ export interface NodeDescriptor {
   publicKeyAlgo: string;
 }
 
-function isLegacyNodeId(nodeId: string): boolean {
+function isNodeIdWithLength(nodeId: string, length: number): boolean {
   const value = String(nodeId || '').trim();
-  return /^!sb_[0-9a-f]{8}$/i.test(value);
+  return new RegExp(`^${NODE_ID_PREFIX}[0-9a-f]{${length}}$`, 'i').test(value);
 }
 
-async function migrateStoredNodeIdIfLegacy(
+function isLegacyNodeId(nodeId: string): boolean {
+  return isNodeIdWithLength(nodeId, NODE_ID_LEGACY_HEX_LEN);
+}
+
+function isCompatNodeId(nodeId: string): boolean {
+  return isNodeIdWithLength(nodeId, NODE_ID_COMPAT_HEX_LEN);
+}
+
+function isCurrentNodeId(nodeId: string): boolean {
+  return isNodeIdWithLength(nodeId, NODE_ID_HEX_LEN);
+}
+
+function isMigratableStoredNodeId(nodeId: string): boolean {
+  return isLegacyNodeId(nodeId) || isCompatNodeId(nodeId);
+}
+
+async function migrateStoredNodeIdIfNeeded(
   publicKeyBase64: string,
   nodeId: string,
   persist: (nextNodeId: string) => void,
 ): Promise<string> {
   const current = await deriveNodeIdFromPublicKey(publicKeyBase64);
-  if (!isLegacyNodeId(nodeId) || nodeId === current) return current;
+  if (!isMigratableStoredNodeId(nodeId) || nodeId === current) return current;
   persist(current);
   return current;
 }
@@ -397,10 +414,25 @@ function utf8ToBuf(value: string): Uint8Array<ArrayBuffer> {
   return new TextEncoder().encode(value);
 }
 
-/** Generate a Node ID from the public key: !sb_ + first 16 hex chars of SHA-256. */
-async function deriveNodeId(publicKeyRaw: ArrayBuffer): Promise<string> {
+async function deriveNodeIdForLength(publicKeyRaw: ArrayBuffer, length: number): Promise<string> {
   const hash = await crypto.subtle.digest('SHA-256', publicKeyRaw);
-  return NODE_ID_PREFIX + bufToHex(hash).slice(0, NODE_ID_HEX_LEN);
+  return NODE_ID_PREFIX + bufToHex(hash).slice(0, length);
+}
+
+/** Generate a Node ID from the public key: !sb_ + first 32 hex chars of SHA-256. */
+async function deriveNodeId(publicKeyRaw: ArrayBuffer): Promise<string> {
+  return deriveNodeIdForLength(publicKeyRaw, NODE_ID_HEX_LEN);
+}
+
+async function deriveNodeIdCandidates(publicKeyRaw: ArrayBuffer): Promise<string[]> {
+  const candidates: string[] = [];
+  for (const length of [NODE_ID_HEX_LEN, NODE_ID_COMPAT_HEX_LEN]) {
+    const candidate = await deriveNodeIdForLength(publicKeyRaw, length);
+    if (!candidates.includes(candidate)) {
+      candidates.push(candidate);
+    }
+  }
+  return candidates;
 }
 
 export async function deriveNodeIdFromPublicKey(publicKeyBase64: string): Promise<string> {
@@ -414,8 +446,8 @@ export async function verifyNodeIdBindingFromPublicKey(
 ): Promise<boolean> {
   try {
     const raw = base64ToBuf(publicKeyBase64);
-    const current = await deriveNodeId(raw);
-    return current === String(nodeId || '');
+    const candidates = await deriveNodeIdCandidates(raw);
+    return candidates.includes(String(nodeId || '').trim());
   } catch {
     return false;
   }
@@ -426,9 +458,9 @@ export async function migrateLegacyNodeIds(): Promise<void> {
 
   const publicKey = storageGet(KEY_PUBKEY);
   const nodeId = storageGet(KEY_NODE_ID);
-  if (publicKey && nodeId && isLegacyNodeId(nodeId)) {
+  if (publicKey && nodeId && isMigratableStoredNodeId(nodeId) && !isCurrentNodeId(nodeId)) {
     try {
-      const current = await migrateStoredNodeIdIfLegacy(publicKey, nodeId, (nextNodeId) => {
+      const current = await migrateStoredNodeIdIfNeeded(publicKey, nodeId, (nextNodeId) => {
         storageSet(KEY_NODE_ID, nextNodeId);
       });
       if (current !== nodeId) {
@@ -442,11 +474,20 @@ export async function migrateLegacyNodeIds(): Promise<void> {
   try {
     const wormholePub = sessionStorage.getItem(KEY_WORMHOLE_PUBKEY);
     const wormholeNode = sessionStorage.getItem(KEY_WORMHOLE_NODE_ID);
-    if (wormholePub && wormholeNode && isLegacyNodeId(wormholeNode)) {
+    if (
+      wormholePub &&
+      wormholeNode &&
+      isMigratableStoredNodeId(wormholeNode) &&
+      !isCurrentNodeId(wormholeNode)
+    ) {
       try {
-        const current = await migrateStoredNodeIdIfLegacy(wormholePub, wormholeNode, (nextNodeId) => {
-          sessionStorage.setItem(KEY_WORMHOLE_NODE_ID, nextNodeId);
-        });
+        const current = await migrateStoredNodeIdIfNeeded(
+          wormholePub,
+          wormholeNode,
+          (nextNodeId) => {
+            sessionStorage.setItem(KEY_WORMHOLE_NODE_ID, nextNodeId);
+          },
+        );
         if (current !== wormholeNode) {
           console.warn(`[mesh] migrated legacy Wormhole descriptor ${wormholeNode} -> ${current}`);
         }
@@ -1284,27 +1325,80 @@ export interface Contact {
   verified?: boolean;
   verify_mismatch?: boolean;
   verified_at?: number;
+  trust_level?: string;
+  invitePinnedTrustFingerprint?: string;
+  invitePinnedNodeId?: string;
+  invitePinnedPublicKey?: string;
+  invitePinnedPublicKeyAlgo?: string;
+  invitePinnedDhPubKey?: string;
+  invitePinnedDhAlgo?: string;
+  invitePinnedPrekeyLookupHandle?: string;
+  invitePinnedRootFingerprint?: string;
+  invitePinnedRootManifestFingerprint?: string;
+  invitePinnedRootWitnessPolicyFingerprint?: string;
+  invitePinnedRootWitnessThreshold?: number;
+  invitePinnedRootWitnessCount?: number;
+  invitePinnedRootWitnessDomainCount?: number;
+  invitePinnedRootManifestGeneration?: number;
+  invitePinnedRootRotationProven?: boolean;
+  invitePinnedRootNodeId?: string;
+  invitePinnedRootPublicKey?: string;
+  invitePinnedRootPublicKeyAlgo?: string;
+  invitePinnedIssuedAt?: number;
+  invitePinnedExpiresAt?: number;
+  invitePinnedAt?: number;
   remotePrekeyFingerprint?: string;
   remotePrekeyObservedFingerprint?: string;
+  remotePrekeyRootFingerprint?: string;
+  remotePrekeyRootManifestFingerprint?: string;
+  remotePrekeyRootWitnessPolicyFingerprint?: string;
+  remotePrekeyRootWitnessThreshold?: number;
+  remotePrekeyRootWitnessCount?: number;
+  remotePrekeyRootWitnessDomainCount?: number;
+  remotePrekeyRootManifestGeneration?: number;
+  remotePrekeyRootRotationProven?: boolean;
+  remotePrekeyObservedRootFingerprint?: string;
+  remotePrekeyObservedRootManifestFingerprint?: string;
+  remotePrekeyObservedRootWitnessPolicyFingerprint?: string;
+  remotePrekeyObservedRootWitnessThreshold?: number;
+  remotePrekeyObservedRootWitnessCount?: number;
+  remotePrekeyObservedRootWitnessDomainCount?: number;
+  remotePrekeyObservedRootManifestGeneration?: number;
+  remotePrekeyObservedRootRotationProven?: boolean;
+  remotePrekeyRootNodeId?: string;
+  remotePrekeyRootPublicKey?: string;
+  remotePrekeyRootPublicKeyAlgo?: string;
+  remotePrekeyRootPinnedAt?: number;
+  remotePrekeyRootLastSeenAt?: number;
+  remotePrekeyRootMismatch?: boolean;
   remotePrekeyPinnedAt?: number;
   remotePrekeyLastSeenAt?: number;
   remotePrekeySequence?: number;
   remotePrekeySignedAt?: number;
   remotePrekeyMismatch?: boolean;
+  remotePrekeyTransparencyHead?: string;
+  remotePrekeyTransparencySize?: number;
+  remotePrekeyTransparencySeenAt?: number;
+  remotePrekeyTransparencyConflict?: boolean;
+  remotePrekeyLookupMode?: string;
   witness_count?: number;
   witness_checked_at?: number;
   vouch_count?: number;
   vouch_checked_at?: number;
+  trustSummary?: ContactTrustSummary;
 }
 
 let contactCache: Record<string, Contact> = {};
 let contactsHydration: Promise<Record<string, Contact>> | null = null;
+let contactsPersistGeneration = 0;
+let contactsPersistQueue: Promise<void> = Promise.resolve();
 
 function shouldUseWormholeContacts(): boolean {
   return isSecureModeCached();
 }
 
 function sanitizeContact(contact: Partial<Contact> | undefined): Contact {
+  const trustSummary = contact?.trustSummary;
   return {
     alias: String(contact?.alias || ''),
     blocked: Boolean(contact?.blocked),
@@ -1312,7 +1406,7 @@ function sanitizeContact(contact: Partial<Contact> | undefined): Contact {
     dhAlgo: String(contact?.dhAlgo || ''),
     sharedAlias: String(contact?.sharedAlias || ''),
     previousSharedAliases: Array.isArray(contact?.previousSharedAliases)
-      ? contact?.previousSharedAliases.filter(Boolean).map(String).slice(-8)
+      ? contact?.previousSharedAliases.filter(Boolean).map(String).slice(-2)
       : [],
     pendingSharedAlias: String(contact?.pendingSharedAlias || ''),
     sharedAliasGraceUntil: Number(contact?.sharedAliasGraceUntil || 0),
@@ -1322,17 +1416,115 @@ function sanitizeContact(contact: Partial<Contact> | undefined): Contact {
     verified: Boolean(contact?.verified),
     verify_mismatch: Boolean(contact?.verify_mismatch),
     verified_at: Number(contact?.verified_at || 0),
+    trust_level: String(contact?.trust_level || ''),
+    invitePinnedTrustFingerprint: String(contact?.invitePinnedTrustFingerprint || ''),
+    invitePinnedNodeId: String(contact?.invitePinnedNodeId || ''),
+    invitePinnedPublicKey: String(contact?.invitePinnedPublicKey || ''),
+    invitePinnedPublicKeyAlgo: String(contact?.invitePinnedPublicKeyAlgo || ''),
+    invitePinnedDhPubKey: String(contact?.invitePinnedDhPubKey || ''),
+    invitePinnedDhAlgo: String(contact?.invitePinnedDhAlgo || ''),
+    invitePinnedPrekeyLookupHandle: String(contact?.invitePinnedPrekeyLookupHandle || ''),
+    invitePinnedRootFingerprint: String(contact?.invitePinnedRootFingerprint || ''),
+    invitePinnedRootManifestFingerprint: String(contact?.invitePinnedRootManifestFingerprint || ''),
+    invitePinnedRootWitnessPolicyFingerprint: String(
+      contact?.invitePinnedRootWitnessPolicyFingerprint || '',
+    ),
+    invitePinnedRootWitnessThreshold: Number(contact?.invitePinnedRootWitnessThreshold || 0),
+    invitePinnedRootWitnessCount: Number(contact?.invitePinnedRootWitnessCount || 0),
+    invitePinnedRootWitnessDomainCount: Number(contact?.invitePinnedRootWitnessDomainCount || 0),
+    invitePinnedRootManifestGeneration: Number(contact?.invitePinnedRootManifestGeneration || 0),
+    invitePinnedRootRotationProven: Boolean(contact?.invitePinnedRootRotationProven),
+    invitePinnedRootNodeId: String(contact?.invitePinnedRootNodeId || ''),
+    invitePinnedRootPublicKey: String(contact?.invitePinnedRootPublicKey || ''),
+    invitePinnedRootPublicKeyAlgo: String(contact?.invitePinnedRootPublicKeyAlgo || ''),
+    invitePinnedIssuedAt: Number(contact?.invitePinnedIssuedAt || 0),
+    invitePinnedExpiresAt: Number(contact?.invitePinnedExpiresAt || 0),
+    invitePinnedAt: Number(contact?.invitePinnedAt || 0),
     remotePrekeyFingerprint: String(contact?.remotePrekeyFingerprint || ''),
     remotePrekeyObservedFingerprint: String(contact?.remotePrekeyObservedFingerprint || ''),
+    remotePrekeyRootFingerprint: String(contact?.remotePrekeyRootFingerprint || ''),
+    remotePrekeyRootManifestFingerprint: String(contact?.remotePrekeyRootManifestFingerprint || ''),
+    remotePrekeyRootWitnessPolicyFingerprint: String(
+      contact?.remotePrekeyRootWitnessPolicyFingerprint || '',
+    ),
+    remotePrekeyRootWitnessThreshold: Number(contact?.remotePrekeyRootWitnessThreshold || 0),
+    remotePrekeyRootWitnessCount: Number(contact?.remotePrekeyRootWitnessCount || 0),
+    remotePrekeyRootWitnessDomainCount: Number(contact?.remotePrekeyRootWitnessDomainCount || 0),
+    remotePrekeyRootManifestGeneration: Number(contact?.remotePrekeyRootManifestGeneration || 0),
+    remotePrekeyRootRotationProven: Boolean(contact?.remotePrekeyRootRotationProven),
+    remotePrekeyObservedRootFingerprint: String(contact?.remotePrekeyObservedRootFingerprint || ''),
+    remotePrekeyObservedRootManifestFingerprint: String(
+      contact?.remotePrekeyObservedRootManifestFingerprint || '',
+    ),
+    remotePrekeyObservedRootWitnessPolicyFingerprint: String(
+      contact?.remotePrekeyObservedRootWitnessPolicyFingerprint || '',
+    ),
+    remotePrekeyObservedRootWitnessThreshold: Number(
+      contact?.remotePrekeyObservedRootWitnessThreshold || 0,
+    ),
+    remotePrekeyObservedRootWitnessCount: Number(contact?.remotePrekeyObservedRootWitnessCount || 0),
+    remotePrekeyObservedRootWitnessDomainCount: Number(
+      contact?.remotePrekeyObservedRootWitnessDomainCount || 0,
+    ),
+    remotePrekeyObservedRootManifestGeneration: Number(
+      contact?.remotePrekeyObservedRootManifestGeneration || 0,
+    ),
+    remotePrekeyObservedRootRotationProven: Boolean(contact?.remotePrekeyObservedRootRotationProven),
+    remotePrekeyRootNodeId: String(contact?.remotePrekeyRootNodeId || ''),
+    remotePrekeyRootPublicKey: String(contact?.remotePrekeyRootPublicKey || ''),
+    remotePrekeyRootPublicKeyAlgo: String(contact?.remotePrekeyRootPublicKeyAlgo || ''),
+    remotePrekeyRootPinnedAt: Number(contact?.remotePrekeyRootPinnedAt || 0),
+    remotePrekeyRootLastSeenAt: Number(contact?.remotePrekeyRootLastSeenAt || 0),
+    remotePrekeyRootMismatch: Boolean(contact?.remotePrekeyRootMismatch),
     remotePrekeyPinnedAt: Number(contact?.remotePrekeyPinnedAt || 0),
     remotePrekeyLastSeenAt: Number(contact?.remotePrekeyLastSeenAt || 0),
     remotePrekeySequence: Number(contact?.remotePrekeySequence || 0),
     remotePrekeySignedAt: Number(contact?.remotePrekeySignedAt || 0),
     remotePrekeyMismatch: Boolean(contact?.remotePrekeyMismatch),
+    remotePrekeyTransparencyHead: String(contact?.remotePrekeyTransparencyHead || ''),
+    remotePrekeyTransparencySize: Number(contact?.remotePrekeyTransparencySize || 0),
+    remotePrekeyTransparencySeenAt: Number(contact?.remotePrekeyTransparencySeenAt || 0),
+    remotePrekeyTransparencyConflict: Boolean(contact?.remotePrekeyTransparencyConflict),
+    remotePrekeyLookupMode: String(contact?.remotePrekeyLookupMode || '').trim().toLowerCase(),
     witness_count: Number(contact?.witness_count || 0),
     witness_checked_at: Number(contact?.witness_checked_at || 0),
     vouch_count: Number(contact?.vouch_count || 0),
     vouch_checked_at: Number(contact?.vouch_checked_at || 0),
+    trustSummary: trustSummary
+      ? {
+          state: String(trustSummary.state || '').trim(),
+          label: String(trustSummary.label || '').trim(),
+          severity: String(trustSummary.severity || 'warn').trim() as ContactTrustSummary['severity'],
+          detail: String(trustSummary.detail || '').trim(),
+          verifiedFirstContact: Boolean(trustSummary.verifiedFirstContact),
+          recommendedAction: String(
+            trustSummary.recommendedAction || 'show_sas',
+          ).trim() as ContactTrustSummary['recommendedAction'],
+          legacyLookup: Boolean(trustSummary.legacyLookup),
+          inviteAttested: Boolean(trustSummary.inviteAttested),
+          rootAttested: Boolean(trustSummary.rootAttested),
+          rootWitnessed: Boolean(trustSummary.rootWitnessed),
+          rootDistributionState: String(
+            trustSummary.rootDistributionState || 'none',
+          ).trim() as ContactTrustSummary['rootDistributionState'],
+          rootWitnessPolicyFingerprint: String(trustSummary.rootWitnessPolicyFingerprint || ''),
+          rootWitnessCount: Number(trustSummary.rootWitnessCount || 0),
+          rootWitnessThreshold: Number(trustSummary.rootWitnessThreshold || 0),
+          rootWitnessQuorumMet: Boolean(trustSummary.rootWitnessQuorumMet),
+          rootWitnessProvenanceState: String(
+            trustSummary.rootWitnessProvenanceState || 'none',
+          ).trim() as ContactTrustSummary['rootWitnessProvenanceState'],
+          rootWitnessDomainCount: Number(trustSummary.rootWitnessDomainCount || 0),
+          rootWitnessIndependentQuorumMet: Boolean(
+            trustSummary.rootWitnessIndependentQuorumMet,
+          ),
+          rootManifestGeneration: Number(trustSummary.rootManifestGeneration || 0),
+          rootRotationProven: Boolean(trustSummary.rootRotationProven),
+          rootMismatch: Boolean(trustSummary.rootMismatch),
+          registryMismatch: Boolean(trustSummary.registryMismatch),
+          transparencyConflict: Boolean(trustSummary.transparencyConflict),
+        }
+      : undefined,
   };
 }
 
@@ -1429,13 +1621,28 @@ async function persistStoredContacts(contacts: Record<string, Contact>): Promise
   }
 }
 
+function schedulePersistStoredContacts(contacts: Record<string, Contact>): void {
+  const generation = ++contactsPersistGeneration;
+  const snapshot = normalizeContactMap(contacts);
+  contactsPersistQueue = contactsPersistQueue
+    .catch(() => {
+      /* preserve queue progression after prior persist errors */
+    })
+    .then(async () => {
+      if (generation !== contactsPersistGeneration) {
+        return;
+      }
+      await persistStoredContacts(snapshot);
+    });
+}
+
 function saveContacts(contacts: Record<string, Contact>): void {
   const normalized = normalizeContactMap(contacts);
   contactCache = normalized;
   if (shouldUseWormholeContacts()) {
     return;
   }
-  void persistStoredContacts(normalized);
+  schedulePersistStoredContacts(normalized);
 }
 
 export function addContact(agentId: string, dhPubKey: string, alias?: string, dhAlgo?: string): void {
@@ -1455,13 +1662,45 @@ export function addContact(agentId: string, dhPubKey: string, alias?: string, dh
     verified: contacts[agentId]?.verified,
     verify_mismatch: contacts[agentId]?.verify_mismatch,
     verified_at: contacts[agentId]?.verified_at,
+    trust_level: contacts[agentId]?.trust_level,
+    invitePinnedTrustFingerprint: contacts[agentId]?.invitePinnedTrustFingerprint,
+    invitePinnedNodeId: contacts[agentId]?.invitePinnedNodeId,
+    invitePinnedPublicKey: contacts[agentId]?.invitePinnedPublicKey,
+    invitePinnedPublicKeyAlgo: contacts[agentId]?.invitePinnedPublicKeyAlgo,
+    invitePinnedDhPubKey: contacts[agentId]?.invitePinnedDhPubKey,
+    invitePinnedDhAlgo: contacts[agentId]?.invitePinnedDhAlgo,
+    invitePinnedPrekeyLookupHandle: contacts[agentId]?.invitePinnedPrekeyLookupHandle,
+    invitePinnedRootFingerprint: contacts[agentId]?.invitePinnedRootFingerprint,
+    invitePinnedRootNodeId: contacts[agentId]?.invitePinnedRootNodeId,
+    invitePinnedRootPublicKey: contacts[agentId]?.invitePinnedRootPublicKey,
+    invitePinnedRootPublicKeyAlgo: contacts[agentId]?.invitePinnedRootPublicKeyAlgo,
+    invitePinnedIssuedAt: contacts[agentId]?.invitePinnedIssuedAt,
+    invitePinnedExpiresAt: contacts[agentId]?.invitePinnedExpiresAt,
+    invitePinnedAt: contacts[agentId]?.invitePinnedAt,
     remotePrekeyFingerprint: contacts[agentId]?.remotePrekeyFingerprint,
     remotePrekeyObservedFingerprint: contacts[agentId]?.remotePrekeyObservedFingerprint,
+    remotePrekeyRootFingerprint: contacts[agentId]?.remotePrekeyRootFingerprint,
+    remotePrekeyObservedRootFingerprint: contacts[agentId]?.remotePrekeyObservedRootFingerprint,
+    remotePrekeyRootNodeId: contacts[agentId]?.remotePrekeyRootNodeId,
+    remotePrekeyRootPublicKey: contacts[agentId]?.remotePrekeyRootPublicKey,
+    remotePrekeyRootPublicKeyAlgo: contacts[agentId]?.remotePrekeyRootPublicKeyAlgo,
+    remotePrekeyRootPinnedAt: contacts[agentId]?.remotePrekeyRootPinnedAt,
+    remotePrekeyRootLastSeenAt: contacts[agentId]?.remotePrekeyRootLastSeenAt,
+    remotePrekeyRootMismatch: contacts[agentId]?.remotePrekeyRootMismatch,
     remotePrekeyPinnedAt: contacts[agentId]?.remotePrekeyPinnedAt,
     remotePrekeyLastSeenAt: contacts[agentId]?.remotePrekeyLastSeenAt,
     remotePrekeySequence: contacts[agentId]?.remotePrekeySequence,
     remotePrekeySignedAt: contacts[agentId]?.remotePrekeySignedAt,
     remotePrekeyMismatch: contacts[agentId]?.remotePrekeyMismatch,
+    remotePrekeyTransparencyHead: contacts[agentId]?.remotePrekeyTransparencyHead,
+    remotePrekeyTransparencySize: contacts[agentId]?.remotePrekeyTransparencySize,
+    remotePrekeyTransparencySeenAt: contacts[agentId]?.remotePrekeyTransparencySeenAt,
+    remotePrekeyTransparencyConflict: contacts[agentId]?.remotePrekeyTransparencyConflict,
+    remotePrekeyLookupMode: contacts[agentId]?.remotePrekeyLookupMode,
+    witness_count: contacts[agentId]?.witness_count,
+    witness_checked_at: contacts[agentId]?.witness_checked_at,
+    vouch_count: contacts[agentId]?.vouch_count,
+    vouch_checked_at: contacts[agentId]?.vouch_checked_at,
   });
   contacts[agentId] = next;
   saveContacts(contacts);
@@ -1527,4 +1766,6 @@ export function setDMNotify(on: boolean): void {
   storageSet(KEY_DM_NOTIFY, on ? 'true' : 'false');
 }
 const NODE_ID_PREFIX = '!sb_';
-const NODE_ID_HEX_LEN = 16;
+const NODE_ID_HEX_LEN = 32;
+const NODE_ID_COMPAT_HEX_LEN = 16;
+const NODE_ID_LEGACY_HEX_LEN = 8;

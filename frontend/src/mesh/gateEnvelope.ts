@@ -7,6 +7,8 @@ export interface GateEnvelopeMessageLike {
   nonce?: string;
   sender_ref?: string;
   format?: string;
+  gate_envelope?: string;
+  envelope_hash?: string;
   decrypted_message?: string;
   payload?: {
     gate?: string;
@@ -14,6 +16,8 @@ export interface GateEnvelopeMessageLike {
     nonce?: string;
     sender_ref?: string;
     format?: string;
+    gate_envelope?: string;
+    envelope_hash?: string;
   };
 }
 
@@ -39,7 +43,16 @@ export function gateEnvelopeDisplayText(message: GateEnvelopeMessageLike): strin
     return String(message.message ?? '');
   }
   const decrypted = String(message.decrypted_message ?? '').trim();
-  return decrypted || 'ENCRYPTED GATE MESSAGE - KEY UNAVAILABLE';
+  if (decrypted) {
+    return decrypted;
+  }
+  const payload = message.payload;
+  const nestedEnvelope = payload && typeof payload === 'object' ? payload.gate_envelope : '';
+  const gateEnvelope = String((message.gate_envelope ?? nestedEnvelope ?? '') || '').trim();
+  if (!gateEnvelope) {
+    return 'Sealed message - durable gate envelope was not stored.';
+  }
+  return 'Sealed message - waiting for local gate decrypt.';
 }
 
 export function gateEnvelopeState(message: GateEnvelopeMessageLike): GateEnvelopeState {

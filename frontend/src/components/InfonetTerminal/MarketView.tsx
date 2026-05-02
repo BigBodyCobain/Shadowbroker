@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ChevronLeft, Search, Activity, Shield, Crosshair, DollarSign, Newspaper } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft, Search, Activity, Shield, Crosshair, DollarSign, Newspaper, ExternalLink, Loader } from 'lucide-react';
 import { useDataKeys } from '@/hooks/useDataStore';
+import { API_BASE } from '@/lib/api';
 import type { DashboardData, StockTicker } from '@/types/dashboard';
 
-function formatVolume(vol: number): string {
+function formatVolume(vol: number | null | undefined): string {
   if (!vol || vol <= 0) return '';
   if (vol >= 1_000_000) return `$${(vol / 1_000_000).toFixed(1)}M`;
   if (vol >= 1_000) return `$${(vol / 1_000).toFixed(0)}K`;
@@ -32,14 +33,46 @@ const CATEGORY_CONFIG: Record<string, { color: string; icon: typeof Shield }> = 
   CONFLICT: { color: 'text-red-400', icon: Crosshair },
   FINANCE: { color: 'text-emerald-400', icon: DollarSign },
   CRYPTO: { color: 'text-amber-400', icon: DollarSign },
+  SPORTS: { color: 'text-orange-400', icon: Activity },
   NEWS: { color: 'text-cyan-400', icon: Newspaper },
 };
 
-type Category = 'ALL' | 'POLITICS' | 'CONFLICT' | 'FINANCE' | 'CRYPTO' | 'NEWS';
+type Category = 'ALL' | 'POLITICS' | 'CONFLICT' | 'FINANCE' | 'CRYPTO' | 'SPORTS' | 'NEWS';
 
 interface MarketViewProps {
   onBack: () => void;
 }
+
+type MarketSource = {
+  name: string;
+  pct: number;
+};
+
+type MarketOutcome = {
+  name: string;
+  pct: number;
+};
+
+type PredictionMarket = {
+  title: string;
+  category?: Category | string;
+  consensus_pct?: number | null;
+  polymarket_pct?: number | null;
+  kalshi_pct?: number | null;
+  volume?: number | null;
+  volume_24h?: number | null;
+  end_date?: string | null;
+  description?: string | null;
+  sources?: MarketSource[];
+  slug?: string;
+  kalshi_ticker?: string;
+  outcomes?: MarketOutcome[];
+  delta_pct?: number | null;
+  consensus?: {
+    total_picks: number;
+    total_staked: number;
+  };
+};
 
 type DataSlice = Pick<DashboardData, 'trending_markets' | 'stocks'>;
 const DATA_KEYS = ['trending_markets', 'stocks'] as const;
@@ -47,18 +80,138 @@ const DATA_KEYS = ['trending_markets', 'stocks'] as const;
 export default function MarketView({ onBack }: MarketViewProps) {
   const [category, setCategory] = useState<Category>('ALL');
   const [searchInput, setSearchInput] = useState('');
+  const [searchResults, setSearchResults] = useState<PredictionMarket[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [allMarkets, setAllMarkets] = useState<PredictionMarket[]>([]);
+  const [marketTotals, setMarketTotals] = useState<Record<string, number>>({});
+  const [marketHasMore, setMarketHasMore] = useState<Record<string, boolean>>({});
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [allBrowseOffset, setAllBrowseOffset] = useState(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const data = useDataKeys(DATA_KEYS) as DataSlice;
-  const markets = data?.trending_markets || [];
   const stocks = data?.stocks;
 
-  const filteredMarkets = markets.filter(m => {
+  const appendUniqueMarkets = useCallback((existing: PredictionMarket[], incoming: PredictionMarket[]) => {
+    const seen = new Set(existing.map((m) => String(m.slug || m.kalshi_ticker || m.title).toLowerCase()));
+    const next = [...existing];
+    for (const market of incoming) {
+      const key = String(market.slug || market.kalshi_ticker || market.title).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        next.push(market);
+      }
+    }
+    return next;
+  }, []);
+
+  // Fetch all markets from the oracle endpoint on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/mesh/oracle/markets`);
+        if (res.ok) {
+          const d = await res.json();
+          const cats = d.categories || {};
+          const all: PredictionMarket[] = [];
+          for (const cat of Object.values(cats) as PredictionMarket[][]) {
+            all.push(...cat);
+          }
+          if (mounted) {
+            setAllMarkets(appendUniqueMarkets([], all));
+            const totals = d.cat_totals || {};
+            setMarketTotals({ ...totals, ALL: d.total_count || all.length });
+            const more: Record<string, boolean> = {};
+            for (const [cat, count] of Object.entries(totals)) {
+              const loaded = Array.isArray(cats[cat]) ? cats[cat].length : 0;
+              more[cat] = Number(count) > loaded;
+            }
+            more.ALL = Number(d.total_count || 0) > all.length;
+            setMarketHasMore(more);
+          }
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { mounted = false; };
+  }, [appendUniqueMarkets]);
+
+  // API search — hits Polymarket + Kalshi directly
+  const searchMarkets = useCallback(async (query: string, offset = 0) => {
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchHasMore(false);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/mesh/oracle/search?q=${encodeURIComponent(query)}&limit=50&offset=${offset}`,
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const results = d.results || [];
+        setSearchResults((prev) => (offset > 0 ? appendUniqueMarkets(prev, results) : results));
+        setSearchHasMore(Boolean(d.has_more));
+      }
+    } catch { /* silent */ }
+    setIsSearching(false);
+  }, [appendUniqueMarkets]);
+
+  const loadMoreMarkets = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      if (searchInput.length >= 2) {
+        await searchMarkets(searchInput, searchResults.length);
+        return;
+      }
+      const loadedForCategory =
+        category === 'ALL'
+          ? allBrowseOffset
+          : allMarkets.filter((m) => m.category === category).length;
+      const res = await fetch(
+        `${API_BASE}/api/mesh/oracle/markets/more?category=${encodeURIComponent(category)}&offset=${loadedForCategory}&limit=50`,
+      );
+      if (res.ok) {
+        const d = await res.json();
+        const markets = d.markets || [];
+        setAllMarkets((prev) => appendUniqueMarkets(prev, markets));
+        if (category === 'ALL') {
+          setAllBrowseOffset((prev) => prev + markets.length);
+        }
+        setMarketHasMore((prev) => ({ ...prev, [category]: Boolean(d.has_more) }));
+        setMarketTotals((prev) => ({ ...prev, [category]: d.total ?? prev[category] ?? loadedForCategory }));
+      }
+    } catch { /* silent */ }
+    finally {
+      setLoadingMore(false);
+    }
+  }, [allBrowseOffset, allMarkets, appendUniqueMarkets, category, loadingMore, searchInput, searchMarkets, searchResults.length]);
+
+  const handleSearchInput = useCallback(
+    (value: string) => {
+      setSearchInput(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => searchMarkets(value), 400);
+    },
+    [searchMarkets],
+  );
+
+  // Use search results when searching, otherwise show all markets
+  const displayMarkets = searchInput.length >= 2 ? searchResults : allMarkets;
+  const filteredMarkets = displayMarkets.filter(m => {
     const matchesCat = category === 'ALL' || m.category === category;
-    const matchesSearch = !searchInput || m.title.toLowerCase().includes(searchInput.toLowerCase());
-    return matchesCat && matchesSearch;
+    return matchesCat;
   });
 
-  const CATEGORIES: Category[] = ['ALL', 'POLITICS', 'CONFLICT', 'FINANCE', 'CRYPTO', 'NEWS'];
+  const CATEGORIES: Category[] = ['ALL', 'POLITICS', 'CONFLICT', 'FINANCE', 'CRYPTO', 'SPORTS', 'NEWS'];
+  const currentTotal = searchInput.length >= 2
+    ? null
+    : marketTotals[category] ?? filteredMarkets.length;
+  const canLoadMore = searchInput.length >= 2 ? searchHasMore : Boolean(marketHasMore[category]);
 
   // Build ticker from real stocks data
   const tickerItems: string[] = [];
@@ -87,7 +240,10 @@ export default function MarketView({ onBack }: MarketViewProps) {
           <Activity className="mr-2 text-cyan-400 animate-pulse" />
           PREDICTION MARKETS
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Live Polymarket + Kalshi feeds. {markets.length} active markets tracked.</p>
+        <p className="text-gray-500 text-sm mt-1">
+          Live Polymarket + Kalshi feeds. Search anything — all markets from both platforms.
+          {' '}{allMarkets.length > 0 && `${allMarkets.length} cached markets.`}
+        </p>
       </div>
 
       {/* Categories */}
@@ -107,32 +263,45 @@ export default function MarketView({ onBack }: MarketViewProps) {
             </button>
           ))}
         </div>
-        <span className="text-sm text-gray-500 font-mono">{filteredMarkets.length} RESULTS</span>
+        <span className="text-sm text-gray-500 font-mono">
+          {filteredMarkets.length}{currentTotal != null && currentTotal > filteredMarkets.length ? ` / ${currentTotal}` : ''} RESULTS
+        </span>
       </div>
 
       {/* Search Bar */}
       <div className="mb-4 shrink-0">
         <div className="flex items-center border border-gray-800 bg-[#0a0a0a] p-2">
-          <Search size={14} className="text-gray-600 mr-2" />
+          {isSearching ? (
+            <Loader size={14} className="text-cyan-500 mr-2 animate-spin" />
+          ) : (
+            <Search size={14} className="text-gray-600 mr-2" />
+          )}
           <input
             type="text"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search prediction markets..."
+            onChange={(e) => handleSearchInput(e.target.value)}
+            placeholder="Search ALL Polymarket + Kalshi markets (e.g. avalanche, bitcoin, trump, war)..."
             className="bg-transparent border-none outline-none text-white w-full text-sm placeholder-gray-700"
             spellCheck={false}
           />
         </div>
+        {searchInput.length >= 2 && (
+          <div className="text-xs font-mono text-gray-600 mt-1 px-1">
+            {isSearching
+              ? 'SEARCHING POLYMARKET + KALSHI APIs...'
+              : `${searchResults.length} RESULTS FROM POLYMARKET + KALSHI`}
+          </div>
+        )}
       </div>
 
       {/* Markets List */}
       <div className="flex-1 overflow-y-auto pr-2 space-y-3 pb-4">
         {filteredMarkets.length > 0 ? filteredMarkets.map((market, i) => {
           const pct = market.consensus_pct ?? market.polymarket_pct ?? market.kalshi_pct ?? 0;
-          const catConfig = CATEGORY_CONFIG[market.category] || { color: 'text-gray-400' };
+          const categoryLabel = market.category ?? 'UNCATEGORIZED';
+          const catConfig = CATEGORY_CONFIG[categoryLabel] || { color: 'text-gray-400' };
           const vol = formatVolume(market.volume);
           const vol24 = formatVolume(market.volume_24h);
-          // Runtime-optional fields the backend may send but aren't in the strict TS type
           const raw = market as Record<string, unknown>;
           const endDate = formatEndDate(typeof raw.end_date === 'string' ? raw.end_date : null);
           const outcomes = market.outcomes && market.outcomes.length > 0 ? market.outcomes : null;
@@ -145,7 +314,7 @@ export default function MarketView({ onBack }: MarketViewProps) {
                 <div className="flex-1">
                   <div className="text-gray-300 font-bold text-sm md:text-base leading-snug">{market.title}</div>
                   <div className="flex items-center gap-2 mt-1.5 text-sm font-mono">
-                    <span className={`${catConfig.color} uppercase tracking-widest`}>{market.category}</span>
+                    <span className={`${catConfig.color} uppercase tracking-widest`}>{categoryLabel}</span>
                     {vol && <span className="text-gray-500">VOL: {vol}</span>}
                     {vol24 && <span className="text-gray-500">24H: {vol24}</span>}
                     {endDate && <span className="text-gray-500">CLOSES: {endDate}</span>}
@@ -187,7 +356,7 @@ export default function MarketView({ onBack }: MarketViewProps) {
                 </div>
               )}
 
-              {/* Source badges */}
+              {/* Source badges + external links */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {market.sources?.map((s, si) => (
@@ -204,6 +373,23 @@ export default function MarketView({ onBack }: MarketViewProps) {
                       {consensus.total_picks} pick{consensus.total_picks !== 1 ? 's' : ''}
                       {consensus.total_staked > 0 ? ` · ${consensus.total_staked.toFixed(1)} REP` : ''}
                     </span>
+                  )}
+                  {/* External links */}
+                  {market.slug && (
+                    <button
+                      onClick={() => window.open(`https://polymarket.com/event/${market.slug}`, '_blank', 'noopener,noreferrer')}
+                      className="flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 cursor-pointer"
+                    >
+                      <ExternalLink size={9} /> POLY
+                    </button>
+                  )}
+                  {market.kalshi_ticker && (
+                    <button
+                      onClick={() => window.open(`https://kalshi.com/markets/${market.kalshi_ticker}`, '_blank', 'noopener,noreferrer')}
+                      className="flex items-center gap-1 text-[11px] font-mono px-1.5 py-0.5 border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 cursor-pointer"
+                    >
+                      <ExternalLink size={9} /> KALSHI
+                    </button>
                   )}
                 </div>
 
@@ -233,10 +419,30 @@ export default function MarketView({ onBack }: MarketViewProps) {
           );
         }) : (
           <div className="text-center text-gray-600 py-8">
-            <p className="text-sm italic">No markets found{searchInput ? ` for "${searchInput}"` : ''}.</p>
+            {isSearching ? (
+              <p className="text-sm">Searching Polymarket + Kalshi...</p>
+            ) : (
+              <p className="text-sm italic">No markets found{searchInput ? ` for "${searchInput}"` : ''}.</p>
+            )}
           </div>
         )}
       </div>
+
+      {canLoadMore && (
+        <div className="shrink-0 flex justify-center pb-3">
+          <button
+            onClick={() => void loadMoreMarkets()}
+            disabled={loadingMore || isSearching}
+            className="px-4 py-2 text-xs uppercase tracking-widest border border-cyan-900/50 bg-cyan-900/10 text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-900/30 disabled:opacity-50"
+          >
+            {loadingMore || isSearching
+              ? 'LOADING MORE...'
+              : searchInput.length >= 2
+                ? 'MORE SEARCH RESULTS'
+                : `MORE ${category} MARKETS`}
+          </button>
+        </div>
+      )}
 
       {/* Ticker */}
       {tickerItems.length > 0 && (

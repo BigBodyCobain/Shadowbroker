@@ -10,13 +10,13 @@ export function getMeshTerminalWriteLockReason(state: MeshTerminalSecurityState)
     if (!state.anonymousModeReady) {
       return 'Mesh Terminal write commands are disabled until Wormhole hidden transport is ready for Anonymous Infonet mode.';
     }
-    return 'Mesh Terminal write commands are disabled while Anonymous Infonet mode is active. Use MeshChat for hardened public and private actions.';
+    return 'Mesh Terminal write commands are disabled while Anonymous Infonet mode is active. Use MeshChat for gate chat (transitional lane) or Dead Drop (stronger private lane).';
   }
   if (state.wormholeRequired) {
     if (!state.wormholeReady) {
       return 'Mesh Terminal write commands are disabled until Wormhole secure mode is ready.';
     }
-    return 'Mesh Terminal write commands are disabled while Wormhole secure mode is active. Use MeshChat for hardened private actions.';
+    return 'Mesh Terminal write commands are disabled while Wormhole secure mode is active. Use MeshChat for gate chat (transitional lane) or Dead Drop (stronger private lane).';
   }
   return '';
 }

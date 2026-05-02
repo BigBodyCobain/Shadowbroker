@@ -43,6 +43,7 @@ def _is_docker() -> bool:
 _EXPECTED_SHA256 = os.environ.get("MESH_UPDATE_SHA256", "").strip().lower()
 _ALLOWED_UPDATE_HOSTS = {
     "api.github.com",
+    "codeload.github.com",
     "github.com",
     "objects.githubusercontent.com",
     "release-assets.githubusercontent.com",
@@ -117,7 +118,7 @@ def _validate_update_url(url: str, *, allow_release_page: bool = False) -> str:
 # Download
 # ---------------------------------------------------------------------------
 def _download_release(temp_dir: str) -> tuple:
-    """Fetch latest release info and download the zip asset.
+    """Fetch latest release info and download the source zip archive.
     Returns (zip_path, version_tag, download_url, release_url).
     """
     logger.info("Fetching latest release info from GitHub...")
@@ -130,18 +131,9 @@ def _download_release(temp_dir: str) -> tuple:
     tag = release.get("tag_name", "unknown")
     release_url = str(release.get("html_url") or GITHUB_RELEASES_PAGE_URL).strip()
     _validate_update_url(release_url, allow_release_page=True)
-    assets = release.get("assets", [])
-
-    # Find the .zip asset
-    zip_url = None
-    for asset in assets:
-        url = asset.get("browser_download_url", "")
-        if url.endswith(".zip"):
-            zip_url = url
-            break
-
+    zip_url = str(release.get("zipball_url") or "").strip()
     if not zip_url:
-        raise RuntimeError("No .zip asset found in the latest release")
+        raise RuntimeError("Latest release is missing a source archive URL")
     _validate_update_url(zip_url)
 
     logger.info(f"Downloading {zip_url} ...")
@@ -171,6 +163,11 @@ def _validate_zip_hash(zip_path: str) -> None:
     digest = h.hexdigest().lower()
     if digest != _EXPECTED_SHA256:
         raise RuntimeError("Update SHA-256 mismatch")
+
+
+def _is_source_checkout(project_root: str) -> bool:
+    root = Path(project_root)
+    return (root / "frontend").is_dir() and (root / "backend").is_dir()
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +349,20 @@ def perform_update(project_root: str) -> dict:
                 "message": (
                     f"Version {version} is available. "
                     "Docker containers must be updated by pulling the new images."
+                ),
+            }
+
+        if not _is_source_checkout(project_root):
+            logger.info("Non-source runtime detected — refusing in-place source update")
+            return {
+                "status": "manual",
+                "version": version,
+                "manual_url": manual_url,
+                "release_url": release_url,
+                "download_url": url,
+                "message": (
+                    "This runtime does not support in-place source updates. "
+                    "Download the latest release package manually."
                 ),
             }
 

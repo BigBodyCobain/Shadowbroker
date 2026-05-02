@@ -1,12 +1,17 @@
 """Secure local storage helpers for Wormhole-owned state.
 
-Windows uses DPAPI to protect local key envelopes. Root secure-json payloads
-still use a dedicated master key, while domain-scoped payloads now use
-independent per-domain keys so compromise of one domain key does not
-automatically collapse every other Wormhole compartment. Non-Windows platforms
-can fall back to raw local key files only when tests are running or an
-explicit development/CI opt-in is set until native keyrings are added in the
-desktop phase.
+Windows uses DPAPI to protect local key envelopes. Non-Windows (including
+Docker/Linux) uses a passphrase-based provider: an operator-supplied secret
+(via MESH_SECURE_STORAGE_SECRET or MESH_SECURE_STORAGE_SECRET_FILE) is
+stretched with PBKDF2-SHA256 and used to AES-GCM-wrap master and domain keys.
+
+Root secure-json payloads still use a dedicated master key, while domain-scoped
+payloads use independent per-domain keys so compromise of one domain key does
+not automatically collapse every other Wormhole compartment.
+
+Raw/plaintext key fallback is available only when tests are running or an
+explicit MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK=true opt-in is set. Docker
+containers no longer auto-allow raw fallback.
 """
 
 from __future__ import annotations
@@ -16,7 +21,9 @@ import ctypes
 import hashlib
 import hmac
 import json
+import logging
 import os
+import shutil
 import re
 import tempfile
 import time
@@ -38,6 +45,8 @@ _MASTER_KEY_CACHE: tuple[str, bytes] | None = None
 _DOMAIN_KEY_CACHE: dict[str, tuple[str, bytes]] = {}
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class SecureStorageError(RuntimeError):
@@ -207,19 +216,82 @@ def _raw_fallback_allowed() -> bool:
         return False
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return True
-    # Docker containers have no DPAPI or native keyring — auto-allow raw
-    # fallback so that Wormhole secure storage works out of the box.
-    if _is_docker_container():
-        return True
     try:
         from services.config import get_settings
 
         settings = get_settings()
         if bool(getattr(settings, "MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK", False)):
             return True
+    except Exception as exc:
+        logger.debug(
+            "get_settings() unavailable in _raw_fallback_allowed — defaulting to disallow: %s",
+            type(exc).__name__,
+        )
+    return False
+
+
+def _get_storage_secret() -> str | None:
+    """Return the operator-supplied secure storage secret, or None."""
+    secret = os.environ.get("MESH_SECURE_STORAGE_SECRET", "").strip()
+    if secret:
+        return secret
+    try:
+        from services.config import get_settings
+
+        settings = get_settings()
+        secret = str(getattr(settings, "MESH_SECURE_STORAGE_SECRET", "") or "").strip()
+        if secret:
+            return secret
     except Exception:
         pass
-    return False
+    return None
+
+
+_PASSPHRASE_PBKDF2_ITERATIONS = 600_000
+
+
+def _passphrase_wrap(raw_key: bytes, secret: str, salt: bytes | None = None) -> dict[str, str]:
+    """Wrap *raw_key* using a PBKDF2-derived AES-GCM key from *secret*."""
+    if salt is None:
+        salt = os.urandom(32)
+    derived = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, _PASSPHRASE_PBKDF2_ITERATIONS)
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(derived).encrypt(nonce, raw_key, b"shadowbroker|passphrase-wrap")
+    return {
+        "salt": _b64(salt),
+        "nonce": _b64(nonce),
+        "protected_key": _b64(ciphertext),
+    }
+
+
+def _passphrase_unwrap(envelope: dict[str, Any], secret: str) -> bytes:
+    """Unwrap a passphrase-protected key envelope."""
+    salt = _unb64(envelope.get("salt"))
+    nonce = _unb64(envelope.get("nonce"))
+    ciphertext = _unb64(envelope.get("protected_key"))
+    derived = hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, _PASSPHRASE_PBKDF2_ITERATIONS)
+    return AESGCM(derived).decrypt(nonce, ciphertext, b"shadowbroker|passphrase-wrap")
+
+
+def _master_envelope_for_passphrase(raw_key: bytes, secret: str) -> dict[str, Any]:
+    wrapped = _passphrase_wrap(raw_key, secret)
+    return {
+        "kind": _MASTER_KIND,
+        "version": _MASTER_VERSION,
+        "provider": "passphrase",
+        **wrapped,
+    }
+
+
+def _domain_key_envelope_for_passphrase(domain: str, raw_key: bytes, secret: str) -> dict[str, Any]:
+    wrapped = _passphrase_wrap(raw_key, secret)
+    return {
+        "kind": _DOMAIN_KEY_KIND,
+        "version": _DOMAIN_KEY_VERSION,
+        "provider": "passphrase",
+        "domain": domain,
+        **wrapped,
+    }
 
 
 if _is_windows():
@@ -337,11 +409,16 @@ def _load_master_key() -> bytes:
                 provider="dpapi-machine",
             )
         else:
-            if not _raw_fallback_allowed():
+            secret = _get_storage_secret()
+            if secret:
+                envelope = _master_envelope_for_passphrase(raw_key, secret)
+            elif _raw_fallback_allowed():
+                envelope = _master_envelope_for_fallback(raw_key)
+            else:
                 raise SecureStorageError(
-                    "Non-Windows secure storage requires a native keyring or explicit raw fallback opt-in"
+                    "Non-Windows secure storage requires MESH_SECURE_STORAGE_SECRET "
+                    "or explicit MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK=true"
                 )
-            envelope = _master_envelope_for_fallback(raw_key)
         _atomic_write_text(MASTER_KEY_FILE, json.dumps(envelope, indent=2), encoding="utf-8")
         _MASTER_KEY_CACHE = (cache_key, raw_key)
         return raw_key
@@ -360,10 +437,32 @@ def _load_master_key() -> bytes:
             return raw_key
         except Exception as exc:
             raise SecureStorageError(f"Failed to unwrap DPAPI master key: {exc}") from exc
+    if provider == "passphrase":
+        secret = _get_storage_secret()
+        if not secret:
+            raise SecureStorageError(
+                "Passphrase-protected master key exists but MESH_SECURE_STORAGE_SECRET is not set"
+            )
+        try:
+            raw_key = _passphrase_unwrap(payload, secret)
+            _MASTER_KEY_CACHE = (cache_key, raw_key)
+            return raw_key
+        except Exception as exc:
+            raise SecureStorageError(f"Failed to unwrap passphrase-protected master key: {exc}") from exc
     if provider == "raw":
         if not _raw_fallback_allowed():
+            # Migration path: if a storage secret is now available, rewrap the raw key
+            secret = _get_storage_secret()
+            if secret:
+                raw_key = _unb64(payload.get("key"))
+                envelope = _master_envelope_for_passphrase(raw_key, secret)
+                _atomic_write_text(MASTER_KEY_FILE, json.dumps(envelope, indent=2), encoding="utf-8")
+                logger.info("Migrated master key from raw to passphrase-protected envelope")
+                _MASTER_KEY_CACHE = (cache_key, raw_key)
+                return raw_key
             raise SecureStorageError(
-                "Raw secure-storage envelopes are disabled outside debug/test unless explicitly opted in"
+                "Raw secure-storage envelopes are disabled outside debug/test unless explicitly opted in. "
+                "Set MESH_SECURE_STORAGE_SECRET to migrate to passphrase-protected storage."
             )
         raw_key = _unb64(payload.get("key"))
         _MASTER_KEY_CACHE = (cache_key, raw_key)
@@ -402,11 +501,16 @@ def _load_domain_key(
                 provider="dpapi-machine",
             )
         else:
-            if not _raw_fallback_allowed():
+            secret = _get_storage_secret()
+            if secret:
+                envelope = _domain_key_envelope_for_passphrase(domain_name, raw_key, secret)
+            elif _raw_fallback_allowed():
+                envelope = _domain_key_envelope_for_fallback(domain_name, raw_key)
+            else:
                 raise SecureStorageError(
-                    "Non-Windows secure storage requires a native keyring or explicit raw fallback opt-in"
+                    "Non-Windows secure storage requires MESH_SECURE_STORAGE_SECRET "
+                    "or explicit MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK=true"
                 )
-            envelope = _domain_key_envelope_for_fallback(domain_name, raw_key)
         _atomic_write_text(key_file, json.dumps(envelope, indent=2), encoding="utf-8")
         _DOMAIN_KEY_CACHE[cache_slot] = (cache_key, raw_key)
         return raw_key
@@ -427,10 +531,33 @@ def _load_domain_key(
             return raw_key
         except Exception as exc:
             raise SecureStorageError(f"Failed to unwrap domain key for {domain_name}: {exc}") from exc
+    if provider == "passphrase":
+        secret = _get_storage_secret()
+        if not secret:
+            raise SecureStorageError(
+                f"Passphrase-protected domain key exists for {domain_name} but MESH_SECURE_STORAGE_SECRET is not set"
+            )
+        try:
+            raw_key = _passphrase_unwrap(payload, secret)
+            _DOMAIN_KEY_CACHE[cache_slot] = (cache_key, raw_key)
+            return raw_key
+        except Exception as exc:
+            raise SecureStorageError(
+                f"Failed to unwrap passphrase-protected domain key for {domain_name}: {exc}"
+            ) from exc
     if provider == "raw":
         if not _raw_fallback_allowed():
+            secret = _get_storage_secret()
+            if secret:
+                raw_key = _unb64(payload.get("key"))
+                envelope = _domain_key_envelope_for_passphrase(domain_name, raw_key, secret)
+                _atomic_write_text(key_file, json.dumps(envelope, indent=2), encoding="utf-8")
+                logger.info("Migrated domain key %s from raw to passphrase-protected envelope", domain_name)
+                _DOMAIN_KEY_CACHE[cache_slot] = (cache_key, raw_key)
+                return raw_key
             raise SecureStorageError(
-                "Raw secure-storage envelopes are disabled outside debug/test unless explicitly opted in"
+                "Raw secure-storage envelopes are disabled outside debug/test unless explicitly opted in. "
+                "Set MESH_SECURE_STORAGE_SECRET to migrate to passphrase-protected storage."
             )
         raw_key = _unb64(payload.get("key"))
         _DOMAIN_KEY_CACHE[cache_slot] = (cache_key, raw_key)
@@ -459,6 +586,131 @@ def _domain_file_path(domain: str, filename: str, *, base_dir: str | Path | None
     if not str(resolved).startswith(str(root)):
         raise SecureStorageError("domain storage path traversal rejected")
     return resolved
+
+
+def rotate_storage_secret(
+    old_secret: str,
+    new_secret: str,
+    *,
+    base_dir: str | Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Rewrap all passphrase-protected key envelopes from *old_secret* to *new_secret*.
+
+    This is an explicit operator action — it never runs automatically at startup.
+    It fails closed: if *old_secret* cannot unwrap any envelope, or *new_secret*
+    is empty, no files are modified.  On success every passphrase envelope under
+    *base_dir* is atomically replaced with a fresh wrap using *new_secret*.
+
+    When *dry_run* is ``True``, Phase 1 validation runs (proving the old secret
+    can unwrap every envelope) but no files are written — useful for pre-flight
+    checks before committing to a rotation.
+
+    Before writing, ``.bak`` copies of every envelope about to be rewritten are
+    created so that a mid-rotation crash leaves recoverable backups on disk.
+
+    Returns a summary dict with ``ok``, ``rotated`` (list of rotated file names),
+    ``skipped`` (list of non-passphrase envelopes left untouched), and optionally
+    ``dry_run`` and ``backups``.
+    """
+    if not old_secret or not old_secret.strip():
+        raise SecureStorageError("Old secret is required for rotation")
+    if not new_secret or not new_secret.strip():
+        raise SecureStorageError("New secret is required for rotation")
+    old_secret = old_secret.strip()
+    new_secret = new_secret.strip()
+    if old_secret == new_secret:
+        raise SecureStorageError("New secret must differ from old secret")
+
+    root = _storage_root(base_dir)
+    master_key_file = root / MASTER_KEY_FILE.name if base_dir is not None else MASTER_KEY_FILE
+
+    # Phase 1: Validate — unwrap everything with old_secret, fail before writing anything.
+    pending: list[tuple[Path, dict[str, Any], bytes]] = []  # (path, envelope, raw_key)
+    skipped: list[str] = []
+
+    # Master key
+    if master_key_file.exists():
+        try:
+            envelope = json.loads(master_key_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise SecureStorageError(f"Cannot parse master key envelope: {exc}") from exc
+        provider = str(envelope.get("provider", "") or "").lower()
+        if provider == "passphrase":
+            try:
+                raw_key = _passphrase_unwrap(envelope, old_secret)
+            except Exception as exc:
+                raise SecureStorageError(
+                    f"Old secret cannot unwrap master key — aborting rotation: {exc}"
+                ) from exc
+            pending.append((master_key_file, envelope, raw_key))
+        else:
+            skipped.append(master_key_file.name)
+
+    # Domain keys
+    dk_dir = _domain_key_dir(base_dir)
+    if dk_dir.exists():
+        for key_file in sorted(dk_dir.glob("*.key")):
+            try:
+                envelope = json.loads(key_file.read_text(encoding="utf-8"))
+            except Exception as exc:
+                raise SecureStorageError(
+                    f"Cannot parse domain key envelope {key_file.name}: {exc}"
+                ) from exc
+            provider = str(envelope.get("provider", "") or "").lower()
+            if provider == "passphrase":
+                try:
+                    raw_key = _passphrase_unwrap(envelope, old_secret)
+                except Exception as exc:
+                    raise SecureStorageError(
+                        f"Old secret cannot unwrap domain key {key_file.name} — aborting rotation: {exc}"
+                    ) from exc
+                pending.append((key_file, envelope, raw_key))
+            else:
+                skipped.append(key_file.name)
+
+    if not pending:
+        raise SecureStorageError("No passphrase-protected envelopes found to rotate")
+
+    would_rotate = [p.name for p, _e, _k in pending]
+
+    if dry_run:
+        logger.info("Dry-run rotation: %d envelope(s) would rotate: %s", len(would_rotate), ", ".join(would_rotate))
+        return {"ok": True, "dry_run": True, "would_rotate": would_rotate, "skipped": skipped}
+
+    # Phase 2a: Create .bak copies of every envelope we are about to rewrite.
+    backups: list[str] = []
+    for path, _envelope, _raw_key in pending:
+        bak_path = path.with_suffix(path.suffix + ".bak")
+        try:
+            shutil.copy2(str(path), str(bak_path))
+            backups.append(bak_path.name)
+        except Exception as exc:
+            raise SecureStorageError(
+                f"Cannot create backup {bak_path.name} — aborting rotation: {exc}"
+            ) from exc
+
+    # Phase 2b: Rewrap and write atomically per file.
+    rotated: list[str] = []
+    for path, envelope, raw_key in pending:
+        kind = str(envelope.get("kind", "") or "")
+        if kind == _MASTER_KIND:
+            new_envelope = _master_envelope_for_passphrase(raw_key, new_secret)
+        elif kind == _DOMAIN_KEY_KIND:
+            domain = str(envelope.get("domain", "") or "")
+            new_envelope = _domain_key_envelope_for_passphrase(domain, raw_key, new_secret)
+        else:
+            raise SecureStorageError(f"Unexpected envelope kind during rotation: {kind}")
+        _atomic_write_text(path, json.dumps(new_envelope, indent=2), encoding="utf-8")
+        rotated.append(path.name)
+
+    # Invalidate caches so next load uses the new envelope.
+    global _MASTER_KEY_CACHE
+    _MASTER_KEY_CACHE = None
+    _DOMAIN_KEY_CACHE.clear()
+
+    logger.info("Rotated storage secret for %d envelope(s): %s", len(rotated), ", ".join(rotated))
+    return {"ok": True, "rotated": rotated, "skipped": skipped, "backups": backups}
 
 
 def write_secure_json(path: str | Path, payload: Any) -> None:

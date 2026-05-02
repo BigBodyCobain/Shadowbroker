@@ -1,21 +1,50 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ShadowBroker Desktop Shell",
-  "version": "0.1.0",
+  "productName": "ShadowBroker",
+  "version": "0.9.7",
   "identifier": "com.shadowbroker.desktop",
   "build": {
-    "frontendDist": "../../frontend/.next",
+    "frontendDist": "../../../frontend/out",
     "devUrl": "http://127.0.0.1:3000"
   },
-  "app": {
-    "windows": [
-      {
-        "label": "main",
-        "title": "ShadowBroker",
-        "width": 1600,
-        "height": 1000,
-        "resizable": true
-      }
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "resources": ["companion-www", "backend-runtime"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.icns",
+      "icons/icon.png",
+      "icons/Square30x30Logo.png",
+      "icons/Square44x44Logo.png",
+      "icons/Square71x71Logo.png",
+      "icons/Square89x89Logo.png",
+      "icons/Square107x107Logo.png",
+      "icons/Square142x142Logo.png",
+      "icons/Square150x150Logo.png",
+      "icons/Square284x284Logo.png",
+      "icons/Square310x310Logo.png",
+      "icons/StoreLogo.png"
     ]
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* https://*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMUU1NkRENjNCNTI5RjUKUldUMUtiVmozVlllTEd0STJlMGtORUxUWHlGQ2V0ZXM3Z1BOc3hwc0pUK1c3dlplcWc2OFpKd3oK",
+      "endpoints": [
+        "https://github.com/BigBodyCobain/Shadowbroker/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

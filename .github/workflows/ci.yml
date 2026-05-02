@@ -1,11 +1,11 @@
-name: CI — Lint & Test
+name: CI - Lint & Test
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_call:  # Allow docker-publish to call this workflow as a gate
+  workflow_call:
 
 jobs:
   frontend:
@@ -22,9 +22,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm run lint || echo "::warning::ESLint found issues (non-blocking)"
-      - run: npm run format:check || echo "::warning::Prettier found formatting issues (non-blocking)"
-      - run: npx vitest run --reporter=verbose || echo "::warning::Some tests failed (non-blocking)"
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npx vitest run --reporter=verbose
       - run: npm run build
       - run: npm run bundle:report
 
@@ -33,6 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Run secret scan
+        run: bash backend/scripts/scan-secrets.sh --all
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -43,8 +45,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
-      - run: cd backend && uv run ruff check . || echo "::warning::Ruff found issues (non-blocking)"
-      - run: cd backend && uv run black --check . || echo "::warning::Black found formatting issues (non-blocking)"
+      - run: cd backend && uv run ruff check .
+      - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
       - name: Run tests
-        run: cd backend && uv run pytest tests/ -v --tb=short || echo "No pytest tests found (OK)"
+        run: cd backend && uv run pytest tests/ services/infonet/tests -v --tb=short

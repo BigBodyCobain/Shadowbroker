@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   buildEarthquakesGeoJSON,
   buildFirmsGeoJSON,
+  buildFishingActivityGeoJSON,
   buildShipsGeoJSON,
   buildCarriersGeoJSON,
 } from '@/components/map/geoJSONBuilders';
 import type {
   Earthquake,
   FireHotspot,
+  FishingEvent,
   Ship,
   ActiveLayers,
 } from '@/types/dashboard';
@@ -182,5 +184,31 @@ describe('buildCarriersGeoJSON', () => {
     expect(result.features).toHaveLength(1);
     expect(result.features[0].properties?.name).toBe('USS Nimitz');
     expect(result.features[0].properties?.iconId).toBe('svgCarrier');
+  });
+});
+
+describe('buildFishingActivityGeoJSON', () => {
+  it('reuses AIS ship icon styling when a fishing vessel matches a live ship', () => {
+    const events: FishingEvent[] = [
+      {
+        id: 'fish-1',
+        type: 'fishing',
+        lat: 12,
+        lng: 34,
+        start: '2026-04-08T00:00:00Z',
+        end: '2026-04-08T01:00:00Z',
+        vessel_name: 'PACIFIC HARVEST',
+        vessel_flag: 'US',
+        duration_hrs: 1,
+      },
+    ];
+    const ships: Ship[] = [
+      { name: 'Pacific Harvest', lat: 12, lng: 34, type: 'cargo', mmsi: '123', heading: 87 } as Ship,
+    ];
+
+    const result = buildFishingActivityGeoJSON(events, ships)!;
+    expect(result.features[0].properties?.iconId).toBe('svgShipRed');
+    expect(result.features[0].properties?.shipCategory).toBe('cargo');
+    expect(result.features[0].properties?.rotation).toBe(87);
   });
 });

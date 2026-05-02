@@ -11,15 +11,15 @@
 
 
 
-https://github.com/user-attachments/assets/248208ec-62f7-49d1-831d-4bd0a1fa6852
+![ShadowBroker](/uploads/46f99d19fa141a2efba37feee9de8aab/Title.jpg)
 
 
 
 
 
-**ShadowBroker** is a real-time, multi-domain OSINT dashboard that fuses 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen.
+**ShadowBroker** is a decentralized real-time, multi-domain OSINT dashboard that fuses 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen as well as a obfuscated communications protocol and information exchange infrastructure.
 
-Built with **Next.js**, **MapLibre GL**, **FastAPI**, and **Python**. 35+ toggleable data layers. Right-click any point on Earth for a region/country dossier, head-of-state lookup, and the latest Sentinel-2 satellite photo. No user data is collected or transmitted — the dashboard runs entirely in your browser against a self-hosted backend.
+Built with **Next.js**, **MapLibre GL**, **FastAPI**, and **Python**. 35+ toggleable data layers including SAR ground-change detection. Multiple visual modes (DEFAULT / SATELLITE / FLIR / NVG / CRT). Right-click any point on Earth for a country dossier, head-of-state lookup, and the latest Sentinel-2 satellite photo. No user data is collected or transmitted — the dashboard runs entirely in your browser against a self-hosted backend.
 
 Designed for analysts, researchers, radio operators, and anyone who wants to see what the world looks like when every public signal is on the same map.
 
@@ -38,7 +38,7 @@ ShadowBroker includes an optional Shodan connector for operator-supplied API acc
 
 ## Interesting Use Cases
 
-* **Transmit on the InfoNet testnet** — the first decentralized intelligence mesh built into an OSINT tool. Obfuscated messaging with gate personas, Dead Drop peer-to-peer exchange, and a built-in terminal CLI. No accounts, no signup. Privacy is not guaranteed yet — this is an experimental testnet — but the protocol is live and being hardened.
+* **Communicate on the InfoNet testnet** — The first decentralized intelligence mesh built into an OSINT tool. Obfuscated messaging with gate personas, Dead Drop peer-to-peer exchange, and a built-in terminal CLI. No accounts, no signup. Privacy is not guaranteed yet — this is an experimental testnet — but the protocol is live and being hardened.
 * **Track Air Force One**, the private jets of billionaires and dictators, and every military tanker, ISR, and fighter broadcasting ADS-B — with automatic holding pattern detection when aircraft start circling
 * **Estimate where US aircraft carriers are** using automated GDELT news scraping — no other open tool does this
 * **Search internet-connected devices worldwide** via Shodan — cameras, SCADA systems, databases — plotted as a live overlay on the map
@@ -51,6 +51,8 @@ ShadowBroker includes an optional Shodan connector for operator-supplied API acc
 * **Follow earthquakes, volcanic eruptions, active wildfires** (NASA FIRMS), severe weather alerts, and air quality readings worldwide
 * **Map military bases, 35,000+ power plants**, 2,000+ data centers, and internet outage regions — cross-referenced automatically
 * **Connect to Meshtastic mesh radio nodes** and APRS amateur radio networks — visible on the map and integrated into Mesh Chat
+* **Connect an AI agent as a co-analyst** through ShadowBroker's HMAC-signed agentic command channel — supports OpenClaw and any other agent that speaks the protocol (Claude, GPT, LangChain, custom). The agent gets full read/write access to all 35+ data layers, pin placement, map control, SAR ground-change, mesh networking, and alert delivery. It sees everything the operator sees and can take actions on the map in real time.
+* **Detect ground changes through cloud cover** with SAR (Synthetic Aperture Radar) — mm-scale ground deformation, flood extent, vegetation disturbance, and damage assessments from NASA OPERA and Copernicus EGMS. Define your own watch areas and get anomaly alerts. Free with a NASA Earthdata account.
 * **Switch visual modes** — DEFAULT, SATELLITE, FLIR (thermal), NVG (night vision), CRT (retro terminal) — via the STYLE button
 * **Track trains** across the US (Amtrak) and Europe (DigiTraffic) in real time
 
@@ -59,7 +61,7 @@ ShadowBroker includes an optional Shodan connector for operator-supplied API acc
 ## ⚡ Quick Start (Docker)
 
 ```bash
-git clone https://github.com/BigBodyCobain/Shadowbroker.git
+git clone https://github.com/bigbodycobain/Shadowbroker.git
 cd Shadowbroker
 docker compose pull
 docker compose up -d
@@ -99,7 +101,7 @@ That's it. `pull` grabs the latest images, `up -d` restarts the containers.
 # Back up any local config you want to keep (.env, etc.)
 cd ..
 rm -rf Shadowbroker
-git clone https://github.com/BigBodyCobain/Shadowbroker.git
+git clone https://github.com/bigbodycobain/Shadowbroker.git
 cd Shadowbroker
 docker compose pull
 docker compose up -d
@@ -142,35 +144,61 @@ helm install shadowbroker ./helm/chart --create-namespace --namespace shadowbrok
 
 ## Experimental Testnet — No Privacy Guarantee
 
-ShadowBroker v0.9.6 introduces **InfoNet**, a decentralized intelligence mesh with obfuscated messaging. This is an **experimental testnet** — not a private messenger.
+ShadowBroker v0.9.7 ships **InfoNet** (decentralized intelligence mesh + Sovereign Shell governance economy), an **agentic AI command channel** (supports OpenClaw and any HMAC-signing agent), **Time Machine snapshot playback**, and **SAR satellite ground-change detection**. This is an **experimental testnet** — not a private messenger and not a production governance system.
 
 | Channel | Privacy Status | Details |
 |---|---|---|
 | **Meshtastic / APRS** | **PUBLIC** | RF radio transmissions are public and interceptable by design. |
 | **InfoNet Gate Chat** | **OBFUSCATED** | Messages are obfuscated with gate personas and canonical payload signing, but NOT end-to-end encrypted. Metadata is not hidden. |
 | **Dead Drop DMs** | **STRONGEST CURRENT LANE** | Token-based epoch mailbox with SAS word verification. Strongest lane in this build, but not yet confidently private. |
+| **Sovereign Shell governance** | **PUBLIC LEDGER** | Petitions, votes, upgrade hashes, and dispute stakes are signed events on a public hashchain. Pseudonymous via gate persona, but governance actions are intentionally observable. |
+| **Privacy primitives (RingCT / stealth / DEX)** | **NOT YET WIRED** | Locked Protocol contracts are in place, but the cryptographic scheme has not been chosen. The privacy-core Rust crate is the integration target for a future sprint. |
 
 **Do not transmit anything sensitive on any channel.** Treat all lanes as open and public for now. E2E encryption and deeper native/Tauri hardening are the next milestones. If you fork this project, keep these labels intact and do not make stronger privacy claims than the implementation supports.
+
+> **For a full picture of what the mesh actually defends against and
+> what it doesn't, read the
+> [threat model](docs/mesh/threat-model.md) and the
+> [claims reconciliation](docs/mesh/claims-reconciliation.md). Every
+> sentence above is mapped there to the code path that enforces it (or
+> doesn't).**
 
 ---
 
 
 ## ✨ Features
 
-### 🧅 InfoNet — Decentralized Intelligence Mesh (NEW in v0.9.6)
+### 🧅 InfoNet — Decentralized Intelligence Mesh + Sovereign Shell (expanded in v0.9.7)
 
-The first decentralized intelligence communication layer built directly into an OSINT platform. No accounts, no signup, no identity required. Nothing like this has existed in an OSINT tool before.
+The first decentralized intelligence communication and governance layer built directly into an OSINT platform. No accounts, no signup, no identity required. v0.9.7 promotes InfoNet from a chat layer into a full governance economy with a clear path to a privacy-preserving decentralized intelligence platform.
+
+**Communication layer (since v0.9.6):**
 
 * **InfoNet Experimental Testnet** — A global, obfuscated message relay. Anyone running ShadowBroker can transmit and receive on the InfoNet. Messages pass through a Wormhole relay layer with gate personas, Ed25519 canonical payload signing, and transport obfuscation.
-* **Mesh Chat Panel** — Three-tab interface:
-  * **INFONET** — Gate chat with obfuscated transport (experimental — not yet E2E encrypted)
-  * **MESH** — Meshtastic radio integration (default tab on startup)
-  * **DEAD DROP** — Peer-to-peer message exchange with token-based epoch mailboxes (strongest current lane)
-* **Gate Persona System** — Pseudonymous identities with Ed25519 signing keys, prekey bundles, SAS word contact verification, and abuse reporting
+* **Mesh Chat Panel** — Three-tab interface: **INFONET** (gate chat with obfuscated transport), **MESH** (Meshtastic radio integration), **DEAD DROP** (peer-to-peer message exchange with token-based epoch mailboxes — strongest current lane).
+* **Gate Persona System** — Pseudonymous identities with Ed25519 signing keys, prekey bundles, SAS word contact verification, and abuse reporting.
 * **Mesh Terminal** — Built-in CLI: `send`, `dm`, market commands, gate state inspection. Draggable panel, minimizes to the top bar. Type `help` to see all commands.
 * **Crypto Stack** — Ed25519 signing, X25519 Diffie-Hellman, AESGCM encryption with HKDF key derivation, hash chain commitment system. Double-ratchet DM scaffolding in progress.
 
-> **Experimental Testnet — No Privacy Guarantee:** InfoNet messages are obfuscated but NOT end-to-end encrypted. The Mesh network (Meshtastic/APRS) is NOT private — radio transmissions are inherently public. Do not send anything sensitive on any channel. E2E encryption is being developed but is not yet implemented. Treat all channels as open and public for now.
+**Sovereign Shell — governance economy (NEW in v0.9.7):**
+
+* **Petitions + Governance DSL** — On-chain parameter changes via signed petitions. Type-safe payload executor for `UPDATE_PARAM`, `BATCH_UPDATE_PARAMS`, `ENABLE_FEATURE`, and `DISABLE_FEATURE`. Tunable knobs change by vote — no code deploys required.
+* **Upgrade-Hash Governance** — Protocol upgrades that need new logic (not just parameter changes) vote on a SHA-256 hash of the verified release. 80% supermajority, 40% quorum, 67% Heavy-Node activation. Lifecycle: signatures → voting → challenge window → awaiting readiness → activated.
+* **Resolution & Dispute Markets** — Stake on market resolution outcomes (yes / no / data_unavailable), open disputes with bonded evidence, and stake on dispute confirm-or-reverse. Per-row submission state stays isolated so concurrent actions don't share an in-flight slot.
+* **Evidence Submission** — Bonded evidence bundles with client-side SHA-256 canonicalization that matches Python `repr()` exactly, so hashes round-trip cleanly through the chain.
+* **Gate Suspension / Shutdown / Appeals** — Filing forms for suspending or shutting down a gate, with a reusable appeal flow auto-targeting the pending petition.
+* **Bootstrap Eligible-Node-One-Vote** — The first 100 markets resolve via one-vote-per-eligible-node instead of stake-weighted resolution. Eligibility: identity age ≥ 3 days, not in predictor exclusion set, valid Argon2id PoW (Heavy-Node-only). Transitions to staked resolution at 1000 nodes.
+* **Two-Tier State + Epoch Finality** — Tier 1 events propagate CRDT-style for low latency; Tier 2 events require epoch finality before they can be acted on. Identity rotation, progressive penalties, ramp milestones, and constitutional invariants enforced via `MappingProxyType`.
+* **Adaptive Polling** — Sovereign Shell views poll every 8 seconds during active voting / challenge / activation phases, every 30–60 seconds when idle. Voting feels live without a websocket layer.
+* **Verbatim Diagnostics** — Every write button surfaces the backend's verbatim rejection reason. No opaque "denied" toasts.
+
+**Privacy primitive runway (NEW in v0.9.7):**
+
+* **Function Keys — Anonymous Citizenship Proof** — A citizen proves "I am an Infonet citizen" without revealing their Infonet identity. 5 of 6 pieces shipped: nullifiers, challenge-response, two-phase commit receipts, enumerated denial codes, batched settlement. Issuance via blind signatures waits on a primitive decision (RSA blind sigs vs BBS+ vs U-Prove vs Idemix).
+* **Locked Protocol Contracts** — Stable interfaces in `services/infonet/privacy/contracts.py` for ring signatures, stealth addresses, Pedersen commitments, range proofs, and DEX matching. The `privacy-core` Rust crate is the integration target — no caller of the privacy module needs to know which scheme is active.
+* **Sprint 11+ Path** — When the cryptographic scheme is chosen, primitives wire into the locked Protocols without API churn.
+
+> **Experimental Testnet — No Privacy Guarantee:** InfoNet messages are obfuscated but NOT end-to-end encrypted. The Mesh network (Meshtastic/APRS) is NOT private — radio transmissions are inherently public. The privacy primitive contracts are scaffolded but not yet wired. Do not send anything sensitive on any channel. Treat all channels as open and public for now.
 
 ### 🔍 Shodan Device Search (NEW in v0.9.6)
 
@@ -239,6 +267,17 @@ The first decentralized intelligence communication layer built directly into an 
   * **NVG** — Night vision green phosphor
   * **CRT** — Retro terminal scanline overlay
 
+### 🛰️ SAR Ground-Change Detection (NEW)
+
+* **Synthetic Aperture Radar Layer** — Detects ground changes through cloud cover, at night, anywhere on Earth. Two modes, both free:
+  * **Mode A (Catalog)** — Free Sentinel-1 scene metadata from Alaska Satellite Facility. No account required. Shows when radar passes happened over your AOIs and when the next pass is coming.
+  * **Mode B (Full Anomalies)** — Real-time ground-change alerts from NASA OPERA (DISP, DSWx, DIST-ALERT) and Copernicus EGMS. Requires a free NASA Earthdata account — the in-app wizard walks you through setup in under a minute.
+* **Anomaly Types** — Ground deformation (mm-scale subsidence, landslides), surface water change (flood extent), vegetation disturbance (deforestation, burn scars, blast craters), damage assessments (UNOSAT/Copernicus EMS verified), and coherence change detection
+* **Map Visualization** — Color-coded anomaly pins by kind (orange for deformation, cyan for water, green for vegetation, red for damage, purple for coherence). AOI boundaries drawn as dashed polygons with category-based coloring. Click any pin for a detail popup with magnitude, confidence, solver, scene count, and provenance link.
+* **AOI Editor** — Define areas of interest directly from the map. Click the "EDIT AOIs" button when the SAR layer is active, then use the crosshair tool to click-to-drop an AOI center on the map. Set name, radius (1–500 km), and category. AOIs appear on the map immediately.
+* **OpenClaw Integration** — The AI agent can inspect SAR anomaly details (`sar_pin_click`) and fly the operator's map to any AOI center (`sar_focus_aoi`) — enabling collaborative analyst workflows.
+* **Settings Panel** — Dedicated SAR tab in Settings shows Mode A/B status, OpenClaw integration state, and lets you revoke Earthdata credentials with one click.
+
 ### 📻 Software-Defined Radio & SIGINT
 
 * **KiwiSDR Receivers** — 500+ public SDR receivers plotted worldwide with clustered amber markers
@@ -286,65 +325,169 @@ The first decentralized intelligence communication layer built directly into an 
 * **Measurement Tool** — Point-to-point distance & bearing measurement on the map
 * **LOCATE Bar** — Search by coordinates (31.8, 34.8) or place name (Tehran, Strait of Hormuz) to fly directly to any location — geocoded via OpenStreetMap Nominatim
 
-![Gaza](https://github.com/user-attachments/assets/f2c953b2-3528-4360-af5a-7ea34ff28489)
+![Gaza](https://gitlab.com/bigbodycobain/Shadowbroker/uploads/c55a0c8d49e5e05c6cd094279e6e089b/gaza-screenshot.jpg)
+
+### 🤖 Agentic AI Command Channel — OpenClaw + Compatible Agents (expanded in v0.9.7)
+
+ShadowBroker exposes a **bidirectional agentic AI command channel** — a signed, tier-gated bridge that gives any compatible AI agent full read/write access to the intelligence platform. **OpenClaw is the reference agent**, but the channel is an open protocol: any LLM-driven agent that signs requests with HMAC-SHA256 (Claude Code, GPT, LangChain, custom Python/TypeScript clients, or your own integration) can connect as an analyst that sees the same data as the operator and can take actions on the map. ShadowBroker does *not* bundle an LLM, an agent runtime, or model weights — it provides the surface; you bring the agent.
+
+v0.9.7 turns ShadowBroker from a dashboard a human watches into an intelligence surface any agent can act on.
+
+**Channel transport (NEW in v0.9.7):**
+
+* **Single Command Channel** — `POST /api/ai/channel/command` accepts `{cmd, args}` and dispatches to any registered tool.
+* **Batched Concurrent Execution** — `POST /api/ai/channel/batch` accepts up to 20 commands in one request. The backend runs them concurrently and returns a fan-out result map. Cuts agent latency by an order of magnitude over sequential calls.
+* **Tier-Gated Access** — `OPENCLAW_ACCESS_TIER` controls which commands the agent can call: `restricted` exposes the read-only set, `full` adds writes and injection. Discovery endpoint returns `available_commands` so the agent can introspect its own capabilities.
+* **HMAC-SHA256 Signing** — Every command is signed `HMAC-SHA256(secret, METHOD|path|timestamp|nonce|sha256(body))` with timestamp + nonce replay protection and request integrity. Supports local mode (no config) and remote mode (agent on a different machine / VPS).
+
+**Capabilities:**
+
+* **Full Telemetry Access** — The agent queries all 35+ data layers: flights, ships, satellites, SIGINT, conflict events, earthquakes, fires, wastewater, prediction markets, and more. Fast and slow tier endpoints return enriched data with geographic coordinates, timestamps, and source attribution.
+* **AI Intel Pins** — Place color-coded investigation markers directly on the operator's map. 14 pin categories (threat, anomaly, military, maritime, aviation, SIGINT, infrastructure, etc.) with confidence scores, TTL expiry, source URLs, and batch placement up to 100 pins at once.
+* **Map Control** — Fly the operator's map view to any coordinate, trigger satellite imagery lookups, and open region dossiers. The agent can direct the operator's attention to specific locations in real time.
+* **SAR Ground-Change** — Query SAR anomaly feeds, inspect pin details, manage AOIs, and fly the map to watch areas. The agent can monitor for ground deformation, flood extent, or damage and promote anomalies to pins.
+* **Native Layer Injection** — Push custom data directly into ShadowBroker's native layers (CCTV cameras, ships, SIGINT nodes, military bases, etc.) so agent-discovered sources render alongside real feeds.
+* **Wormhole Mesh Participation** — The agent can join the decentralized InfoNet, post signed messages, join encrypted gate channels, send/receive encrypted DMs, and interact with Meshtastic radio and Dead Drops — operating as a full mesh peer.
+* **Sovereign Shell Participation (v0.9.7)** — File petitions, sign and vote on governance changes, stake on resolutions and disputes, signal Heavy-Node readiness for upgrades — all programmatically, all gated by tier and HMAC. Agents become first-class participants in the decentralized intelligence economy.
+* **Geocoding & Proximity Scans** — Resolve place names to coordinates, then scan all layers within a radius for a complete proximity digest.
+* **News & GDELT Near Location** — Pull GDELT conflict events and aggregated news articles near any coordinate for regional situational awareness.
+* **Alert Delivery** — Send branded intelligence briefs, warnings, and threat notifications to Discord webhooks and Telegram channels.
+* **Intelligence Reports** — Generate structured reports with summary stats, top military flights, correlations, earthquake activity, SIGINT counts, and pin inventories.
+* **Auditable** — Every channel call is logged; the operator can introspect what the agent has done.
+
+**Connect an agent:** Open the AI Intel panel in the left sidebar, click **Connect Agent**, and copy the HMAC secret. From there, point any compatible agent at the channel — for OpenClaw, import `ShadowBrokerClient` from the OpenClaw skill package; for any other agent, use the same HMAC contract documented above (timestamp + nonce + body digest, tier-gated). The channel is the protocol, not the agent.
+
+### ⏱️ Time Machine — Snapshot Playback (NEW in v0.9.7)
+
+A media-style transport for the entire telemetry feed. Treat the live map as a recording that can be scrubbed, paused, and replayed.
+
+* **Live ↔ Snapshot Toggle** — Switching to snapshot mode pauses the global polling loop instantly; switching back to Live invalidates ETags and force-refreshes both fast and slow tiers so the dashboard catches up without a stale-frame flicker.
+* **Hourly Index** — Every captured snapshot is indexed by its hour bucket with `count`, `latest_id`, `latest_ts`, and the full `snapshot_ids` list. Jump to any captured timestamp directly from the timeline scrubber.
+* **Frame Interpolation** — Moving entities (aircraft, ships, satellites, military flights) interpolate smoothly between recorded frames during playback so motion stays continuous even when snapshots are sparse.
+* **Variable Playback Speed** — Step, play, fast-forward, and rewind through saved telemetry at adjustable speed.
+* **Profile-Aware** — Each snapshot records the privacy profile that was active when it was captured, so playback is faithful to what an operator on that profile would have seen.
+* **Operator-Side, Not Server-Side** — Snapshots are stored locally in the backend; no third party ever sees the playback timeline.
+
+### 📦 API Keys Panel — Path-First, Read-Only (NEW in v0.9.7)
+
+Settings → API Keys is now a read-only registry. Key values never reach the browser process — not even an obfuscated prefix. The panel surfaces:
+
+* The absolute path to the backend `.env` file as resolved by `Path(__file__).resolve()` — works on every OS, every drive, every install location (Linux `/home/...`, macOS `/Users/...`, Windows on any drive, Docker containers, cloud VMs).
+* `[exists]` / `[will be created on first save]` / `[NOT WRITABLE — edit by hand]` indicators on the path itself.
+* The path to the `.env.example` template so users can copy it and fill in their keys.
+* A binary `CONFIGURED` / `NOT CONFIGURED` badge per key, plus a copy-pastable env line (e.g. `OPENSKY_CLIENT_ID=YOUR_VALUE`) the user can drop into the file by hand.
+
+OpenSky API credentials are now a **critical-warn** environment requirement: the startup environment check flags missing OpenSky OAuth2 credentials with a strong warning, and the changelog modal links directly to the free registration page. Without them, the flights layer falls back to ADS-B-only coverage with significant gaps in Africa, Asia, and Latin America.
 
 ---
 
 ## 🏗️ Architecture
 
+ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Operator UI**, the **Backend Service Plane**, and the **Decentralized Layer (InfoNet)** — plus two cross-cutting bridges (the **Time Machine** and the **Agentic AI Channel**, which is the protocol that OpenClaw and any other compatible agent connects through) and a **Privacy Core** Rust crate that backstops both the legacy mesh and the future shielded coin / DEX work.
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      FRONTEND (Next.js)                         │
-│                                                                 │
-│  ┌─────────────┐  ┌──────────┐  ┌───────────┐  ┌────────────┐   │
-│  │ MapLibre GL │  │ NewsFeed │  │  Control  │  │    Mesh    │   │
-│  │  2D WebGL   │  │  SIGINT  │  │  Panels   │  │    Chat    │   │
-│  │ Map Render  │  │  Intel   │  │  Radio    │  │  Terminal  │   │
-│  └──────┬──────┘  └────┬─────┘  └─────┬─────┘  └─────┬──────┘   │
-│         └──────────────┼──────────────┼──────────────┘          │
-│                        │ REST + WebSocket                       │
-├────────────────────────┼────────────────────────────────────────┤
-│                    BACKEND (FastAPI)                            │
-│                        │                                        │
-│  ┌─────────────────────┼─────────────────────────────────────┐  │
-│  │              Data Fetcher (Scheduler)                     │  │
-│  │                                                           │  │
-│  │  ┌───────────┬───────────┬───────────┬───────────┐        │  │
-│  │  │  OpenSky  │ adsb.lol  │ CelesTrak │   USGS    │        │  │
-│  │  │  Flights  │ Military  │   Sats    │  Quakes   │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │  AIS WS   │ Carrier   │  GDELT    │ CCTV (13) │        │  │
-│  │  │  Ships    │ Tracker   │ Conflict  │  Cameras  │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │ DeepState │   RSS     │  Region   │    GPS    │        │  │
-│  │  │ Frontline │  Intel    │ Dossier   │  Jamming  │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │  NASA     │  NOAA     │   IODA    │  KiwiSDR  │        │  │
-│  │  │  FIRMS    │ Space Wx  │  Outages  │  Radios   │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │  Shodan   │  Amtrak   │  SatNOGS  │Meshtastic │        │  │
-│  │  │ Devices   │ DigiTraf  │  TinyGS   │   APRS    │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │ Volcanoes │ Weather   │  Fishing  │ Mil Bases │        │  │
-│  │  │ Air Qual. │ Alerts    │ Activity  │Pwr Plants │        │  │
-│  │  ├───────────┼───────────┼───────────┼───────────┤        │  │
-│  │  │  Sentinel │  MODIS    │  VIIRS    │  Data     │        │  │
-│  │  │  Hub/STAC │  Terra    │ Nightlts  │  Centers  │        │  │
-│  │  └───────────┴───────────┴───────────┴───────────┘        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │              Wormhole / InfoNet Relay                     │  │
-│  │  Gate Personas │ Canonical Signing │ Dead Drop DMs        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                   GHCR (Pre-built Images)                 │  │
-│  │  ghcr.io/bigbodycobain/shadowbroker-backend:latest        │  │
-│  │  ghcr.io/bigbodycobain/shadowbroker-frontend:latest       │  │
-│  │  Multi-arch: linux/amd64 + linux/arm64                    │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                       OPERATOR UI  (Next.js + MapLibre)                     ║
+║                                                                             ║
+║  ┌────────────────┐  ┌──────────┐  ┌────────────────┐  ┌────────────────┐   ║
+║  │ MapLibre GL    │  │ NewsFeed │  │ Sovereign Shell│  │   Mesh Chat    │   ║
+║  │  WebGL render  │  │  SIGINT  │  │  Petitions /   │  │  + Mesh Term.  │   ║
+║  │  + clusters    │  │  GDELT   │  │  Upgrades /    │  │  (Infonet /    │   ║
+║  │                │  │  Threat  │  │  Disputes /    │  │   Mesh /       │   ║
+║  │                │  │          │  │  Gates /       │  │   Dead Drop)   │   ║
+║  │                │  │          │  │  Bootstrap /   │  │                │   ║
+║  │                │  │          │  │  Function Keys │  │                │   ║
+║  └──────┬─────────┘  └────┬─────┘  └────────┬───────┘  └────────┬───────┘   ║
+║         │                 │                 │                   │           ║
+║  ┌──────┴─────────────────┴─────────────────┴───────────────────┴───────┐   ║
+║  │  Time Machine ◀── snapshot playback ── snapshotMode toggle ──▶ Live │   ║
+║  │  hourly index │ frame interpolation │ profile-aware │ per-tier ETag  │   ║
+║  └──────────────────────────────────┬───────────────────────────────────┘   ║
+║                                     │ REST  +  /api/[...path] proxy         ║
+╠═════════════════════════════════════╪═══════════════════════════════════════╣
+║                       BACKEND SERVICE PLANE  (FastAPI)                      ║
+║                                     │                                       ║
+║  ┌──────────────────────────────────┴────────────────────────────────────┐  ║
+║  │              Data Fetcher  (APScheduler — fast / slow tiers)          │  ║
+║  │                                                                       │  ║
+║  │  ┌───────────┬───────────┬───────────┬───────────┬───────────┐        │  ║
+║  │  │  OpenSky* │ adsb.lol  │ CelesTrak │   USGS    │   AIS WS  │        │  ║
+║  │  │  Flights  │ Military  │   Sats    │  Quakes   │   Ships   │        │  ║
+║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
+║  │  │  Carrier  │   GDELT   │ CCTV (12) │ DeepState │   NASA    │        │  ║
+║  │  │  Tracker  │ Conflict  │  Cameras  │ Frontline │   FIRMS   │        │  ║
+║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
+║  │  │   GPS     │  KiwiSDR  │  Shodan   │  Amtrak   │  SatNOGS  │        │  ║
+║  │  │  Jamming  │   Radios  │  Devices  │ DigiTraf  │  TinyGS   │        │  ║
+║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
+║  │  │ Volcanoes │  Weather  │  Fishing  │ Mil Bases │   IODA    │        │  ║
+║  │  │  Air Qual │  Alerts   │  Activity │ PwrPlants │  Outages  │        │  ║
+║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
+║  │  │ Sentinel  │   MODIS   │   VIIRS   │   Data    │ Meshtastic│        │  ║
+║  │  │  Hub/STAC │   Terra   │ Nightlts  │  Centers  │   APRS    │        │  ║
+║  │  ├───────────┴───────────┴───────────┴───────────┴───────────┤        │  ║
+║  │  │  SAR (NEW v0.9.7)                                         │        │  ║
+║  │  │   Mode A: ASF Search catalog (free, no account)           │        │  ║
+║  │  │   Mode B: NASA OPERA / Copernicus EGMS / GFM / EMS /      │        │  ║
+║  │  │           UNOSAT  ground-change anomalies (opt-in)        │        │  ║
+║  │  └───────────────────────────────────────────────────────────┘        │  ║
+║  │   * OpenSky: REQUIRED for global flight coverage                      │  ║
+║  └───────────────────────────────────────────────────────────────────────┘  ║
+║                                     │                                       ║
+║  ┌──────────────────────────────────┴────────────────────────────────────┐  ║
+║  │                   Snapshot Store  (Time Machine source)               │  ║
+║  │   Hourly index  │  per-snapshot layer manifest  │  profile metadata   │  ║
+║  └───────────────────────────────────────────────────────────────────────┘  ║
+║                                                                             ║
+║  ┌───────────────────────────────────────────────────────────────────────┐  ║
+║  │   Agentic AI Channel  (HMAC-SHA256, tier-gated  —  OpenClaw + others) │  ║
+║  │                                                                       │  ║
+║  │   POST /api/ai/channel/command   →  one tool call                     │  ║
+║  │   POST /api/ai/channel/batch     →  up to 20 concurrent tool calls    │  ║
+║  │                                                                       │  ║
+║  │   Tier:   restricted (read-only)   │   full (read + write + inject)   │  ║
+║  │   Auth:   X-SB-Timestamp + X-SB-Nonce + X-SB-Signature                │  ║
+║  │   Sig  =  HMAC-SHA256(secret, METHOD|path|ts|nonce|sha256(body))      │  ║
+║  └───────────────────────────────────────────────────────────────────────┘  ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║                  DECENTRALIZED LAYER  (InfoNet Testnet — signed events)     ║
+║                                                                             ║
+║  ┌────────────────────────────┐    ┌──────────────────────────────────┐     ║
+║  │    Mesh Hashchain          │    │   Sovereign Shell Governance     │     ║
+║  │                            │    │                                  │     ║
+║  │  Ed25519 signed events     │    │  Petitions  (DSL: UPDATE_PARAM,  │     ║
+║  │  Public-key binding        │    │              ENABLE_FEATURE …)   │     ║
+║  │  Replay / sequence guard   │    │  Upgrade-Hash voting (80% / 40%  │     ║
+║  │  Two-tier finality         │    │             quorum / 67% Heavy)  │     ║
+║  │   ├ Tier 1 (CRDT, fast)    │    │  Resolution & Dispute markets    │     ║
+║  │   └ Tier 2 (epoch finality)│    │  Gate suspend / shutdown / appeal│     ║
+║  │  Identity rotation         │    │  Bootstrap eligible-node-1-vote  │     ║
+║  │  Constitutional invariants │    │   (Argon2id PoW, Heavy-Node only)│     ║
+║  │  (MappingProxyType)        │    │  Function Keys (5 of 6 pieces)   │     ║
+║  └─────────────┬──────────────┘    └─────────────┬────────────────────┘     ║
+║                │                                 │                          ║
+║                └──────────────┬──────────────────┘                          ║
+║                               │                                             ║
+║  ┌────────────────────────────┴──────────────────────────────────────┐      ║
+║  │            Wormhole / InfoNet Relay  (transport layer)            │      ║
+║  │   Gate personas │ canonical signing │ Dead Drop epoch mailboxes   │      ║
+║  └───────────────────────────────────────────────────────────────────┘      ║
+╠═════════════════════════════════════════════════════════════════════════════╣
+║              PRIVACY CORE  (Rust crate — locked Protocol contracts)         ║
+║                                                                             ║
+║   privacy-core/  ─►  Argon2id │ Ed25519/X25519 │ AESGCM │ HKDF              ║
+║                      Ring sigs* │ Stealth addrs* │ Pedersen* │ Bulletproofs*║
+║                      Blind-sig issuance* (RSA / BBS+ / U-Prove / Idemix)    ║
+║                                                                             ║
+║   * = locked Protocol contract; cryptographic primitive lands Sprint 11+    ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+   Distribution
+   ────────────
+     GitHub (primary):  ghcr.io/bigbodycobain/shadowbroker-{backend,frontend}
+     GitLab (mirror):   registry.gitlab.com/bigbodycobain/shadowbroker/{backend,frontend}
+     Multi-arch:        linux/amd64  +  linux/arm64  (Raspberry Pi 5 supported)
+     Desktop:           Tauri shell  →  packaged backend-runtime  +  Next.js frontend
 ```
 
 ---
@@ -353,7 +496,7 @@ The first decentralized intelligence communication layer built directly into an 
 
 | Source | Data | Update Frequency | API Key Required |
 |---|---|---|---|
-| [OpenSky Network](https://opensky-network.org) | Commercial & private flights | ~60s | Optional (anonymous limited) |
+| [OpenSky Network](https://opensky-network.org) | Commercial & private flights | ~60s | **Yes** |
 | [adsb.lol](https://adsb.lol) | Military aircraft | ~60s | No |
 | [aisstream.io](https://aisstream.io) | AIS vessel positions | Real-time WebSocket | **Yes** |
 | [CelesTrak](https://celestrak.org) | Satellite orbital positions (TLE + SGP4) | ~60s | No |
@@ -401,7 +544,7 @@ The first decentralized intelligence communication layer built directly into an 
 
 ### 🐳 Docker Setup (Recommended for Self-Hosting)
 
-The repo includes a `docker-compose.yml` that pulls pre-built images from the GitHub Container Registry.
+The repo includes a `docker-compose.yml` that pulls pre-built images from GitHub Container Registry.
 
 ```bash
 git clone https://github.com/BigBodyCobain/Shadowbroker.git
@@ -440,14 +583,20 @@ Open `http://localhost:3000` to view the dashboard.
 
 ### 🐋 Standalone Deploy (Portainer, Uncloud, NAS, etc.)
 
-No need to clone the repo. Use the pre-built images published to the GitHub Container Registry.
+No need to clone the repo. Use the pre-built images from GitHub Container Registry. GitLab registry images may be used as a mirror if you publish them there.
 
 Create a `docker-compose.yml` with the following content and deploy it directly — paste it into Portainer's stack editor, `uncloud deploy`, or any Docker host:
 
 ```yaml
+## Image registry — uncomment ONE line per service:
+##   GitHub  (primary): ghcr.io/bigbodycobain/shadowbroker-backend:latest
+##   GitLab  (mirror):  registry.gitlab.com/bigbodycobain/shadowbroker/backend:latest
+
+
 services:
   backend:
     image: ghcr.io/bigbodycobain/shadowbroker-backend:latest
+    # image: registry.gitlab.com/bigbodycobain/shadowbroker/backend:latest
     container_name: shadowbroker-backend
     ports:
       - "8000:8000"
@@ -466,6 +615,7 @@ services:
 
   frontend:
     image: ghcr.io/bigbodycobain/shadowbroker-frontend:latest
+    # image: registry.gitlab.com/bigbodycobain/shadowbroker/frontend:latest
     container_name: shadowbroker-frontend
     ports:
       - "3000:3000"
@@ -489,17 +639,19 @@ volumes:
 
 If you just want to run the dashboard without dealing with terminal commands:
 
-1. Go to the **[Releases](../../releases)** tab on the right side of this GitHub page.
+1. Go to the **[Releases](../../releases)** tab on the right side of this repo page.
 2. Download the latest `.zip` file from the release.
 3. Extract the folder to your computer.
 4. **Windows:** Double-click `start.bat`.
-   **Mac/Linux:** Open terminal, type `chmod +x start.sh` and run `./start.sh`.
+   **Mac/Linux:** Open terminal, type `chmod +x start.sh`, `dos2unix start.sh`, and run `./start.sh`.
 5. It will automatically install everything and launch the dashboard!
 
 Local launcher notes:
 
 - `start.bat` / `start.sh` run the app without Docker — they install dependencies and start both servers directly.
 - If Wormhole identity or DM contact endpoints fail after an upgrade, check the `docs/mesh/` folder for troubleshooting.
+- For DM root witness, transparency, and operator monitoring rollout, start with `docs/mesh/wormhole-dm-root-operations-runbook.md`.
+- For sample DM root ops bridge assets, also see `scripts/mesh/poll-dm-root-health-alerts.mjs`, `scripts/mesh/export-dm-root-health-prometheus.mjs`, `scripts/mesh/publish-external-root-witness-package.mjs`, `scripts/mesh/smoke-external-root-witness-flow.mjs`, `scripts/mesh/smoke-root-transparency-publication-flow.mjs`, `scripts/mesh/smoke-dm-root-deployment-flow.mjs`, `scripts/mesh/sync-dm-root-external-assurance.mjs`, and `docs/mesh/examples/`.
 
 ---
 
@@ -526,19 +678,19 @@ cd backend
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # macOS/Linux
-pip install .   # installs all dependencies from pyproject.toml
+pip install .
 
 # Optional helper scripts (creates venv + installs dev deps)
 # Windows PowerShell
-# .\scripts\setup-venv.ps1
+# .\backend\scripts\setup-venv.ps1
 # macOS/Linux
-# ./scripts/setup-venv.sh
+# ./backend/scripts/setup-venv.sh
 
 # Optional env check (prints warnings for missing keys)
 # Windows PowerShell
-# .\scripts\check-env.ps1
+# .\backend\scripts\check-env.ps1
 # macOS/Linux
-# ./scripts/check-env.sh
+# ./backend/scripts/check-env.sh
 
 # Create .env with your API keys
 echo "AIS_API_KEY=your_aisstream_key" >> .env
@@ -547,7 +699,7 @@ echo "OPENSKY_CLIENT_SECRET=your_opensky_secret" >> .env
 
 # Frontend setup
 cd ../frontend
-npm install
+npm ci
 ```
 
 ### Running
@@ -661,81 +813,73 @@ The platform is optimized for handling massive real-time datasets:
 ```
 Shadowbroker/
 ├── backend/
-│   ├── main.py                     # FastAPI app, middleware, API routes
-│   ├── pyproject.toml              # Python dependencies
+│   ├── main.py                     # FastAPI app, middleware, API routes (~4,000 lines)
+│   ├── cctv.db                     # SQLite CCTV camera database (auto-generated)
+│   ├── config/
+│   │   └── news_feeds.json         # User-customizable RSS feed list
 │   ├── services/
 │   │   ├── data_fetcher.py         # Core scheduler — orchestrates all data sources
 │   │   ├── ais_stream.py           # AIS WebSocket client (25K+ vessels)
-│   │   ├── carrier_tracker.py      # OSINT carrier position estimator
-│   │   ├── cctv_pipeline.py        # 14-source CCTV camera ingestion pipeline
-│   │   ├── correlation_engine.py   # Cross-layer intelligence correlation
+│   │   ├── carrier_tracker.py      # OSINT carrier position estimator (GDELT news scraping)
+│   │   ├── cctv_pipeline.py        # 13-source CCTV camera ingestion pipeline
 │   │   ├── geopolitics.py          # GDELT + Ukraine frontline + air alerts
 │   │   ├── region_dossier.py       # Right-click country/city intelligence
 │   │   ├── radio_intercept.py      # Police scanner feeds + OpenMHZ
-│   │   ├── oracle_service.py       # Prediction market oracle resolution
+│   │   ├── kiwisdr_fetcher.py      # KiwiSDR receiver scraper
+│   │   ├── sentinel_search.py      # Sentinel-2 STAC imagery search
 │   │   ├── shodan_connector.py     # Shodan device search connector
 │   │   ├── sigint_bridge.py        # APRS-IS TCP bridge
-│   │   ├── config.py               # pydantic-settings configuration
+│   │   ├── network_utils.py        # HTTP client with curl fallback
+│   │   ├── api_settings.py         # API key management
+│   │   ├── news_feed_config.py     # RSS feed config manager
 │   │   ├── fetchers/
-│   │   │   ├── _store.py           # Thread-safe in-memory data store
 │   │   │   ├── flights.py          # OpenSky, adsb.lol, GPS jamming, holding patterns
 │   │   │   ├── geo.py              # AIS vessels, carriers, GDELT, fishing activity
 │   │   │   ├── satellites.py       # CelesTrak TLE + SGP4 propagation
 │   │   │   ├── earth_observation.py # Quakes, fires, volcanoes, air quality, weather
 │   │   │   ├── infrastructure.py   # Data centers, power plants, military bases
-│   │   │   ├── prediction_markets.py # Polymarket aggregation
 │   │   │   ├── trains.py           # Amtrak + DigiTraffic European rail
 │   │   │   ├── sigint.py           # SatNOGS, TinyGS, APRS, Meshtastic
-│   │   │   ├── plane_alert.py      # Plane-Alert DB enrichment
+│   │   │   ├── meshtastic_map.py   # Meshtastic MQTT + map node aggregation
+│   │   │   ├── military.py         # Military aircraft classification
 │   │   │   ├── news.py             # RSS intelligence feed aggregation
 │   │   │   ├── financial.py        # Global markets data
 │   │   │   └── ukraine_alerts.py   # Ukraine air raid alerts
 │   │   └── mesh/                   # InfoNet / Wormhole protocol stack
-│   │       ├── mesh_protocol.py    # Core mesh protocol + payload normalization
-│   │       ├── mesh_crypto.py      # Ed25519, ECDSA, HKDF primitives
-│   │       ├── mesh_hashchain.py   # Append-only hash chain
-│   │       ├── mesh_router.py      # Multi-transport router (APRS, LoRa, Tor, clearnet)
-│   │       ├── mesh_dm_mls.py      # MLS-like DM encryption
-│   │       ├── mesh_gate_mls.py    # MLS-like gate (channel) encryption
-│   │       ├── mesh_rns.py         # Reticulum Network Stack + Dandelion++ routing
-│   │       ├── mesh_reputation.py  # Node reputation scoring
-│   │       ├── mesh_schema.py      # Event payload validation
-│   │       ├── mesh_wormhole_identity.py  # Wormhole identity management
+│   │       ├── mesh_protocol.py    # Core mesh protocol + routing
+│   │       ├── mesh_crypto.py      # Ed25519, X25519, AESGCM primitives
+│   │       ├── mesh_hashchain.py   # Hash chain commitment system (~1,400 lines)
+│   │       ├── mesh_router.py      # Multi-transport router (APRS, Meshtastic, WS)
+│   │       ├── mesh_wormhole_persona.py  # Gate persona identity management
 │   │       ├── mesh_wormhole_dead_drop.py # Dead Drop token-based DM mailbox
-│   │       ├── mesh_wormhole_contacts.py  # Contact exchange
+│   │       ├── mesh_wormhole_ratchet.py   # Double-ratchet DM scaffolding
+│   │       ├── mesh_wormhole_gate_keys.py # Gate key management + rotation
 │   │       ├── mesh_wormhole_seal.py      # Message sealing + unsealing
+│   │       ├── mesh_merkle.py      # Merkle tree proofs for data commitment
+│   │       ├── mesh_reputation.py  # Node reputation scoring
 │   │       ├── mesh_oracle.py      # Oracle consensus protocol
 │   │       └── mesh_secure_storage.py # Secure credential storage
-│
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
 │   │   │   └── page.tsx            # Main dashboard — state, polling, layout
-│   │   ├── components/
-│   │   │   ├── MaplibreViewer.tsx   # Core map — all GeoJSON layers
-│   │   │   ├── InfonetTerminal/    # InfoNet mesh terminal UI
-│   │   │   ├── MeshChat.tsx        # Mesh / Dead Drop chat panel
-│   │   │   ├── MeshTerminal.tsx    # Draggable CLI terminal
-│   │   │   ├── NewsFeed.tsx        # SIGINT feed + entity detail panels
-│   │   │   ├── PredictionsPanel.tsx # Prediction market panel
-│   │   │   ├── ShodanPanel.tsx     # Shodan search panel
-│   │   │   ├── FilterPanel.tsx     # Data filter controls
-│   │   │   ├── WorldviewLeftPanel.tsx   # Data layer toggles (37+ layers)
-│   │   │   ├── WorldviewRightPanel.tsx  # Search + filter sidebar
-│   │   │   ├── RadioInterceptPanel.tsx  # Scanner-style radio panel
-│   │   │   ├── MarketsPanel.tsx    # Global financial markets ticker
-│   │   │   ├── FindLocateBar.tsx   # Search/locate bar
-│   │   │   └── map/               # Map sub-components, layers, icons, styles
-│   │   ├── hooks/                  # useDataPolling, useDataStore, useGateSSE
-│   │   ├── mesh/                   # Frontend mesh/DM/identity client code
-│   │   └── lib/                    # Utilities, desktop bridge, API client
+│   │   └── components/
+│   │       ├── MaplibreViewer.tsx   # Core map — all GeoJSON layers
+│   │       ├── MeshChat.tsx        # InfoNet / Mesh / Dead Drop chat panel
+│   │       ├── MeshTerminal.tsx    # Draggable CLI terminal
+│   │       ├── NewsFeed.tsx        # SIGINT feed + entity detail panels
+│   │       ├── WorldviewLeftPanel.tsx   # Data layer toggles (35+ layers)
+│   │       ├── WorldviewRightPanel.tsx  # Search + filter sidebar
+│   │       ├── AdvancedFilterModal.tsx  # Airport/country/owner filtering
+│   │       ├── MapLegend.tsx       # Dynamic legend with all icons
+│   │       ├── MarketsPanel.tsx    # Global financial markets ticker
+│   │       ├── RadioInterceptPanel.tsx # Scanner-style radio panel
+│   │       ├── FindLocateBar.tsx   # Search/locate bar
+│   │       ├── ChangelogModal.tsx  # Version changelog popup (auto-shows on upgrade)
+│   │       ├── SettingsPanel.tsx   # API Keys + News Feed + Shodan config
+│   │       ├── ScaleBar.tsx        # Map scale indicator
+│   │       └── ErrorBoundary.tsx   # Crash recovery wrapper
 │   └── package.json
-│
-├── desktop-shell/                  # Tauri (Rust) desktop wrapper
-├── helm/chart/                     # Kubernetes Helm chart
-├── docker-compose.yml              # Main Docker Compose config
-├── start.sh / start.bat            # Local launcher scripts
-└── compose.sh                      # Podman/Docker auto-detect wrapper
 ```
 
 ---
@@ -745,17 +889,43 @@ Shadowbroker/
 ### Backend (`backend/.env`)
 
 ```env
-# Required
-AIS_API_KEY=your_aisstream_key                # Maritime vessel tracking (aisstream.io)
+# Required for airplane telemetry (NEW in v0.9.7 — startup env check flags these as critical)
+# Free registration: https://opensky-network.org/index.php?option=com_users&view=registration
+OPENSKY_CLIENT_ID=your_opensky_client_id      # OAuth2 — global flight state vectors
+OPENSKY_CLIENT_SECRET=your_opensky_secret     # OAuth2 — paired with Client ID above
 
 # Optional (enhances data quality)
-OPENSKY_CLIENT_ID=your_opensky_client_id      # OAuth2 — higher rate limits for flight data
-OPENSKY_CLIENT_SECRET=your_opensky_secret     # OAuth2 — paired with Client ID above
+AIS_API_KEY=your_aisstream_key                # Maritime vessel tracking (aisstream.io) — ships layer empty without it
 LTA_ACCOUNT_KEY=your_lta_key                  # Singapore CCTV cameras
 SHODAN_API_KEY=your_shodan_key                # Shodan device search overlay
 SH_CLIENT_ID=your_sentinel_hub_id             # Copernicus CDSE Sentinel Hub imagery
 SH_CLIENT_SECRET=your_sentinel_hub_secret     # Paired with Sentinel Hub Client ID
+MESH_SAR_EARTHDATA_USER=                      # NASA Earthdata user (SAR Mode B — OPERA products)
+MESH_SAR_EARTHDATA_TOKEN=                     # NASA Earthdata token (paired with user above)
+MESH_SAR_COPERNICUS_USER=                     # Copernicus Data Space user (SAR Mode B — EGMS / EMS)
+MESH_SAR_COPERNICUS_TOKEN=                    # Copernicus token (paired with user above)
+OPENCLAW_ACCESS_TIER=restricted               # OpenClaw agent tier: "restricted" (read-only) or "full"
+
+# Private-lane privacy-core pinning (required when Arti or RNS is enabled)
+PRIVACY_CORE_MIN_VERSION=0.1.0
+PRIVACY_CORE_ALLOWED_SHA256=your_privacy_core_sha256
+# Optional override if you load a non-default shared library path
+PRIVACY_CORE_LIB=
 ```
+
+When `MESH_ARTI_ENABLED=true` or `MESH_RNS_ENABLED=true`, backend startup now fails closed unless the loaded `privacy-core` artifact reports a parseable version at or above `PRIVACY_CORE_MIN_VERSION` and matches one of the hashes in `PRIVACY_CORE_ALLOWED_SHA256`.
+
+Generate the hash from the artifact you intend to ship:
+
+```powershell
+Get-FileHash .\privacy-core\target\release\privacy_core.dll -Algorithm SHA256
+```
+
+```bash
+sha256sum ./privacy-core/target/release/libprivacy_core.so
+```
+
+Then confirm authenticated `GET /api/wormhole/status` or `GET /api/settings/wormhole-status` shows the same `privacy_core.version`, `privacy_core.library_path`, and `privacy_core.library_sha256`.
 
 ### Frontend
 
@@ -773,6 +943,7 @@ ShadowBroker is built in the open. These people shipped real code:
 
 | Who | What | PR |
 |-----|------|----|
+| [@Alienmajik](https://github.com/Alienmajik) | Raspberry Pi 5 support — ARM64 packaging, headless deployment notes, runtime tuning for Pi-class hardware | — |
 | [@wa1id](https://github.com/wa1id) | CCTV ingestion fix — threaded SQLite, persistent DB, startup hydration, cluster clickability | #92 |
 | [@AlborzNazari](https://github.com/AlborzNazari) | Spain DGT + Madrid CCTV sources, STIX 2.1 threat intel export | #91 |
 | [@adust09](https://github.com/adust09) | Power plants layer, East Asia intel coverage (JSDF bases, ICAO enrichment, Taiwan news, military classification) | #71, #72, #76, #77, #87 |

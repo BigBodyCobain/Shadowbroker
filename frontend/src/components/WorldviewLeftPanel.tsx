@@ -1,8 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  Layers,
+  Minus,
+  Plus,
   Plane,
   AlertTriangle,
   Activity,
@@ -37,11 +40,16 @@ import {
   Fish,
   TrainFront,
   Search,
+  Droplets,
+  Radar,
+  MapPin,
 } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 import { onTileLoadingChange, resetTileLoading } from '@/lib/sentinelHub';
 import packageJson from '../../package.json';
 import { useTheme } from '@/lib/ThemeContext';
+import SarModeChooserModal from './SarModeChooserModal';
+import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
 
 function relativeTime(iso: string | undefined): string {
   if (!iso) return '';
@@ -91,6 +99,11 @@ const FRESHNESS_MAP: Record<string, string> = {
   fishing_activity: 'fishing_activity',
   shodan_overlay: '',
   correlations: 'correlations',
+  contradictions: 'correlations',
+  uap_sightings: 'uap_sightings',
+  wastewater: 'wastewater',
+  ai_intel: '',
+  crowdthreat: 'crowdthreat',
 };
 
 // POTUS fleet ICAO hex codes for client-side filtering
@@ -132,12 +145,17 @@ function ScannerTracker({
   onFlyTo: () => void;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recentPlayedRef = useRef<Set<string>>(new Set());
+  const fetchAndPlayRef = useRef<() => void>(() => undefined);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [playerMessage, setPlayerMessage] = useState('Ready to play the latest OpenMHz call.');
   const [activeBurst, setActiveBurst] = useState<{
     id: string;
     talkgroup: string;
     url: string;
+    time?: string;
+    len?: number;
   } | null>(null);
   const [volume, setVolume] = useState(0.8);
   const [isScanning, setIsScanning] = useState(false);
@@ -146,14 +164,13 @@ function ScannerTracker({
 
   // Cleanup on unmount
   useEffect(() => {
-    const timer = scanTimerRef.current;
     return () => {
       isScanningRef.current = false;
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
       }
-      if (timer) clearTimeout(timer);
+      if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     };
   }, []);
 
@@ -162,57 +179,102 @@ function ScannerTracker({
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  const fetchAndPlay = async () => {
-    if (!scanner.shortName) return;
+  const scheduleScan = useCallback((delayMs = 3500) => {
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    scanTimerRef.current = setTimeout(() => {
+      if (isScanningRef.current) {
+        fetchAndPlayRef.current();
+      }
+    }, delayMs);
+  }, []);
+
+  const fetchAndPlay = useCallback(async () => {
+    if (!scanner.shortName) {
+      setPlayerMessage('No OpenMHz system id is available for this scanner.');
+      return;
+    }
     setIsLoading(true);
+    setPlayerMessage('Checking recent calls...');
     try {
       const res = await fetch(`${API_BASE}/api/radio/openmhz/calls/${scanner.shortName}`);
       if (!res.ok) {
-        setIsLoading(false);
+        setPlayerMessage(`OpenMHz call lookup failed (${res.status}).`);
         return;
       }
       const calls = await res.json();
       if (!calls?.length) {
-        setIsLoading(false);
+        setPlayerMessage(isScanningRef.current ? 'No recent calls. Auto scan will retry.' : 'No recent calls for this system yet.');
+        if (isScanningRef.current) scheduleScan(8000);
         return;
       }
-      const pick = calls[Math.floor(Math.random() * Math.min(calls.length, 5))];
+      const playable = calls.filter((call: { url?: string }) => Boolean(call?.url));
+      if (!playable.length) {
+        setPlayerMessage('Recent calls did not include playable audio URLs.');
+        if (isScanningRef.current) scheduleScan(8000);
+        return;
+      }
+      const pick =
+        playable.find((call: { id?: string; _id?: string }) => {
+          const id = String(call.id || call._id || '');
+          return id && !recentPlayedRef.current.has(id);
+        }) || playable[0];
       const burst = {
         id: pick.id || pick._id || String(Date.now()),
         talkgroup: String(pick.talkgroupNum || '???'),
-        url: pick.url,
+        url: `${API_BASE}/api/radio/openmhz/audio?url=${encodeURIComponent(pick.url)}`,
+        time: pick.time,
+        len: Number(pick.len || 0),
       };
+      recentPlayedRef.current.add(String(burst.id));
+      if (recentPlayedRef.current.size > 40) {
+        recentPlayedRef.current = new Set(Array.from(recentPlayedRef.current).slice(-20));
+      }
       setActiveBurst(burst);
-      // Play
       if (!audioRef.current) audioRef.current = new Audio();
+      audioRef.current.pause();
       audioRef.current.src = burst.url;
       audioRef.current.volume = volume;
       audioRef.current.onended = () => {
-        if (isScanningRef.current) fetchAndPlay();
-        else {
-          setIsPlaying(false);
-          setActiveBurst(null);
-        }
+        setIsPlaying(false);
+        setPlayerMessage(isScanningRef.current ? 'Call ended. Scanning for the next call...' : 'Call ended.');
+        if (isScanningRef.current) scheduleScan(1200);
+      };
+      audioRef.current.onerror = () => {
+        setIsPlaying(false);
+        setPlayerMessage('Audio failed to load. Trying another call shortly.');
+        if (isScanningRef.current) scheduleScan(2500);
       };
       await audioRef.current.play();
       setIsPlaying(true);
+      setPlayerMessage(isScanningRef.current ? 'Playing. Auto scan is armed.' : 'Playing latest call.');
     } catch (e) {
       console.error('Scanner audio error', e);
+      setPlayerMessage('Audio playback failed. Try Auto Scan or another scanner.');
+      if (isScanningRef.current) scheduleScan(5000);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
+  }, [scanner.shortName, scheduleScan, volume]);
+  fetchAndPlayRef.current = () => {
+    void fetchAndPlay();
   };
 
   const stop = () => {
+    if (scanTimerRef.current) {
+      clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
     }
     setIsPlaying(false);
+    setIsLoading(false);
     setActiveBurst(null);
+    setPlayerMessage('Stopped.');
     if (isScanning) {
       setIsScanning(false);
       isScanningRef.current = false;
-      if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
     }
   };
 
@@ -223,7 +285,7 @@ function ScannerTracker({
     }
     setIsScanning(true);
     isScanningRef.current = true;
-    fetchAndPlay();
+    void fetchAndPlay();
   };
 
   return (
@@ -239,6 +301,11 @@ function ScannerTracker({
               LIVE
             </span>
           )}
+          {isLoading && (
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+              TUNING
+            </span>
+          )}
         </div>
         <button
           onClick={(e) => {
@@ -246,7 +313,7 @@ function ScannerTracker({
             stop();
             onRelease();
           }}
-          className="text-[8px] font-mono text-[var(--text-muted)] hover:text-red-400 border border-[var(--border-primary)] hover:border-red-400/40 px-1.5 py-0.5 transition-colors"
+          className="text-[11px] font-mono text-[var(--text-muted)] hover:text-red-400 border border-[var(--border-primary)] hover:border-red-400/40 px-1.5 py-0.5 transition-colors"
         >
           RELEASE
         </button>
@@ -257,30 +324,32 @@ function ScannerTracker({
         <span className="text-[10px] font-bold font-mono text-red-300 truncate">
           {(scanner.name || 'UNKNOWN SYSTEM').toUpperCase()}
         </span>
-        <span className="text-[8px] text-[var(--text-muted)] font-mono">
+        <span className="text-[11px] text-[var(--text-muted)] font-mono">
           {[scanner.city, scanner.state].filter(Boolean).join(', ')}
           {scanner.clientCount > 0 && <span> · {scanner.clientCount} listeners</span>}
         </span>
         {activeBurst && (
-          <span className="text-[8px] text-red-400 font-mono mt-1">
-            TALKGROUP: {activeBurst.talkgroup}
+          <span className="text-[11px] text-red-400 font-mono mt-1 flex items-center justify-between gap-2">
+            <span>TALKGROUP: {activeBurst.talkgroup}</span>
+            {activeBurst.len ? <span>{activeBurst.len}s</span> : null}
           </span>
         )}
       </div>
 
       {/* Audio controls */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 mb-2">
         <button
-          onClick={isPlaying ? stop : fetchAndPlay}
+          onClick={isPlaying ? stop : () => void fetchAndPlay()}
           disabled={isLoading}
-          className={`p-1.5 rounded-full border ${isPlaying ? 'border-red-500/50 text-red-400 hover:bg-red-950/50' : 'border-red-700/50 text-red-500 hover:bg-red-950/30'} transition-colors ${isLoading ? 'opacity-50' : ''}`}
+          className={`px-2 py-1.5 border text-[9px] font-mono tracking-wider flex items-center justify-center gap-1.5 ${isPlaying ? 'border-red-500/50 text-red-300 bg-red-950/40 hover:bg-red-950/60' : 'border-red-700/50 text-red-500 hover:bg-red-950/30'} transition-colors ${isLoading ? 'opacity-50' : ''}`}
           title={isPlaying ? 'Stop' : 'Play latest intercept'}
         >
-          {isPlaying ? <Square size={12} /> : <Play size={12} className="ml-0.5" />}
+          {isPlaying ? <Square size={11} /> : <Play size={11} />}
+          {isPlaying ? 'STOP' : isLoading ? 'TUNING' : 'PLAY LATEST'}
         </button>
         <button
           onClick={toggleScan}
-          className={`px-2 py-1 text-[9px] font-mono border tracking-wider flex items-center gap-1.5 ${isScanning ? 'bg-red-900/60 border-red-400 text-red-300 animate-pulse' : 'border-red-800/50 text-red-600 hover:border-red-500'} transition-colors`}
+          className={`px-2 py-1.5 text-[9px] font-mono border tracking-wider flex items-center justify-center gap-1.5 ${isScanning ? 'bg-red-900/60 border-red-400 text-red-300 animate-pulse' : 'border-red-800/50 text-red-600 hover:border-red-500'} transition-colors`}
           title="Auto-scan: continuously play intercepted bursts"
         >
           <FastForward size={10} />
@@ -293,9 +362,13 @@ function ScannerTracker({
           step="0.05"
           value={volume}
           onChange={(e) => setVolume(parseFloat(e.target.value))}
-          className="w-16 accent-red-500 ml-auto"
+          className="w-16 accent-red-500"
           title="Volume"
         />
+      </div>
+
+      <div className="mb-2 min-h-4 text-[10px] text-red-300/75 font-mono leading-snug">
+        {playerMessage}
       </div>
 
       {/* Waveform visualizer */}
@@ -344,6 +417,9 @@ function SdrTracker({
   onFlyTo: () => void;
 }) {
   const [isListening, setIsListening] = useState(false);
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const [consentDialogMode, setConsentDialogMode] = useState<'consent' | 'edit'>('consent');
+  const [currentCallsign, setCurrentCallsign] = useState('');
   const popupRef = useRef<Window | null>(null);
 
   // Poll to detect when user closes the popup
@@ -365,19 +441,56 @@ function SdrTracker({
     };
   }, []);
 
-  const openReceiver = () => {
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.focus();
-      return;
-    }
+  // Load persisted callsign on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setCurrentCallsign((localStorage.getItem('kiwisdr_callsign') || '').trim());
+  }, []);
+
+  const launchPopup = (callsign: string) => {
     if (!sdr.url) return;
-    const tuneUrl = `${sdr.url}${sdr.url.includes('?') ? '&' : '?'}n=ShadowBroker`;
+    const tuneUrl = callsign
+      ? `${sdr.url}${sdr.url.includes('?') ? '&' : '?'}n=${encodeURIComponent(callsign)}`
+      : sdr.url;
     popupRef.current = window.open(
       tuneUrl,
       'kiwisdr_receiver',
       'width=800,height=600,menubar=no,toolbar=no,location=no,status=no',
     );
     setIsListening(true);
+  };
+
+  const openReceiver = () => {
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.focus();
+      return;
+    }
+    if (!sdr.url) return;
+    if (typeof window === 'undefined') return;
+    const consented = localStorage.getItem('kiwisdr_consent_v1') === '1';
+    if (!consented) {
+      setConsentDialogMode('consent');
+      setConsentDialogOpen(true);
+      return;
+    }
+    const callsign = (localStorage.getItem('kiwisdr_callsign') || '').trim();
+    launchPopup(callsign);
+  };
+
+  const handleConsentConfirm = (callsign: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kiwisdr_consent_v1', '1');
+      if (callsign) {
+        localStorage.setItem('kiwisdr_callsign', callsign);
+      } else {
+        localStorage.removeItem('kiwisdr_callsign');
+      }
+    }
+    setCurrentCallsign(callsign);
+    setConsentDialogOpen(false);
+    if (consentDialogMode === 'consent') {
+      launchPopup(callsign);
+    }
   };
 
   const closeReceiver = () => {
@@ -387,15 +500,15 @@ function SdrTracker({
   };
 
   return (
-    <div className="bg-amber-950/20 border border-amber-500/40 p-3 -mt-1 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+    <div className="bg-pink-950/20 border border-pink-500/40 p-3 -mt-1 shadow-[0_0_15px_rgba(236,72,153,0.1)]">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Radio size={14} className="text-amber-400" />
-          <span className="text-[12px] text-amber-400 font-mono tracking-widest font-bold">
+          <Radio size={14} className="text-pink-400" />
+          <span className="text-[14px] text-pink-400 font-mono tracking-widest font-bold">
             SDR TRACKER
           </span>
           {isListening && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 animate-pulse">
+            <span className="text-[12px] font-mono px-1.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-400 animate-pulse">
               LIVE
             </span>
           )}
@@ -406,23 +519,23 @@ function SdrTracker({
             closeReceiver();
             onRelease();
           }}
-          className="text-[8px] font-mono text-[var(--text-muted)] hover:text-red-400 border border-[var(--border-primary)] hover:border-red-400/40 px-1.5 py-0.5 transition-colors"
+          className="text-[11px] font-mono text-[var(--text-muted)] hover:text-red-400 border border-[var(--border-primary)] hover:border-red-400/40 px-1.5 py-0.5 transition-colors"
         >
           RELEASE
         </button>
       </div>
 
       {/* System info */}
-      <div className="flex flex-col p-2 border border-amber-500/20 bg-amber-950/10 mb-2">
-        <span className="text-[10px] font-bold font-mono text-amber-300 truncate">
+      <div className="flex flex-col p-2 border border-pink-500/20 bg-pink-950/10 mb-2">
+        <span className="text-[13px] font-bold font-mono text-pink-300 truncate">
           {(sdr.name || 'REMOTE RECEIVER').toUpperCase()}
         </span>
-        <span className="text-[8px] text-[var(--text-muted)] font-mono">
+        <span className="text-[11px] text-[var(--text-muted)] font-mono">
           {sdr.location && <span>{sdr.location} · </span>}
           {sdr.antenna && <span>{sdr.antenna.slice(0, 40)}</span>}
         </span>
         {sdr.bands && (
-          <span className="text-[8px] text-amber-400/70 font-mono mt-0.5">
+          <span className="text-[11px] text-pink-400/70 font-mono mt-0.5">
             {(Number(sdr.bands.split('-')[0]) / 1e6).toFixed(0)}-
             {(Number(sdr.bands.split('-')[1]) / 1e6).toFixed(0)} MHz
             {sdr.users !== undefined && ` · ${sdr.users}/${sdr.users_max || '?'} users`}
@@ -436,7 +549,7 @@ function SdrTracker({
           {Array.from({ length: 36 }).map((_, i) => (
             <motion.div
               key={i}
-              className="w-[3px] rounded-t-sm bg-amber-500"
+              className="w-[3px] rounded-t-sm bg-pink-500"
               animate={{ height: ['10%', `${Math.random() * 80 + 20}%`, '10%'] }}
               transition={{
                 repeat: Infinity,
@@ -452,17 +565,17 @@ function SdrTracker({
       <div className="flex items-center gap-2">
         <button
           onClick={onFlyTo}
-          className="flex-1 text-center px-2 py-1.5 border border-[var(--border-primary)] hover:border-amber-400/50 hover:text-amber-400 text-[var(--text-muted)] text-[9px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 text-center px-2 py-1.5 border border-[var(--border-primary)] hover:border-pink-400/50 hover:text-pink-400 text-[var(--text-muted)] text-[12px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5"
         >
           <Globe size={10} /> RE-LOCK
         </button>
         {sdr.url && (
           <button
             onClick={isListening ? closeReceiver : openReceiver}
-            className={`flex-1 text-center px-2 py-1.5 border text-[9px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5 ${
+            className={`flex-1 text-center px-2 py-1.5 border text-[12px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5 ${
               isListening
-                ? 'border-amber-400 bg-amber-500/20 text-amber-300'
-                : 'border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:border-amber-400'
+                ? 'border-pink-400 bg-pink-500/20 text-pink-300'
+                : 'border-pink-500/50 bg-pink-500/10 text-pink-400 hover:bg-pink-500/20 hover:border-pink-400'
             }`}
           >
             {isListening ? (
@@ -477,6 +590,34 @@ function SdrTracker({
           </button>
         )}
       </div>
+
+      {/* Callsign line with edit affordance */}
+      <div className="flex items-center justify-between mt-2 text-[10px] font-mono text-[var(--text-muted)]">
+        <span>
+          CALLSIGN:{' '}
+          <span className="text-pink-300">
+            {currentCallsign || '(anonymous — KiwiSDR will prompt)'}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setConsentDialogMode('edit');
+            setConsentDialogOpen(true);
+          }}
+          className="text-pink-400/70 hover:text-pink-300 underline tracking-widest"
+        >
+          EDIT
+        </button>
+      </div>
+
+      <KiwiSdrConsentDialog
+        open={consentDialogOpen}
+        initialCallsign={currentCallsign}
+        mode={consentDialogMode}
+        onConfirm={handleConsentConfirm}
+        onCancel={() => setConsentDialogOpen(false)}
+      />
     </div>
   );
 }
@@ -505,6 +646,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   setSentinelPreset,
   isMinimized: isMinimizedProp,
   onMinimizedChange,
+  onOpenSarAoiEditor,
 }: {
   activeLayers: ActiveLayers;
   setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>;
@@ -529,6 +671,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   setSentinelPreset?: (p: string) => void;
   isMinimized?: boolean;
   onMinimizedChange?: (minimized: boolean) => void;
+  onOpenSarAoiEditor?: () => void;
 }) {
   const data = useDataSnapshot() as import('@/types/dashboard').DashboardData;
   const [internalMinimized, setInternalMinimized] = useState(true);
@@ -542,6 +685,62 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   const [gibsPlaying, setGibsPlaying] = useState(false);
   const [potusEnabled, setPotusEnabled] = useState(true);
   const gibsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // SAR mode chooser — prompts the first time the user enables the SAR
+  // layer, remembers the choice, and auto-detects server-side Mode B.
+  const [sarChoice, setSarChoice] = useState<import('./SarModeChooserModal').SarChoice>(() => {
+    try {
+      const stored = localStorage.getItem('shadowbroker_sar_mode_choice');
+      if (stored === 'a_only' || stored === 'b_active') return stored;
+    } catch {
+      // localStorage unavailable
+    }
+    return null;
+  });
+  const [sarModalOpen, setSarModalOpen] = useState(false);
+  const [sarPendingEnable, setSarPendingEnable] = useState(false);
+
+  // Auto-detect: if the backend already has Mode B creds configured
+  // (via env or a previous runtime save), promote the stored choice to
+  // 'b_active' without prompting.  If it flips back to off, reset so the
+  // next toggle re-prompts.
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/sar/status`, {
+          credentials: 'include',
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const modeBOn = Boolean(body?.products?.enabled);
+        if (cancelled) return;
+        if (modeBOn && sarChoice !== 'b_active') {
+          try {
+            localStorage.setItem('shadowbroker_sar_mode_choice', 'b_active');
+          } catch {
+            // ignore
+          }
+          setSarChoice('b_active');
+        } else if (!modeBOn && sarChoice === 'b_active') {
+          try {
+            localStorage.removeItem('shadowbroker_sar_mode_choice');
+          } catch {
+            // ignore
+          }
+          setSarChoice(null);
+        }
+      } catch {
+        // network error — keep the current choice
+      }
+    };
+    check();
+    return () => {
+      cancelled = true;
+    };
+    // Run on mount only — the auto-detect is best-effort.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sentinel tile loading feedback
   const [sentinelInflight, setSentinelInflight] = useState(0);
@@ -776,13 +975,19 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           id: 'satellites',
           name: 'Satellites',
           source:
-            data?.satellite_source === 'celestrak'
+            (data?.satellite_source === 'celestrak'
               ? 'CelesTrak SGP4'
               : data?.satellite_source === 'tle_api'
                 ? 'TLE API · SGP4'
                 : data?.satellite_source === 'disk_cache'
                   ? 'Cached · SGP4 (est.)'
-                  : 'CelesTrak SGP4',
+                  : 'CelesTrak SGP4')
+            + (data?.satellite_analysis?.starlink?.total
+              ? ` · ${data.satellite_analysis.starlink.total.toLocaleString()} Starlink`
+              : '')
+            + (data?.satellite_analysis?.maneuvers?.length
+              ? ` · ${data.satellite_analysis.maneuvers.length} maneuver${data.satellite_analysis.maneuvers.length > 1 ? 's' : ''}`
+              : ''),
           count: data?.satellites?.length || 0,
           icon: Satellite,
         },
@@ -861,6 +1066,44 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           source: 'OpenAQ',
           count: data?.air_quality?.length || 0,
           icon: Wind,
+        },
+        {
+          id: 'sar',
+          name: 'SAR Ground-Change',
+          source:
+            (data?.sar_anomalies?.length
+              ? `OPERA/EGMS · ${data.sar_anomalies.length} alerts · ${data.sar_scenes?.length || 0} passes`
+              : (data?.sar_scenes?.length
+                ? `Catalog only · ${data.sar_scenes.length} Sentinel-1 passes · Alerts: sign up →`
+                : 'Catalog only (free) · Alerts: sign up →')),
+          count: data?.sar_anomalies?.length || 0,
+          icon: Radar,
+        },
+      ],
+    },
+    {
+      label: 'UAP SIGHTINGS',
+      icon: Eye,
+      layers: [
+        {
+          id: 'uap_sightings',
+          name: 'UAP Reports',
+          source: 'NUFORC',
+          count: data?.uap_sightings?.length || 0,
+          icon: Eye,
+        },
+      ],
+    },
+    {
+      label: 'BIOSURVEILLANCE',
+      icon: Droplets,
+      layers: [
+        {
+          id: 'wastewater',
+          name: 'Wastewater Pathogens',
+          source: 'WastewaterSCAN',
+          count: data?.wastewater?.length || 0,
+          icon: Droplets,
         },
       ],
     },
@@ -999,10 +1242,24 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           icon: Activity,
         },
         {
+          id: 'crowdthreat',
+          name: 'CrowdThreat',
+          source: 'CrowdThreat',
+          count: data?.crowdthreat?.length || 0,
+          icon: Shield,
+        },
+        {
           id: 'correlations',
           name: 'Correlations',
           source: 'Cross-Layer Analysis',
           count: data?.correlations?.length || 0,
+          icon: Zap,
+        },
+        {
+          id: 'contradictions',
+          name: 'Possible Contradictions',
+          source: 'Narrative Intelligence',
+          count: data?.correlations?.filter((c: { type: string }) => c.type === 'contradiction').length || 0,
           icon: Zap,
         },
         {
@@ -1011,6 +1268,13 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           source: 'Solar Calc',
           count: null,
           icon: Sun,
+        },
+        {
+          id: 'ai_intel',
+          name: 'AI Intel',
+          source: 'OpenClaw AI',
+          count: null,
+          icon: Zap,
         },
       ],
     },
@@ -1042,6 +1306,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   );
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, x: -50 }}
       animate={{ opacity: 1, x: 0 }}
@@ -1049,25 +1314,22 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       className={`w-full flex flex-col pointer-events-none ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-[300px]'}`}
     >
       {/* Header */}
-      <div className="mb-6 pointer-events-auto">
-        <div className="text-[10px] text-[var(--text-secondary)] font-mono tracking-widest mb-1">
-          TOP SECRET // SI-TK // NOFORN
+      <div className="mb-4 pointer-events-auto">
+        <div className="text-[9px] text-[var(--text-muted)] font-mono tracking-[0.3em] mb-3 opacity-50">
+          TOP SECRET // SI-TK // NOFORN · KH11-4094 OPS-4168
         </div>
-        <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest mb-4">
-          KH11-4094 OPS-4168
-        </div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-[0.2em] text-[var(--text-heading)]">FLIR</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-xl font-bold tracking-[0.25em] text-[var(--text-heading)] mr-1">FLIR</h1>
           <button
             onClick={toggleTheme}
-            className={`w-7 h-7 border border-[var(--border-primary)] hover:border-cyan-500/50 flex items-center justify-center ${theme === 'dark' ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-300 transition-all hover:bg-[var(--hover-accent)]`}
+            className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
           <button
             onClick={cycleHudColor}
-            className={`w-7 h-7 border border-[var(--border-primary)] hover:border-cyan-500/50 flex items-center justify-center text-cyan-400 hover:text-cyan-300 transition-all hover:bg-[var(--hover-accent)]`}
+            className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
             title={hudColor === 'cyan' ? 'Switch to Matrix HUD' : 'Switch to Cyan HUD'}
           >
             <Palette size={14} />
@@ -1075,7 +1337,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           {onSettingsClick && (
             <button
               onClick={onSettingsClick}
-              className={`w-7 h-7 border border-[var(--border-primary)] hover:border-cyan-500/50 flex items-center justify-center ${theme === 'dark' ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-300 transition-all hover:bg-[var(--hover-accent)] group`}
+              className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30 group"
               title="System Settings"
             >
               <Settings
@@ -1087,15 +1349,15 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           {onLegendClick && (
             <button
               onClick={onLegendClick}
-              className={`h-7 px-2 border border-[var(--border-primary)] hover:border-cyan-500/50 flex items-center justify-center gap-1 ${theme === 'dark' ? 'text-cyan-400' : 'text-[var(--text-muted)]'} hover:text-cyan-300 transition-all hover:bg-[var(--hover-accent)]`}
+              className="h-8 px-2.5 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center gap-1.5 text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
               title="Map Legend / Icon Key"
             >
               <BookOpen size={12} />
-              <span className="text-[8px] font-mono tracking-widest font-bold">KEY</span>
+              <span className="text-[10px] font-mono tracking-widest font-bold">KEY</span>
             </button>
           )}
           <span
-            className={`h-7 px-2 border border-[var(--border-primary)] flex items-center justify-center text-[8px] ${theme === 'dark' ? 'text-cyan-400' : 'text-[var(--text-muted)]'} font-mono tracking-widest select-none`}
+            className="h-8 px-2.5 border border-cyan-900/40 flex items-center justify-center text-[10px] text-cyan-400/60 font-mono tracking-widest select-none"
           >
             v{packageJson.version}
           </span>
@@ -1106,14 +1368,15 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       <div className={`bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 pointer-events-auto flex flex-col relative overflow-hidden max-h-full ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
         {/* Header / Toggle */}
         <div 
-          className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors border-b border-[var(--border-primary)]/50"
+          className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
           onClick={() => setIsMinimized(!isMinimized)}
         >
-          <span
-            className="text-[12px] text-[var(--text-muted)] font-mono tracking-widest"
-          >
-            DATA LAYERS
-          </span>
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-cyan-400" />
+            <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+              DATA LAYERS
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <button
               title={
@@ -1148,16 +1411,16 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
               {Object.entries(activeLayers)
                 .filter(([k]) => !['gibs_imagery', 'highres_satellite', 'sentinel_hub', 'viirs_nightlights'].includes(k))
                 .every(([, v]) => v) ? (
-                <ToggleRight size={16} />
+                <ToggleRight size={22} />
               ) : (
-                <ToggleLeft size={16} />
+                <ToggleLeft size={22} />
               )}
             </button>
-            <button
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
+            {isMinimized ? (
+              <Plus size={16} className="text-cyan-400" />
+            ) : (
+              <Minus size={16} className="text-cyan-400" />
+            )}
           </div>
         </div>
 
@@ -1197,7 +1460,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                         <span className="text-[12px] text-[#ff1493] font-mono tracking-widest font-bold">
                           POTUS FLEET
                         </span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-[#ff1493]/20 border border-[#ff1493]/40 text-[#ff1493] animate-pulse">
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full bg-[#ff1493]/20 border border-[#ff1493]/40 text-[#ff1493] animate-pulse">
                           {potusFlights.length} ACTIVE
                         </span>
                       </div>
@@ -1206,7 +1469,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           e.stopPropagation();
                           setPotusEnabled(false);
                         }}
-                        className="text-[8px] font-mono text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 px-1.5 py-0.5 transition-colors"
+                        className="text-[11px] font-mono text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 px-1.5 py-0.5 transition-colors"
                         title="Hide POTUS Fleet tracker"
                       >
                         HIDE
@@ -1240,7 +1503,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                               <span className="text-[10px] font-bold font-mono" style={{ color }}>
                                 {pf.meta.label}
                               </span>
-                              <span className="text-[8px] text-[var(--text-muted)] font-mono mt-0.5">
+                              <span className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
                                 {alt > 0 ? `${Math.round(alt).toLocaleString()} ft` : 'GND'} ·{' '}
                                 {speed > 0 ? `${Math.round(speed)} kts` : 'STATIC'}
                               </span>
@@ -1250,7 +1513,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                 className="w-1.5 h-1.5 rounded-full animate-pulse"
                                 style={{ backgroundColor: color }}
                               />
-                              <span className="text-[8px] font-mono" style={{ color }}>
+                              <span className="text-[11px] font-mono" style={{ color }}>
                                 TRACK
                               </span>
                             </div>
@@ -1299,7 +1562,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                             } transition-colors`}
                           />
                           <span
-                            className={`text-[11px] font-mono tracking-[0.2em] font-bold ${
+                            className={`text-[13px] font-mono tracking-[0.2em] font-bold ${
                               section.label === 'SHODAN' ? 'text-green-400' : 'text-[var(--text-muted)]'
                             }`}
                           >
@@ -1307,7 +1570,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           </span>
                           {anyOn && totalCount > 0 && (
                             <span
-                              className={`text-[8px] font-mono ${
+                              className={`text-[12px] font-mono ${
                                 section.label === 'SHODAN' ? 'text-green-500/70' : 'text-cyan-500/50'
                               }`}
                             >
@@ -1368,12 +1631,25 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                               <div key={layer.id} className="flex flex-col">
                                 <div
                                   className="flex items-start justify-between group cursor-pointer"
-                                  onClick={() =>
+                                  onClick={() => {
+                                    // SAR first-run interception: if the user
+                                    // is turning the SAR layer ON for the first
+                                    // time and hasn't picked a mode yet, show
+                                    // the chooser instead of flipping silently.
+                                    if (
+                                      layer.id === 'sar' &&
+                                      !active &&
+                                      sarChoice === null
+                                    ) {
+                                      setSarPendingEnable(true);
+                                      setSarModalOpen(true);
+                                      return;
+                                    }
                                     setActiveLayers((prev: ActiveLayers) => ({
                                       ...prev,
                                       [layer.id]: !active,
-                                    }))
-                                  }
+                                    }));
+                                  }}
                                 >
                                   <div className="flex gap-3">
                                     <div
@@ -1407,7 +1683,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       >
                                         {layer.name}
                                       </span>
-                                      <span className="text-[8px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">
+                                      <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">
                                         {layer.id === 'shodan_overlay'
                                           ? layer.source
                                           : (
@@ -1437,13 +1713,13 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {active && (layer.count ?? 0) > 0 && (
-                                      <span className="text-[9px] text-gray-300 font-mono">
+                                      <span className="text-[12px] text-gray-300 font-mono">
                                         {(layer.count ?? 0).toLocaleString()}
                                       </span>
                                     )}
                                     {layer.id !== 'shodan_overlay' && (
                                       <div
-                                        className={`text-[8px] font-mono tracking-wider px-1.5 py-0.5 rounded-full border ${
+                                        className={`text-[11px] font-mono tracking-wider px-1.5 py-0.5 rounded-full border ${
                                           active
                                             ? layer.id === 'shodan_overlay'
                                               ? 'border-green-500/50 text-green-400 bg-green-950/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
@@ -1502,11 +1778,11 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                         />
                                       </div>
                                       <div className="flex items-center justify-between">
-                                        <span className="text-[8px] text-cyan-400 font-mono">
+                                        <span className="text-[11px] text-cyan-400 font-mono">
                                           {gibsDate}
                                         </span>
                                         <div className="flex items-center gap-1">
-                                          <span className="text-[8px] text-[var(--text-muted)] font-mono">
+                                          <span className="text-[11px] text-[var(--text-muted)] font-mono">
                                             OPC
                                           </span>
                                           <input
@@ -1523,6 +1799,22 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       </div>
                                     </div>
                                   )}
+                                {/* SAR inline controls — AOI editor button */}
+                                {active && layer.id === 'sar' && onOpenSarAoiEditor && (
+                                  <div
+                                    className="ml-7 mt-2 flex items-center gap-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={onOpenSarAoiEditor}
+                                      className="flex items-center gap-1.5 text-[9px] font-mono tracking-wide text-cyan-400 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10 px-2.5 py-1 rounded transition"
+                                    >
+                                      <MapPin size={10} />
+                                      EDIT AOIs
+                                    </button>
+                                  </div>
+                                )}
                                 {/* Sentinel Hub inline controls */}
                                 {active &&
                                   layer.id === 'sentinel_hub' &&
@@ -1547,11 +1839,11 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                           <option value="MOISTURE-INDEX">Moisture Index</option>
                                         </select>
                                         {sentinelInflight > 0 ? (
-                                          <span className="text-[8px] font-mono text-purple-400 animate-pulse whitespace-nowrap">
+                                          <span className="text-[11px] font-mono text-purple-400 animate-pulse whitespace-nowrap">
                                             {sentinelInflight} tile{sentinelInflight !== 1 ? 's' : ''}…
                                           </span>
                                         ) : sentinelLoaded > 0 ? (
-                                          <span className="text-[8px] font-mono text-purple-500/60 whitespace-nowrap">
+                                          <span className="text-[11px] font-mono text-purple-500/60 whitespace-nowrap">
                                             {sentinelLoaded} loaded
                                           </span>
                                         ) : null}
@@ -1580,11 +1872,11 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                         />
                                       </div>
                                       <div className="flex items-center justify-between">
-                                        <span className="text-[8px] text-purple-400 font-mono">
+                                        <span className="text-[11px] text-purple-400 font-mono">
                                           {sentinelDate}
                                         </span>
                                         <div className="flex items-center gap-1">
-                                          <span className="text-[8px] text-[var(--text-muted)] font-mono">
+                                          <span className="text-[11px] text-[var(--text-muted)] font-mono">
                                             OPC
                                           </span>
                                           <input
@@ -1626,12 +1918,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                             e.stopPropagation();
                             setPotusEnabled(true);
                           }}
-                          className="text-[8px] font-mono text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 px-1.5 py-0.5 transition-colors"
+                          className="text-[11px] font-mono text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 px-1.5 py-0.5 transition-colors"
                         >
                           SHOW
                         </button>
                       ) : (
-                        <span className="text-[8px] font-mono text-[var(--text-muted)]">
+                        <span className="text-[11px] font-mono text-[var(--text-muted)]">
                           NO ACTIVE AIRCRAFT
                         </span>
                       )}
@@ -1644,6 +1936,22 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
         </AnimatePresence>
       </div>
     </motion.div>
+    {sarModalOpen && (
+      <SarModeChooserModal
+        onClose={() => {
+          setSarModalOpen(false);
+          setSarPendingEnable(false);
+        }}
+        onChoiceMade={(choice) => {
+          setSarChoice(choice);
+          if (sarPendingEnable) {
+            setActiveLayers((prev: ActiveLayers) => ({ ...prev, sar: true }));
+            setSarPendingEnable(false);
+          }
+        }}
+      />
+    )}
+    </>
   );
 });
 

@@ -1,29 +1,164 @@
-import os
-import sys
+﻿import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import time
 import logging
 import asyncio
 import base64
 import hmac
-import hmac as _hmac_mod
+import importlib
 import secrets
 import hashlib as _hashlib_mod
 from dataclasses import dataclass, field
 from typing import Any
 from json import JSONDecodeError
 
-APP_VERSION = "0.9.6"
+APP_VERSION = "0.9.7"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 _start_time = time.time()
 _MESH_ONLY = os.environ.get("MESH_ONLY", "").strip().lower() in ("1", "true", "yes")
+_WARNED_LEGACY_DM_PUBKEY_LOOKUPS: set[str] = set()
+
+
+def _warn_legacy_dm_pubkey_lookup(agent_id: str) -> None:
+    peer_id = str(agent_id or "").strip().lower()
+    if not peer_id or peer_id in _WARNED_LEGACY_DM_PUBKEY_LOOKUPS:
+        return
+    _WARNED_LEGACY_DM_PUBKEY_LOOKUPS.add(peer_id)
+    logger.warning(
+        "mesh legacy DH pubkey lookup used for %s via direct agent_id; prefer invite-scoped lookup handles before removal in %s",
+        stable_metadata_log_ref(peer_id, prefix="peer"),
+        sunset_target_label(LEGACY_AGENT_ID_LOOKUP_TARGET),
+    )
+
+
+def _preferred_dm_lookup_target(agent_id: str = "", lookup_token: str = "") -> tuple[str, str]:
+    resolved_id = str(agent_id or "").strip()
+    resolved_lookup = str(lookup_token or "").strip()
+    if resolved_lookup or not resolved_id:
+        return resolved_id, resolved_lookup
+    try:
+        from services.mesh.mesh_wormhole_contacts import preferred_prekey_lookup_handle
+
+        resolved_lookup = preferred_prekey_lookup_handle(resolved_id)
+    except Exception:
+        resolved_lookup = ""
+    return resolved_id, resolved_lookup
+
+
+def _compatibility_debt_status(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    current = dict(snapshot or {})
+    usage = dict(current.get("usage") or {})
+    sunset = dict(current.get("sunset") or {})
+    legacy_lookup = dict(usage.get("legacy_agent_id_lookup") or {})
+    legacy_dm_get = dict(usage.get("legacy_dm_get") or {})
+    dm_get_sunset = dict(sunset.get("legacy_dm_get") or {})
+    return {
+        "legacy_lookup_reliance": {
+            "active": int(legacy_lookup.get("count", 0) or 0) > 0,
+            "last_seen_at": int(legacy_lookup.get("last_seen_at", 0) or 0),
+            "blocked_count": int(legacy_lookup.get("blocked_count", 0) or 0),
+        },
+        "legacy_mailbox_get_reliance": {
+            "active": int(legacy_dm_get.get("count", 0) or 0) > 0,
+            "last_seen_at": int(legacy_dm_get.get("last_seen_at", 0) or 0),
+            "blocked_count": int(legacy_dm_get.get("blocked_count", 0) or 0),
+            "enabled": not bool(dm_get_sunset.get("blocked", True)),
+        },
+    }
+
+
+def _compatibility_readiness_status(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    current = dict(snapshot or {})
+    compatibility_debt = _compatibility_debt_status(current)
+    try:
+        from services.mesh.mesh_wormhole_contacts import compatibility_lookup_readiness_snapshot
+
+        contact_readiness = dict(compatibility_lookup_readiness_snapshot() or {})
+    except Exception:
+        contact_readiness = {}
+    legacy_lookup_runtime = dict(compatibility_debt.get("legacy_lookup_reliance") or {})
+    legacy_mailbox_runtime = dict(compatibility_debt.get("legacy_mailbox_get_reliance") or {})
+    return {
+        "stored_legacy_lookup_contacts_present": bool(
+            contact_readiness.get("stored_legacy_lookup_contacts_present", False)
+        ),
+        "stored_legacy_lookup_contacts": int(
+            contact_readiness.get("stored_legacy_lookup_contacts", 0) or 0
+        ),
+        "stored_invite_lookup_contacts": int(
+            contact_readiness.get("stored_invite_lookup_contacts", 0) or 0
+        ),
+        "legacy_lookup_runtime_active": bool(legacy_lookup_runtime.get("active", False)),
+        "legacy_mailbox_get_runtime_active": bool(legacy_mailbox_runtime.get("active", False)),
+        "legacy_mailbox_get_enabled": bool(legacy_mailbox_runtime.get("enabled", False)),
+    }
+
+
+def _scope_allows_exact_local(required_scopes: set[str], allowed_scopes: list[str]) -> bool:
+    normalized_required = {str(scope or "").strip() for scope in required_scopes if str(scope or "").strip()}
+    normalized_allowed = {
+        str(scope or "").strip()
+        for scope in list(allowed_scopes or [])
+        if str(scope or "").strip()
+    }
+    return bool(normalized_allowed & normalized_required or "*" in normalized_allowed)
+
+
+def gate_privileged_access_status_snapshot() -> dict[str, Any]:
+    return _gate_privileged_access_status_snapshot_local()
+
+
+def _check_explicit_scoped_auth_local(
+    request: "Request",
+    required_scopes: set[str],
+) -> tuple[bool, str, str]:
+    admin_key = _current_admin_key()
+    scoped_tokens = _scoped_admin_tokens()
+    presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
+    client = getattr(request, "client", None)
+    host = (getattr(client, "host", "") or "").lower() if client else ""
+    if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
+        return True, "ok", "admin_key"
+    if presented:
+        presented_bytes = presented.encode()
+        for token_value, scopes in scoped_tokens.items():
+            if hmac.compare_digest(presented_bytes, str(token_value or "").encode()):
+                if _scope_allows_exact_local(required_scopes, scopes):
+                    return True, "ok", "explicit_scoped_token"
+                return False, "insufficient scope", ""
+    if not admin_key and not scoped_tokens:
+        if _allow_insecure_admin() or (_debug_mode_enabled() and host == "test"):
+            return True, "ok", "debug_override"
+        return False, "Forbidden — admin key not configured", ""
+    return False, "Forbidden — invalid or missing admin key", ""
+
+
+def _gate_privileged_access_status_snapshot_local() -> dict[str, Any]:
+    scoped_tokens = _scoped_admin_tokens()
+    explicit_audit_configured = any(
+        _scope_allows_exact_local({"gate.audit", "mesh.audit"}, scopes)
+        for scopes in scoped_tokens.values()
+    )
+    admin_enabled = bool(_current_admin_key()) or bool(_allow_insecure_admin()) or bool(
+        _debug_mode_enabled()
+    )
+    return {
+        "ordinary_gate_view_scope_class": "gate_member_or_gate_scope",
+        "privileged_gate_event_scope_class": "explicit_gate_audit",
+        "repair_detail_scope_class": "local_operator_diagnostic",
+        "privileged_gate_event_view_enabled": bool(admin_enabled or explicit_audit_configured),
+        "repair_detail_view_enabled": True,
+    }
 
 # ---------------------------------------------------------------------------
 # Docker Swarm Secrets support
 # For each VAR below, if VAR_FILE is set (e.g. AIS_API_KEY_FILE=/run/secrets/AIS_API_KEY),
 # the file is read and its trimmed content is placed into VAR.
-# This MUST run before service imports — modules read os.environ at import time.
+# This MUST run before service imports â€” modules read os.environ at import time.
 # ---------------------------------------------------------------------------
 _SECRET_VARS = [
     "AIS_API_KEY",
@@ -34,6 +169,7 @@ _SECRET_VARS = [
     "ADMIN_KEY",
     "SHODAN_API_KEY",
     "FINNHUB_API_KEY",
+    "MESH_SECURE_STORAGE_SECRET",
 ]
 
 for _var in _SECRET_VARS:
@@ -53,9 +189,11 @@ for _var in _SECRET_VARS:
         except Exception as _e:
             logger.error(f"Failed to read secret file {_file_path} for {_var}: {_e}")
 
-from fastapi import FastAPI, Request, Response, Query, Depends, HTTPException
+from fastapi import APIRouter, FastAPI, Request, Response, Query, Depends, HTTPException
+from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.background import BackgroundTask
 from contextlib import asynccontextmanager
 from services.data_fetcher import (
@@ -65,8 +203,7 @@ from services.data_fetcher import (
 )
 from services.ais_stream import start_ais_stream, stop_ais_stream
 from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from services.schemas import HealthResponse, RefreshResponse
 from services.config import get_settings
@@ -74,146 +211,853 @@ import uvicorn
 import hashlib
 import math
 import json as json_mod
-try:
-    import orjson
-except ImportError:
-    orjson = None
+import orjson
 import socket
 from cachetools import TTLCache
 import threading
 from services.mesh.mesh_crypto import (
     _derive_peer_key,
-    build_signature_payload,
     derive_node_id,
     normalize_peer_url,
-    verify_signature,
     verify_node_binding,
     parse_public_key_algo,
 )
+from services.mesh.mesh_compatibility import (
+    LEGACY_AGENT_ID_LOOKUP_TARGET,
+    compatibility_status_snapshot,
+    legacy_agent_id_lookup_blocked,
+    legacy_dm1_override_active,
+    legacy_dm_get_override_active,
+    record_legacy_agent_id_lookup,
+    record_legacy_dm_get,
+    sunset_target_label,
+)
 from services.mesh.mesh_protocol import (
     PROTOCOL_VERSION,
-    normalize_dm_message_payload_legacy,
     normalize_payload,
 )
+from services.mesh.mesh_signed_events import (
+    MeshWriteExemption,
+    SignedWriteKind,
+    get_prepared_signed_write,
+    mesh_write_exempt,
+    recover_verified_gate_reply_to as _shared_recover_verified_gate_reply_to,
+    requires_signed_write,
+    verify_gate_message_signed_write as _shared_verify_gate_message_signed_write,
+    verify_signed_write as _shared_verify_signed_write,
+    preflight_signed_event_integrity as _shared_preflight_signed_event_integrity,
+    verify_key_rotation_claim_signature,
+    verify_node_bound_signature,
+    verify_signed_event as _shared_verify_signed_event,
+)
 from services.mesh.mesh_schema import validate_event_payload
+from services.mesh.mesh_privacy_policy import (
+    canonical_release_state,
+    evaluate_network_release,
+    network_release_state,
+    queued_delivery_status,
+    release_lane_required_tier,
+)
+from services.mesh.mesh_local_custody import local_custody_status_snapshot
+from services.mesh.mesh_metadata_exposure import (
+    dm_mailbox_response_view,
+    dm_lookup_response_view,
+    metadata_exposure_for_request,
+    stable_metadata_log_ref,
+)
+from services.mesh.mesh_private_outbox import private_delivery_outbox
+from services.mesh.mesh_private_release_worker import private_release_worker
+from services.mesh.mesh_private_transport_manager import private_transport_manager
+from services.mesh.mesh_privacy_prewarm import privacy_prewarm_service
 from services.mesh.mesh_infonet_sync_support import (
     SyncWorkerState,
     begin_sync,
     eligible_sync_peers,
     finish_sync,
+    finish_solo_sync,
     should_run_sync,
 )
 from services.mesh.mesh_router import (
     authenticated_push_peer_urls,
     configured_relay_peer_urls,
+    parse_configured_relay_peers,
     peer_transport_kind,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+from limiter import limiter
+from auth import (
+    _allow_insecure_admin,
+    _anonymous_mode_state,
+    _check_scoped_auth,
+    _current_admin_key,
+    _current_private_lane_tier,
+    _debug_mode_enabled,
+    _is_anonymous_dm_action_path,
+    _is_anonymous_mesh_write_path,
+    _is_anonymous_wormhole_gate_admin_path,
+    _is_debug_test_request,
+    _is_private_plane_access_path,
+    _is_sensitive_no_store_path,
+    _minimum_transport_tier,
+    _private_plane_access_denied_payload,
+    _private_infonet_policy_snapshot,
+    _private_plane_refusal_response,
+    _scoped_admin_tokens,
+    _scoped_view_authenticated as _scoped_view_authenticated_auth,
+    _security_headers,
+    _strong_claims_policy_snapshot,
+    _transport_tier_precondition_payload,
+    _transport_tier_is_sufficient,
+    _transport_tier_precondition,
+    require_admin,
+    require_local_operator,
+    _validate_admin_startup,
+    _validate_insecure_admin_startup,
+    _validate_peer_push_secret,
+    _verify_peer_push_hmac,
+)
+from node_state import (
+    _NODE_BOOTSTRAP_STATE,
+    _NODE_PUSH_STATE,
+    _NODE_RUNTIME_LOCK,
+    _NODE_SYNC_STOP,
+    get_sync_state,
+    set_sync_state,
+)
 
 # ---------------------------------------------------------------------------
-# Admin authentication — protects settings & system endpoints
-# Set ADMIN_KEY in .env or Docker secrets. If unset, endpoints remain open
-# for local-dev convenience but will log a startup warning.
+# Router imports
 # ---------------------------------------------------------------------------
-def _current_admin_key() -> str:
+def _load_optional_router(module_name: str) -> APIRouter:
     try:
-        return str(get_settings().ADMIN_KEY or "").strip()
-    except Exception:
-        return os.environ.get("ADMIN_KEY", "").strip()
-
-
-def _allow_insecure_admin() -> bool:
-    try:
-        settings = get_settings()
-        return bool(getattr(settings, "ALLOW_INSECURE_ADMIN", False)) and bool(
-            getattr(settings, "MESH_DEBUG_MODE", False)
-        )
-    except Exception:
-        return False
-
-
-def _debug_mode_enabled() -> bool:
-    try:
-        return bool(getattr(get_settings(), "MESH_DEBUG_MODE", False))
-    except Exception:
-        return False
-
-
-def _admin_key_required_in_production() -> bool:
-    try:
-        settings = get_settings()
-        return not bool(getattr(settings, "MESH_DEBUG_MODE", False)) and not bool(_current_admin_key())
-    except Exception:
-        return False
-
-
-def _scoped_admin_tokens() -> dict[str, list[str]]:
-    raw = str(get_settings().MESH_SCOPED_TOKENS or "").strip()
-    if not raw:
-        return {}
-    try:
-        parsed = json_mod.loads(raw)
+        module = importlib.import_module(module_name)
+        router = getattr(module, "router", None)
+        if isinstance(router, APIRouter):
+            return router
+        logger.warning("Router module %s did not expose an APIRouter", module_name)
     except Exception as exc:
-        logger.warning("failed to parse MESH_SCOPED_TOKENS: %s", exc)
-        return {}
-    if not isinstance(parsed, dict):
-        logger.warning("MESH_SCOPED_TOKENS must decode to an object mapping token -> scopes")
-        return {}
-    normalized: dict[str, list[str]] = {}
-    for token, scopes in parsed.items():
-        token_key = str(token or "").strip()
-        if not token_key:
-            continue
-        values = scopes if isinstance(scopes, list) else [scopes]
-        normalized[token_key] = [str(scope or "").strip() for scope in values if str(scope or "").strip()]
-    return normalized
+        logger.warning("Skipping router %s during startup: %s", module_name, type(exc).__name__)
+    return APIRouter()
 
 
-def _required_scope_for_request(request: Request) -> str:
-    path = str(request.url.path or "")
-    if path.startswith("/api/wormhole/gate/"):
-        return "gate"
-    if path.startswith("/api/wormhole/dm/"):
-        return "dm"
-    if path.startswith("/api/wormhole") or path in {"/api/settings/wormhole", "/api/settings/privacy-profile"}:
-        return "wormhole"
-    if path.startswith("/api/mesh/"):
-        return "mesh"
-    return "admin"
+health_router = _load_optional_router("routers.health")
+cctv_router = _load_optional_router("routers.cctv")
+radio_router = _load_optional_router("routers.radio")
+sigint_router = _load_optional_router("routers.sigint")
+tools_router = _load_optional_router("routers.tools")
+admin_router = _load_optional_router("routers.admin")
+data_router = _load_optional_router("routers.data")
+mesh_peer_sync_router = _load_optional_router("routers.mesh_peer_sync")
+mesh_operator_router = _load_optional_router("routers.mesh_operator")
+mesh_oracle_router = _load_optional_router("routers.mesh_oracle")
+mesh_dm_router = _load_optional_router("routers.mesh_dm")
+mesh_public_router = _load_optional_router("routers.mesh_public")
+wormhole_router = _load_optional_router("routers.wormhole")
+ai_intel_router = _load_optional_router("routers.ai_intel")
+sar_router = _load_optional_router("routers.sar")
+infonet_router = _load_optional_router("routers.infonet")
 
 
-def _scope_allows(required_scope: str, allowed_scopes: list[str]) -> bool:
-    for scope in allowed_scopes:
-        normalized = str(scope or "").strip()
-        if not normalized:
-            continue
-        if normalized == "*" or required_scope == normalized:
-            return True
-        if required_scope.startswith(f"{normalized}.") or required_scope.startswith(f"{normalized}/"):
-            return True
-    return False
+# ---------------------------------------------------------------------------
+# Local overrides: keep these in main.py so tests that monkeypatch
+# main._check_scoped_auth also affect _scoped_view_authenticated.
+# ---------------------------------------------------------------------------
+def _scoped_view_authenticated(request, scope: str) -> bool:  # type: ignore[override]
+    ok, _detail = _check_scoped_auth(request, scope)
+    if ok:
+        return True
+    return _is_debug_test_request(request)
 
 
-def _check_scoped_auth(request: Request, required_scope: str) -> tuple[bool, str]:
-    admin_key = _current_admin_key()
-    scoped_tokens = _scoped_admin_tokens()
-    presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
-    host = (request.client.host or "").lower() if request.client else ""
-    if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
-        return True, "ok"
-    if presented:
-        presented_bytes = presented.encode()
-        for token_value, scopes in scoped_tokens.items():
-            if hmac.compare_digest(presented_bytes, str(token_value or "").encode()):
-                if _scope_allows(required_scope, scopes):
-                    return True, "ok"
-                return False, "insufficient scope"
-    if not admin_key and not scoped_tokens:
-        if _allow_insecure_admin() or (_debug_mode_enabled() and host == "test"):
-            return True, "ok"
-        return False, "Forbidden — admin key not configured"
-    return False, "Forbidden — invalid or missing admin key"
+def _privacy_core_status() -> dict[str, Any]:
+    try:
+        from services.privacy_core_attestation import privacy_core_attestation
+
+        return dict(privacy_core_attestation())
+    except Exception as exc:
+        return {
+            "available": False,
+            "version": "",
+            "loaded_version": "",
+            "library_path": "",
+            "loaded_hash": "",
+            "library_sha256": "",
+            "attestation_state": "attestation_stale_or_unknown",
+            "trusted_hash": "",
+            "manifest_source": "",
+            "override_active": False,
+            "detail": str(exc) or type(exc).__name__,
+        }
+
+
+def _privacy_claims_status(
+    *,
+    current_tier: str,
+    local_custody: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    compatibility_readiness: dict[str, Any] | None = None,
+    gate_privilege_access: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import privacy_claims_snapshot
+
+    return privacy_claims_snapshot(
+        transport_tier=current_tier,
+        local_custody=dict(local_custody or {}),
+        privacy_core=dict(privacy_core or {}),
+        compatibility_readiness=dict(compatibility_readiness or {}),
+        gate_privilege_access=dict(gate_privilege_access or {}),
+    )
+
+
+def _privacy_status_surface(
+    *,
+    privacy_claims: dict[str, Any] | None = None,
+    strong_claims_allowed: bool | None = None,
+    release_gate_ready: bool | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import privacy_status_surface_chip
+
+    return privacy_status_surface_chip(
+        dict(privacy_claims or {}),
+        strong_claims_allowed=strong_claims_allowed,
+        release_gate_ready=release_gate_ready,
+    )
+
+
+def _rollout_readiness_status(
+    *,
+    privacy_claims: dict[str, Any] | None = None,
+    current_tier: str,
+    local_custody: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    compatibility_debt: dict[str, Any] | None = None,
+    compatibility_readiness: dict[str, Any] | None = None,
+    gate_privilege_access: dict[str, Any] | None = None,
+    strong_claims: dict[str, Any] | None = None,
+    release_gate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import rollout_readiness_snapshot
+
+    return rollout_readiness_snapshot(
+        privacy_claims=dict(privacy_claims or {}),
+        transport_tier=current_tier,
+        local_custody=dict(local_custody or {}),
+        privacy_core=dict(privacy_core or {}),
+        compatibility_debt=dict(compatibility_debt or {}),
+        compatibility_readiness=dict(compatibility_readiness or {}),
+        gate_privilege_access=dict(gate_privilege_access or {}),
+        strong_claims=dict(strong_claims or {}),
+        release_gate=dict(release_gate or {}),
+    )
+
+
+def _rollout_controls_status(
+    *,
+    rollout_readiness: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    strong_claims: dict[str, Any] | None = None,
+    current_tier: str,
+) -> dict[str, Any]:
+    from services.privacy_claims import rollout_controls_snapshot
+
+    return rollout_controls_snapshot(
+        rollout_readiness=dict(rollout_readiness or {}),
+        privacy_core=dict(privacy_core or {}),
+        strong_claims=dict(strong_claims or {}),
+        transport_tier=current_tier,
+    )
+
+
+def _rollout_health_status(
+    *,
+    rollout_readiness: dict[str, Any] | None = None,
+    compatibility_debt: dict[str, Any] | None = None,
+    compatibility_readiness: dict[str, Any] | None = None,
+    lookup_handle_rotation: dict[str, Any] | None = None,
+    gate_repair: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import rollout_health_snapshot
+
+    return rollout_health_snapshot(
+        rollout_readiness=dict(rollout_readiness or {}),
+        compatibility_debt=dict(compatibility_debt or {}),
+        compatibility_readiness=dict(compatibility_readiness or {}),
+        lookup_handle_rotation=dict(lookup_handle_rotation or {}),
+        gate_repair=dict(gate_repair or {}),
+    )
+
+
+def _strong_claims_compat_shim(
+    snapshot: dict[str, Any],
+    *,
+    privacy_claims: dict[str, Any] | None = None,
+    privacy_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import strong_claims_compat_shim
+
+    return strong_claims_compat_shim(
+        dict(snapshot or {}),
+        privacy_claims=dict(privacy_claims or {}),
+        privacy_status=dict(privacy_status or {}),
+    )
+
+
+def _release_gate_compat_shim_status(
+    snapshot: dict[str, Any],
+    *,
+    privacy_claims: dict[str, Any] | None = None,
+    rollout_readiness: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import release_gate_compat_shim
+
+    return release_gate_compat_shim(
+        dict(snapshot or {}),
+        privacy_claims=dict(privacy_claims or {}),
+        rollout_readiness=dict(rollout_readiness or {}),
+    )
+
+
+def _claim_surface_sources_status() -> dict[str, Any]:
+    from services.privacy_claims import claim_surface_catalog
+
+    return claim_surface_catalog()
+
+
+def _review_export_status(
+    *,
+    privacy_claims: dict[str, Any] | None = None,
+    rollout_readiness: dict[str, Any] | None = None,
+    rollout_controls: dict[str, Any] | None = None,
+    rollout_health: dict[str, Any] | None = None,
+    claim_surface_sources: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import review_export_snapshot
+
+    return review_export_snapshot(
+        privacy_claims=dict(privacy_claims or {}),
+        rollout_readiness=dict(rollout_readiness or {}),
+        rollout_controls=dict(rollout_controls or {}),
+        rollout_health=dict(rollout_health or {}),
+        claim_surface_sources=dict(claim_surface_sources or {}),
+    )
+
+
+def _final_review_bundle_status(
+    *,
+    review_export: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import final_review_bundle_snapshot
+
+    return final_review_bundle_snapshot(
+        review_export=dict(review_export or {}),
+    )
+
+
+def _staged_rollout_telemetry_status(
+    *,
+    final_review_bundle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import staged_rollout_telemetry_snapshot
+
+    return staged_rollout_telemetry_snapshot(
+        final_review_bundle=dict(final_review_bundle or {}),
+    )
+
+
+def _release_claims_matrix_status(
+    *,
+    final_review_bundle: dict[str, Any] | None = None,
+    staged_rollout_telemetry: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import release_claims_matrix_snapshot
+
+    return release_claims_matrix_snapshot(
+        final_review_bundle=dict(final_review_bundle or {}),
+        staged_rollout_telemetry=dict(staged_rollout_telemetry or {}),
+    )
+
+
+def _release_checklist_status(
+    *,
+    release_claims_matrix: dict[str, Any] | None = None,
+    staged_rollout_telemetry: dict[str, Any] | None = None,
+    final_review_bundle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import release_checklist_snapshot
+
+    return release_checklist_snapshot(
+        release_claims_matrix=dict(release_claims_matrix or {}),
+        staged_rollout_telemetry=dict(staged_rollout_telemetry or {}),
+        final_review_bundle=dict(final_review_bundle or {}),
+    )
+
+
+def _explicit_review_export_status(
+    *,
+    final_review_bundle: dict[str, Any] | None = None,
+    staged_rollout_telemetry: dict[str, Any] | None = None,
+    release_claims_matrix: dict[str, Any] | None = None,
+    release_checklist: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import explicit_review_export_snapshot
+
+    return explicit_review_export_snapshot(
+        final_review_bundle=dict(final_review_bundle or {}),
+        staged_rollout_telemetry=dict(staged_rollout_telemetry or {}),
+        release_claims_matrix=dict(release_claims_matrix or {}),
+        release_checklist=dict(release_checklist or {}),
+    )
+
+
+def _review_manifest_status(
+    *,
+    explicit_review_export: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import review_manifest_snapshot
+
+    return review_manifest_snapshot(
+        explicit_review_export=dict(explicit_review_export or {}),
+    )
+
+
+def _review_consistency_status(
+    *,
+    explicit_review_export: dict[str, Any] | None = None,
+    review_manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.privacy_claims import review_consistency_snapshot
+
+    return review_consistency_snapshot(
+        explicit_review_export=dict(explicit_review_export or {}),
+        review_manifest=dict(review_manifest or {}),
+    )
+
+
+def _privacy_claim_surface_snapshot(
+    *,
+    current_tier: str,
+    local_custody: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    contact_preference_refresh: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    claim_inputs = _privacy_claim_inputs_snapshot(
+        contact_preference_refresh=contact_preference_refresh,
+    )
+    claims = _privacy_claims_status(
+        current_tier=current_tier,
+        local_custody=local_custody,
+        privacy_core=privacy_core,
+        compatibility_readiness=claim_inputs.get("compatibility_readiness"),
+        gate_privilege_access=claim_inputs.get("gate_privilege_access"),
+    )
+    return {
+        **claim_inputs,
+        "privacy_claims": claims,
+    }
+
+
+def _diagnostic_review_package_snapshot(
+    *,
+    current_tier: str,
+    local_custody: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    contact_preference_refresh: dict[str, Any] | None = None,
+    lookup_handle_rotation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    claim_surface = _privacy_claim_surface_snapshot(
+        current_tier=current_tier,
+        local_custody=dict(local_custody or {}),
+        privacy_core=dict(privacy_core or {}),
+        contact_preference_refresh=dict(contact_preference_refresh or {}),
+    )
+    strong_claims_raw = _strong_claims_policy_snapshot(
+        current_tier=current_tier
+    )
+    release_gate_raw = _release_gate_status(
+        current_tier=current_tier,
+        strong_claims=strong_claims_raw,
+        privacy_core=dict(privacy_core or {}),
+        privacy_claims=claim_surface.get("privacy_claims"),
+    )
+    rollout_readiness = _rollout_readiness_status(
+        privacy_claims=claim_surface.get("privacy_claims"),
+        current_tier=current_tier,
+        local_custody=dict(local_custody or {}),
+        privacy_core=dict(privacy_core or {}),
+        compatibility_debt=claim_surface.get("compatibility_debt"),
+        compatibility_readiness=claim_surface.get("compatibility_readiness"),
+        gate_privilege_access=claim_surface.get("gate_privilege_access"),
+        strong_claims=strong_claims_raw,
+        release_gate=release_gate_raw,
+    )
+    release_gate_surface = _release_gate_compat_shim_status(
+        release_gate_raw,
+        privacy_claims=claim_surface.get("privacy_claims"),
+        rollout_readiness=rollout_readiness,
+    )
+    privacy_status = _privacy_status_surface(
+        privacy_claims=claim_surface.get("privacy_claims"),
+        strong_claims_allowed=strong_claims_raw.get("allowed"),
+        release_gate_ready=release_gate_surface.get("ready"),
+    )
+    strong_claims_surface = _strong_claims_compat_shim(
+        strong_claims_raw,
+        privacy_claims=claim_surface.get("privacy_claims"),
+        privacy_status=privacy_status,
+    )
+    claim_surface_sources = _claim_surface_sources_status()
+    rollout_controls = _rollout_controls_status(
+        rollout_readiness=rollout_readiness,
+        privacy_core=dict(privacy_core or {}),
+        strong_claims=strong_claims_raw,
+        current_tier=current_tier,
+    )
+    rollout_health = _rollout_health_status(
+        rollout_readiness=rollout_readiness,
+        compatibility_debt=claim_surface.get("compatibility_debt"),
+        compatibility_readiness=claim_surface.get("compatibility_readiness"),
+        lookup_handle_rotation=dict(lookup_handle_rotation or {}),
+    )
+    review_export = _review_export_status(
+        privacy_claims=claim_surface.get("privacy_claims"),
+        rollout_readiness=rollout_readiness,
+        rollout_controls=rollout_controls,
+        rollout_health=rollout_health,
+        claim_surface_sources=claim_surface_sources,
+    )
+    final_review_bundle = _final_review_bundle_status(
+        review_export=review_export,
+    )
+    staged_rollout_telemetry = _staged_rollout_telemetry_status(
+        final_review_bundle=final_review_bundle,
+    )
+    release_claims_matrix = _release_claims_matrix_status(
+        final_review_bundle=final_review_bundle,
+        staged_rollout_telemetry=staged_rollout_telemetry,
+    )
+    release_checklist = _release_checklist_status(
+        release_claims_matrix=release_claims_matrix,
+        staged_rollout_telemetry=staged_rollout_telemetry,
+        final_review_bundle=final_review_bundle,
+    )
+    explicit_review_export = _explicit_review_export_status(
+        final_review_bundle=final_review_bundle,
+        staged_rollout_telemetry=staged_rollout_telemetry,
+        release_claims_matrix=release_claims_matrix,
+        release_checklist=release_checklist,
+    )
+    return {
+        "claim_surface": claim_surface,
+        "privacy_status": privacy_status,
+        "strong_claims": strong_claims_surface,
+        "release_gate": release_gate_surface,
+        "rollout_readiness": rollout_readiness,
+        "rollout_controls": rollout_controls,
+        "rollout_health": rollout_health,
+        "claim_surface_sources": claim_surface_sources,
+        "review_export": review_export,
+        "final_review_bundle": final_review_bundle,
+        "staged_rollout_telemetry": staged_rollout_telemetry,
+        "release_claims_matrix": release_claims_matrix,
+        "release_checklist": release_checklist,
+        "explicit_review_export": explicit_review_export,
+    }
+
+
+def _privacy_claim_inputs_snapshot(
+    *,
+    contact_preference_refresh: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    contact_refresh = dict(contact_preference_refresh or {})
+    compatibility_debt: dict[str, Any] = {}
+    compatibility_readiness: dict[str, Any] = {}
+    compatibility_snapshot: dict[str, Any] = {}
+    gate_privilege_access: dict[str, Any] = {}
+    try:
+        gate_privilege_access = dict(_gate_privileged_access_status_snapshot_local() or {})
+    except Exception:
+        gate_privilege_access = {}
+    try:
+        compatibility_snapshot = dict(compatibility_status_snapshot() or {})
+        compatibility_debt = _compatibility_debt_status(compatibility_snapshot)
+        compatibility_readiness = {
+            **_compatibility_readiness_status(compatibility_snapshot),
+            "local_contact_upgrade_ok": bool(contact_refresh.get("ok", False)),
+            "upgraded_contact_preferences": int(
+                contact_refresh.get("upgraded_contacts", 0) or 0
+            ),
+        }
+    except Exception:
+        compatibility_snapshot = {}
+        compatibility_debt = {}
+        compatibility_readiness = {}
+    return {
+        "compatibility_snapshot": compatibility_snapshot,
+        "compatibility_debt": compatibility_debt,
+        "compatibility_readiness": compatibility_readiness,
+        "gate_privilege_access": gate_privilege_access,
+    }
+
+
+def _release_attestation_snapshot() -> dict[str, Any]:
+    settings = get_settings()
+    explicit_raw = str(
+        getattr(settings, "MESH_RELEASE_ATTESTATION_PATH", "") or ""
+    ).strip()
+    default_path = Path(__file__).resolve().parent / "data" / "release_attestation.json"
+    candidate = Path(explicit_raw) if explicit_raw else default_path
+    if not candidate.is_absolute():
+        candidate = Path(__file__).resolve().parent / candidate
+    source = "env"
+    relay_suite_green = bool(
+        getattr(settings, "MESH_RELEASE_DM_RELAY_SECURITY_SUITE_GREEN", False)
+    )
+    detail = (
+        "operator attestation present for the DM relay security suite"
+        if relay_suite_green
+        else "operator attestation for the DM relay security suite is missing"
+    )
+    generated_at = ""
+    commit = ""
+    threat_model_reference = "docs/mesh/threat-model.md"
+    suite_report = ""
+    suite_name = "dm_relay_security"
+    workflow = ""
+    run_id = ""
+    run_attempt = ""
+    ref = ""
+    file_required = bool(explicit_raw)
+    if candidate.exists():
+        try:
+            payload = orjson.loads(candidate.read_bytes())
+            if not isinstance(payload, dict):
+                raise ValueError("release attestation payload must be an object")
+            source = "file"
+            generated_at = str(payload.get("generated_at", "") or "").strip()
+            commit = str(payload.get("commit", "") or "").strip()
+            threat_model_reference = str(
+                payload.get("threat_model_reference", threat_model_reference)
+                or threat_model_reference
+            ).strip()
+            suite = dict(payload.get("dm_relay_security_suite") or {})
+            ci = dict(payload.get("ci") or {})
+            suite_name = str(suite.get("name", "") or "").strip() or suite_name
+            suite_report = str(suite.get("report", "") or "").strip()
+            workflow = str(ci.get("workflow", payload.get("workflow", "")) or "").strip()
+            run_id = str(ci.get("run_id", payload.get("run_id", "")) or "").strip()
+            run_attempt = str(
+                ci.get("run_attempt", payload.get("run_attempt", "")) or ""
+            ).strip()
+            ref = str(ci.get("ref", payload.get("ref", "")) or "").strip()
+            relay_suite_green = bool(
+                suite.get(
+                    "green",
+                    payload.get(
+                        "dm_relay_security_suite_green",
+                        bool(
+                            dict(payload.get("criteria") or {}).get(
+                                "dm_relay_security_suite_green", False
+                            )
+                        ),
+                    ),
+                )
+            )
+            detail = str(
+                suite.get(
+                    "detail",
+                    "release attestation confirms the DM relay security suite status",
+                )
+                or "release attestation confirms the DM relay security suite status"
+            ).strip()
+        except Exception as exc:
+            source = "file_error"
+            relay_suite_green = False
+            detail = f"release attestation unreadable: {str(exc) or type(exc).__name__}"
+    elif file_required:
+        source = "file_missing"
+        relay_suite_green = False
+        detail = "configured release attestation file is missing"
+    return {
+        "source": source,
+        "path": str(candidate),
+        "generated_at": generated_at,
+        "commit": commit,
+        "dm_relay_security_suite_green": relay_suite_green,
+        "detail": detail,
+        "suite_name": suite_name,
+        "suite_report": suite_report,
+        "threat_model_reference": threat_model_reference,
+        "workflow": workflow,
+        "run_id": run_id,
+        "run_attempt": run_attempt,
+        "ref": ref,
+    }
+
+
+def _release_gate_status(
+    *,
+    current_tier: str | None = None,
+    strong_claims: dict[str, Any] | None = None,
+    privacy_core: dict[str, Any] | None = None,
+    privacy_claims: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    snapshot = dict(
+        strong_claims or _strong_claims_policy_snapshot(current_tier=current_tier)
+    )
+    privacy = dict(privacy_core or _privacy_core_status())
+    authoritative_claims = dict((privacy_claims or {}).get("claims") or {})
+    authoritative_dm = dict(authoritative_claims.get("dm_strong") or {})
+    authoritative_gate = dict(authoritative_claims.get("gate_transitional") or {})
+    compatibility = dict(snapshot.get("compatibility") or {})
+    attestation = _release_attestation_snapshot()
+    try:
+        from services.release_profiles import profile_readiness_snapshot
+
+        release_profile = profile_readiness_snapshot()
+    except Exception:
+        release_profile = {
+            "profile": "dev",
+            "allowed": False,
+            "state": "release_profile_unknown",
+            "blockers": ["release_profile_unavailable"],
+            "detail": "release profile status unavailable",
+        }
+    relay_suite_green = bool(attestation.get("dm_relay_security_suite_green", False))
+    privacy_core_attestation_state = str(
+        privacy.get("attestation_state", "") or ""
+    ).strip() or (
+        "attested_current" if bool(privacy.get("policy_ok", False)) else "attestation_stale_or_unknown"
+    )
+    privacy_core_pinned = privacy_core_attestation_state == "attested_current"
+    compat_overrides_off = bool(snapshot.get("compat_overrides_clear", False))
+    clearnet_fallback_blocked = bool(snapshot.get("clearnet_fallback_blocked", False))
+    gate_plaintext_persistence_off = not bool(
+        compatibility.get("gate_plaintext_persist", False)
+    )
+    external_assurance_current = bool(snapshot.get("external_assurance_current", False))
+    criteria: dict[str, dict[str, Any]] = {
+        "dm_relay_security_suite_green": {
+            "ok": relay_suite_green,
+            "detail": str(attestation.get("detail", "") or "").strip()
+            or (
+                "release attestation confirms the DM relay security suite status"
+                if relay_suite_green
+                else "release attestation for the DM relay security suite is missing"
+            ),
+            "source": str(attestation.get("source", "env") or "env").strip(),
+            "path": str(attestation.get("path", "") or "").strip(),
+            "generated_at": str(attestation.get("generated_at", "") or "").strip(),
+            "commit": str(attestation.get("commit", "") or "").strip(),
+            "suite_name": str(attestation.get("suite_name", "") or "").strip(),
+            "suite_report": str(attestation.get("suite_report", "") or "").strip(),
+            "workflow": str(attestation.get("workflow", "") or "").strip(),
+            "run_id": str(attestation.get("run_id", "") or "").strip(),
+            "run_attempt": str(attestation.get("run_attempt", "") or "").strip(),
+            "ref": str(attestation.get("ref", "") or "").strip(),
+        },
+        "privacy_core_pinned": {
+            "ok": privacy_core_pinned,
+            "detail": (
+                "privacy-core artifact trust is current"
+                if privacy_core_pinned
+                else str(privacy.get("detail", "") or "").strip()
+                or "privacy-core artifact trust is not currently attested"
+            ),
+            "attestation_state": privacy_core_attestation_state,
+            "loaded_version": str(
+                privacy.get("loaded_version", privacy.get("version", "")) or ""
+            ).strip(),
+            "loaded_hash": str(
+                privacy.get("loaded_hash", privacy.get("library_sha256", "")) or ""
+            ).strip(),
+            "trusted_hash": str(privacy.get("trusted_hash", "") or "").strip(),
+            "manifest_source": str(privacy.get("manifest_source", "") or "").strip(),
+            "override_active": bool(privacy.get("override_active", False)),
+        },
+        "compat_overrides_off": {
+            "ok": compat_overrides_off,
+            "detail": (
+                "compatibility sunset overrides are clear"
+                if compat_overrides_off
+                else "one or more compatibility sunset overrides are still active"
+            ),
+        },
+        "clearnet_fallback_blocked": {
+            "ok": clearnet_fallback_blocked,
+            "detail": (
+                "private-lane clearnet fallback is blocked"
+                if clearnet_fallback_blocked
+                else "private-lane clearnet fallback is still allowed"
+            ),
+        },
+        "gate_plaintext_persistence_off": {
+            "ok": gate_plaintext_persistence_off,
+            "detail": (
+                "durable gate plaintext persistence is off"
+                if gate_plaintext_persistence_off
+                else "durable gate plaintext persistence is enabled"
+            ),
+        },
+        "external_assurance_current": {
+            "ok": external_assurance_current,
+            "detail": str(snapshot.get("external_assurance_detail", "") or "").strip()
+            or (
+                "external witness and transparency assurances are current"
+                if external_assurance_current
+                else "external assurance is not current"
+            ),
+            "state": str(
+                snapshot.get("external_assurance_state", "unknown") or "unknown"
+            ).strip(),
+            "configured": bool(snapshot.get("external_assurance_configured", False)),
+        },
+        "release_profile_ready": {
+            "ok": bool(release_profile.get("allowed", False)),
+            "detail": str(release_profile.get("detail", "") or "").strip(),
+            "profile": str(release_profile.get("profile", "") or "").strip(),
+            "state": str(release_profile.get("state", "") or "").strip(),
+            "blockers": list(release_profile.get("blockers") or []),
+        },
+    }
+    if privacy_claims:
+        criteria["authoritative_dm_claim_ready"] = {
+            "ok": bool(authoritative_dm.get("allowed", False)),
+            "detail": str(authoritative_dm.get("plain_label", "") or "").strip(),
+            "state": str(authoritative_dm.get("state", "") or "").strip(),
+        }
+        criteria["authoritative_gate_claim_ready"] = {
+            "ok": bool(authoritative_gate.get("allowed", False)),
+            "detail": str(authoritative_gate.get("plain_label", "") or "").strip(),
+            "state": str(authoritative_gate.get("state", "") or "").strip(),
+        }
+    blocking = [
+        name
+        for name, criterion in criteria.items()
+        if not bool(criterion.get("ok", False))
+    ]
+    return {
+        "ready": not blocking,
+        "detail": "release gate satisfied" if not blocking else "release gate pending",
+        "blocking_reasons": blocking,
+        "next_action": blocking[0] if blocking else "",
+        "criteria": criteria,
+        "attestation": attestation,
+        "release_profile": release_profile,
+        "compatibility_shim": True,
+        "source_model": "privacy_claims",
+        "authoritative_dm_claim_state": str(authoritative_dm.get("state", "") or "").strip(),
+        "authoritative_gate_claim_state": str(authoritative_gate.get("state", "") or "").strip(),
+        "threat_model_reference": str(
+            attestation.get("threat_model_reference", "docs/mesh/threat-model.md")
+            or "docs/mesh/threat-model.md"
+        ).strip(),
+    }
+
+
+def _validate_privacy_core_startup() -> None:
+    from services.privacy_core_attestation import validate_privacy_core_startup
+
+    validate_privacy_core_startup()
 
 
 def _public_mesh_log_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -238,26 +1082,6 @@ _WORMHOLE_PUBLIC_SETTINGS_FIELDS = {"enabled", "transport", "anonymous_mode"}
 _WORMHOLE_PUBLIC_PROFILE_FIELDS = {"profile", "wormhole_enabled"}
 _PRIVATE_LANE_CONTROL_FIELDS = {"private_lane_tier", "private_lane_policy"}
 _PUBLIC_RNS_STATUS_FIELDS = {"enabled", "ready", "configured_peers", "active_peers"}
-_NODE_RUNTIME_LOCK = threading.RLock()
-_NODE_SYNC_STOP = threading.Event()
-_NODE_SYNC_STATE = SyncWorkerState()
-_NODE_BOOTSTRAP_STATE: dict[str, Any] = {
-    "node_mode": "participant",
-    "manifest_loaded": False,
-    "manifest_signer_id": "",
-    "manifest_valid_until": 0,
-    "bootstrap_peer_count": 0,
-    "sync_peer_count": 0,
-    "push_peer_count": 0,
-    "operator_peer_count": 0,
-    "last_bootstrap_error": "",
-}
-_NODE_PUSH_STATE: dict[str, Any] = {
-    "last_event_id": "",
-    "last_push_ok_at": 0,
-    "last_push_error": "",
-    "last_results": [],
-}
 _NODE_PUBLIC_EVENT_HOOK_REGISTERED = False
 
 
@@ -292,7 +1116,7 @@ def _node_runtime_snapshot() -> dict[str, Any]:
             "node_mode": _NODE_BOOTSTRAP_STATE.get("node_mode", "participant"),
             "node_enabled": _participant_node_enabled(),
             "bootstrap": dict(_NODE_BOOTSTRAP_STATE),
-            "sync_runtime": _NODE_SYNC_STATE.to_dict(),
+            "sync_runtime": get_sync_state().to_dict(),
             "push_runtime": dict(_NODE_PUSH_STATE),
         }
 
@@ -312,7 +1136,7 @@ def _set_participant_node_enabled(enabled: bool) -> dict[str, Any]:
     current_head = str(infonet.head_hash or "")
     with _NODE_RUNTIME_LOCK:
         _NODE_BOOTSTRAP_STATE["node_mode"] = _current_node_mode()
-        globals()["_NODE_SYNC_STATE"] = (
+        set_sync_state(
             SyncWorkerState(current_head=current_head)
             if bool(enabled) and _node_runtime_supported()
             else _set_node_sync_disabled_state(current_head=current_head)
@@ -343,6 +1167,9 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
         store = PeerStore(DEFAULT_PEER_STORE_PATH)
 
     operator_peers = configured_relay_peer_urls()
+    default_sync_peers = parse_configured_relay_peers(
+        str(getattr(get_settings(), "MESH_DEFAULT_SYNC_PEERS", "") or "")
+    )
     for peer_url in operator_peers:
         transport = peer_transport_kind(peer_url)
         if not transport:
@@ -362,6 +1189,35 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
                 transport=transport,
                 role="relay",
                 source="operator",
+                now=timestamp,
+            )
+        )
+
+    operator_peer_set = set(operator_peers)
+    for peer_url in default_sync_peers:
+        if peer_url in operator_peer_set:
+            continue
+        transport = peer_transport_kind(peer_url)
+        if not transport:
+            continue
+        store.upsert(
+            make_bootstrap_peer_record(
+                peer_url=peer_url,
+                transport=transport,
+                role="seed",
+                label="ShadowBroker default seed",
+                signer_id="shadowbroker-default",
+                now=timestamp,
+            )
+        )
+        store.upsert(
+            make_sync_peer_record(
+                peer_url=peer_url,
+                transport=transport,
+                role="seed",
+                source="bundle",
+                label="ShadowBroker default seed",
+                signer_id="shadowbroker-default",
                 now=timestamp,
             )
         )
@@ -407,6 +1263,7 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
         "sync_peer_count": len(store.records_for_bucket("sync")),
         "push_peer_count": len(store.records_for_bucket("push")),
         "operator_peer_count": len(operator_peers),
+        "default_sync_peer_count": len(default_sync_peers),
         "last_bootstrap_error": bootstrap_error,
     }
     with _NODE_RUNTIME_LOCK:
@@ -456,32 +1313,33 @@ def _peer_sync_response(peer_url: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _hydrate_gate_store_from_chain(events: list[dict]) -> int:
-    """Copy any gate_message chain events into the local gate_store for read/decrypt."""
+    """Copy any gate_message chain events into the local gate_store for read/decrypt.
+
+    Only events that are resident in the local infonet (accepted or already
+    present) are hydrated.  The canonical infonet-resident event is used â€”
+    never the raw batch event â€” so a forged batch entry carrying a valid
+    event_id but attacker-chosen payload cannot pollute gate_store.
+    """
     import copy
 
-    from services.mesh.mesh_hashchain import gate_store
+    from services.mesh.mesh_hashchain import gate_store, infonet
 
     count = 0
-    gate_ids_updated: set[str] = set()
     for evt in events:
         if evt.get("event_type") != "gate_message":
             continue
-        payload = evt.get("payload") or {}
+        event_id = str(evt.get("event_id", "") or "").strip()
+        if not event_id or event_id not in infonet.event_index:
+            continue
+        # Use the canonical infonet-resident event, not the raw batch event.
+        canonical = infonet.events[infonet.event_index[event_id]]
+        payload = canonical.get("payload") or {}
         gate_id = str(payload.get("gate", "") or "").strip()
         if not gate_id:
             continue
         try:
-            # Deep copy so gate_store mutations (e.g. adding gate_envelope)
-            # don't corrupt the chain event's payload hash.
-            gate_store.append(gate_id, copy.deepcopy(evt))
+            gate_store.append(gate_id, copy.deepcopy(canonical))
             count += 1
-            gate_ids_updated.add(gate_id)
-        except Exception:
-            pass
-    # Notify SSE clients so frontends refresh immediately.
-    for gid in gate_ids_updated:
-        try:
-            _broadcast_gate_events(gid, [{"hydrated": True}])
         except Exception:
             pass
     return count
@@ -539,7 +1397,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
     if not _participant_node_enabled():
         updated = _set_node_sync_disabled_state(current_head=infonet.head_hash)
         with _NODE_RUNTIME_LOCK:
-            globals()["_NODE_SYNC_STATE"] = updated
+            set_sync_state(updated)
         return updated
 
     store = PeerStore(DEFAULT_PEER_STORE_PATH)
@@ -549,18 +1407,17 @@ def _run_public_sync_cycle() -> SyncWorkerState:
         store = PeerStore(DEFAULT_PEER_STORE_PATH)
 
     peers = eligible_sync_peers(store.records(), now=time.time())
-    current_state = _NODE_SYNC_STATE
+    with _NODE_RUNTIME_LOCK:
+        current_state = get_sync_state()
     if not peers:
-        updated = finish_sync(
+        updated = finish_solo_sync(
             current_state,
-            ok=False,
-            error="no active sync peers",
             now=time.time(),
             current_head=infonet.head_hash,
-            failure_backoff_s=int(get_settings().MESH_SYNC_FAILURE_BACKOFF_S or 60),
+            interval_s=int(get_settings().MESH_SYNC_INTERVAL_S or 300),
         )
         with _NODE_RUNTIME_LOCK:
-            globals()["_NODE_SYNC_STATE"] = updated
+            set_sync_state(updated)
         return updated
 
     last_error = "sync failed"
@@ -572,7 +1429,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
             now=time.time(),
         )
         with _NODE_RUNTIME_LOCK:
-            globals()["_NODE_SYNC_STATE"] = started
+            set_sync_state(started)
         try:
             ok, error, forked = _sync_from_peer(record.peer_url)
         except Exception as exc:
@@ -592,7 +1449,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
                 interval_s=int(get_settings().MESH_SYNC_INTERVAL_S or 300),
             )
             with _NODE_RUNTIME_LOCK:
-                globals()["_NODE_SYNC_STATE"] = updated
+                set_sync_state(updated)
             return updated
 
         last_error = error
@@ -616,7 +1473,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
             failure_backoff_s=int(get_settings().MESH_SYNC_FAILURE_BACKOFF_S or 60),
         )
         with _NODE_RUNTIME_LOCK:
-            globals()["_NODE_SYNC_STATE"] = updated
+            set_sync_state(updated)
         if forked:
             return updated
         current_state = updated
@@ -642,10 +1499,11 @@ def _public_infonet_sync_loop() -> None:
             if not _participant_node_enabled():
                 disabled = _set_node_sync_disabled_state(current_head=infonet.head_hash)
                 with _NODE_RUNTIME_LOCK:
-                    globals()["_NODE_SYNC_STATE"] = disabled
+                    set_sync_state(disabled)
                 _NODE_SYNC_STOP.wait(5.0)
                 continue
-            state = _NODE_SYNC_STATE
+            with _NODE_RUNTIME_LOCK:
+                state = get_sync_state()
             if should_run_sync(state, now=time.time()):
                 _run_public_sync_cycle()
         except Exception:
@@ -654,13 +1512,13 @@ def _public_infonet_sync_loop() -> None:
 
 
 def _record_public_push_result(event_id: str, *, ok: bool, error: str = "", results: list[dict[str, Any]] | None = None) -> None:
-    snapshot = {
-        "last_event_id": str(event_id or ""),
-        "last_push_ok_at": int(time.time()) if ok else int(_NODE_PUSH_STATE.get("last_push_ok_at", 0) or 0),
-        "last_push_error": "" if ok else str(error or "").strip(),
-        "last_results": list(results or []),
-    }
     with _NODE_RUNTIME_LOCK:
+        snapshot = {
+            "last_event_id": str(event_id or ""),
+            "last_push_ok_at": int(time.time()) if ok else int(_NODE_PUSH_STATE.get("last_push_ok_at", 0) or 0),
+            "last_push_error": "" if ok else str(error or "").strip(),
+            "last_results": list(results or []),
+        }
         _NODE_PUSH_STATE.update(snapshot)
 
 
@@ -703,13 +1561,13 @@ def _schedule_public_event_propagation(event_dict: dict[str, Any]) -> None:
     ).start()
 
 
-# ─── Background HTTP Peer Push Worker ────────────────────────────────────
+# â”€â”€â”€ Background HTTP Peer Push Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Runs alongside the sync loop.  Every PUSH_INTERVAL seconds, batches new
 # Infonet events and sends them via HMAC-authenticated POST to push peers.
 
 _PEER_PUSH_INTERVAL_S = 10
 _PEER_PUSH_BATCH_SIZE = 50
-_peer_push_last_index: dict[str, int] = {}  # peer_url → last pushed event index
+_peer_push_last_index: dict[str, int] = {}  # peer_url â†’ last pushed event index
 
 
 def _http_peer_push_loop() -> None:
@@ -778,7 +1636,7 @@ def _http_peer_push_loop() -> None:
                         _peer_push_last_index[normalized] = last_idx + len(batch)
                         logger.info(
                             f"Pushed {len(batch)} event(s) to {normalized[:40]} "
-                            f"(idx {last_idx}→{last_idx + len(batch)})"
+                            f"(idx {last_idx}â†’{last_idx + len(batch)})"
                         )
                     else:
                         logger.warning(f"Peer push to {normalized[:40]} returned {resp.status_code}")
@@ -790,13 +1648,13 @@ def _http_peer_push_loop() -> None:
         _NODE_SYNC_STOP.wait(_PEER_PUSH_INTERVAL_S)
 
 
-# ─── Background Gate Message Pull Worker ─────────────────────────────────
+# â”€â”€â”€ Background Gate Message Pull Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Periodically pulls gate events from relay peers that this node is missing.
 # Complements the push loop: push sends OUR events to peers, pull fetches
 # THEIR events from peers (needed when this node is behind NAT).
 
 _GATE_PULL_INTERVAL_S = 10
-_gate_pull_last_count: dict[str, dict[str, int]] = {}  # peer → {gate_id → known count}
+_gate_pull_last_count: dict[str, dict[str, int]] = {}  # peer â†’ {gate_id â†’ known count}
 
 
 def _http_gate_pull_loop() -> None:
@@ -906,7 +1764,6 @@ def _http_gate_pull_loop() -> None:
                         accepted = int(result.get("accepted", 0) or 0)
                         dups = int(result.get("duplicates", 0) or 0)
                         if accepted > 0:
-                            _broadcast_gate_events(gate_id, events[:accepted])
                             logger.info(
                                 "Gate pull: %d new event(s) for %s from %s",
                                 accepted, gate_id[:12], normalized[:40],
@@ -921,64 +1778,11 @@ def _http_gate_pull_loop() -> None:
         _NODE_SYNC_STOP.wait(_GATE_PULL_INTERVAL_S)
 
 
-# ─── SSE Gate Event Broadcast ─────────────────────────────────────────────
-# All connected SSE clients receive every gate event (encrypted blobs).
-# Clients filter locally by gate_id — the server never learns which gates
-# a client cares about (privacy-preserving broadcast).
-
-_gate_sse_clients: set[asyncio.Queue] = set()
-_gate_sse_lock = threading.Lock()
 
 
-def _broadcast_gate_events(gate_id: str, events: list[dict]) -> None:
-    """Notify all connected SSE clients about new gate events (non-blocking).
+# â”€â”€â”€ Background Gate Message Push Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    Called from background daemon threads (push/pull loops) AND the FastAPI
-    event-loop thread.  asyncio.Queue.put_nowait() is NOT thread-safe, so
-    background callers schedule via loop.call_soon_threadsafe().
-    """
-    if not events:
-        return
-    payload = json_mod.dumps(
-        {"gate_id": gate_id, "count": len(events), "ts": time.time()},
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    # Detect whether we're already on the event-loop thread.
-    try:
-        asyncio.get_running_loop()
-        _in_loop = True
-    except RuntimeError:
-        _in_loop = False
-
-    _loop: asyncio.AbstractEventLoop | None = None
-    if not _in_loop:
-        try:
-            _loop = asyncio.get_event_loop()
-            if not _loop.is_running():
-                _loop = None
-        except RuntimeError:
-            _loop = None
-
-    with _gate_sse_lock:
-        dead: list[asyncio.Queue] = []
-        for q in _gate_sse_clients:
-            try:
-                if _in_loop:
-                    q.put_nowait(payload)
-                elif _loop is not None:
-                    _loop.call_soon_threadsafe(q.put_nowait, payload)
-                else:
-                    q.put_nowait(payload)  # best-effort fallback
-            except (asyncio.QueueFull, Exception):
-                dead.append(q)
-        for q in dead:
-            _gate_sse_clients.discard(q)
-
-
-# ─── Background Gate Message Push Worker ─────────────────────────────────
-
-_gate_push_last_count: dict[str, dict[str, int]] = {}  # peer → {gate_id → count}
+_gate_push_last_count: dict[str, dict[str, int]] = {}  # peer â†’ {gate_id â†’ count}
 
 
 def _http_gate_push_loop() -> None:
@@ -1066,13 +1870,6 @@ def _http_gate_push_loop() -> None:
         except Exception:
             logger.exception("HTTP gate push loop error")
         _NODE_SYNC_STOP.wait(_PEER_PUSH_INTERVAL_S)
-
-
-def _scoped_view_authenticated(request: Request, scope: str) -> bool:
-    ok, _detail = _check_scoped_auth(request, scope)
-    if ok:
-        return True
-    return _is_debug_test_request(request)
 
 
 def _redacted_gate_timestamp(event: dict[str, Any]) -> float:
@@ -1217,81 +2014,54 @@ def _redact_composed_gate_message(payload: dict[str, Any]) -> dict[str, Any]:
         "nonce": str(payload.get("nonce", "") or ""),
         "sender_ref": str(payload.get("sender_ref", "") or ""),
         "format": str(payload.get("format", "mls1") or "mls1"),
+        "transport_lock": str(payload.get("transport_lock", "") or ""),
         "timestamp": float(payload.get("timestamp", 0) or 0),
     }
     epoch = payload.get("epoch", 0)
     if epoch:
         safe["epoch"] = int(epoch or 0)
+    if payload.get("reply_to"):
+        safe["reply_to"] = str(payload.get("reply_to", "") or "")
     if payload.get("detail"):
         safe["detail"] = str(payload.get("detail", "") or "")
     if payload.get("key_commitment"):
         safe["key_commitment"] = str(payload.get("key_commitment", "") or "")
+    if payload.get("gate_envelope"):
+        safe["gate_envelope"] = str(payload.get("gate_envelope", "") or "")
+    if payload.get("envelope_hash"):
+        safe["envelope_hash"] = str(payload.get("envelope_hash", "") or "")
     return safe
 
 
-def _validate_admin_startup() -> None:
-    admin_key = _current_admin_key()
-    debug_mode = False
-    try:
-        debug_mode = bool(getattr(get_settings(), "MESH_DEBUG_MODE", False))
-    except Exception:
-        debug_mode = False
-
-    if not admin_key:
-        logger.warning(
-            "ADMIN_KEY is not set — admin/mesh endpoints will be unavailable. "
-            "Set ADMIN_KEY in your .env file to enable them."
-        )
-
-    if admin_key:
-        if len(admin_key) < 16:
-            message = (
-                f"ADMIN_KEY is too short ({len(admin_key)} chars, minimum 16). "
-                "Use a strong key."
-            )
-            if debug_mode:
-                logger.warning("%s Debug mode allows startup.", message)
-            else:
-                logger.critical("%s Refusing to start.", message)
-                sys.exit(1)
-        elif len(admin_key) < 32:
-            logger.warning(
-                "ADMIN_KEY is short (%s chars). Consider using at least 32 characters for production.",
-                len(admin_key),
-            )
-
-
-def require_admin(request: Request):
-    """FastAPI dependency that rejects requests without a valid X-Admin-Key header."""
-    required_scope = _required_scope_for_request(request)
-    ok, detail = _check_scoped_auth(request, required_scope)
-    if ok:
-        return
-    if detail == "insufficient scope":
-        raise HTTPException(status_code=403, detail="Forbidden — insufficient scope")
-    raise HTTPException(status_code=403, detail=detail)
-
-
-def _is_local_or_docker(host: str) -> bool:
-    """Return True if the IP is loopback or a Docker-internal private network."""
-    if host in {"127.0.0.1", "::1", "localhost"}:
-        return True
-    # Docker bridge networks use 172.x.x.x or 192.168.x.x ranges
-    if host.startswith("172.") or host.startswith("192.168.") or host.startswith("10."):
-        return True
-    return False
-
-
-def require_local_operator(request: Request):
-    """Allow local tooling on loopback / Docker internal network, or a valid admin key."""
-    host = (request.client.host or "").lower() if request.client else ""
-    if _is_local_or_docker(host) or (_debug_mode_enabled() and host == "test"):
-        return
-    admin_key = _current_admin_key()
-    presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
-    if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
-        return
-    raise HTTPException(status_code=403, detail="Forbidden — local operator access only")
+def _redact_signed_gate_message(payload: dict[str, Any]) -> dict[str, Any]:
+    safe = {
+        "ok": bool(payload.get("ok")),
+        "gate_id": str(payload.get("gate_id", "") or ""),
+        "identity_scope": str(payload.get("identity_scope", "") or ""),
+        "sender_id": str(payload.get("sender_id", "") or ""),
+        "public_key": str(payload.get("public_key", "") or ""),
+        "public_key_algo": str(payload.get("public_key_algo", "") or ""),
+        "protocol_version": str(payload.get("protocol_version", "") or ""),
+        "sequence": int(payload.get("sequence", 0) or 0),
+        "ciphertext": str(payload.get("ciphertext", "") or ""),
+        "nonce": str(payload.get("nonce", "") or ""),
+        "sender_ref": str(payload.get("sender_ref", "") or ""),
+        "format": str(payload.get("format", "mls1") or "mls1"),
+        "timestamp": float(payload.get("timestamp", 0) or 0),
+        "signature": str(payload.get("signature", "") or ""),
+    }
+    epoch = payload.get("epoch", 0)
+    if epoch:
+        safe["epoch"] = int(epoch or 0)
+    if payload.get("reply_to"):
+        safe["reply_to"] = str(payload.get("reply_to", "") or "")
+    if payload.get("detail"):
+        safe["detail"] = str(payload.get("detail", "") or "")
+    if payload.get("gate_envelope"):
+        safe["gate_envelope"] = str(payload.get("gate_envelope", "") or "")
+    if payload.get("envelope_hash"):
+        safe["envelope_hash"] = str(payload.get("envelope_hash", "") or "")
+    return safe
 
 
 def _build_cors_origins():
@@ -1339,7 +2109,10 @@ def _safe_float(val, default=0.0):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_insecure_admin_startup()
     _validate_admin_startup()
+    _validate_peer_push_secret()
+    _validate_privacy_core_startup()
 
     # Validate environment variables before starting anything
     from services.env_check import validate_env
@@ -1347,9 +2120,9 @@ async def lifespan(app: FastAPI):
     validate_env(strict=not _MESH_ONLY)
 
     if _MESH_ONLY:
-        logger.info("MESH_ONLY enabled — skipping global data fetchers/schedulers.")
+        logger.info("MESH_ONLY enabled â€” skipping global data fetchers/schedulers.")
     else:
-        # Start AIS stream first — it loads the disk cache (instant ships) then
+        # Start AIS stream first â€” it loads the disk cache (instant ships) then
         # begins accumulating live vessel data via WebSocket in the background.
         start_ais_stream()
 
@@ -1357,7 +2130,7 @@ async def lifespan(app: FastAPI):
         # in _scheduler_loop, so we do NOT call it again in the preload thread.
         start_carrier_tracker()
 
-        # Start SIGINT grid eagerly — APRS-IS TCP + Meshtastic MQTT connections
+        # Start SIGINT grid eagerly â€” APRS-IS TCP + Meshtastic MQTT connections
         # take a few seconds to handshake and start receiving packets. By starting
         # now, the bridges are already accumulating signals by the time the first
         # fetch_sigint() reads them during the preload cycle.
@@ -1383,8 +2156,7 @@ async def lifespan(app: FastAPI):
                 if interval <= 0:
                     time.sleep(30)
                     continue
-                verify_signatures = bool(get_settings().MESH_VERIFY_SIGNATURES)
-                valid, reason = infonet.validate_chain_incremental(verify_signatures=verify_signatures)
+                valid, reason = infonet.validate_chain_incremental(verify_signatures=True)
                 if not valid:
                     logger.error(f"Infonet validation failed: {reason}")
                     try:
@@ -1403,9 +2175,16 @@ async def lifespan(app: FastAPI):
     # runs this same app in MESH_ONLY mode and must not recurse into spawning.
     if not _MESH_ONLY:
         try:
-            from services.wormhole_supervisor import sync_wormhole_with_settings
+            from services.wormhole_supervisor import get_wormhole_state, sync_wormhole_with_settings
 
             sync_wormhole_with_settings()
+            _resume_private_delivery_background_work(
+                current_tier=_current_private_lane_tier(get_wormhole_state()),
+                reason="startup_resume",
+            )
+            _refresh_lookup_handle_rotation_background(reason="startup_resume")
+            privacy_prewarm_service.ensure_started()
+            privacy_prewarm_service.run_scheduled_once(reason="startup_resume")
         except Exception as e:
             logger.warning(f"Wormhole supervisor failed to sync: {e}")
         try:
@@ -1415,7 +2194,7 @@ async def lifespan(app: FastAPI):
             _refresh_node_peer_store()
             if _node_runtime_supported():
                 if not _participant_node_enabled():
-                    globals()["_NODE_SYNC_STATE"] = _set_node_sync_disabled_state()
+                    set_sync_state(_set_node_sync_disabled_state())
                 _NODE_SYNC_STOP.clear()
                 threading.Thread(target=_public_infonet_sync_loop, daemon=True).start()
                 threading.Thread(target=_http_peer_push_loop, daemon=True).start()
@@ -1429,6 +2208,30 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Node bootstrap runtime failed to initialize: {e}")
 
     if not _MESH_ONLY:
+        # Prime the static route/airport database from vrs-standing-data.adsb.lol
+        # before the first flight fetch so callsigns resolve to origin/destination
+        # immediately. Daily refresh is owned by the scheduler.
+        def _prime_route_database():
+            try:
+                from services.fetchers.route_database import refresh_route_database
+                refresh_route_database(force=True)
+            except Exception as e:
+                logger.warning(f"Route database prime failed (non-fatal): {e}")
+
+        threading.Thread(target=_prime_route_database, daemon=True).start()
+
+        # Prime the OpenSky aircraft metadata DB so hex24 -> aircraft type
+        # lookups work on the first flight cycle (and emissions get populated
+        # for OpenSky-sourced flights that arrive with no t field).
+        def _prime_aircraft_database():
+            try:
+                from services.fetchers.aircraft_database import refresh_aircraft_database
+                refresh_aircraft_database(force=True)
+            except Exception as e:
+                logger.warning(f"Aircraft database prime failed (non-fatal): {e}")
+
+        threading.Thread(target=_prime_aircraft_database, daemon=True).start()
+
         # Start the recurring scheduler (fast=60s, slow=30min).
         start_scheduler()
 
@@ -1436,7 +2239,7 @@ async def lifespan(app: FastAPI):
         # is listening on port 8000 instantly.  The frontend's adaptive polling
         # (retries every 3s) will pick up data piecemeal as each fetcher finishes.
         def _background_preload():
-            logger.info("=== PRELOADING DATA (background — server already accepting requests) ===")
+            logger.info("=== PRELOADING DATA (background â€” server already accepting requests) ===")
             try:
                 update_all_data(startup_mode=True)
                 logger.info("=== PRELOAD COMPLETE ===")
@@ -1444,6 +2247,18 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Data preload failed (non-fatal): {e}")
 
         threading.Thread(target=_background_preload, daemon=True).start()
+
+    # Auto-restart Tor hidden service if it was previously running
+    # (i.e., the hostname file exists from a previous session)
+    try:
+        from services.tor_hidden_service import tor_service, HOSTNAME_PATH
+        if HOSTNAME_PATH.exists():
+            logger.info("Previous Tor hidden service detected â€” auto-restarting...")
+            threading.Thread(
+                target=tor_service.start, daemon=True
+            ).start()
+    except Exception as e:
+        logger.warning(f"Tor auto-restart failed (non-fatal): {e}")
 
     yield
     if not _MESH_ONLY:
@@ -1463,6 +2278,16 @@ async def lifespan(app: FastAPI):
             shutdown_wormhole_supervisor()
         except Exception:
             pass
+    try:
+        privacy_prewarm_service.stop()
+    except Exception:
+        pass
+    # Stop Tor hidden service subprocess
+    try:
+        from services.tor_hidden_service import tor_service
+        tor_service.stop()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Live Risk Dashboard API", lifespan=lifespan)
@@ -1473,6 +2298,17 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 @app.exception_handler(JSONDecodeError)
 async def json_decode_error_handler(_request: Request, _exc: JSONDecodeError):
     return JSONResponse(status_code=422, content={"ok": False, "detail": "invalid JSON body"})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def private_plane_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 403 and _is_private_plane_access_path(request.url.path, request.method):
+        return await _private_plane_refusal_response(
+            request,
+            status_code=403,
+            payload=_private_plane_access_denied_payload(),
+        )
+    return await fastapi_http_exception_handler(request, exc)
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -1489,42 +2325,6 @@ _NO_STORE_HEADERS = {
     "Cache-Control": "no-store, max-age=0",
     "Pragma": "no-cache",
 }
-_SECURITY_HEADERS_PROD = {
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' blob:; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob: https:; "
-        "connect-src 'self' ws: wss: https:; "
-        "font-src 'self' data:; "
-        "object-src 'none'; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'"
-    ),
-    "Referrer-Policy": "no-referrer",
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-}
-_SECURITY_HEADERS_DEBUG = {
-    **_SECURITY_HEADERS_PROD,
-    "Content-Security-Policy": (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
-        "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob: https:; "
-        "connect-src 'self' ws: wss: http://127.0.0.1:8000 http://127.0.0.1:8787 https:; "
-        "font-src 'self' data:; "
-        "object-src 'none'; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'"
-    ),
-}
-
-
-def _security_headers() -> dict[str, str]:
-    return _SECURITY_HEADERS_DEBUG if _debug_mode_enabled() else _SECURITY_HEADERS_PROD
-
-
 @app.middleware("http")
 async def mesh_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -1540,68 +2340,6 @@ async def mesh_no_store_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, max-age=0"
         response.headers["Pragma"] = "no-cache"
     return response
-
-
-def _is_anonymous_mesh_write_path(path: str, method: str) -> bool:
-    if method.upper() not in {"POST", "PUT", "DELETE"}:
-        return False
-    if path == "/api/mesh/send":
-        return True
-    if path in {
-        "/api/mesh/vote",
-        "/api/mesh/report",
-        "/api/mesh/trust/vouch",
-        "/api/mesh/gate/create",
-        "/api/mesh/oracle/predict",
-        "/api/mesh/oracle/resolve",
-        "/api/mesh/oracle/stake",
-        "/api/mesh/oracle/resolve-stakes",
-    }:
-        return True
-    if path.startswith("/api/mesh/gate/") and path.endswith("/message"):
-        return True
-    return False
-
-
-def _is_anonymous_dm_action_path(path: str, method: str) -> bool:
-    method_name = method.upper()
-    if method_name == "POST" and path in {
-        "/api/mesh/dm/register",
-        "/api/mesh/dm/send",
-        "/api/mesh/dm/poll",
-        "/api/mesh/dm/count",
-        "/api/mesh/dm/block",
-        "/api/mesh/dm/witness",
-    }:
-        return True
-    if method_name == "GET" and path in {
-        "/api/mesh/dm/pubkey",
-        "/api/mesh/dm/prekey-bundle",
-    }:
-        return True
-    return False
-
-
-def _is_anonymous_wormhole_gate_admin_path(path: str, method: str) -> bool:
-    if method.upper() != "POST":
-        return False
-    return path in {
-        "/api/wormhole/gate/enter",
-        "/api/wormhole/gate/persona/create",
-        "/api/wormhole/gate/persona/activate",
-        "/api/wormhole/gate/persona/retire",
-    }
-
-
-def _is_private_infonet_write_path(path: str, method: str) -> bool:
-    if method.upper() != "POST":
-        return False
-    if path in {
-        "/api/mesh/gate/create",
-        "/api/mesh/vote",
-    }:
-        return True
-    return path.startswith("/api/mesh/gate/") and path.endswith("/message")
 
 
 def _validate_gate_vote_context(voter_id: str, gate_id: str) -> tuple[bool, str]:
@@ -1630,97 +2368,6 @@ def _validate_gate_vote_context(voter_id: str, gate_id: str) -> tuple[bool, str]
         pass
 
     return True, gate_key
-
-
-def _anonymous_mode_state() -> dict[str, Any]:
-    try:
-        from services.wormhole_settings import read_wormhole_settings
-        from services.wormhole_status import read_wormhole_status
-
-        settings = read_wormhole_settings()
-        status = read_wormhole_status()
-        enabled = bool(settings.get("enabled"))
-        anonymous_mode = bool(settings.get("anonymous_mode"))
-        transport_configured = str(settings.get("transport", "direct") or "direct").lower()
-        transport_active = str(status.get("transport_active", "") or "").lower()
-        effective_transport = transport_active or transport_configured
-        ready = bool(status.get("running")) and bool(status.get("ready"))
-        hidden_transport_ready = enabled and ready and effective_transport in {
-            "tor",
-            "tor_arti",
-            "i2p",
-            "mixnet",
-        }
-        return {
-            "enabled": anonymous_mode,
-            "wormhole_enabled": enabled,
-            "ready": hidden_transport_ready,
-            "effective_transport": effective_transport or "direct",
-        }
-    except Exception:
-        return {
-            "enabled": False,
-            "wormhole_enabled": False,
-            "ready": False,
-            "effective_transport": "direct",
-        }
-
-
-def _is_sensitive_no_store_path(path: str) -> bool:
-    if not path.startswith("/api/"):
-        return False
-    if path.startswith("/api/wormhole/"):
-        return True
-    if path.startswith("/api/settings/"):
-        return True
-    if path.startswith("/api/mesh/dm/"):
-        return True
-    if path in {
-        "/api/refresh",
-        "/api/debug-latest",
-        "/api/system/update",
-        "/api/mesh/infonet/ingest",
-    }:
-        return True
-    return False
-
-
-def _private_infonet_required_tier(path: str, method: str) -> str:
-    method_name = method.upper()
-    if path in {
-        "/api/mesh/dm/register",
-        "/api/mesh/dm/send",
-        "/api/mesh/dm/poll",
-        "/api/mesh/dm/count",
-        "/api/mesh/dm/block",
-        "/api/mesh/dm/witness",
-    } and method_name in {"GET", "POST"}:
-        return "strong"
-    if not _is_private_infonet_write_path(path, method):
-        return ""
-    if method_name != "POST":
-        return ""
-    # Current release policy: non-DM private gate actions are allowed in
-    # PRIVATE / TRANSITIONAL once Wormhole is ready. Strong-mode-only actions
-    # should be added here explicitly instead of being implied elsewhere.
-    return "transitional"
-
-
-_TRANSPORT_TIER_ORDER = {
-    "public_degraded": 0,
-    "private_transitional": 1,
-    "private_strong": 2,
-}
-
-
-def _current_private_lane_tier(wormhole: dict | None) -> str:
-    from services.wormhole_supervisor import transport_tier_from_state
-
-    return transport_tier_from_state(wormhole)
-
-
-def _transport_tier_is_sufficient(current_tier: str, required_tier: str) -> bool:
-    return _TRANSPORT_TIER_ORDER.get(current_tier, 0) >= _TRANSPORT_TIER_ORDER.get(required_tier, 0)
 
 
 _GATE_REDACT_FIELDS = ("sender_ref", "epoch", "nonce")
@@ -1789,16 +2436,123 @@ def _redact_public_event(event: dict) -> dict:
     return _redact_vote_gate(_redact_key_rotate_payload(_redact_gate_metadata(event)))
 
 
-def _is_debug_test_request(request: Request) -> bool:
-    if not _debug_mode_enabled():
-        return False
-    client_host = (request.client.host or "").lower() if request.client else ""
-    url_host = (request.url.hostname or "").lower() if request.url else ""
-    return client_host == "test" or url_host == "test"
+def _trusted_gate_reply_to(event: dict) -> str:
+    if not isinstance(event, dict):
+        return ""
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return ""
+    reply_to = str(payload.get("reply_to", "") or "").strip()
+    if not reply_to:
+        return ""
+    gate_id = str(payload.get("gate", "") or "").strip()
+    node_id = str(event.get("node_id", "") or "").strip()
+    public_key = str(event.get("public_key", "") or "").strip()
+    public_key_algo = str(event.get("public_key_algo", "") or "").strip()
+    if node_id and not public_key and gate_id:
+        try:
+            binding = _lookup_gate_member_binding(gate_id, node_id)
+            if binding:
+                public_key, public_key_algo = binding
+        except Exception:
+            return ""
+    signature = str(event.get("signature", "") or "").strip()
+    protocol_version = str(event.get("protocol_version", "") or "").strip()
+    sequence = int(event.get("sequence", 0) or 0)
+    if not (gate_id and node_id and public_key and public_key_algo and signature and protocol_version and sequence > 0):
+        return ""
+    verify_payload = {
+        "gate": gate_id,
+        "ciphertext": str(payload.get("ciphertext", "") or ""),
+        "nonce": str(payload.get("nonce", "") or ""),
+        "sender_ref": str(payload.get("sender_ref", "") or ""),
+        "format": str(payload.get("format", "mls1") or "mls1"),
+    }
+    epoch = _safe_int(payload.get("epoch", 0) or 0)
+    if epoch > 0:
+        verify_payload["epoch"] = epoch
+    envelope_hash = str(payload.get("envelope_hash", "") or "").strip()
+    if envelope_hash:
+        verify_payload["envelope_hash"] = envelope_hash
+    return _recover_verified_gate_reply_to(
+        node_id=node_id,
+        sequence=sequence,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        payload=verify_payload,
+        reply_to=reply_to,
+        protocol_version=protocol_version,
+    )
 
 
-def _strip_gate_identity(event: dict) -> dict:
-    """Return the private-plane gate event shape exposed to API consumers."""
+def _derive_anon_handle(node_id: str, gate_id: str) -> str:
+    """Derive a stable per-session, per-gate anonymous display handle.
+
+    Same node_id + same gate → same handle for every message that session
+    posts (lets other members follow a conversation thread). Different
+    session (anon re-enters → new node_id) → new handle. Different gate →
+    different handle for the same session (prevents cross-gate linking).
+    Not reversible: the handle is HMAC-SHA256(node_id, gate_id) truncated
+    to 4 hex chars (~16 bits), which is enough to tell sessions apart in
+    a room without identifying them.
+    """
+    node_key = str(node_id or "").strip()
+    gate_key = str(gate_id or "").strip().lower()
+    if not node_key:
+        return "anon_????"
+    tag = hmac.new(
+        node_key.encode("utf-8"),
+        f"{gate_key}|sender-handle-v1".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:4]
+    return f"anon_{tag}"
+
+
+def _strip_gate_identity_member(event: dict, *, envelope_policy: str = "envelope_disabled") -> dict:
+    """Narrowed member view: strips signer identity fields.
+
+    Gate envelope ciphertext is intentionally retained for members. It is
+    encrypted under gate_secret and is required for durable room history.
+    """
+    if not isinstance(event, dict):
+        event = {}
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        payload = {}
+    gate_id = str(payload.get("gate", "") or "")
+    sender_handle = _derive_anon_handle(str(event.get("node_id", "") or ""), gate_id)
+    result_payload: dict = {
+        "gate": gate_id,
+        "ciphertext": str(payload.get("ciphertext", "") or ""),
+        "format": str(payload.get("format", "") or ""),
+        "nonce": str(payload.get("nonce", "") or ""),
+        "sender_ref": str(payload.get("sender_ref", "") or ""),
+        "sender_handle": sender_handle,
+        "transport_lock": str(payload.get("transport_lock", "") or ""),
+        # gate_envelope is AES-256-GCM ciphertext encrypted under the gate's
+        # domain key (gate_secret). Only members who hold the gate_secret
+        # can decrypt it — so exposing the ciphertext itself to members is
+        # safe, and it's REQUIRED for the envelope_always decrypt path that
+        # gives members durable re-readable history. envelope_hash is the
+        # cryptographic binding (SHA-256 of gate_envelope) the decrypt path
+        # verifies before trusting the envelope.
+        "gate_envelope": str(payload.get("gate_envelope", "") or ""),
+        "envelope_hash": str(payload.get("envelope_hash", "") or ""),
+        "reply_to": _trusted_gate_reply_to(event),
+    }
+    return {
+        "event_id": str(event.get("event_id", "") or ""),
+        "event_type": "gate_message",
+        "timestamp": _redacted_gate_timestamp(event),
+        "protocol_version": str(event.get("protocol_version", "") or ""),
+        "sender_handle": sender_handle,
+        "payload": result_payload,
+    }
+
+
+def _strip_gate_identity_privileged(event: dict) -> dict:
+    """Privileged/audit view: preserves full signer identity surface."""
     if not isinstance(event, dict):
         event = {}
     payload = event.get("payload")
@@ -1807,8 +2561,6 @@ def _strip_gate_identity(event: dict) -> dict:
     node_id = str(event.get("node_id", "") or "")
     public_key = str(event.get("public_key", "") or "")
     public_key_algo = str(event.get("public_key_algo", "") or "")
-    # If the event doesn't carry a public_key but has a node_id, resolve it
-    # from the local persona/session store so the frontend can display it.
     if node_id and not public_key:
         gate_id = str(payload.get("gate", "") or "")
         if gate_id:
@@ -1834,10 +2586,45 @@ def _strip_gate_identity(event: dict) -> dict:
             "format": str(payload.get("format", "") or ""),
             "nonce": str(payload.get("nonce", "") or ""),
             "sender_ref": str(payload.get("sender_ref", "") or ""),
+            "transport_lock": str(payload.get("transport_lock", "") or ""),
             "gate_envelope": str(payload.get("gate_envelope", "") or ""),
-            "reply_to": str(payload.get("reply_to", "") or ""),
+            "envelope_hash": str(payload.get("envelope_hash", "") or ""),
+            "reply_to": _trusted_gate_reply_to(event),
         },
     }
+
+
+def _strip_gate_identity(event: dict) -> dict:
+    """Legacy alias â€” defaults to member (narrowed) view."""
+    return _strip_gate_identity_member(event)
+
+
+def _resolve_envelope_policy(gate_id: str) -> str:
+    """Look up envelope_policy for a gate.
+
+    Per-gate policy is the source of truth. The global recovery-envelope
+    runtime switches are retained for legacy config/reporting, but consulting
+    them here silently downgrades envelope_always rooms into unreadable
+    member views.
+    """
+    try:
+        from services.mesh.mesh_reputation import gate_manager
+
+        return str(gate_manager.get_envelope_policy(gate_id) or "envelope_disabled")
+    except Exception:
+        return "envelope_disabled"
+
+
+def _strip_gate_for_access(event: dict, access: str) -> dict:
+    """Select member or privileged strip based on access level."""
+    if access == "privileged":
+        return _strip_gate_identity_privileged(event)
+    payload = event.get("payload") if isinstance(event, dict) else None
+    gate_id = str((payload or {}).get("gate", "") or "")
+    envelope_policy = _resolve_envelope_policy(gate_id) if gate_id else "envelope_disabled"
+    return _strip_gate_identity_member(event, envelope_policy=envelope_policy)
+
+
 def _lookup_gate_member_binding(gate_id: str, node_id: str) -> tuple[str, str] | None:
     gate_key = str(gate_id or "").strip().lower()
     candidate = str(node_id or "").strip()
@@ -1872,6 +2659,7 @@ def _lookup_gate_member_binding(gate_id: str, node_id: str) -> tuple[str, str] |
 def _resolve_gate_proof_identity(gate_id: str) -> dict[str, Any] | None:
     from services.mesh.mesh_wormhole_persona import (
         bootstrap_wormhole_persona_state,
+        enter_gate_anonymously,
         read_wormhole_persona_state,
     )
 
@@ -1880,6 +2668,9 @@ def _resolve_gate_proof_identity(gate_id: str) -> dict[str, Any] | None:
         return None
     bootstrap_wormhole_persona_state()
     state = read_wormhole_persona_state()
+    session_identity = dict(state.get("gate_sessions", {}).get(gate_key) or {})
+    if session_identity.get("private_key"):
+        return session_identity
     active_persona_id = str(state.get("active_gate_personas", {}).get(gate_key, "") or "")
     for persona in list(state.get("gate_personas", {}).get(gate_key) or []):
         if str(persona.get("persona_id", "") or "") == active_persona_id:
@@ -1887,6 +2678,10 @@ def _resolve_gate_proof_identity(gate_id: str) -> dict[str, Any] | None:
     for persona in list(state.get("gate_personas", {}).get(gate_key) or []):
         if persona.get("private_key"):
             return dict(persona or {})
+    entered = enter_gate_anonymously(gate_key, rotate=False)
+    if not entered.get("ok"):
+        return None
+    state = read_wormhole_persona_state()
     session_identity = dict(state.get("gate_sessions", {}).get(gate_key) or {})
     if session_identity.get("private_key"):
         return session_identity
@@ -1935,218 +2730,314 @@ def _sign_gate_access_proof(gate_id: str) -> dict[str, Any]:
     }
 
 
-def _verify_gate_access(request: Request, gate_id: str) -> bool:
-    """Verify the requester has access to a gate's private message feed."""
+def _verify_gate_access(request: Request, gate_id: str) -> str:
+    """Verify gate access. Returns 'privileged', 'member', or '' (denied)."""
+    ok, _detail, _scope_class = _check_explicit_scoped_auth_local(
+        request,
+        {"gate.audit", "mesh.audit"},
+    )
+    if ok:
+        return "privileged"
     ok, _detail = _check_scoped_auth(request, "gate")
     if ok:
-        return True
+        return "member"
 
     gate_key = str(gate_id or "").strip().lower()
     node_id = str(request.headers.get("x-wormhole-node-id", "") or "").strip()
     proof_b64 = str(request.headers.get("x-wormhole-gate-proof", "") or "").strip()
     ts_str = str(request.headers.get("x-wormhole-gate-ts", "") or "").strip()
     if not gate_key or not node_id or not proof_b64 or not ts_str:
-        return False
+        return ""
     try:
         ts = int(ts_str)
     except (TypeError, ValueError):
-        return False
+        return ""
     if abs(int(time.time()) - ts) > 60:
-        return False
+        return ""
     binding = _lookup_gate_member_binding(gate_key, node_id)
     if not binding:
-        return False
+        return ""
     public_key, public_key_algo = binding
     if not verify_node_binding(node_id, public_key):
-        return False
+        return ""
     try:
         signature_hex = base64.b64decode(proof_b64, validate=True).hex()
     except Exception:
-        return False
+        return ""
     challenge = f"{gate_key}:{ts_str}"
-    return verify_signature(
-        public_key_b64=public_key,
+    challenge_ok, _challenge_reason = verify_node_bound_signature(
+        node_id=node_id,
+        public_key=public_key,
         public_key_algo=public_key_algo,
         signature_hex=signature_hex,
         payload=challenge,
     )
-
-
-def _peer_hmac_url_from_request(request: Request) -> str:
-    header_url = normalize_peer_url(str(request.headers.get("x-peer-url", "") or ""))
-    if header_url:
-        return header_url
-    if not request.url:
-        return ""
-    base_url = f"{request.url.scheme}://{request.url.netloc}".rstrip("/")
-    return normalize_peer_url(base_url)
-
-
-def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:
-    """Verify HMAC-SHA256 peer authentication on push requests."""
-    secret = str(get_settings().MESH_PEER_PUSH_SECRET or "").strip()
-    if not secret:
-        return False
-
-    provided = str(request.headers.get("x-peer-hmac", "") or "").strip()
-    if not provided:
-        return False
-
-    peer_url = _peer_hmac_url_from_request(request)
-    allowed_peers = set(authenticated_push_peer_urls())
-    if not peer_url or peer_url not in allowed_peers:
-        return False
-    peer_key = _derive_peer_key(secret, peer_url)
-    if not peer_key:
-        return False
-
-    expected = _hmac_mod.new(
-        peer_key,
-        body_bytes,
-        _hashlib_mod.sha256,
-    ).hexdigest()
-    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
-
-
-def _minimum_transport_tier(path: str, method: str) -> str:
-    method_name = method.upper()
-    private_infonet = _private_infonet_required_tier(path, method)
-    if private_infonet == "transitional":
-        return "private_transitional"
-    if private_infonet == "strong":
-        return "private_strong"
-
-    if method_name == "GET" and path in {
-        "/api/mesh/dm/prekey-bundle",
-    }:
-        return "private_transitional"
-
-    if method_name == "POST" and path in {
-        "/api/wormhole/dm/compose",
-        "/api/mesh/report",
-        "/api/mesh/trust/vouch",
-        "/api/mesh/oracle/predict",
-        "/api/mesh/oracle/resolve",
-        "/api/mesh/oracle/stake",
-        "/api/mesh/oracle/resolve-stakes",
-        "/api/wormhole/gate/enter",
-        "/api/wormhole/gate/leave",
-        "/api/wormhole/gate/persona/create",
-        "/api/wormhole/gate/persona/activate",
-        "/api/wormhole/gate/persona/clear",
-        "/api/wormhole/gate/persona/retire",
-        "/api/wormhole/gate/key/grant",
-        "/api/wormhole/gate/key/rotate",
-        "/api/wormhole/gate/message/compose",
-        "/api/wormhole/gate/message/decrypt",
-        "/api/wormhole/gate/messages/decrypt",
-        "/api/wormhole/dm/decrypt",
-    }:
-        return "private_transitional"
-
-    if method_name == "POST" and path in {
-        "/api/wormhole/dm/register-key",
-        "/api/wormhole/dm/prekey/register",
-        "/api/wormhole/dm/bootstrap-encrypt",
-        "/api/wormhole/dm/bootstrap-decrypt",
-        "/api/wormhole/dm/sender-token",
-        "/api/wormhole/dm/open-seal",
-        "/api/wormhole/dm/build-seal",
-        "/api/wormhole/dm/dead-drop-token",
-        "/api/wormhole/dm/pairwise-alias",
-        "/api/wormhole/dm/pairwise-alias/rotate",
-        "/api/wormhole/dm/dead-drop-tokens",
-        "/api/wormhole/dm/sas",
-        "/api/wormhole/dm/encrypt",
-        "/api/wormhole/dm/decrypt",
-        "/api/wormhole/dm/reset",
-    }:
-        return "private_strong"
-
+    if challenge_ok:
+        return "member"
     return ""
 
 
-def _transport_tier_precondition(required_tier: str, current_tier: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=428,
-        content={
-            "ok": False,
-            "detail": "transport tier insufficient",
-            "required": required_tier,
-            "current": current_tier,
-        },
+# â”€â”€ Non-hostile transport auto-upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#
+# The mesh/wormhole middleware can try to bring the wormhole supervisor
+# up in the background when a user hits a tier-gated route on a weak
+# transport. This is a best-effort, short-deadline attempt so we never
+# add significant latency to ordinary requests, and it is rate-limited
+# by a cooldown so back-to-back failures do not thrash the supervisor.
+_TRANSPORT_UPGRADE_COOLDOWN_S = 30.0
+_TRANSPORT_UPGRADE_DEADLINE_S = 2.5
+_last_middleware_upgrade_attempt: float = 0.0
+_middleware_upgrade_lock = asyncio.Lock()
+
+
+async def _try_transparent_transport_upgrade() -> str | None:
+    """Fire-and-wait-briefly attempt to upgrade the wormhole transport.
+
+    Returns the current transport tier after the attempt (or after a
+    cooldown skip), or None if the supervisor could not be probed.
+    """
+    global _last_middleware_upgrade_attempt
+
+    async with _middleware_upgrade_lock:
+        now = time.time()
+        if (now - _last_middleware_upgrade_attempt) < _TRANSPORT_UPGRADE_COOLDOWN_S:
+            try:
+                from services.wormhole_supervisor import get_wormhole_state
+
+                return _current_private_lane_tier(get_wormhole_state())
+            except Exception:
+                return None
+        _last_middleware_upgrade_attempt = now
+
+    def _blocking_upgrade() -> str | None:
+        try:
+            from services.wormhole_supervisor import (
+                connect_wormhole,
+                get_wormhole_state,
+            )
+
+            connect_wormhole(reason="middleware_auto_upgrade")
+            return _current_private_lane_tier(get_wormhole_state())
+        except Exception:
+            return None
+
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(_blocking_upgrade),
+            timeout=_TRANSPORT_UPGRADE_DEADLINE_S,
+        )
+    except asyncio.TimeoutError:
+        try:
+            from services.wormhole_supervisor import get_wormhole_state
+
+            return _current_private_lane_tier(get_wormhole_state())
+        except Exception:
+            return None
+
+
+def _kickoff_dm_send_transport_upgrade() -> None:
+    private_transport_manager.request_warmup(reason="queued_dm_delivery")
+
+
+def _kickoff_private_control_transport_upgrade() -> None:
+    private_transport_manager.request_warmup(reason="dm_surface_open")
+
+
+def _private_surface_warmup_request(path: str, method: str) -> tuple[str, str] | None:
+    normalized_path = str(path or "").strip()
+    if normalized_path.startswith("/api/wormhole/dm/invite"):
+        return ("invite_bootstrap", "private_control_only")
+    if normalized_path.startswith("/api/wormhole/dm/contact"):
+        return ("invite_bootstrap", "private_control_only")
+    if normalized_path in {"/api/mesh/dm/prekey-bundle", "/api/mesh/dm/register"}:
+        return ("invite_bootstrap", "private_control_only")
+    if (
+        normalized_path.startswith("/api/wormhole/dm/")
+        or normalized_path.startswith("/api/mesh/dm/")
+    ):
+        return ("dm_surface_open", "private_control_only")
+    if (
+        normalized_path.startswith("/api/wormhole/gate/")
+        or normalized_path.startswith("/api/mesh/gate/")
+    ):
+        return ("gate_surface_open", "private_control_only")
+    return None
+
+
+def _request_private_surface_warmup(*, path: str, method: str, current_tier: str) -> None:
+    request = _private_surface_warmup_request(path, method)
+    if request is None:
+        return
+    reason, required_tier = request
+    private_transport_manager.request_warmup(
+        reason=reason,
+        current_tier=current_tier,
+        required_tier=required_tier,
     )
 
 
-def _private_infonet_policy_snapshot() -> dict[str, Any]:
-    return {
-        "gate_actions": {
-            "post_message": "private_transitional",
-            "vote": "private_transitional",
-            "create_gate": "private_transitional",
-        },
-        "gate_chat": {
-            "trust_tier": "private_transitional",
-            "wormhole_required": True,
-            "content_private": True,
-            "storage_model": "private_gate_store_encrypted_envelope",
-            "notes": [
-                "Gate messages stay off the public hashchain and live on the private gate plane.",
-                "Anonymous gate sessions use rotating gate-scoped public keys and can participate on the private gate lane.",
-                "Use the DM/Dead Drop lane for the strongest transport posture currently available.",
-            ],
-        },
-        "dm_lane": {
-            "trust_tier_when_wormhole_ready": "private_transitional",
-            "trust_tier_when_rns_ready": "private_strong",
-            "reticulum_preferred": True,
-            "relay_fallback": True,
-            "public_transports_excluded": True,
-            "notes": [
-                "Private DMs stay off the public hashchain.",
-                "Public perimeter transports are excluded from secure DM carriage.",
-            ],
-        },
-        "reserved_for_private_strong": [],
-        "notes": [
-            "Non-DM gate chat and gate lifecycle actions are currently allowed in PRIVATE / TRANSITIONAL once Wormhole is ready.",
-            "DM policy remains stricter and is intentionally managed separately from gate-chat policy.",
-        ],
-    }
+def _resume_private_delivery_background_work(*, current_tier: str, reason: str) -> None:
+    pending_items = private_delivery_outbox.pending_items()
+    if not pending_items:
+        return
+    private_release_worker.ensure_started()
+    private_release_worker.wake()
+    required_tier = "public_degraded"
+    for item in pending_items:
+        required_tier = release_lane_required_tier(str(item.get("lane", "") or ""))
+        if required_tier == "private_strong":
+            break
+    private_transport_manager.request_warmup(
+        reason=reason,
+        current_tier=current_tier,
+        required_tier=required_tier,
+    )
+
+
+def _upgrade_invite_scoped_contact_preferences_background() -> dict[str, Any]:
+    try:
+        from services.mesh.mesh_wormhole_contacts import upgrade_invite_scoped_contact_preferences
+
+        upgraded = int(upgrade_invite_scoped_contact_preferences() or 0)
+        return {"ok": True, "upgraded_contacts": upgraded}
+    except Exception as exc:
+        return {
+            "ok": False,
+            "upgraded_contacts": 0,
+            "detail": str(exc) or type(exc).__name__,
+        }
+
+
+def _refresh_lookup_handle_rotation_background(*, reason: str) -> dict[str, Any]:
+    try:
+        result = maybe_rotate_prekey_lookup_handles()
+    except Exception as exc:
+        logger.warning("lookup handle rotation check failed during %s: %s", str(reason or "").strip(), exc)
+        return {
+            "ok": False,
+            "rotated": False,
+            "state": "lookup_handle_rotation_failed",
+            "detail": str(exc) or "lookup handle rotation failed",
+        }
+    return dict(result or {})
 
 
 @app.middleware("http")
 async def enforce_high_privacy_mesh(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/mesh") or path.startswith("/api/wormhole/gate/") or path.startswith("/api/wormhole/dm/"):
+        request.state._private_lane_started_at = time.perf_counter()
         current_tier = "public_degraded"
+        try:
+            from services.wormhole_supervisor import get_wormhole_state
+
+            wormhole = get_wormhole_state()
+        except Exception:
+            wormhole = {"configured": False, "ready": False, "rns_ready": False}
+        current_tier = _current_private_lane_tier(wormhole)
+        request.state._private_lane_current_tier = current_tier
+        try:
+            _request_private_surface_warmup(
+                path=path,
+                method=request.method,
+                current_tier=current_tier,
+            )
+        except Exception:
+            logger.debug("Private surface warm-up request failed", exc_info=True)
         required_tier = _minimum_transport_tier(path, request.method)
         if required_tier:
-            try:
-                from services.wormhole_supervisor import get_wormhole_state
-
-                wormhole = get_wormhole_state()
-            except Exception:
-                wormhole = {"configured": False, "ready": False, "rns_ready": False}
-            current_tier = _current_private_lane_tier(wormhole)
             if not _transport_tier_is_sufficient(current_tier, required_tier):
-                return _transport_tier_precondition(required_tier, current_tier)
+                if request.method.upper() == "POST" and path == "/api/mesh/dm/send":
+                    # Non-hostile DM send path: accept user intent even when
+                    # the strongest private transport is still converging.
+                    # If Wormhole is already up at a weaker private tier,
+                    # let the route continue silently. If we're still fully
+                    # public_degraded, kick off background bring-up and let
+                    # the route deliver with an honest relay-state detail.
+                    request.state._dm_send_transport_pending = current_tier == "public_degraded"
+                    if current_tier == "public_degraded":
+                        try:
+                            _kickoff_dm_send_transport_upgrade()
+                        except Exception:
+                            logger.debug("DM send background transport kickoff failed", exc_info=True)
+                    request.state._private_lane_current_tier = current_tier
+                elif (
+                    request.method.upper() == "POST"
+                    and path.startswith("/api/mesh/gate/")
+                    and path.endswith("/message")
+                ):
+                    # Gate messages are sealed local writes first. Let the
+                    # handler append ciphertext to the local gate store and
+                    # queue fan-out; the release worker enforces the
+                    # PRIVATE / STRONG network floor before peer propagation.
+                    request.state._gate_message_transport_pending = True
+                    if current_tier == "public_degraded":
+                        try:
+                            _kickoff_dm_send_transport_upgrade()
+                        except Exception:
+                            logger.debug("gate message background transport kickoff failed", exc_info=True)
+                    request.state._private_lane_current_tier = current_tier
+                elif required_tier == "private_control_only" and path.startswith("/api/wormhole/"):
+                    # Local wormhole control routes prepare state, compose
+                    # encrypted payloads, or manage keys locally. They
+                    # should not hard-fail just because the hidden
+                    # transport has not finished coming up yet.
+                    request.state._private_control_transport_pending = current_tier == "public_degraded"
+                    request.state._private_lane_current_tier = current_tier
+                else:
+                    # Tor-style: instead of failing, keep trying in the
+                    # background and return an ok:True "preparing" response
+                    # (202 Accepted) so the client shows a spinner rather
+                    # than an approval dialog. The request itself is NOT
+                    # forwarded to the handler — the tier is too low for the
+                    # route's required privacy — but the client can poll and
+                    # retry transparently once the lane warms up.
+                    try:
+                        upgraded = await _try_transparent_transport_upgrade()
+                    except Exception:
+                        upgraded = current_tier
+                        logger.debug("transparent transport upgrade failed", exc_info=True)
+                    if upgraded is not None and _transport_tier_is_sufficient(
+                        upgraded, required_tier
+                    ):
+                        current_tier = upgraded
+                    else:
+                        try:
+                            _kickoff_dm_send_transport_upgrade()
+                        except Exception:
+                            logger.debug("background warmup kickoff failed", exc_info=True)
+                        payload = _transport_tier_precondition_payload(
+                            required_tier, upgraded or current_tier
+                        )
+                        payload["ok"] = True
+                        payload["pending"] = True
+                        payload["status"] = "preparing_private_lane"
+                        return await _private_plane_refusal_response(
+                            request,
+                            status_code=202,
+                            payload=payload,
+                        )
         try:
-            from services.wormhole_settings import read_wormhole_settings
+            from services.wormhole_settings import read_wormhole_settings, write_wormhole_settings
 
             data = read_wormhole_settings()
+            # Tor-style: if the user selected high privacy but Wormhole
+            # isn't enabled yet, just turn it on and kick off warmup.
+            # Don't block the request on the upgrade — the transport
+            # manager will converge in the background.
             if (
                 path.startswith("/api/mesh")
                 and str(data.get("privacy_profile", "default")).lower() == "high"
                 and not bool(data.get("enabled"))
             ):
-                return JSONResponse(
-                    status_code=428,
-                    content={
-                        "ok": False,
-                        "detail": "High privacy requires Wormhole to be enabled.",
-                    },
-                )
+                try:
+                    write_wormhole_settings(enabled=True)
+                except Exception:
+                    logger.debug("auto-enable wormhole (high privacy) failed", exc_info=True)
+                try:
+                    _kickoff_dm_send_transport_upgrade()
+                except Exception:
+                    logger.debug("high-privacy warmup kickoff failed", exc_info=True)
         except Exception:
             pass
         state = _anonymous_mode_state()
@@ -2155,26 +3046,23 @@ async def enforce_high_privacy_mesh(request: Request, call_next):
             or _is_anonymous_dm_action_path(path, request.method)
             or _is_anonymous_wormhole_gate_admin_path(path, request.method)
         ):
+            # Tor-style: anonymous mode is on → do whatever is required for
+            # it to function. Auto-enable Wormhole if off, and schedule
+            # hidden-transport warmup WITHOUT blocking this request. The
+            # transport manager converges in the background; the user sees
+            # a normal (non-428) response in the meantime.
             if not state["wormhole_enabled"]:
-                return JSONResponse(
-                    status_code=428,
-                    content={
-                        "ok": False,
-                        "detail": "Anonymous mode requires Wormhole to be enabled.",
-                    },
-                )
+                try:
+                    from services.wormhole_settings import write_wormhole_settings
+
+                    write_wormhole_settings(enabled=True)
+                except Exception:
+                    logger.debug("auto-enable wormhole (anonymous mode) failed", exc_info=True)
             if not state["ready"]:
-                return JSONResponse(
-                    status_code=428,
-                    content={
-                        "ok": False,
-                        "detail": (
-                            "Anonymous mode requires a hidden Wormhole transport "
-                            "(Tor/I2P/Mixnet) to be ready before public posting, "
-                            "gate persona changes, or private DM activity."
-                        ),
-                    },
-                )
+                try:
+                    _kickoff_dm_send_transport_upgrade()
+                except Exception:
+                    logger.debug("anonymous-mode warmup kickoff failed", exc_info=True)
     return await call_next(request)
 
 
@@ -2185,6 +3073,26 @@ async def apply_no_store_to_sensitive_paths(request: Request, call_next):
         for key, value in _NO_STORE_HEADERS.items():
             response.headers[key] = value
     return response
+
+# ---------------------------------------------------------------------------
+# Register routers
+# ---------------------------------------------------------------------------
+app.include_router(health_router)
+app.include_router(cctv_router)
+app.include_router(radio_router)
+app.include_router(sigint_router)
+app.include_router(tools_router)
+app.include_router(admin_router)
+app.include_router(data_router)
+app.include_router(mesh_peer_sync_router)
+app.include_router(mesh_operator_router)
+app.include_router(mesh_oracle_router)
+app.include_router(mesh_dm_router)
+app.include_router(mesh_public_router)
+app.include_router(wormhole_router)
+app.include_router(ai_intel_router)
+app.include_router(sar_router)
+app.include_router(infonet_router)
 
 from services.data_fetcher import update_all_data
 
@@ -2293,27 +3201,9 @@ def _queue_viirs_change_refresh() -> None:
 
 @app.post("/api/viewport")
 @limiter.limit("60/minute")
-async def update_viewport(vp: ViewportUpdate, request: Request):
-    """Receive frontend map bounds to dynamically choke the AIS stream."""
-    from services.ais_stream import update_ais_bbox
-
-    south, west, north, east = _normalize_viewport_bounds(vp.s, vp.w, vp.n, vp.e)
-    normalized_bounds = (south, west, north, east)
-
-    if not _viewport_changed_enough(normalized_bounds):
-        return {"status": "ok", "deduped": True}
-
-    # Add a gentle 10% padding so ships don't pop-in right at the edge
-    pad_lat = (north - south) * 0.1
-    # handle antimeridian bounding box padding later if needed, simple for now:
-    pad_lng = (east - west) * 0.1 if east > west else 0
-
-    update_ais_bbox(
-        south=max(-90, south - pad_lat),
-        west=max(-180, west - pad_lng) if pad_lng else west,
-        north=min(90, north + pad_lat),
-        east=min(180, east + pad_lng) if pad_lng else east,
-    )
+async def update_viewport(vp: ViewportUpdate, request: Request):  # noqa: ARG001
+    """Receive frontend map bounds. AIS stream stays global so open-ocean
+    vessels are never dropped â€” the frontend worker handles viewport culling."""
     return {"status": "ok"}
 
 
@@ -2372,8 +3262,21 @@ async def update_layers(update: LayerUpdate, request: Request):
         sigint_grid.mesh.stop()
         logger.info("Meshtastic MQTT bridge stopped (layer disabled)")
     elif not old_mesh and new_mesh:
-        sigint_grid.mesh.start()
-        logger.info("Meshtastic MQTT bridge started (layer enabled)")
+        # Respect the global MESH_MQTT_ENABLED gate even when the UI layer is
+        # toggled on. The layer toggle should not bypass the opt-in flag that
+        # protects the public broker from passive connection load.
+        try:
+            mqtt_enabled = bool(getattr(get_settings(), "MESH_MQTT_ENABLED", False))
+        except Exception:
+            mqtt_enabled = False
+        if mqtt_enabled:
+            sigint_grid.mesh.start()
+            logger.info("Meshtastic MQTT bridge started (layer enabled)")
+        else:
+            logger.info(
+                "Meshtastic layer enabled; MQTT bridge remains disabled "
+                "(set MESH_MQTT_ENABLED=true to participate in the public broker)"
+            )
 
     if old_aprs and not new_aprs:
         sigint_grid.aprs.stop()
@@ -2434,9 +3337,9 @@ def _json_safe(value):
 
 
 def _sanitize_payload(value):
-    """Thread-safe snapshot with NaN→None. Cheaper than _json_safe: only deep-
+    """Thread-safe snapshot with NaNâ†’None. Cheaper than _json_safe: only deep-
     copies dicts (for thread safety) and replaces non-finite floats. Lists are
-    shallow-copied — orjson handles the leaf serialisation natively."""
+    shallow-copied â€” orjson handles the leaf serialisation natively."""
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, dict):
@@ -2573,7 +3476,7 @@ def _sigint_totals_for_items(items: list) -> dict[str, int]:
 @limiter.limit("120/minute")
 async def live_data_fast(
     request: Request,
-    # bbox params accepted for backward compat but no longer used for filtering —
+    # bbox params accepted for backward compat but no longer used for filtering â€”
     # all cached data is returned and the frontend culls off-screen entities via MapLibre.
     s: float = Query(None, description="South bound (ignored)", ge=-90, le=90),
     w: float = Query(None, description="West bound (ignored)", ge=-180, le=180),
@@ -2586,11 +3489,11 @@ async def live_data_fast(
 
     from services.fetchers._store import (
         active_layers,
-        get_latest_data_subset,
+        get_latest_data_subset_refs,
         get_source_timestamps_snapshot,
     )
 
-    d = get_latest_data_subset(
+    d = get_latest_data_subset_refs(
         "last_updated",
         "commercial_flights",
         "military_flights",
@@ -2646,7 +3549,7 @@ async def live_data_fast(
         "freshness": freshness,
     }
     return Response(
-        content=orjson.dumps(_sanitize_payload(payload)) if orjson else json_mod.dumps(_sanitize_payload(payload)).encode(),
+        content=orjson.dumps(_sanitize_payload(payload)),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -2668,11 +3571,11 @@ async def live_data_slow(
 
     from services.fetchers._store import (
         active_layers,
-        get_latest_data_subset,
+        get_latest_data_subset_refs,
         get_source_timestamps_snapshot,
     )
 
-    d = get_latest_data_subset(
+    d = get_latest_data_subset_refs(
         "last_updated",
         "news",
         "stocks",
@@ -2702,9 +3605,15 @@ async def live_data_slow(
         "volcanoes",
         "fishing_activity",
         "psk_reporter",
+        "crowdthreat",
         "correlations",
         "threat_level",
         "trending_markets",
+        "uap_sightings",
+        "wastewater",
+        "sar_scenes",
+        "sar_anomalies",
+        "sar_aoi_coverage",
     )
     freshness = get_source_timestamps_snapshot()
 
@@ -2742,7 +3651,13 @@ async def live_data_slow(
         "air_quality": (d.get("air_quality") or []) if active_layers.get("air_quality", True) else [],
         "volcanoes": (d.get("volcanoes") or []) if active_layers.get("volcanoes", True) else [],
         "fishing_activity": (d.get("fishing_activity") or []) if active_layers.get("fishing_activity", True) else [],
+        "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
         "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
+        "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
+        "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
+        "sar_scenes": (d.get("sar_scenes") or []) if active_layers.get("sar", True) else [],
+        "sar_anomalies": (d.get("sar_anomalies") or []) if active_layers.get("sar", True) else [],
+        "sar_aoi_coverage": (d.get("sar_aoi_coverage") or []) if active_layers.get("sar", True) else [],
         "freshness": freshness,
     }
     return Response(
@@ -2750,7 +3665,7 @@ async def live_data_slow(
             _sanitize_payload(payload),
             default=str,
             option=orjson.OPT_NON_STR_KEYS,
-        ) if orjson else json_mod.dumps(_sanitize_payload(payload), default=str).encode(),
+        ),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -2823,7 +3738,7 @@ async def nearest_sdr(
     return find_nearest_kiwisdr(lat, lng, kiwisdr_data)
 
 
-# ─── Per-Identity Throttle State ──────────────────────────────────────────
+# â”€â”€â”€ Per-Identity Throttle State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # In-memory: {node_id: {"last_send": timestamp, "daily_count": int, "daily_reset": timestamp}}
 # Bounded to 10000 entries with 24hr TTL to prevent unbounded memory growth
 _node_throttle: TTLCache = TTLCache(maxsize=10000, ttl=86400)
@@ -2907,7 +3822,7 @@ def _check_throttle(
 
 
 def _check_gate_post_cooldown(sender_id: str, gate_id: str) -> tuple[bool, str]:
-    """Check cooldown — does NOT record it.  Call _record_gate_post_cooldown() after success."""
+    """Check cooldown â€” does NOT record it.  Call _record_gate_post_cooldown() after success."""
     gate_key = str(gate_id or "").strip().lower()
     sender_key = str(sender_id or "").strip()
     if not gate_key or not sender_key:
@@ -2942,64 +3857,66 @@ def _verify_signed_event(
     payload: dict,
     protocol_version: str,
 ) -> tuple[bool, str]:
-    from services.mesh.mesh_metrics import increment as metrics_inc
-
-    if not protocol_version:
-        metrics_inc("signature_missing_protocol")
-        return False, "Missing protocol_version"
-
-    if protocol_version != PROTOCOL_VERSION:
-        metrics_inc("signature_protocol_mismatch")
-        return False, f"Unsupported protocol_version: {protocol_version}"
-
-    if not signature or not public_key or not public_key_algo:
-        metrics_inc("signature_missing_fields")
-        return False, "Missing signature or public key"
-
-    if sequence <= 0:
-        metrics_inc("signature_invalid_sequence")
-        return False, "Missing or invalid sequence"
-
-    if not verify_node_binding(node_id, public_key):
-        metrics_inc("signature_node_mismatch")
-        return False, "node_id does not match public key"
-
-    algo = parse_public_key_algo(public_key_algo)
-    if not algo:
-        metrics_inc("signature_bad_algo")
-        return False, "Unsupported public_key_algo"
-
-    normalized = normalize_payload(event_type, payload)
-    sig_payload = build_signature_payload(
+    return _shared_verify_signed_event(
         event_type=event_type,
         node_id=node_id,
         sequence=sequence,
-        payload=normalized,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        payload=payload,
+        protocol_version=protocol_version,
     )
-    if not verify_signature(
-        public_key_b64=public_key,
-        public_key_algo=algo,
-        signature_hex=signature,
-        payload=sig_payload,
-    ):
-        if event_type == "dm_message":
-            legacy_sig_payload = build_signature_payload(
-                event_type=event_type,
-                node_id=node_id,
-                sequence=sequence,
-                payload=normalize_dm_message_payload_legacy(payload),
-            )
-            if verify_signature(
-                public_key_b64=public_key,
-                public_key_algo=algo,
-                signature_hex=signature,
-                payload=legacy_sig_payload,
-            ):
-                return True, "ok"
-        metrics_inc("signature_invalid")
-        return False, "Invalid signature"
 
-    return True, "ok"
+
+def _apply_legacy_dm_signature_compat(
+    *,
+    tier: str,
+    delivery_class: str,
+    payload_format: str,
+    session_welcome: str,
+    sender_seal: str,
+    relay_salt_hex: str,
+    sig_reason: str,
+) -> dict[str, Any]:
+    result = {
+        "ok": True,
+        "detail": "",
+        "status_code": 0,
+        "format": str(payload_format or "dm1").strip().lower() or "dm1",
+        "session_welcome": str(session_welcome or "").strip(),
+        "sender_seal": str(sender_seal or "").strip(),
+        "relay_salt": str(relay_salt_hex or "").strip().lower(),
+        "legacy_compat": False,
+    }
+    if sig_reason != "legacy_dm_signature_compat":
+        return result
+
+    logger.warning(
+        "legacy dm signature compatibility path used; unsigned modern fields stripped before transport"
+    )
+    result["legacy_compat"] = True
+    result["format"] = "dm1"
+    result["session_welcome"] = ""
+    result["sender_seal"] = ""
+    result["relay_salt"] = ""
+
+    if str(tier or "").startswith("private_") and result["format"] == "dm1":
+        result["ok"] = False
+        result["status_code"] = 403
+        result["detail"] = "MLS session required in private transport mode - dm1 blocked on raw send path"
+        return result
+
+    if (
+        str(tier or "").startswith("private_")
+        and str(delivery_class or "").strip().lower() == "shared"
+        and bool(get_settings().MESH_DM_REQUIRE_SENDER_SEAL_SHARED)
+    ):
+        result["ok"] = False
+        result["detail"] = "sealed sender required for shared private DMs"
+        return result
+
+    return result
 
 
 def _preflight_signed_event_integrity(
@@ -3012,49 +3929,114 @@ def _preflight_signed_event_integrity(
     signature: str,
     protocol_version: str,
 ) -> tuple[bool, str]:
-    if not protocol_version or not signature or not public_key or not public_key_algo:
-        return False, "Missing signature or public key"
+    return _shared_preflight_signed_event_integrity(
+        event_type=event_type,
+        node_id=node_id,
+        sequence=sequence,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        protocol_version=protocol_version,
+    )
 
-    if sequence <= 0:
-        return False, "Missing or invalid sequence"
 
-    try:
-        from services.mesh.mesh_hashchain import infonet
-    except Exception as exc:
-        logger.error("Signed event integrity preflight unavailable: %s", exc)
-        return False, "Signed event integrity preflight unavailable"
+def _verify_signed_write(
+    *,
+    event_type: str,
+    node_id: str,
+    sequence: int,
+    public_key: str,
+    public_key_algo: str,
+    signature: str,
+    payload: dict,
+    protocol_version: str,
+) -> tuple[bool, str]:
+    return _shared_verify_signed_write(
+        event_type=event_type,
+        node_id=node_id,
+        sequence=sequence,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        payload=payload,
+        protocol_version=protocol_version,
+    )
 
-    if infonet.check_replay(node_id, sequence):
-        last = infonet.node_sequences.get(node_id, 0)
-        return False, f"Replay detected: sequence {sequence} <= last {last}"
 
-    existing = infonet.public_key_bindings.get(public_key)
-    if existing and existing != node_id:
-        return False, f"public key already bound to {existing}"
+def _verify_gate_message_signed_write(
+    *,
+    node_id: str,
+    sequence: int,
+    public_key: str,
+    public_key_algo: str,
+    signature: str,
+    payload: dict,
+    reply_to: str,
+    protocol_version: str,
+) -> tuple[bool, str, str]:
+    return _shared_verify_gate_message_signed_write(
+        node_id=node_id,
+        sequence=sequence,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        payload=payload,
+        reply_to=reply_to,
+        protocol_version=protocol_version,
+    )
 
-    revoked, _info = infonet._revocation_status(public_key)
-    if revoked and event_type != "key_revoke":
-        return False, "public key is revoked"
 
-    return True, "ok"
+def _recover_verified_gate_reply_to(
+    *,
+    node_id: str,
+    sequence: int,
+    public_key: str,
+    public_key_algo: str,
+    signature: str,
+    payload: dict,
+    reply_to: str,
+    protocol_version: str,
+) -> str:
+    return _shared_recover_verified_gate_reply_to(
+        node_id=node_id,
+        sequence=sequence,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        payload=payload,
+        reply_to=reply_to,
+        protocol_version=protocol_version,
+    )
+
+
+def _signed_body(request: Request) -> dict[str, Any]:
+    prepared = get_prepared_signed_write(request)
+    if prepared is None:
+        return {}
+    return dict(prepared.body)
+
+
+def _prepared_signed_write(request: Request):
+    return get_prepared_signed_write(request)
 
 
 @app.post("/api/mesh/send")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.MESH_SEND)
 async def mesh_send(request: Request):
-    """Unified mesh message endpoint — auto-routes via optimal transport.
+    """Unified mesh message endpoint â€” auto-routes via optimal transport.
 
     Body: { destination, message, priority?, channel?, node_id?, credentials? }
     The router picks APRS, Meshtastic, or Internet based on gate logic.
     Enforces byte limits and per-identity rate limiting.
     """
-    body = await request.json()
+    body = _signed_body(request)
     destination = body.get("destination", "")
     message = body.get("message", "")
     if not destination or not message:
         return {"ok": False, "detail": "Missing required fields: destination, message"}
 
-    # ─── Byte limit enforcement ───────────────────────────────────
+    # â”€â”€â”€ Byte limit enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     payload_bytes = len(message.encode("utf-8"))
     payload_type = body.get("payload_type", "text")
     max_bytes = _BYTE_LIMITS.get(payload_type, 200)
@@ -3064,7 +4046,7 @@ async def mesh_send(request: Request):
             "detail": f"Message too long ({payload_bytes} bytes). Maximum: {max_bytes} bytes for {payload_type} messages.",
         }
 
-    # ─── Signature verification & node registration ──────────────
+    # â”€â”€â”€ Signature verification & node registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     node_id = body.get("node_id", body.get("sender_id", "anonymous"))
     public_key = body.get("public_key", "")
     public_key_algo = body.get("public_key_algo", "")
@@ -3080,31 +4062,6 @@ async def mesh_send(request: Request):
     }
     if body.get("transport_lock"):
         signed_payload["transport_lock"] = str(body.get("transport_lock"))
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="message",
-        node_id=node_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=signed_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="message",
-        node_id=node_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
-
     # Register node in reputation ledger (auto-creates if new)
     if node_id != "anonymous":
         try:
@@ -3112,9 +4069,9 @@ async def mesh_send(request: Request):
 
             reputation_ledger.register_node(node_id, public_key, public_key_algo)
         except Exception:
-            pass  # Non-critical — don't block sends if reputation module fails
+            pass  # Non-critical â€” don't block sends if reputation module fails
 
-    # ─── Per-identity throttle ────────────────────────────────────
+    # â”€â”€â”€ Per-identity throttle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     priority_str = signed_payload["priority"]
     transport_lock = str(body.get("transport_lock", "") or "").lower()
     throttle_ok, throttle_reason = _check_throttle(node_id, priority_str, transport_lock)
@@ -3137,7 +4094,7 @@ async def mesh_send(request: Request):
     }
     priority = priority_map.get(priority_str, Priority.NORMAL)
 
-    # ─── C-1 fix: compute trust_tier from Wormhole state ───────
+    # â”€â”€â”€ C-1 fix: compute trust_tier from Wormhole state â”€â”€â”€â”€â”€â”€â”€
     from services.wormhole_supervisor import get_transport_tier
 
     computed_tier = get_transport_tier()
@@ -3153,7 +4110,7 @@ async def mesh_send(request: Request):
     )
 
     credentials = body.get("credentials", {})
-    # ─── C-2 fix: enforce tier before transport_lock dispatch ──
+    # â”€â”€â”€ C-2 fix: enforce tier before transport_lock dispatch â”€â”€
     private_tier = str(envelope.trust_tier or "").startswith("private_")
     if transport_lock == "meshtastic":
         if private_tier:
@@ -3189,7 +4146,7 @@ async def mesh_send(request: Request):
         results = mesh_router.route(envelope, credentials)
     any_ok = any(r.ok for r in results)
 
-    # ─── Mirror to Meshtastic bridge feed ────────────────────────
+    # â”€â”€â”€ Mirror to Meshtastic bridge feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # The MQTT broker won't echo our own publishes back to our subscriber,
     # so inject successfully-sent messages into the bridge's deque directly.
     if any_ok and envelope.routed_via == "meshtastic":
@@ -3344,14 +4301,14 @@ async def mesh_messages(
 @app.get("/api/mesh/channels")
 @limiter.limit("30/minute")
 async def mesh_channels(request: Request):
-    """Get Meshtastic channel population stats — nodes per region/channel."""
+    """Get Meshtastic channel population stats â€” nodes per region/channel."""
     stats = get_latest_data().get("mesh_channel_stats", {})
     return stats
 
 
-# ─── Reputation Endpoints ─────────────────────────────────────────────────
+# â”€â”€â”€ Reputation Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Cached root node_id — avoids 5 encrypted disk reads per vote.
+# Cached root node_id â€” avoids 5 encrypted disk reads per vote.
 _root_node_id_cache: dict[str, object] = {"value": None, "ts": 0.0}
 _ROOT_NODE_ID_TTL = 30.0  # seconds
 
@@ -3376,6 +4333,7 @@ def _cached_root_node_id() -> str:
 
 @app.post("/api/mesh/vote")
 @limiter.limit("30/minute")
+@requires_signed_write(kind=SignedWriteKind.MESH_VOTE)
 async def mesh_vote(request: Request):
     """Cast a reputation vote on a node.
 
@@ -3383,7 +4341,7 @@ async def mesh_vote(request: Request):
     """
     from services.mesh.mesh_reputation import reputation_ledger
 
-    body = await request.json()
+    body = _signed_body(request)
     voter_id = body.get("voter_id", "")
     target_id = body.get("target_id", "")
     vote = body.get("vote", 0)
@@ -3405,33 +4363,9 @@ async def mesh_vote(request: Request):
     gate = gate_detail or ""
 
     vote_payload = {"target_id": target_id, "vote": vote, "gate": gate}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="vote",
-        node_id=voter_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=vote_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="vote",
-        node_id=voter_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
 
     # Resolve stable local operator ID for duplicate-vote prevention.
-    # Personas generate unique keypairs, so voter_id alone is insufficient —
+    # Personas generate unique keypairs, so voter_id alone is insufficient â€”
     # use the root identity's node_id as a stable anchor so switching personas
     # doesn't let the same operator vote multiple times on the same post.
     stable_voter_id = voter_id
@@ -3471,9 +4405,10 @@ async def mesh_vote(request: Request):
 
 @app.post("/api/mesh/report")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.MESH_REPORT)
 async def mesh_report(request: Request):
     """Report abusive or fraudulent behavior (signed, public, non-anonymous)."""
-    body = await request.json()
+    body = _signed_body(request)
     reporter_id = body.get("reporter_id", "")
     target_id = body.get("target_id", "")
     reason = body.get("reason", "")
@@ -3489,30 +4424,6 @@ async def mesh_report(request: Request):
         return {"ok": False, "detail": "Missing reporter_id, target_id, or reason"}
 
     report_payload = {"target_id": target_id, "reason": reason, "gate": gate, "evidence": evidence}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="abuse_report",
-        node_id=reporter_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=report_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="abuse_report",
-        node_id=reporter_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
 
     try:
         from services.mesh.mesh_reputation import reputation_ledger
@@ -3598,9 +4509,10 @@ async def mesh_reputation_all(request: Request):
 
 @app.post("/api/mesh/identity/rotate")
 @limiter.limit("5/minute")
+@requires_signed_write(kind=SignedWriteKind.IDENTITY_ROTATE)
 async def mesh_identity_rotate(request: Request):
     """Link a new node_id to an old one via dual-signature rotation."""
-    body = await request.json()
+    body = _signed_body(request)
     old_node_id = body.get("old_node_id", "").strip()
     old_public_key = body.get("old_public_key", "").strip()
     old_public_key_algo = body.get("old_public_key_algo", "").strip()
@@ -3639,66 +4551,18 @@ async def mesh_identity_rotate(request: Request):
         "timestamp": timestamp,
         "old_signature": old_signature,
     }
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="key_rotate",
-        node_id=new_node_id,
-        sequence=sequence,
-        public_key=new_public_key,
-        public_key_algo=new_public_key_algo,
-        signature=new_signature,
-        payload=rotation_payload,
-        protocol_version=protocol_version,
+
+    old_sig_ok, old_sig_reason = verify_key_rotation_claim_signature(
+        old_node_id=old_node_id,
+        old_public_key=old_public_key,
+        old_public_key_algo=old_public_key_algo,
+        old_signature=old_signature,
+        new_public_key=new_public_key,
+        new_public_key_algo=new_public_key_algo,
+        timestamp=timestamp,
     )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="key_rotate",
-        node_id=new_node_id,
-        sequence=sequence,
-        public_key=new_public_key,
-        public_key_algo=new_public_key_algo,
-        signature=new_signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
-
-    from services.mesh.mesh_crypto import (
-        build_signature_payload,
-        parse_public_key_algo,
-        verify_signature,
-        verify_node_binding,
-    )
-
-    if not verify_node_binding(old_node_id, old_public_key):
-        return {"ok": False, "detail": "old_node_id does not match old public key"}
-
-    old_algo = parse_public_key_algo(old_public_key_algo)
-    if not old_algo:
-        return {"ok": False, "detail": "Unsupported old_public_key_algo"}
-
-    claim_payload = {
-        "old_node_id": old_node_id,
-        "old_public_key": old_public_key,
-        "old_public_key_algo": old_public_key_algo,
-        "new_public_key": new_public_key,
-        "new_public_key_algo": new_public_key_algo,
-        "timestamp": timestamp,
-    }
-    old_sig_payload = build_signature_payload(
-        event_type="key_rotate",
-        node_id=old_node_id,
-        sequence=0,
-        payload=claim_payload,
-    )
-    if not verify_signature(
-        public_key_b64=old_public_key,
-        public_key_algo=old_algo,
-        signature_hex=old_signature,
-        payload=old_sig_payload,
-    ):
-        return {"ok": False, "detail": "Invalid old_signature"}
+    if not old_sig_ok:
+        return {"ok": False, "detail": old_sig_reason}
 
     from services.mesh.mesh_reputation import reputation_ledger
 
@@ -3730,9 +4594,10 @@ async def mesh_identity_rotate(request: Request):
 
 @app.post("/api/mesh/identity/revoke")
 @limiter.limit("5/minute")
+@requires_signed_write(kind=SignedWriteKind.IDENTITY_REVOKE)
 async def mesh_identity_revoke(request: Request):
     """Revoke a node's key with a grace window."""
-    body = await request.json()
+    body = _signed_body(request)
     node_id = body.get("node_id", "").strip()
     public_key = body.get("public_key", "").strip()
     public_key_algo = body.get("public_key_algo", "").strip()
@@ -3762,18 +4627,6 @@ async def mesh_identity_revoke(request: Request):
         "grace_until": grace_until,
         "reason": reason,
     }
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="key_revoke",
-        node_id=node_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
 
     if payload["revoked_public_key"] != public_key:
         return {"ok": False, "detail": "revoked_public_key must match public_key"}
@@ -3801,11 +4654,12 @@ async def mesh_identity_revoke(request: Request):
     return {"ok": True, "detail": "Identity revoked"}
 
 
-# ─── Gate Endpoints ───────────────────────────────────────────────────────
+# â”€â”€â”€ Gate Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 @app.post("/api/mesh/gate/create")
 @limiter.limit("5/hour")
+@requires_signed_write(kind=SignedWriteKind.GATE_CREATE)
 async def gate_create(request: Request):
     """Create a new reputation-gated community.
 
@@ -3820,7 +4674,7 @@ async def gate_create(request: Request):
     if not ALLOW_DYNAMIC_GATES:
         return {"ok": False, "detail": "Gate creation is disabled for the fixed private launch catalog"}
 
-    body = await request.json()
+    body = _signed_body(request)
     creator_id = body.get("creator_id", "")
     gate_id = body.get("gate_id", "")
     display_name = body.get("display_name", gate_id)
@@ -3835,30 +4689,6 @@ async def gate_create(request: Request):
         return {"ok": False, "detail": "Missing creator_id or gate_id"}
 
     gate_payload = {"gate_id": gate_id, "display_name": display_name, "rules": rules}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="gate_create",
-        node_id=creator_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=gate_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="gate_create",
-        node_id=creator_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
 
     reputation_ledger.register_node(creator_id, public_key, public_key_algo)
 
@@ -3895,11 +4725,10 @@ async def gate_create(request: Request):
 @app.get("/api/mesh/gate/list")
 @limiter.limit("30/minute")
 async def gate_list(request: Request):
-    """List all known gates.  Includes per-gate content keys so members can
-    encrypt/decrypt gate_envelope payloads across nodes."""
+    """List all known gates (public catalog â€” secrets are never included)."""
     from services.mesh.mesh_reputation import gate_manager
 
-    return {"gates": gate_manager.list_gates(include_secrets=True)}
+    return {"gates": gate_manager.list_gates()}
 
 
 @app.get("/api/mesh/gate/{gate_id}")
@@ -3917,18 +4746,20 @@ async def gate_detail(request: Request, gate_id: str):
 
 @app.post("/api/mesh/gate/{gate_id}/message")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.GATE_MESSAGE)
 async def gate_message(request: Request, gate_id: str):
     """Post a message to a gate. Checks entry rules against sender's reputation.
 
     Body: {sender_id, ciphertext, nonce, sender_ref, signature?}
     """
-    body = await request.json()
+    body = _signed_body(request)
     return _submit_gate_message_envelope(request, gate_id, body)
 
 
 def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str, Any]) -> dict[str, Any]:
     """Validate and record an encrypted gate envelope on the private plane."""
     from services.mesh.mesh_reputation import reputation_ledger, gate_manager
+    prepared = _prepared_signed_write(request)
     sender_id = body.get("sender_id", "")
     epoch = _safe_int(body.get("epoch", 0) or 0)
     ciphertext = str(body.get("ciphertext", ""))
@@ -3950,7 +4781,35 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
         }
 
     gate_envelope = str(body.get("gate_envelope", "") or "").strip()
+    envelope_hash = str(body.get("envelope_hash", "") or "").strip()
+    transport_lock = str(body.get("transport_lock", "") or "").strip().lower()
     reply_to = str(body.get("reply_to", "") or "").strip()
+    if not transport_lock:
+        return {"ok": False, "detail": "transport_lock is required on content-private signed writes"}
+    if transport_lock != "private_strong":
+        return {"ok": False, "detail": "gate messages require private_strong transport_lock"}
+    envelope_policy = _resolve_envelope_policy(gate_id)
+    if envelope_policy == "envelope_always" and not gate_envelope:
+        return {"ok": False, "detail": "gate_envelope_required"}
+    if gate_envelope and not envelope_hash:
+        return {"ok": False, "detail": "gate_envelope requires signed envelope_hash"}
+    if envelope_hash:
+        import hashlib as _hl
+
+        if not gate_envelope:
+            return {"ok": False, "detail": "gate_envelope required when envelope_hash is present"}
+        if (
+            len(envelope_hash) != 64
+            or envelope_hash != envelope_hash.lower()
+            or any(ch not in "0123456789abcdef" for ch in envelope_hash)
+        ):
+            return {"ok": False, "detail": "invalid envelope_hash"}
+        try:
+            actual_envelope_hash = _hl.sha256(gate_envelope.encode("ascii")).hexdigest()
+        except UnicodeEncodeError:
+            return {"ok": False, "detail": "invalid gate_envelope"}
+        if actual_envelope_hash != envelope_hash:
+            return {"ok": False, "detail": "gate_envelope does not match envelope_hash"}
 
     gate_payload_input = {
         "gate": gate_id,
@@ -3961,53 +4820,78 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
     }
     if epoch > 0:
         gate_payload_input["epoch"] = epoch
+    if envelope_hash:
+        gate_payload_input["envelope_hash"] = envelope_hash
+    gate_payload_input["transport_lock"] = transport_lock
     gate_payload = normalize_payload("gate_message", gate_payload_input)
     # Validate BEFORE adding gate_envelope (which is not a normalized field).
     payload_ok, payload_reason = validate_event_payload("gate_message", gate_payload)
     if not payload_ok:
         return {"ok": False, "detail": payload_reason}
-    # gate_envelope and reply_to are NOT part of the signed payload — add after validation.
+    # gate_envelope is not part of the signed payload â€” envelope_hash binds it.
+    # reply_to is signed for new compose flows; if only the legacy no-reply_to
+    # signature verifies, strip it rather than accepting unauthenticated
+    # threading metadata.
     if gate_envelope:
         gate_payload["gate_envelope"] = gate_envelope
     if reply_to:
         gate_payload["reply_to"] = reply_to
-    # Signature verification payload must exclude epoch, gate_envelope, and reply_to
-    # because compose_encrypted_gate_message signs without them.
-    signature_gate_payload = normalize_payload(
-        "gate_message",
-        {
-            "gate": gate_id,
-            "ciphertext": ciphertext,
-            "nonce": nonce,
-            "sender_ref": sender_ref,
-            "format": payload_format,
-        },
-    )
+    # Signature verification payload excludes epoch and gate_envelope.
+    # envelope_hash is signed when present.
+    signature_gate_payload = {
+        "gate": gate_id,
+        "ciphertext": ciphertext,
+        "nonce": nonce,
+        "sender_ref": sender_ref,
+        "format": payload_format,
+    }
+    if envelope_hash:
+        signature_gate_payload["envelope_hash"] = envelope_hash
+    signature_gate_payload["transport_lock"] = transport_lock
+    if epoch > 0:
+        signature_gate_payload["epoch"] = epoch
 
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="gate_message",
-        node_id=sender_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=signature_gate_payload,
-        protocol_version=protocol_version,
-    )
+    if prepared is not None and prepared.kind == SignedWriteKind.GATE_MESSAGE:
+        sig_ok = True
+        sig_reason = str(prepared.reason or "ok")
+        verified_reply_to = str(prepared.verified_reply_to or reply_to)
+    else:
+        # Verify envelope binding: if envelope_hash is signed, the submitted
+        # gate_envelope must match. Checked after signature so the hash itself
+        # is already authenticated.
+        sig_ok, sig_reason, verified_reply_to = _verify_gate_message_signed_write(
+            node_id=sender_id,
+            sequence=sequence,
+            public_key=public_key,
+            public_key_algo=public_key_algo,
+            signature=signature,
+            payload=signature_gate_payload,
+            reply_to=reply_to,
+            protocol_version=protocol_version,
+        )
+    if verified_reply_to != reply_to:
+        gate_payload.pop("reply_to", None)
+        reply_to = verified_reply_to
     if not sig_ok:
         return {"ok": False, "detail": sig_reason}
 
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="gate_message",
-        node_id=sender_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
+    if epoch > 0:
+        try:
+            from services.mesh.mesh_gate_mls import inspect_local_gate_state
+
+            gate_state = inspect_local_gate_state(gate_id, expected_epoch=epoch)
+        except Exception:
+            gate_state = {"ok": False, "repair_state": "gate_state_stale", "detail": "gate epoch check unavailable"}
+        if not bool(gate_state.get("ok", False)):
+            return {
+                "ok": False,
+                "detail": str(gate_state.get("repair_state") or gate_state.get("detail") or "gate_state_stale"),
+                "current_epoch": _safe_int(gate_state.get("current_epoch", 0) or 0),
+                "expected_epoch": epoch,
+            }
+
+    # Do not synthesize durable envelopes after signature verification. A
+    # gate_envelope is trusted only when the author signed its envelope_hash.
 
     reputation_ledger.register_node(sender_id, public_key, public_key_algo)
 
@@ -4020,89 +4904,99 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
     if not cooldown_ok:
         return {"ok": False, "detail": cooldown_reason}
 
-    # Record on hashchain (encrypted — only gate members can decrypt).
-    # NOTE: infonet.append() validates and advances the sequence counter
-    # internally, so we must NOT call validate_and_set_sequence() beforehand
-    # — doing so would pre-advance the counter and cause append() to reject
-    # the event as a replay, silently dropping the message.
-    #
-    # Strip `epoch` — the message was signed without it so including it
-    # would cause a signature mismatch.  `gate_envelope` and `reply_to`
-    # are kept in the payload for cross-node decryption; signature
-    # verification in build_signature_payload() strips them automatically.
-    chain_payload = {k: v for k, v in gate_payload.items() if k != "epoch"}
-    chain_event_id = ""
+    # Advance sequence counter (replay protection) without appending to
+    # the public infonet chain â€” gate messages are private.
     try:
         from services.mesh.mesh_hashchain import infonet, gate_store
 
-        chain_result = infonet.append(
-            event_type="gate_message",
-            node_id=sender_id,
-            payload=chain_payload,
-            signature=signature,
-            sequence=sequence,
-            public_key=public_key,
-            public_key_algo=public_key_algo,
-            protocol_version=protocol_version or PROTOCOL_VERSION,
+        seq_ok, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            sender_id,
+            sequence,
+            domain="gate_message",
         )
-        chain_event_id = str(chain_result.get("event_id", "") or "")
+        if not seq_ok:
+            return {"ok": False, "detail": seq_reason}
     except ValueError as exc:
-        # Sequence replay, signature failure, payload validation, etc.
         return {"ok": False, "detail": str(exc)}
     except Exception:
-        logger.exception("Failed to record gate message on chain")
+        logger.exception("Failed to advance sequence for gate message")
         return {"ok": False, "detail": "Failed to record gate message"}
 
     gate_manager.record_message(gate_id)
     _record_gate_post_cooldown(sender_id, gate_id)
     logger.info("Encrypted gate message accepted on obfuscated gate plane")
 
-    # Store in gate_store for fast local read/decrypt (separate try so a
-    # gate_store hiccup doesn't discard the already-committed chain event).
+    # Build gate event and store in gate_store (private â€” not on public chain).
+    try:
+        from services.mesh.mesh_hashchain import _private_gate_event_id
+        import time as _time
+
+        store_payload = dict(gate_payload)
+        if sig_reason in {"legacy_gate_epoch_signature_compat", "legacy_gate_epoch_reply_signature_compat"}:
+            store_payload.pop("epoch", None)
+        if gate_envelope:
+            store_payload["gate_envelope"] = gate_envelope
+        if reply_to:
+            store_payload["reply_to"] = reply_to
+
+        gate_event = {
+            "event_type": "gate_message",
+            "node_id": sender_id,
+            "payload": store_payload,
+            "timestamp": _time.time(),
+            "sequence": sequence,
+            "signature": signature,
+            "public_key": public_key,
+            "public_key_algo": public_key_algo,
+            "protocol_version": protocol_version or PROTOCOL_VERSION,
+        }
+        gate_event["event_id"] = _private_gate_event_id(gate_id, sender_id, sequence, gate_event)
+    except Exception:
+        logger.exception("Failed to prepare private gate message for queued release")
+        return {"ok": False, "detail": "Failed to record gate message"}
+
+    # Append to the local gate_store immediately. The gate_store is a
+    # per-node persistent ciphertext chain; writing to it is a local
+    # operation with no network dependency. Previously this happened only
+    # inside the release worker's attempt_private_release path, which
+    # meant messages sat in the outbox — invisible to the author and the
+    # gate UI — until the transport tier reached the release floor.
+    # Decoupling local visibility from network fan-out: append locally now,
+    # queue the release for network propagation when the lane is ready.
     try:
         from services.mesh.mesh_hashchain import gate_store
 
-        import copy
-
-        gate_event = copy.deepcopy(chain_result)
-        gate_event["event_type"] = "gate_message"
-        # Restore gate_envelope / reply_to that normalize_payload stripped
-        # from the chain copy — these are needed for local decryption.
-        # CRITICAL: we deep-copied so we don't mutate the chain's event dict
-        # — adding gate_envelope to the chain payload would corrupt the hash.
-        store_payload = gate_event.get("payload")
-        if isinstance(store_payload, dict):
-            if gate_envelope:
-                store_payload["gate_envelope"] = gate_envelope
-            if reply_to:
-                store_payload["reply_to"] = reply_to
         stored_event = gate_store.append(gate_id, gate_event)
-        _broadcast_gate_events(gate_id, [gate_event])
-        chain_event_id = chain_event_id or str(stored_event.get("event_id", ""))
-        try:
-            from services.mesh.mesh_rns import rns_bridge
-
-            rns_bridge.publish_gate_event(gate_id, gate_event)
-        except Exception:
-            pass
+        if isinstance(stored_event, dict) and stored_event.get("event_id"):
+            gate_event["event_id"] = str(stored_event.get("event_id") or gate_event.get("event_id") or "")
     except Exception:
-        logger.exception("Failed to store gate message in gate_store")
+        logger.exception("Failed to persist gate message locally (gate_store.append)")
+        return {"ok": False, "detail": "Failed to record gate message"}
 
-    return {
-        "ok": True,
-        "detail": f"Message posted to gate '{gate_id}'",
-        "gate_id": gate_id,
-        "event_id": chain_event_id,
-    }
+    current_tier = str(
+        getattr(request.state, "_private_lane_current_tier", "")
+        or getattr(request.state, "_transport_tier", "")
+        or "public_degraded"
+    )
+    return _queue_gate_release(
+        current_tier=current_tier,
+        gate_id=gate_id,
+        payload={
+            "gate_id": gate_id,
+            "event_id": str(gate_event.get("event_id", "") or ""),
+            "event": gate_event,
+        },
+    )
 
 
-# ─── Infonet Endpoints ───────────────────────────────────────────────────
+# â”€â”€â”€ Infonet Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 @app.get("/api/mesh/infonet/status")
 @limiter.limit("30/minute")
 async def infonet_status(request: Request, verify_signatures: bool = False):
-    """Get Infonet metadata — event counts, head hash, chain size."""
+    """Get Infonet metadata â€” event counts, head hash, chain size."""
     from services.mesh.mesh_hashchain import infonet
     from services.wormhole_supervisor import get_wormhole_state
 
@@ -4116,12 +5010,54 @@ async def infonet_status(request: Request, verify_signatures: bool = False):
     info["validation"] = reason
     info["verify_signatures"] = verify_signatures
     info["private_lane_tier"] = _current_private_lane_tier(wormhole)
-    info["private_lane_policy"] = _private_infonet_policy_snapshot()
+    info["private_lane_policy"] = _private_infonet_policy_snapshot(
+        current_tier=info["private_lane_tier"]
+    )
     info.update(_node_runtime_snapshot())
     return _redact_private_lane_control_fields(
         info,
         authenticated=_scoped_view_authenticated(request, "mesh.audit"),
     )
+
+
+@app.get("/api/privacy/claims", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_privacy_claims(request: Request, exposure: str = "ordinary"):
+    """Authoritative runtime privacy claims used by UI and release checks."""
+    from services.wormhole_supervisor import get_wormhole_state
+
+    try:
+        wormhole = await asyncio.to_thread(get_wormhole_state)
+    except Exception:
+        wormhole = {"configured": False, "ready": False, "arti_ready": False, "rns_ready": False}
+    current_tier = _current_private_lane_tier(wormhole)
+    local_custody = local_custody_status_snapshot()
+    privacy_core = _privacy_core_status()
+    diagnostic_package = _diagnostic_review_package_snapshot(
+        current_tier=current_tier,
+        local_custody=local_custody,
+        privacy_core=privacy_core,
+    )
+    result = {
+        "ok": True,
+        "authoritative_model": "privacy_claims",
+        "transport_tier": current_tier,
+        "privacy_claims": diagnostic_package.get("claim_surface", {}).get("privacy_claims"),
+        "privacy_status": diagnostic_package.get("privacy_status"),
+        "strong_claims": diagnostic_package.get("strong_claims"),
+        "release_gate": diagnostic_package.get("release_gate"),
+    }
+    if str(exposure or "").strip().lower() == "diagnostic":
+        result.update(
+            {
+                "rollout_readiness": diagnostic_package.get("rollout_readiness"),
+                "rollout_controls": diagnostic_package.get("rollout_controls"),
+                "rollout_health": diagnostic_package.get("rollout_health"),
+                "claim_surface_sources": diagnostic_package.get("claim_surface_sources"),
+                "review_export": diagnostic_package.get("review_export"),
+            }
+        )
+    return result
 
 
 @app.get("/api/mesh/infonet/merkle")
@@ -4155,6 +5091,7 @@ async def infonet_locator(request: Request, limit: int = Query(32, ge=4, le=128)
 
 @app.post("/api/mesh/infonet/sync")
 @limiter.limit("30/minute")
+@mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
 async def infonet_sync_post(
     request: Request,
     limit: int = Query(100, ge=1, le=500),
@@ -4206,9 +5143,8 @@ async def infonet_sync_post(
     elif matched_hash == GENESIS_HASH and len(locator) > 1:
         forked = True
 
-    # Gate messages pass through as encrypted blobs — no redaction needed for ciphertext.
-    # Non-gate events get standard public redaction.
-    events = [e if e.get("event_type") == "gate_message" else _redact_public_event(e) for e in events]
+    # Filter out legacy gate_message events â€” not part of the public sync surface.
+    events = [_redact_public_event(e) for e in events if e.get("event_type") != "gate_message"]
 
     response = {
         "events": events,
@@ -4240,7 +5176,7 @@ async def mesh_metrics(request: Request):
     ok, detail = _check_scoped_auth(request, "mesh.audit")
     if not ok:
         if detail == "insufficient scope":
-            raise HTTPException(status_code=403, detail="Forbidden — insufficient scope")
+            raise HTTPException(status_code=403, detail="Forbidden â€” insufficient scope")
         raise HTTPException(status_code=403, detail=detail)
     return snapshot()
 
@@ -4261,7 +5197,9 @@ async def mesh_rns_status(request: Request):
     except Exception:
         wormhole = {"configured": False, "ready": False, "rns_ready": False}
     status["private_lane_tier"] = _current_private_lane_tier(wormhole)
-    status["private_lane_policy"] = _private_infonet_policy_snapshot()
+    status["private_lane_policy"] = _private_infonet_policy_snapshot(
+        current_tier=status["private_lane_tier"]
+    )
     return _redact_public_rns_status(
         status,
         authenticated=_scoped_view_authenticated(request, "mesh.audit"),
@@ -4307,7 +5245,8 @@ async def infonet_sync(
         )
     base = after_hash or GENESIS_HASH
     events = infonet.get_events_after(base, limit=limit)
-    events = [e if e.get("event_type") == "gate_message" else _redact_public_event(e) for e in events]
+    # Filter out legacy gate_message events â€” not part of the public sync surface.
+    events = [_redact_public_event(e) for e in events if e.get("event_type") != "gate_message"]
     return {
         "events": events,
         "after_hash": base,
@@ -4318,6 +5257,7 @@ async def infonet_sync(
 
 @app.post("/api/mesh/infonet/ingest", dependencies=[Depends(require_admin)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def infonet_ingest(request: Request):
     """Ingest externally sourced Infonet events (strict verification)."""
     from services.mesh.mesh_hashchain import infonet
@@ -4350,6 +5290,7 @@ async def infonet_ingest(request: Request):
 
 @app.post("/api/mesh/infonet/peer-push")
 @limiter.limit("30/minute")
+@mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
 async def infonet_peer_push(request: Request):
     """Accept pushed Infonet events from relay peers (HMAC-authenticated)."""
     content_length = request.headers.get("content-length")
@@ -4389,6 +5330,7 @@ async def infonet_peer_push(request: Request):
 
 @app.post("/api/mesh/gate/peer-push")
 @limiter.limit("30/minute")
+@mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
 async def gate_peer_push(request: Request):
     """Accept pushed gate events from relay peers (private plane)."""
     content_length = request.headers.get("content-length")
@@ -4450,12 +5392,18 @@ async def gate_peer_push(request: Request):
         epoch = _safe_int(payload.get("epoch", 0) or 0)
         if epoch > 0:
             clean_event["payload"]["epoch"] = epoch
-        # Preserve gate_envelope and reply_to — these are required for
-        # cross-node decryption and threading.
+        # Preserve envelope metadata required for cross-node decryption and
+        # authenticated threading.
+        envelope_hash_val = str(payload.get("envelope_hash", "") or "").strip()
         gate_envelope_val = str(payload.get("gate_envelope", "") or "").strip()
         reply_to_val = str(payload.get("reply_to", "") or "").strip()
+        if envelope_hash_val:
+            clean_event["payload"]["envelope_hash"] = envelope_hash_val
         if gate_envelope_val:
             clean_event["payload"]["gate_envelope"] = gate_envelope_val
+        transport_lock_val = str(payload.get("transport_lock", "") or "").strip().lower()
+        if transport_lock_val:
+            clean_event["payload"]["transport_lock"] = transport_lock_val
         if reply_to_val:
             clean_event["payload"]["reply_to"] = reply_to_val
         event_gate_id = str(payload.get("gate", "") or evt_dict.get("gate", "") or "").strip().lower()
@@ -4475,8 +5423,12 @@ async def gate_peer_push(request: Request):
         }
         if epoch > 0:
             final_payload["epoch"] = epoch
+        if clean_event["payload"].get("envelope_hash"):
+            final_payload["envelope_hash"] = clean_event["payload"]["envelope_hash"]
         if clean_event["payload"].get("gate_envelope"):
             final_payload["gate_envelope"] = clean_event["payload"]["gate_envelope"]
+        if clean_event["payload"].get("transport_lock"):
+            final_payload["transport_lock"] = clean_event["payload"]["transport_lock"]
         if clean_event["payload"].get("reply_to"):
             final_payload["reply_to"] = clean_event["payload"]["reply_to"]
         grouped_events.setdefault(event_gate_id, []).append(
@@ -4503,13 +5455,12 @@ async def gate_peer_push(request: Request):
         accepted += a
         duplicates += int(result.get("duplicates", 0) or 0)
         rejected += int(result.get("rejected", 0) or 0)
-        if a > 0:
-            _broadcast_gate_events(event_gate_id, items[:a])
     return {"ok": True, "accepted": accepted, "duplicates": duplicates, "rejected": rejected}
 
 
 @app.post("/api/mesh/gate/peer-pull")
 @limiter.limit("30/minute")
+@mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
 async def gate_peer_pull(request: Request):
     """Return gate events a peer is missing (HMAC-authenticated pull sync).
 
@@ -4563,48 +5514,7 @@ async def gate_peer_pull(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# SSE Gate Event Stream — real-time push of gate activity to frontends.
-# Delivers ALL gate events (encrypted blobs) to every connected client.
-# The client filters locally by gate_id — the server never learns which
-# gates a client cares about (privacy-preserving broadcast).
-# ---------------------------------------------------------------------------
-
-
-@app.get("/api/mesh/gate/stream")
-async def gate_event_stream(request: Request):
-    """SSE stream of all gate events for real-time delivery."""
-    client_queue: asyncio.Queue = asyncio.Queue(maxsize=256)
-    with _gate_sse_lock:
-        _gate_sse_clients.add(client_queue)
-
-    async def event_generator():
-        try:
-            yield ": connected\n\n"
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    payload = await asyncio.wait_for(client_queue.get(), timeout=15.0)
-                    yield f"data: {payload}\n\n"
-                except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
-        finally:
-            with _gate_sse_lock:
-                _gate_sse_clients.discard(client_queue)
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Peer Management API — operator endpoints for adding / removing / listing
+# Peer Management API â€” operator endpoints for adding / removing / listing
 # peers without editing peer_store.json by hand.
 # ---------------------------------------------------------------------------
 
@@ -4635,6 +5545,7 @@ async def list_peers(request: Request, bucket: str = Query(None)):
 
 @app.post("/api/mesh/peers", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.LOCAL_OPERATOR_ONLY)
 async def add_peer(request: Request):
     """Add a peer to the store. Body: {peer_url, transport?, label?, role?, buckets?[]}."""
     from services.mesh.mesh_crypto import normalize_peer_url
@@ -4660,7 +5571,7 @@ async def add_peer(request: Request):
     if not transport:
         transport = peer_transport_kind(peer_url)
     if not transport:
-        return {"ok": False, "detail": "Cannot determine transport for peer_url — provide transport explicitly"}
+        return {"ok": False, "detail": "Cannot determine transport for peer_url â€” provide transport explicitly"}
 
     label = str(body.get("label", "") or "").strip()
     role = str(body.get("role", "") or "").strip().lower() or "relay"
@@ -4695,6 +5606,7 @@ async def add_peer(request: Request):
 
 @app.delete("/api/mesh/peers", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.LOCAL_OPERATOR_ONLY)
 async def remove_peer(request: Request):
     """Remove a peer. Body: {peer_url, bucket?}. If bucket omitted, removes from all buckets."""
     from services.mesh.mesh_crypto import normalize_peer_url
@@ -4735,6 +5647,7 @@ async def remove_peer(request: Request):
 
 @app.patch("/api/mesh/peers", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.LOCAL_OPERATOR_ONLY)
 async def toggle_peer(request: Request):
     """Enable or disable a peer. Body: {peer_url, bucket, enabled: bool}."""
     from services.mesh.mesh_crypto import normalize_peer_url
@@ -4774,6 +5687,66 @@ async def toggle_peer(request: Request):
     return {"ok": True, "peer_url": peer_url, "bucket": bucket, "enabled": bool(enabled)}
 
 
+@app.put("/api/mesh/gate/{gate_id}/envelope_policy")
+@limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
+async def set_gate_envelope_policy(request: Request, gate_id: str):
+    """Set the envelope_policy for a gate. Requires gate admin scope."""
+    ok, detail = _check_scoped_auth(request, "gate")
+    if not ok:
+        return Response(
+            content='{"ok":false,"detail":"Gate admin scope required"}',
+            status_code=403,
+            media_type="application/json",
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "detail": "Invalid JSON body"}
+    policy = str(body.get("envelope_policy", "") or "").strip()
+    acknowledge_recovery_risk = bool(body.get("acknowledge_recovery_risk", False))
+    from services.mesh.mesh_reputation import gate_manager, VALID_ENVELOPE_POLICIES
+    if policy not in VALID_ENVELOPE_POLICIES:
+        return {"ok": False, "detail": f"Invalid policy: must be one of {VALID_ENVELOPE_POLICIES}"}
+    success, msg = gate_manager.set_envelope_policy(
+        gate_id,
+        policy,
+        acknowledge_recovery_risk=acknowledge_recovery_risk,
+    )
+    return {"ok": success, "detail": msg}
+
+
+@app.put("/api/mesh/gate/{gate_id}/legacy_envelope_fallback")
+@limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
+async def set_gate_legacy_envelope_fallback(request: Request, gate_id: str):
+    """Set legacy_envelope_fallback for a gate. Requires gate admin scope."""
+    ok, detail = _check_scoped_auth(request, "gate")
+    if not ok:
+        return Response(
+            content='{"ok":false,"detail":"Gate admin scope required"}',
+            status_code=403,
+            media_type="application/json",
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False, "detail": "Invalid JSON body"}
+    raw = body.get("legacy_envelope_fallback")
+    acknowledge_legacy_risk = body.get("acknowledge_legacy_risk", False)
+    if raw is None or not isinstance(raw, bool):
+        return {"ok": False, "detail": "legacy_envelope_fallback must be a boolean"}
+    if acknowledge_legacy_risk is not None and not isinstance(acknowledge_legacy_risk, bool):
+        return {"ok": False, "detail": "acknowledge_legacy_risk must be a boolean"}
+    from services.mesh.mesh_reputation import gate_manager
+    success, msg = gate_manager.set_legacy_envelope_fallback(
+        gate_id,
+        raw,
+        acknowledge_legacy_risk=bool(acknowledge_legacy_risk),
+    )
+    return {"ok": success, "detail": msg}
+
+
 @app.get("/api/mesh/gate/{gate_id}/messages")
 @limiter.limit("60/minute")
 async def gate_messages(
@@ -4783,16 +5756,28 @@ async def gate_messages(
     offset: int = Query(0, ge=0),
 ):
     """Get encrypted gate messages from private store (newest first). Requires gate membership."""
-    if not _verify_gate_access(request, gate_id):
-        return Response(
-            content='{"ok":false,"detail":"Gate membership required"}',
+    access = _verify_gate_access(request, gate_id)
+    if not access:
+        return await _private_plane_refusal_response(
+            request,
             status_code=403,
-            media_type="application/json",
+            payload=_private_plane_access_denied_payload(),
         )
+    return _build_gate_message_response(gate_id, access, limit=limit, offset=offset)
+
+
+def _build_gate_message_response(
+    gate_id: str,
+    access: str,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
     from services.mesh.mesh_hashchain import gate_store
     from services.mesh.mesh_reputation import gate_manager
 
-    safe_messages = [_strip_gate_identity(m) for m in gate_store.get_messages(gate_id, limit=limit, offset=offset)]
+    raw_messages, cursor = gate_store.get_messages_with_cursor(gate_id, limit=limit, offset=offset)
+    safe_messages = [_strip_gate_for_access(m, access) for m in raw_messages]
     if gate_id and not safe_messages:
         gate_meta = gate_manager.get_gate(gate_id)
         if gate_meta:
@@ -4812,7 +5797,7 @@ async def gate_messages(
                         "fixed_gate": bool(gate_meta.get("fixed", False)),
                     }
                 ]
-    return {"messages": safe_messages, "count": len(safe_messages), "gate": gate_id}
+    return {"messages": safe_messages, "count": len(safe_messages), "gate": gate_id, "cursor": cursor}
 
 
 @app.get("/api/mesh/infonet/messages")
@@ -4824,41 +5809,59 @@ async def infonet_messages(
     offset: int = Query(0, ge=0),
 ):
     """Browse messages on the Infonet (newest first). Optional gate filter."""
-    from services.mesh.mesh_hashchain import gate_store, infonet
-    from services.mesh.mesh_reputation import gate_manager
+    from services.mesh.mesh_hashchain import infonet
 
     if gate:
-        if not _verify_gate_access(request, gate):
-            return Response(
-                content='{"ok":false,"detail":"Gate membership required"}',
+        access = _verify_gate_access(request, gate)
+        if not access:
+            return await _private_plane_refusal_response(
+                request,
                 status_code=403,
-                media_type="application/json",
+                payload=_private_plane_access_denied_payload(),
             )
-        messages = [_strip_gate_identity(m) for m in gate_store.get_messages(gate, limit=limit, offset=offset)]
+        return _build_gate_message_response(gate, access, limit=limit, offset=offset)
     else:
         messages = infonet.get_messages(gate_id="", limit=limit, offset=offset)
         messages = [m for m in messages if m.get("event_type") != "gate_message"]
         messages = [_redact_public_event(m) for m in messages]
-    if gate and not messages:
-        gate_meta = gate_manager.get_gate(gate)
-        if gate_meta:
-            welcome_text = str(gate_meta.get("welcome") or gate_meta.get("description") or "").strip()
-            if welcome_text:
-                messages = [
-                    {
-                        "event_id": f"seed_{gate}_welcome",
-                        "event_type": "gate_notice",
-                        "node_id": "!sb_gate",
-                        "message": welcome_text,
-                        "gate": gate,
-                        "timestamp": int(gate_meta.get("created_at") or time.time()),
-                        "sequence": 0,
-                        "ephemeral": False,
-                        "system_seed": True,
-                        "fixed_gate": bool(gate_meta.get("fixed", False)),
-                    }
-                ]
-    return {"messages": messages, "count": len(messages), "gate": gate or "all"}
+    return {"messages": messages, "count": len(messages), "gate": gate or "all", "cursor": 0}
+
+
+@app.get("/api/mesh/infonet/messages/wait")
+@limiter.limit("60/minute")
+async def infonet_messages_wait(
+    request: Request,
+    gate: str = "",
+    after: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    timeout_ms: int = Query(25_000, ge=1_000, le=90_000),
+):
+    """Wait for gate message changes, then return the latest gate view."""
+    gate_id = str(gate or "").strip().lower()
+    if not gate_id:
+        return Response(
+            content='{"ok":false,"detail":"gate required"}',
+            status_code=400,
+            media_type="application/json",
+        )
+    access = _verify_gate_access(request, gate_id)
+    if not access:
+        return await _private_plane_refusal_response(
+            request,
+            status_code=403,
+            payload=_private_plane_access_denied_payload(),
+        )
+    from services.mesh.mesh_hashchain import gate_store
+
+    changed, _cursor = await asyncio.to_thread(
+        gate_store.wait_for_gate_change,
+        gate_id,
+        after,
+        timeout_ms / 1000.0,
+    )
+    payload = _build_gate_message_response(gate_id, access, limit=limit, offset=0)
+    payload["changed"] = bool(changed)
+    return payload
 
 
 @app.get("/api/mesh/infonet/event/{event_id}")
@@ -4872,23 +5875,25 @@ async def infonet_event(request: Request, event_id: str):
         evt = gate_store.get_event(event_id)
         if evt:
             gate_id = str(evt.get("payload", {}).get("gate", "") or evt.get("gate", "") or "").strip()
-            if not gate_id or not _verify_gate_access(request, gate_id):
-                return Response(
-                    content='{"ok":false,"detail":"Gate membership required"}',
+            access = _verify_gate_access(request, gate_id) if gate_id else ""
+            if not gate_id or not access:
+                return await _private_plane_refusal_response(
+                    request,
                     status_code=403,
-                    media_type="application/json",
+                    payload=_private_plane_access_denied_payload(),
                 )
-            return _strip_gate_identity(evt)
+            return _strip_gate_for_access(evt, access)
         return {"ok": False, "detail": "Event not found"}
     if evt.get("event_type") == "gate_message":
         gate_id = str(evt.get("payload", {}).get("gate", "") or evt.get("gate", "") or "").strip()
-        if not gate_id or not _verify_gate_access(request, gate_id):
-            return Response(
-                content='{"ok":false,"detail":"Gate membership required"}',
+        access = _verify_gate_access(request, gate_id) if gate_id else ""
+        if not gate_id or not access:
+            return await _private_plane_refusal_response(
+                request,
                 status_code=403,
-                media_type="application/json",
+                payload=_private_plane_access_denied_payload(),
             )
-        return _strip_gate_identity(evt)
+        return _strip_gate_for_access(evt, access)
     return _redact_public_event(infonet.decorate_event(evt))
 
 
@@ -4937,22 +5942,23 @@ async def infonet_events_by_type(
     }
 
 
-# ─── Oracle Endpoints ─────────────────────────────────────────────────────
+# â”€â”€â”€ Oracle Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 @app.post("/api/mesh/oracle/predict")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.ORACLE_PREDICT)
 async def oracle_predict(request: Request):
     """Place a prediction on a market outcome. FINAL decision.
 
     Body: {node_id, market_title, side, stake_amount?: number}
-    - stake_amount = 0 or omitted → FREE PICK (earn rep if correct)
-    - stake_amount > 0 → STAKE REP (risk rep, split loser pool if correct)
+    - stake_amount = 0 or omitted â†’ FREE PICK (earn rep if correct)
+    - stake_amount > 0 â†’ STAKE REP (risk rep, split loser pool if correct)
     - side can be "yes"/"no" or an outcome name for multi-outcome markets
     """
     from services.mesh.mesh_oracle import oracle_ledger
 
-    body = await request.json()
+    body = _signed_body(request)
     node_id = body.get("node_id", "")
     market_title = body.get("market_title", "")
     side = body.get("side", "")
@@ -4971,31 +5977,6 @@ async def oracle_predict(request: Request):
         "side": side,
         "stake_amount": stake_amount,
     }
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="prediction",
-        node_id=node_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=prediction_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="prediction",
-        node_id=node_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
-
     try:
         from services.mesh.mesh_reputation import reputation_ledger
 
@@ -5011,7 +5992,7 @@ async def oracle_predict(request: Request):
         if m.get("title", "").lower() == market_title.lower():
             matched = m
             break
-    # Fuzzy fallback — partial match
+    # Fuzzy fallback â€” partial match
     if not matched:
         for m in markets:
             if market_title.lower() in m.get("title", "").lower():
@@ -5042,13 +6023,13 @@ async def oracle_predict(request: Request):
             probability = 100.0 - probability
 
     if stake_amount > 0:
-        # STAKED prediction — risk rep for bigger reward
+        # STAKED prediction â€” risk rep for bigger reward
         ok, detail = oracle_ledger.place_market_stake(
             node_id, matched["title"], side, stake_amount, probability
         )
         mode = "staked"
     else:
-        # FREE prediction — no rep risked
+        # FREE prediction â€” no rep risked
         ok, detail = oracle_ledger.place_prediction(node_id, matched["title"], side, probability)
         mode = "free"
 
@@ -5106,10 +6087,11 @@ async def oracle_markets(request: Request):
         "slug",
         "kalshi_ticker",
         "outcomes",
+        "kalshi_volume",
     )
     categories = {}
     cat_totals = {}
-    for cat in ["POLITICS", "CONFLICT", "NEWS", "FINANCE", "CRYPTO"]:
+    for cat in ["POLITICS", "CONFLICT", "NEWS", "FINANCE", "CRYPTO", "SPORTS"]:
         all_cat = sorted(
             by_category.get(cat, []),
             key=lambda x: x.get("volume", 0) or 0,
@@ -5128,29 +6110,35 @@ async def oracle_markets(request: Request):
 
 @app.get("/api/mesh/oracle/search")
 @limiter.limit("20/minute")
-async def oracle_search(request: Request, q: str = "", limit: int = 20):
-    """Search prediction markets — queries Polymarket API directly + cached data."""
+async def oracle_search(request: Request, q: str = "", limit: int = 20, offset: int = 0):
+    """Search prediction markets across Polymarket and Kalshi provider APIs."""
     if not q or len(q) < 2:
-        return {"results": [], "query": q, "count": 0}
+        return {"results": [], "query": q, "count": 0, "offset": offset, "has_more": False}
 
-    from services.fetchers.prediction_markets import search_polymarket_direct
+    from services.fetchers.prediction_markets import search_kalshi_direct, search_polymarket_direct
 
-    # 1. Search Polymarket API directly (finds ALL markets, not just cached)
-    poly_results = search_polymarket_direct(q, limit=limit)
+    limit = max(1, min(int(limit or 20), 100))
+    offset = max(0, int(offset or 0))
+    provider_limit = offset + limit + 25
 
-    # 2. Also search cached data (catches Kalshi matches + merged data)
+    # Search both providers directly. Kalshi does not expose a reliable public
+    # text-search parameter, so the fetcher performs bounded cursor scans.
+    poly_results = search_polymarket_direct(q, limit=provider_limit, offset=0)
+    kalshi_results = search_kalshi_direct(q, limit=provider_limit, offset=0)
+
+    # Also search cached merged data so cross-provider consensus entries win.
     data = get_latest_data()
     markets = data.get("prediction_markets", [])
     q_lower = q.lower()
     cached_matches = [m for m in markets if q_lower in m.get("title", "").lower()]
 
-    # Deduplicate: prefer cached (has both sources) over poly-only
+    # Deduplicate: prefer cached merged rows, then provider-native rows.
     seen_titles = set()
     combined = []
     for m in cached_matches:
         seen_titles.add(m["title"].lower())
         combined.append(m)
-    for m in poly_results:
+    for m in [*poly_results, *kalshi_results]:
         if m["title"].lower() not in seen_titles:
             seen_titles.add(m["title"].lower())
             combined.append(m)
@@ -5172,9 +6160,18 @@ async def oracle_search(request: Request, q: str = "", limit: int = 20):
         "slug",
         "kalshi_ticker",
         "outcomes",
+        "kalshi_volume",
     )
-    results = [{k: m.get(k) for k in _fields} for m in combined[:limit]]
-    return {"results": results, "query": q, "count": len(results)}
+    page = combined[offset : offset + limit]
+    results = [{k: m.get(k) for k in _fields} for m in page]
+    return {
+        "results": results,
+        "query": q,
+        "count": len(results),
+        "offset": offset,
+        "has_more": len(combined) > offset + limit,
+        "total_seen": len(combined),
+    }
 
 
 @app.get("/api/mesh/oracle/markets/more")
@@ -5183,10 +6180,13 @@ async def oracle_markets_more(
     request: Request, category: str = "NEWS", offset: int = 0, limit: int = 10
 ):
     """Load more markets for a specific category (paginated)."""
+    category = (category or "NEWS").upper()
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(int(limit or 10), 100))
     data = get_latest_data()
     markets = data.get("prediction_markets", [])
     cat_markets = sorted(
-        [m for m in markets if m.get("category") == category],
+        [m for m in markets if category == "ALL" or m.get("category") == category],
         key=lambda x: x.get("volume", 0) or 0,
         reverse=True,
     )
@@ -5206,6 +6206,7 @@ async def oracle_markets_more(
         "slug",
         "kalshi_ticker",
         "outcomes",
+        "kalshi_volume",
     )
     results = [{k: m.get(k) for k in _fields} for m in page]
     return {
@@ -5219,6 +6220,7 @@ async def oracle_markets_more(
 
 @app.post("/api/mesh/oracle/resolve")
 @limiter.limit("5/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve(request: Request):
     """Resolve a prediction market (admin/agent action).
 
@@ -5250,7 +6252,7 @@ async def oracle_resolve(request: Request):
 @app.get("/api/mesh/oracle/consensus")
 @limiter.limit("30/minute")
 async def oracle_consensus(request: Request, market_title: str = ""):
-    """Get network consensus for a market — picks + staked rep per side."""
+    """Get network consensus for a market â€” picks + staked rep per side."""
     from services.mesh.mesh_oracle import oracle_ledger
 
     if not market_title:
@@ -5260,6 +6262,7 @@ async def oracle_consensus(request: Request, market_title: str = ""):
 
 @app.post("/api/mesh/oracle/stake")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.ORACLE_STAKE)
 async def oracle_stake(request: Request):
     """Stake oracle rep on a post's truthfulness.
 
@@ -5267,7 +6270,7 @@ async def oracle_stake(request: Request):
     """
     from services.mesh.mesh_oracle import oracle_ledger
 
-    body = await request.json()
+    body = _signed_body(request)
     staker_id = body.get("staker_id", "")
     message_id = body.get("message_id", "")
     poster_id = body.get("poster_id", "")
@@ -5290,31 +6293,6 @@ async def oracle_stake(request: Request):
         "amount": amount,
         "duration_days": duration_days,
     }
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="stake",
-        node_id=staker_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=stake_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="stake",
-        node_id=staker_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
-
     try:
         from services.mesh.mesh_reputation import reputation_ledger
 
@@ -5363,7 +6341,7 @@ async def oracle_stakes_for_message(request: Request, message_id: str):
 @app.get("/api/mesh/oracle/profile")
 @limiter.limit("30/minute")
 async def oracle_profile(request: Request, node_id: str = ""):
-    """Get full oracle profile — rep, prediction history, win rate, farming score."""
+    """Get full oracle profile â€” rep, prediction history, win rate, farming score."""
     from services.mesh.mesh_oracle import oracle_ledger
 
     if not node_id:
@@ -5392,6 +6370,7 @@ async def oracle_predictions(request: Request, node_id: str = ""):
 
 @app.post("/api/mesh/oracle/resolve-stakes")
 @limiter.limit("5/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve_stakes(request: Request):
     """Resolve all expired stake contests. Can be called periodically or manually."""
     from services.mesh.mesh_oracle import oracle_ledger
@@ -5400,7 +6379,7 @@ async def oracle_resolve_stakes(request: Request):
     return {"ok": True, "resolutions": resolutions, "count": len(resolutions)}
 
 
-# ─── Encrypted DM Relay (Dead Drop) ───────────────────────────────────────
+# â”€â”€â”€ Encrypted DM Relay (Dead Drop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def _secure_dm_enabled() -> bool:
@@ -5408,7 +6387,11 @@ def _secure_dm_enabled() -> bool:
 
 
 def _legacy_dm_get_allowed() -> bool:
-    return bool(get_settings().MESH_DM_ALLOW_LEGACY_GET)
+    return bool(legacy_dm_get_override_active())
+
+
+def _legacy_dm1_allowed() -> bool:
+    return bool(legacy_dm1_override_active())
 
 
 def _rns_private_dm_ready() -> bool:
@@ -5422,7 +6405,19 @@ def _rns_private_dm_ready() -> bool:
 
 def _anonymous_dm_hidden_transport_enforced() -> bool:
     state = _anonymous_mode_state()
-    return bool(state.get("enabled"))
+    return bool(state.get("enabled")) and bool(state.get("ready"))
+
+
+def _anonymous_dm_hidden_transport_requested() -> bool:
+    """User has asked for anonymous mode, regardless of whether hidden transport
+    is *ready* yet.
+
+    Use this (not the ``_enforced`` variant) for *protective* logic that must
+    keep stated privacy intent honored during warmup — e.g., skipping direct
+    RNS metadata lookups. ``_enforced`` is for claim/telemetry paths that
+    report what is currently being honored.
+    """
+    return bool(_anonymous_mode_state().get("enabled"))
 
 
 def _high_privacy_profile_enabled() -> bool:
@@ -5436,15 +6431,142 @@ def _high_privacy_profile_enabled() -> bool:
 
 
 async def _maybe_apply_dm_relay_jitter() -> None:
-    if not _high_privacy_profile_enabled():
+    # Hardening Rec #7b: apply a modest baseline jitter even in the default
+    # privacy profile so DM send timing is not trivially fingerprintable.
+    # "high" profile keeps the original 50-500 ms window; default profile
+    # adds 0-20 ms which is imperceptible to users but disrupts fine-grained
+    # timing correlation across concurrent requests.
+    if _high_privacy_profile_enabled():
+        await asyncio.sleep((50 + secrets.randbelow(451)) / 1000.0)
         return
-    await asyncio.sleep((50 + secrets.randbelow(451)) / 1000.0)
+    await asyncio.sleep(secrets.randbelow(21) / 1000.0)
+
+
+async def _maybe_apply_dm_poll_jitter() -> None:
+    # Poll/count endpoints are activity probes. Keep default latency nearly
+    # invisible, but make high-privacy polling harder to align with network
+    # observations and mailbox state changes.
+    if _high_privacy_profile_enabled():
+        await asyncio.sleep((100 + secrets.randbelow(901)) / 1000.0)
+        return
+    await asyncio.sleep(secrets.randbelow(26) / 1000.0)
 
 
 def _dm_request_fresh(timestamp: int) -> bool:
     now_ts = int(time.time())
     max_age = max(30, int(get_settings().MESH_DM_REQUEST_MAX_AGE_S))
     return abs(timestamp - now_ts) <= max_age
+
+
+def _validate_private_signed_sequence(
+    infonet: Any,
+    node_id: str,
+    sequence: int,
+    *,
+    domain: str,
+) -> tuple[bool, str]:
+    """Advance replay state for a private signed side-effect domain.
+
+    Older test doubles and older runtime objects only accept the historical
+    two-argument form. In that case, fold the domain into the node key so
+    cross-kind replay separation is still preserved.
+    """
+    normalized_domain = str(domain or "").strip().lower()
+    try:
+        return infonet.validate_and_set_sequence(
+            node_id,
+            sequence,
+            domain=normalized_domain,
+        )
+    except TypeError:
+        domain_key = f"{node_id}|{normalized_domain}" if normalized_domain else node_id
+        return infonet.validate_and_set_sequence(domain_key, sequence)
+
+
+def _wake_private_release_worker() -> None:
+    private_release_worker.ensure_started()
+    private_release_worker.wake()
+
+
+def _queue_dm_release(*, current_tier: str, payload: dict[str, Any]) -> dict[str, Any]:
+    item = private_delivery_outbox.enqueue(
+        lane="dm",
+        release_key=str(payload.get("msg_id", "") or ""),
+        payload=payload,
+        current_tier=current_tier,
+        required_tier=release_lane_required_tier("dm"),
+    )
+    if evaluate_network_release("dm", current_tier).should_bootstrap:
+        private_transport_manager.request_warmup(
+            reason="queued_dm_delivery",
+            current_tier=current_tier,
+            required_tier=release_lane_required_tier("dm"),
+        )
+    _wake_private_release_worker()
+    return {
+        "ok": True,
+        "msg_id": str(payload.get("msg_id", "") or ""),
+        "outbox_id": str(item.get("id", "") or ""),
+        "queued": True,
+        "detail": str((item.get("status") or {}).get("label", "") or "Queued for private delivery"),
+        "delivery": {
+            "state": canonical_release_state(str(item.get("release_state", "") or "queued")),
+            "internal_state": str(item.get("release_state", "") or "queued"),
+            "local_state": "sealed_local",
+            "network_state": network_release_state(
+                "dm",
+                str(item.get("release_state", "") or "queued"),
+                result=dict(item.get("result") or {}),
+            ),
+            "status": dict(item.get("status") or {}),
+            "required_tier": str(item.get("required_tier", "") or ""),
+            "current_tier": str(item.get("current_tier", "") or ""),
+        },
+    }
+
+
+def _queue_gate_release(*, current_tier: str, gate_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    item = private_delivery_outbox.enqueue(
+        lane="gate",
+        release_key=str(payload.get("event_id", "") or ""),
+        payload=payload,
+        current_tier=current_tier,
+        required_tier=release_lane_required_tier("gate"),
+    )
+    if evaluate_network_release("gate", current_tier).should_bootstrap:
+        private_transport_manager.request_warmup(
+            reason="queued_gate_delivery",
+            current_tier=current_tier,
+            required_tier=release_lane_required_tier("gate"),
+        )
+    _wake_private_release_worker()
+    return {
+        "ok": True,
+        "detail": str((item.get("status") or {}).get("label", "") or "Queued for private delivery"),
+        "gate_id": gate_id,
+        "event_id": str(payload.get("event_id", "") or ""),
+        "outbox_id": str(item.get("id", "") or ""),
+        "queued": True,
+        "local_state": "sealed_local",
+        "network_state": network_release_state(
+            "gate",
+            str(item.get("release_state", "") or "queued"),
+            result=dict(item.get("result") or {}),
+        ),
+        "delivery": {
+            "state": canonical_release_state(str(item.get("release_state", "") or "queued")),
+            "internal_state": str(item.get("release_state", "") or "queued"),
+            "local_state": "sealed_local",
+            "network_state": network_release_state(
+                "gate",
+                str(item.get("release_state", "") or "queued"),
+                result=dict(item.get("result") or {}),
+            ),
+            "status": dict(item.get("status") or {}),
+            "required_tier": str(item.get("required_tier", "") or ""),
+            "current_tier": str(item.get("current_tier", "") or ""),
+        },
+    }
 
 
 def _normalize_mailbox_claims(mailbox_claims: list[dict]) -> list[dict]:
@@ -5473,6 +6595,7 @@ def _verify_dm_mailbox_request(
     signature: str,
     sequence: int,
     protocol_version: str,
+    skip_signature: bool = False,
 ):
     payload = {
         "mailbox_claims": _normalize_mailbox_claims(mailbox_claims),
@@ -5482,28 +6605,381 @@ def _verify_dm_mailbox_request(
     valid, reason = validate_event_payload(event_type, payload)
     if not valid:
         return False, reason, payload
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type=event_type,
-        node_id=agent_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return False, sig_reason, payload
+    if not skip_signature:
+        sig_ok, sig_reason = _verify_signed_write(
+            event_type=event_type,
+            node_id=agent_id,
+            sequence=sequence,
+            public_key=public_key,
+            public_key_algo=public_key_algo,
+            signature=signature,
+            payload=payload,
+            protocol_version=protocol_version,
+        )
+        if not sig_ok:
+            return False, sig_reason, payload
     if not _dm_request_fresh(timestamp):
         return False, "Mailbox request timestamp is stale", payload
     return True, "ok", payload
 
 
+async def _dm_send_from_signed_request(request: Request):
+    """Deposit an encrypted DM after decorator-level signed-write verification."""
+    from services.wormhole_supervisor import get_transport_tier
+
+    tier = get_transport_tier()
+    transport_upgrade_pending = bool(getattr(request.state, "_dm_send_transport_pending", False))
+    if tier == "public_degraded":
+        transport_upgrade_pending = True
+        if not bool(getattr(request.state, "_dm_send_transport_pending", False)):
+            _kickoff_dm_send_transport_upgrade()
+
+    # Hardening Rec #9: if anonymous mode is *requested* but hidden transport
+    # has not converged to ready, queue the DM via the private release outbox
+    # instead of falling through to direct/relay. Without this, a user who
+    # flips anonymous_mode on during a warmup window could egress a DM over a
+    # non-hidden transport, silently betraying the stated privacy intent. Non-
+    # hostile per policy: the response carries private_transport_pending so
+    # the client surfaces a "warming up" state rather than a hard deny.
+    _anon_state = _anonymous_mode_state()
+    if bool(_anon_state.get("enabled")) and not bool(_anon_state.get("ready")):
+        transport_upgrade_pending = True
+        if not bool(getattr(request.state, "_dm_send_transport_pending", False)):
+            _kickoff_dm_send_transport_upgrade()
+
+    prepared = _prepared_signed_write(request)
+    body = _signed_body(request)
+    sig_reason = str(prepared.reason if prepared is not None else "ok")
+    sender_id = str(body.get("sender_id", "")).strip()
+    sender_token_hash = str(
+        ((prepared.extras if prepared is not None else {}) or {}).get("sender_token_hash", "")
+        or body.get("sender_token_hash", "")
+        or ""
+    ).strip()
+    recipient_id = str(body.get("recipient_id", "")).strip()
+    delivery_class = str(body.get("delivery_class", "")).strip().lower()
+    recipient_token = str(body.get("recipient_token", "")).strip()
+    ciphertext = str(body.get("ciphertext", "")).strip()
+    payload_format = str(body.get("format", "mls1") or "mls1").strip().lower() or "mls1"
+    if str(tier or "").startswith("private_") and payload_format == "dm1":
+        return JSONResponse(
+            {"ok": False, "detail": "MLS session required in private transport mode - dm1 blocked on raw send path"},
+            status_code=403,
+        )
+    session_welcome = str(body.get("session_welcome", "") or "").strip()
+    sender_seal = str(body.get("sender_seal", "")).strip()
+    relay_salt_hex = str(body.get("relay_salt", "") or "").strip().lower()
+    msg_id = str(body.get("msg_id", "")).strip()
+    timestamp = _safe_int(body.get("timestamp", 0) or 0)
+    nonce = str(body.get("nonce", "")).strip()
+
+    if not sender_id or not recipient_id or not ciphertext or not msg_id or not timestamp:
+        return {"ok": False, "detail": "Missing sender_id, recipient_id, ciphertext, msg_id, or timestamp"}
+    now_ts = int(time.time())
+    if abs(timestamp - now_ts) > 7 * 86400:
+        return {"ok": False, "detail": "DM timestamp is too far from current time"}
+    if delivery_class not in ("request", "shared"):
+        return {"ok": False, "detail": "delivery_class must be request or shared"}
+    if delivery_class == "request":
+        try:
+            from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
+
+            verified_first_contact = verified_first_contact_requirement(recipient_id)
+            if not verified_first_contact.get("ok"):
+                return {
+                    "ok": False,
+                    "detail": str(
+                        verified_first_contact.get("detail", "")
+                        or "signed invite or SAS verification required before secure first contact"
+                    ),
+                    "trust_level": str(verified_first_contact.get("trust_level", "") or "unpinned"),
+                }
+        except Exception:
+            pass
+    if (
+        str(tier or "").startswith("private_")
+        and delivery_class == "shared"
+        and bool(get_settings().MESH_DM_REQUIRE_SENDER_SEAL_SHARED)
+        and not sender_seal
+    ):
+        return {"ok": False, "detail": "sealed sender required for shared private DMs"}
+    if delivery_class == "shared" and not recipient_token:
+        return {"ok": False, "detail": "recipient_token required for shared delivery"}
+    if delivery_class == "shared" and not sender_token_hash:
+        return {"ok": False, "detail": "sender_token required for shared delivery"}
+    if delivery_class == "request" and not sender_token_hash:
+        return {"ok": False, "detail": "sender_token required for request delivery"}
+    from services.mesh.mesh_dm_relay import dm_relay
+
+    compat = _apply_legacy_dm_signature_compat(
+        tier=tier,
+        delivery_class=delivery_class,
+        payload_format=payload_format,
+        session_welcome=session_welcome,
+        sender_seal=sender_seal,
+        relay_salt_hex=relay_salt_hex,
+        sig_reason=sig_reason,
+    )
+    if not compat["ok"]:
+        if int(compat["status_code"] or 0) > 0:
+            return JSONResponse({"ok": False, "detail": compat["detail"]}, status_code=int(compat["status_code"]))
+        return {"ok": False, "detail": compat["detail"]}
+    payload_format = str(compat["format"])
+    session_welcome = str(compat["session_welcome"])
+    sender_seal = str(compat["sender_seal"])
+    relay_salt_hex = str(compat["relay_salt"])
+    if str(tier or "").startswith("private_") and payload_format == "dm1":
+        return JSONResponse(
+            {"ok": False, "detail": "MLS session required in private transport mode - dm1 blocked on raw send path"},
+            status_code=403,
+        )
+
+    send_nonce = nonce or msg_id
+    nonce_ok, nonce_reason = dm_relay.consume_nonce(sender_id, send_nonce, timestamp)
+    if not nonce_ok:
+        return {"ok": False, "detail": nonce_reason}
+    try:
+        from services.mesh.mesh_hashchain import infonet
+
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            sender_id,
+            int(body.get("sequence", 0) or 0),
+            domain="dm_send",
+        )
+        if not ok_seq:
+            return {"ok": False, "detail": seq_reason}
+    except Exception as exc:
+        logger.warning("DM send sequence validation unavailable: %s", type(exc).__name__)
+
+    if dm_relay.is_blocked(recipient_id, sender_id):
+        return {"ok": False, "detail": "Recipient is not accepting your messages"}
+
+    if sender_seal:
+        if relay_salt_hex:
+            if len(relay_salt_hex) != 32 or any(ch not in "0123456789abcdef" for ch in relay_salt_hex):
+                return {"ok": False, "detail": "relay_salt must be a 32-character hex string"}
+        else:
+            import os as _os
+
+            relay_salt_hex = _os.urandom(16).hex()
+
+    release_payload = {
+        "sender_id": sender_id,
+        "sender_token_hash": sender_token_hash,
+        "recipient_id": recipient_id,
+        "delivery_class": delivery_class,
+        "recipient_token": recipient_token if delivery_class == "shared" else "",
+        "ciphertext": ciphertext,
+        "format": payload_format,
+        "session_welcome": session_welcome,
+        "msg_id": msg_id,
+        "timestamp": timestamp,
+        "sender_seal": sender_seal,
+        "relay_salt": relay_salt_hex,
+    }
+    queued_result = _queue_dm_release(current_tier=tier, payload=release_payload)
+    if transport_upgrade_pending:
+        queued_result["private_transport_pending"] = True
+    return queued_result
+
+async def _dm_poll_secure_from_signed_request(request: Request):
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
+    body = _signed_body(request)
+    agent_id = str(body.get("agent_id", "")).strip()
+    mailbox_claims = body.get("mailbox_claims", [])
+    timestamp = _safe_int(body.get("timestamp", 0) or 0)
+    nonce = str(body.get("nonce", "")).strip()
+    public_key = str(body.get("public_key", "")).strip()
+    public_key_algo = str(body.get("public_key_algo", "")).strip()
+    signature = str(body.get("signature", "")).strip()
+    sequence = _safe_int(body.get("sequence", 0) or 0)
+    protocol_version = str(body.get("protocol_version", "")).strip()
+    if not agent_id:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": "Missing agent_id", "messages": [], "count": 0},
+            exposure=exposure,
+        )
+    from services.mesh.mesh_dm_relay import dm_relay
+
+    ok, reason, payload = _verify_dm_mailbox_request(
+        event_type="dm_poll",
+        agent_id=agent_id,
+        mailbox_claims=mailbox_claims,
+        timestamp=timestamp,
+        nonce=nonce,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        sequence=sequence,
+        protocol_version=protocol_version,
+        skip_signature=True,
+    )
+    if not ok:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": reason, "messages": [], "count": 0},
+            exposure=exposure,
+        )
+    nonce_ok, nonce_reason = dm_relay.consume_nonce(agent_id, nonce, timestamp)
+    if not nonce_ok:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": nonce_reason, "messages": [], "count": 0},
+            exposure=exposure,
+        )
+    try:
+        from services.mesh.mesh_hashchain import infonet
+
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            agent_id,
+            sequence,
+            domain="dm_poll",
+        )
+        if not ok_seq:
+            return dm_mailbox_response_view(
+                {"ok": False, "detail": seq_reason, "messages": [], "count": 0},
+                exposure=exposure,
+            )
+    except Exception:
+        pass
+    await _maybe_apply_dm_poll_jitter()
+    claims = payload.get("mailbox_claims", [])
+    mailbox_keys = dm_relay.claim_mailbox_keys(agent_id, claims)
+    relay_msgs, relay_more = dm_relay.collect_claims(agent_id, claims, limit=DM_POLL_BATCH_LIMIT)
+    relay_msgs = _annotate_request_recovery_messages(relay_msgs)
+    direct_msgs: list[dict] = []
+    direct_more = False
+    direct_budget = DM_POLL_BATCH_LIMIT - len(relay_msgs)
+    # Rec #9: use the *requested* helper so direct-lane metadata lookups are
+    # skipped the moment a user opts into anonymous mode, not only after
+    # hidden transport finishes warming up.
+    if direct_budget > 0 and not _anonymous_dm_hidden_transport_requested():
+        try:
+            from services.mesh.mesh_rns import rns_bridge
+
+            direct_msgs, direct_more = rns_bridge.collect_private_dm(mailbox_keys, limit=direct_budget)
+            direct_msgs = _annotate_request_recovery_messages(direct_msgs)
+        except Exception:
+            direct_msgs = []
+    elif direct_budget <= 0:
+        direct_more = not _anonymous_dm_hidden_transport_requested()
+    merged = _merge_dm_poll_messages(relay_msgs, direct_msgs)
+    has_more = relay_more or direct_more
+    msgs = merged[:DM_POLL_BATCH_LIMIT]
+    return dm_mailbox_response_view(
+        {"ok": True, "messages": msgs, "count": len(msgs), "has_more": has_more},
+        exposure=exposure,
+        diagnostic={
+            "source_counts": {
+                "relay": len(relay_msgs),
+                "direct": len(direct_msgs),
+                "returned": len(msgs),
+            },
+            "mailbox_claim_count": len(claims),
+        },
+    )
+
+
+async def _dm_count_secure_from_signed_request(request: Request):
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
+    body = _signed_body(request)
+    agent_id = str(body.get("agent_id", "")).strip()
+    mailbox_claims = body.get("mailbox_claims", [])
+    timestamp = _safe_int(body.get("timestamp", 0) or 0)
+    nonce = str(body.get("nonce", "")).strip()
+    public_key = str(body.get("public_key", "")).strip()
+    public_key_algo = str(body.get("public_key_algo", "")).strip()
+    signature = str(body.get("signature", "")).strip()
+    sequence = _safe_int(body.get("sequence", 0) or 0)
+    protocol_version = str(body.get("protocol_version", "")).strip()
+    if not agent_id:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": "Missing agent_id", "count": 0},
+            exposure=exposure,
+        )
+    from services.mesh.mesh_dm_relay import dm_relay
+
+    ok, reason, payload = _verify_dm_mailbox_request(
+        event_type="dm_count",
+        agent_id=agent_id,
+        mailbox_claims=mailbox_claims,
+        timestamp=timestamp,
+        nonce=nonce,
+        public_key=public_key,
+        public_key_algo=public_key_algo,
+        signature=signature,
+        sequence=sequence,
+        protocol_version=protocol_version,
+        skip_signature=True,
+    )
+    if not ok:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": reason, "count": 0},
+            exposure=exposure,
+        )
+    nonce_ok, nonce_reason = dm_relay.consume_nonce(agent_id, nonce, timestamp)
+    if not nonce_ok:
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": nonce_reason, "count": 0},
+            exposure=exposure,
+        )
+    try:
+        from services.mesh.mesh_hashchain import infonet
+
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            agent_id,
+            sequence,
+            domain="dm_count",
+        )
+        if not ok_seq:
+            return dm_mailbox_response_view(
+                {"ok": False, "detail": seq_reason, "count": 0},
+                exposure=exposure,
+            )
+    except Exception:
+        pass
+    await _maybe_apply_dm_poll_jitter()
+    claims = payload.get("mailbox_claims", [])
+    mailbox_keys = dm_relay.claim_mailbox_keys(agent_id, claims)
+    relay_ids = dm_relay.claim_message_ids(agent_id, claims)
+    direct_ids = set()
+    # Rec #9: requested (not merely enforced) — skip direct-lane count probe
+    # as soon as anonymous mode is requested, even before ready converges.
+    if not _anonymous_dm_hidden_transport_requested():
+        try:
+            from services.mesh.mesh_rns import rns_bridge
+
+            direct_ids = rns_bridge.private_dm_ids(mailbox_keys)
+        except Exception:
+            direct_ids = set()
+    exact_total = len(relay_ids | direct_ids)
+    return dm_mailbox_response_view(
+        {"ok": True, "count": _coarsen_dm_count(exact_total)},
+        exposure=exposure,
+        diagnostic={
+            "source_counts": {
+                "relay": len(relay_ids),
+                "direct": len(direct_ids),
+                "exact_total": exact_total,
+            },
+            "mailbox_claim_count": len(claims),
+        },
+    )
+
+
 @app.post("/api/mesh/dm/register")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_REGISTER)
 async def dm_register_key(request: Request):
     """Register a DH public key for encrypted DM key exchange."""
-    body = await request.json()
+    body = _signed_body(request)
     agent_id = body.get("agent_id", "").strip()
     dh_pub_key = body.get("dh_pub_key", "").strip()
     dh_algo = body.get("dh_algo", "").strip()
@@ -5521,20 +6997,6 @@ async def dm_register_key(request: Request):
     if abs(timestamp - now_ts) > 7 * 86400:
         return {"ok": False, "detail": "DH key timestamp is too far from current time"}
     from services.mesh.mesh_dm_relay import dm_relay
-
-    key_payload = {"dh_pub_key": dh_pub_key, "dh_algo": dh_algo, "timestamp": timestamp}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="dm_key",
-        node_id=agent_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=key_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
 
     try:
         from services.mesh.mesh_reputation import reputation_ledger
@@ -5562,242 +7024,91 @@ async def dm_register_key(request: Request):
 
 @app.get("/api/mesh/dm/pubkey")
 @limiter.limit("30/minute")
-async def dm_get_pubkey(request: Request, agent_id: str = ""):
+async def dm_get_pubkey(request: Request, agent_id: str = "", lookup_token: str = ""):
     """Fetch an agent's DH public key for key exchange."""
-    if not agent_id:
-        return {"ok": False, "detail": "Missing agent_id"}
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
+    if not agent_id and not lookup_token:
+        return dm_lookup_response_view(
+            {"ok": False, "detail": "Missing agent_id or lookup_token"},
+            exposure=exposure,
+            lookup_token_present=bool(lookup_token),
+        )
     from services.mesh.mesh_dm_relay import dm_relay
 
-    key_bundle = dm_relay.get_dh_key(agent_id)
+    resolved_id, resolved_lookup = _preferred_dm_lookup_target(agent_id, lookup_token)
+    key_bundle = None
+    lookup_mode = "legacy_agent_id"
+    if resolved_lookup:
+        key_bundle, resolved_id = dm_relay.get_dh_key_by_lookup(resolved_lookup)
+        if key_bundle is None:
+            return dm_lookup_response_view(
+                {"ok": False, "detail": "Agent not found or has no DH key", "lookup_mode": "invite_lookup_handle"},
+                exposure=exposure,
+                lookup_token_present=True,
+            )
+        lookup_mode = "invite_lookup_handle"
+    if key_bundle is None and resolved_id:
+        blocked = legacy_agent_id_lookup_blocked()
+        record_legacy_agent_id_lookup(
+            resolved_id,
+            lookup_kind="dh_pubkey",
+            blocked=blocked,
+        )
+        _warn_legacy_dm_pubkey_lookup(resolved_id)
+        if blocked:
+            return dm_lookup_response_view(
+                {
+                    "ok": False,
+                    "detail": "legacy agent_id lookup disabled; use invite lookup handle",
+                    "removal_target": sunset_target_label(LEGACY_AGENT_ID_LOOKUP_TARGET),
+                },
+                exposure=exposure,
+                lookup_token_present=False,
+            )
+        key_bundle = dm_relay.get_dh_key(resolved_id)
     if key_bundle is None:
-        return {"ok": False, "detail": "Agent not found or has no DH key"}
-    return {"ok": True, "agent_id": agent_id, **key_bundle}
+        return dm_lookup_response_view(
+            {"ok": False, "detail": "Agent not found or has no DH key"},
+            exposure=exposure,
+            lookup_token_present=bool(resolved_lookup),
+        )
+    return dm_lookup_response_view(
+        {"ok": True, "agent_id": resolved_id, "lookup_mode": lookup_mode, **key_bundle},
+        exposure=exposure,
+        lookup_token_present=bool(resolved_lookup),
+    )
 
 
 @app.get("/api/mesh/dm/prekey-bundle")
 @limiter.limit("30/minute")
-async def dm_get_prekey_bundle(request: Request, agent_id: str = ""):
-    if not agent_id:
-        return {"ok": False, "detail": "Missing agent_id"}
-    return fetch_dm_prekey_bundle(agent_id)
+async def dm_get_prekey_bundle(request: Request, agent_id: str = "", lookup_token: str = ""):
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
+    if not agent_id and not lookup_token:
+        return dm_lookup_response_view(
+            {"ok": False, "detail": "Missing agent_id or lookup_token"},
+            exposure=exposure,
+            lookup_token_present=bool(lookup_token),
+        )
+    resolved_id, resolved_lookup = _preferred_dm_lookup_target(agent_id, lookup_token)
+    result = fetch_dm_prekey_bundle(agent_id=resolved_id, lookup_token=resolved_lookup)
+    return dm_lookup_response_view(
+        result,
+        exposure=exposure,
+        lookup_token_present=bool(resolved_lookup),
+    )
 
 
 @app.post("/api/mesh/dm/send")
 @limiter.limit("20/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_SEND)
 async def dm_send(request: Request):
-    """Deposit an encrypted DM in recipient's mailbox."""
-    from services.wormhole_supervisor import get_transport_tier
-
-    tier = get_transport_tier()
-    if tier == "public_degraded" and not _is_debug_test_request(request):
-        return JSONResponse(
-            status_code=428,
-            content={"ok": False, "detail": "DM send requires private transport"},
-        )
-    body = await request.json()
-    sender_id = body.get("sender_id", "").strip()
-    sender_token = str(body.get("sender_token", "")).strip()
-    sender_token_hash = ""
-    recipient_id = body.get("recipient_id", "").strip()
-    delivery_class = str(body.get("delivery_class", "")).strip().lower()
-    recipient_token = str(body.get("recipient_token", "")).strip()
-    ciphertext = body.get("ciphertext", "").strip()
-    payload_format = str(body.get("format", "mls1") or "mls1").strip().lower() or "mls1"
-    if str(tier or "").startswith("private_") and payload_format == "dm1":
-        return JSONResponse(
-            {"ok": False, "detail": "MLS session required in private transport mode — dm1 blocked on raw send path"},
-            status_code=403,
-        )
-    session_welcome = str(body.get("session_welcome", "") or "").strip()
-    sender_seal = str(body.get("sender_seal", "")).strip()
-    relay_salt_hex = str(body.get("relay_salt", "") or "").strip().lower()
-    msg_id = body.get("msg_id", "").strip()
-    timestamp = _safe_int(body.get("timestamp", 0) or 0)
-    nonce = str(body.get("nonce", "")).strip()
-    public_key = body.get("public_key", "").strip()
-    public_key_algo = body.get("public_key_algo", "").strip()
-    signature = body.get("signature", "").strip()
-    sequence = _safe_int(body.get("sequence", 0) or 0)
-    protocol_version = body.get("protocol_version", "").strip()
-    if sender_token:
-        token_result = consume_wormhole_dm_sender_token(
-            sender_token=sender_token,
-            recipient_id=recipient_id,
-            delivery_class=delivery_class,
-            recipient_token=recipient_token,
-        )
-        if not token_result.get("ok"):
-            return token_result
-        if not recipient_id:
-            recipient_id = str(token_result.get("recipient_id", "") or "")
-        sender_id = str(token_result.get("sender_id", "") or sender_id)
-        sender_token_hash = str(token_result.get("sender_token_hash", "") or "")
-        public_key = str(token_result.get("public_key", "") or public_key)
-        public_key_algo = str(token_result.get("public_key_algo", "") or public_key_algo)
-        protocol_version = str(token_result.get("protocol_version", "") or protocol_version)
-    from services.mesh.mesh_crypto import verify_node_binding
-
-    derived_sender_id = sender_id
-    if public_key and not verify_node_binding(sender_id or derived_sender_id, public_key):
-        derived_sender_id = derive_node_id(public_key)
-    if sender_seal:
-        if not derived_sender_id:
-            return {"ok": False, "detail": "sender_seal requires a valid public key"}
-        if sender_id and sender_id != derived_sender_id:
-            return {"ok": False, "detail": "sender_id does not match sender_seal public key"}
-        sender_id = derived_sender_id
-    if not sender_id or not recipient_id or not ciphertext or not msg_id or not timestamp:
-        return {"ok": False, "detail": "Missing sender_id, recipient_id, ciphertext, msg_id, or timestamp"}
-    now_ts = int(time.time())
-    if abs(timestamp - now_ts) > 7 * 86400:
-        return {"ok": False, "detail": "DM timestamp is too far from current time"}
-    if delivery_class not in ("request", "shared"):
-        return {"ok": False, "detail": "delivery_class must be request or shared"}
-    if (
-        str(tier or "").startswith("private_")
-        and delivery_class == "shared"
-        and bool(get_settings().MESH_DM_REQUIRE_SENDER_SEAL_SHARED)
-        and not sender_seal
-    ):
-        return {"ok": False, "detail": "sealed sender required for shared private DMs"}
-    if delivery_class == "shared" and not recipient_token:
-        return {"ok": False, "detail": "recipient_token required for shared delivery"}
-    if delivery_class == "shared" and not sender_token_hash:
-        return {"ok": False, "detail": "sender_token required for shared delivery"}
-    from services.mesh.mesh_dm_relay import dm_relay
-
-    dm_payload = {
-        "recipient_id": recipient_id,
-        "delivery_class": delivery_class,
-        "recipient_token": recipient_token,
-        "ciphertext": ciphertext,
-        "format": payload_format,
-        "msg_id": msg_id,
-        "timestamp": timestamp,
-    }
-    if session_welcome:
-        dm_payload["session_welcome"] = session_welcome
-    if sender_seal:
-        dm_payload["sender_seal"] = sender_seal
-    if relay_salt_hex:
-        dm_payload["relay_salt"] = relay_salt_hex
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="dm_message",
-        node_id=sender_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=dm_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    send_nonce = nonce or msg_id
-    nonce_ok, nonce_reason = dm_relay.consume_nonce(sender_id, send_nonce, timestamp)
-    if not nonce_ok:
-        return {"ok": False, "detail": nonce_reason}
-    try:
-        from services.mesh.mesh_hashchain import infonet
-
-        ok_seq, seq_reason = infonet.validate_and_set_sequence(sender_id, sequence)
-        if not ok_seq:
-            return {"ok": False, "detail": seq_reason}
-    except Exception as exc:
-        logger.warning("DM send sequence validation unavailable: %s", type(exc).__name__)
-
-    def _append_dm_event() -> str | None:
-        # Private DMs are intentionally off-ledger. The relay / Reticulum mailboxes
-        # already carry the encrypted payload, and mirroring them into the public
-        # chain creates exactly the metadata surface we are trying to avoid.
-        #
-        # Keep the hook shape here so later phases can add private local audit
-        # storage without reworking the send path again.
-        return None
-
-    relay_sender_id = sender_id
-    if sender_seal:
-        if relay_salt_hex:
-            if len(relay_salt_hex) != 32 or any(ch not in "0123456789abcdef" for ch in relay_salt_hex):
-                return {"ok": False, "detail": "relay_salt must be a 32-character hex string"}
-        else:
-            import os as _os
-
-            relay_salt_hex = _os.urandom(16).hex()
-        relay_sender_id = "sealed:" + hmac.new(
-            bytes.fromhex(relay_salt_hex), sender_id.encode("utf-8"), hashlib.sha256
-        ).hexdigest()[:16]
-
-    transport = "relay"
-    direct_result = None
-    anonymous_dm_hidden_transport = _anonymous_dm_hidden_transport_enforced()
-    if _secure_dm_enabled() and _rns_private_dm_ready() and not anonymous_dm_hidden_transport:
-        try:
-            from services.mesh.mesh_dm_relay import dm_relay
-            from services.mesh.mesh_rns import rns_bridge
-
-            if dm_relay.is_blocked(recipient_id, sender_id):
-                return {"ok": False, "detail": "Recipient is not accepting your messages"}
-
-            mailbox_key = dm_relay.mailbox_key_for_delivery(
-                recipient_id=recipient_id,
-                delivery_class=delivery_class,
-                recipient_token=recipient_token if delivery_class == "shared" else None,
-            )
-            direct_result = rns_bridge.send_private_dm(
-                mailbox_key=mailbox_key,
-                envelope={
-                    "sender_id": relay_sender_id,
-                    "ciphertext": ciphertext,
-                    "format": payload_format,
-                    "session_welcome": session_welcome,
-                    "timestamp": timestamp,
-                    "msg_id": msg_id,
-                    "delivery_class": delivery_class,
-                    "sender_seal": sender_seal,
-                },
-            )
-            if direct_result:
-                transport = "reticulum"
-                append_error = _append_dm_event()
-                if append_error:
-                    return {"ok": False, "detail": append_error}
-                return {"ok": True, "msg_id": msg_id, "transport": transport, "detail": "Delivered via Reticulum"}
-        except Exception:
-            direct_result = False
-
-    await _maybe_apply_dm_relay_jitter()
-    deposit_result = dm_relay.deposit(
-        sender_id=relay_sender_id,
-        raw_sender_id=sender_id,
-        recipient_id=recipient_id,
-        ciphertext=ciphertext,
-        msg_id=msg_id,
-        delivery_class=delivery_class,
-        recipient_token=recipient_token if delivery_class == "shared" else None,
-        sender_seal=sender_seal,
-        sender_token_hash=sender_token_hash,
-        payload_format=payload_format,
-        session_welcome=session_welcome,
-    )
-    if not deposit_result.get("ok"):
-        return deposit_result
-
-    append_error = _append_dm_event()
-    if append_error:
-        return {"ok": False, "detail": append_error}
-
-    deposit_result["transport"] = transport
-    if anonymous_dm_hidden_transport:
-        deposit_result["detail"] = (
-            deposit_result.get("detail")
-            or "Anonymous mode keeps private DMs off direct transport; delivered via hidden relay path"
-        )
-    elif direct_result is False and _secure_dm_enabled():
-        deposit_result["detail"] = deposit_result.get("detail") or "Reticulum unavailable, relay fallback used"
-    return deposit_result
-
+    return await _dm_send_from_signed_request(request)
 
 _REQUEST_V2_REDUCED_VERSION = "request-v2-reduced-v3"
 _REQUEST_V2_RECOVERY_STATES = {"pending", "verified", "failed"}
@@ -5818,7 +7129,8 @@ def _annotate_request_recovery_message(message: dict[str, Any]) -> dict[str, Any
     delivery_class = str(item.get("delivery_class", "") or "").strip().lower()
     sender_id = str(item.get("sender_id", "") or "").strip()
     sender_seal = str(item.get("sender_seal", "") or "").strip()
-    if delivery_class != "request" or not sender_id.startswith("sealed:") or not sender_seal.startswith("v3:"):
+    sender_is_blinded = sender_id.startswith("sealed:") or sender_id.startswith("sender_token:")
+    if delivery_class != "request" or not sender_is_blinded or not sender_seal.startswith("v3:"):
         return item
     if not str(item.get("request_contract_version", "") or "").strip():
         item["request_contract_version"] = _REQUEST_V2_REDUCED_VERSION
@@ -5841,7 +7153,7 @@ def _request_duplicate_authority_rank(message: dict[str, Any]) -> int:
     if _is_canonical_reduced_request_message(item):
         return 3
     sender_id = str(item.get("sender_id", "") or "").strip()
-    if sender_id.startswith("sealed:"):
+    if sender_id.startswith("sealed:") or sender_id.startswith("sender_token:"):
         return 1
     if sender_id:
         return 2
@@ -5900,6 +7212,10 @@ def _should_replace_dm_poll_duplicate(
     return candidate_ts > existing_ts
 
 
+DM_POLL_BATCH_LIMIT = 8
+"""Maximum messages returned per DM poll. Overflow stays queued for subsequent polls."""
+
+
 def _merge_dm_poll_messages(
     relay_messages: list[dict[str, Any]],
     direct_messages: list[dict[str, Any]],
@@ -5931,63 +7247,9 @@ def _merge_dm_poll_messages(
 
 @app.post("/api/mesh/dm/poll")
 @limiter.limit("30/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_POLL)
 async def dm_poll_secure(request: Request):
-    """Pick up pending DMs via signed mailbox claims."""
-    body = await request.json()
-    agent_id = body.get("agent_id", "").strip()
-    mailbox_claims = body.get("mailbox_claims", [])
-    timestamp = _safe_int(body.get("timestamp", 0) or 0)
-    nonce = str(body.get("nonce", "")).strip()
-    public_key = body.get("public_key", "").strip()
-    public_key_algo = body.get("public_key_algo", "").strip()
-    signature = body.get("signature", "").strip()
-    sequence = _safe_int(body.get("sequence", 0) or 0)
-    protocol_version = body.get("protocol_version", "").strip()
-    if not agent_id:
-        return {"ok": False, "detail": "Missing agent_id"}
-    from services.mesh.mesh_dm_relay import dm_relay
-
-    ok, reason, payload = _verify_dm_mailbox_request(
-        event_type="dm_poll",
-        agent_id=agent_id,
-        mailbox_claims=mailbox_claims,
-        timestamp=timestamp,
-        nonce=nonce,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        sequence=sequence,
-        protocol_version=protocol_version,
-    )
-    if not ok:
-        return {"ok": False, "detail": reason, "messages": [], "count": 0}
-    nonce_ok, nonce_reason = dm_relay.consume_nonce(agent_id, nonce, timestamp)
-    if not nonce_ok:
-        return {"ok": False, "detail": nonce_reason, "messages": [], "count": 0}
-    try:
-        from services.mesh.mesh_hashchain import infonet
-
-        ok_seq, seq_reason = infonet.validate_and_set_sequence(agent_id, sequence)
-        if not ok_seq:
-            return {"ok": False, "detail": seq_reason, "messages": [], "count": 0}
-    except Exception:
-        pass
-    claims = payload.get("mailbox_claims", [])
-    mailbox_keys = dm_relay.claim_mailbox_keys(agent_id, claims)
-    msgs = _annotate_request_recovery_messages(dm_relay.collect_claims(agent_id, claims))
-    direct_msgs = []
-    if not _anonymous_dm_hidden_transport_enforced():
-        try:
-            from services.mesh.mesh_rns import rns_bridge
-
-            direct_msgs = _annotate_request_recovery_messages(
-                rns_bridge.collect_private_dm(mailbox_keys)
-            )
-        except Exception:
-            direct_msgs = []
-    msgs = _merge_dm_poll_messages(msgs, direct_msgs)
-    return {"ok": True, "messages": msgs, "count": len(msgs)}
-
+    return await _dm_poll_secure_from_signed_request(request)
 
 @app.get("/api/mesh/dm/poll")
 @limiter.limit("30/minute")
@@ -5999,10 +7261,23 @@ async def dm_poll(
     agent_tokens: str = "",
 ):
     """Pick up all pending DMs. Removes them from mailbox after retrieval."""
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
     if _secure_dm_enabled() and not _legacy_dm_get_allowed():
-        return {"ok": False, "detail": "Legacy GET polling is disabled in secure mode", "messages": [], "count": 0}
+        if agent_id or agent_token or agent_token_prev or agent_tokens:
+            record_legacy_dm_get(operation="poll", blocked=True)
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": "Legacy GET polling is disabled in secure mode", "messages": [], "count": 0},
+            exposure=exposure,
+        )
     if not agent_id and not agent_token and not agent_token_prev and not agent_tokens:
-        return {"ok": True, "messages": [], "count": 0}
+        return dm_mailbox_response_view(
+            {"ok": True, "messages": [], "count": 0},
+            exposure=exposure,
+            diagnostic={"source_counts": {"legacy": 0, "returned": 0}, "token_count": 0},
+        )
     from services.mesh.mesh_dm_relay import dm_relay
     tokens: list[str] = []
     if agent_tokens:
@@ -6023,68 +7298,44 @@ async def dm_poll(
         seen.add(token)
         unique_tokens.append(token)
     msgs: list[dict] = []
+    has_more = False
     if unique_tokens:
+        record_legacy_dm_get(operation="poll", blocked=False)
         for token in unique_tokens[:32]:
-            msgs.extend(dm_relay.collect_legacy(agent_token=token))
-    return {"ok": True, "messages": msgs, "count": len(msgs)}
+            batch, more = dm_relay.collect_legacy(agent_token=token, limit=DM_POLL_BATCH_LIMIT - len(msgs))
+            msgs.extend(batch)
+            if more:
+                has_more = True
+            if len(msgs) >= DM_POLL_BATCH_LIMIT:
+                has_more = True
+                msgs = msgs[:DM_POLL_BATCH_LIMIT]
+                break
+    return dm_mailbox_response_view(
+        {"ok": True, "messages": msgs, "count": len(msgs), "has_more": has_more},
+        exposure=exposure,
+        diagnostic={
+            "source_counts": {"legacy": len(msgs), "returned": len(msgs)},
+            "token_count": len(unique_tokens),
+        },
+    )
+
+
+def _coarsen_dm_count(n: int) -> int:
+    """Reduce DM count precision to limit API-observable cardinality metadata."""
+    if n <= 1:
+        return n
+    if n <= 5:
+        return 5
+    if n <= 20:
+        return 20
+    return 50
 
 
 @app.post("/api/mesh/dm/count")
 @limiter.limit("60/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_COUNT)
 async def dm_count_secure(request: Request):
-    """Unread DM count via signed mailbox claims."""
-    body = await request.json()
-    agent_id = body.get("agent_id", "").strip()
-    mailbox_claims = body.get("mailbox_claims", [])
-    timestamp = _safe_int(body.get("timestamp", 0) or 0)
-    nonce = str(body.get("nonce", "")).strip()
-    public_key = body.get("public_key", "").strip()
-    public_key_algo = body.get("public_key_algo", "").strip()
-    signature = body.get("signature", "").strip()
-    sequence = _safe_int(body.get("sequence", 0) or 0)
-    protocol_version = body.get("protocol_version", "").strip()
-    if not agent_id:
-        return {"ok": False, "detail": "Missing agent_id", "count": 0}
-    from services.mesh.mesh_dm_relay import dm_relay
-
-    ok, reason, payload = _verify_dm_mailbox_request(
-        event_type="dm_count",
-        agent_id=agent_id,
-        mailbox_claims=mailbox_claims,
-        timestamp=timestamp,
-        nonce=nonce,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        sequence=sequence,
-        protocol_version=protocol_version,
-    )
-    if not ok:
-        return {"ok": False, "detail": reason, "count": 0}
-    nonce_ok, nonce_reason = dm_relay.consume_nonce(agent_id, nonce, timestamp)
-    if not nonce_ok:
-        return {"ok": False, "detail": nonce_reason, "count": 0}
-    try:
-        from services.mesh.mesh_hashchain import infonet
-
-        ok_seq, seq_reason = infonet.validate_and_set_sequence(agent_id, sequence)
-        if not ok_seq:
-            return {"ok": False, "detail": seq_reason, "count": 0}
-    except Exception:
-        pass
-    claims = payload.get("mailbox_claims", [])
-    mailbox_keys = dm_relay.claim_mailbox_keys(agent_id, claims)
-    relay_ids = dm_relay.claim_message_ids(agent_id, claims)
-    direct_ids = set()
-    if not _anonymous_dm_hidden_transport_enforced():
-        try:
-            from services.mesh.mesh_rns import rns_bridge
-
-            direct_ids = rns_bridge.private_dm_ids(mailbox_keys)
-        except Exception:
-            direct_ids = set()
-    return {"ok": True, "count": len(relay_ids | direct_ids)}
-
+    return await _dm_count_secure_from_signed_request(request)
 
 @app.get("/api/mesh/dm/count")
 @limiter.limit("60/minute")
@@ -6096,10 +7347,23 @@ async def dm_count(
     agent_tokens: str = "",
 ):
     """Unread DM count (for notification badge). Lightweight poll."""
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=_scoped_view_authenticated(request, "mesh"),
+    )
     if _secure_dm_enabled() and not _legacy_dm_get_allowed():
-        return {"ok": False, "detail": "Legacy GET count is disabled in secure mode", "count": 0}
+        if agent_id or agent_token or agent_token_prev or agent_tokens:
+            record_legacy_dm_get(operation="count", blocked=True)
+        return dm_mailbox_response_view(
+            {"ok": False, "detail": "Legacy GET count is disabled in secure mode", "count": 0},
+            exposure=exposure,
+        )
     if not agent_id and not agent_token and not agent_token_prev and not agent_tokens:
-        return {"ok": True, "count": 0}
+        return dm_mailbox_response_view(
+            {"ok": True, "count": 0},
+            exposure=exposure,
+            diagnostic={"source_counts": {"legacy": 0, "exact_total": 0}, "token_count": 0},
+        )
     from services.mesh.mesh_dm_relay import dm_relay
     tokens: list[str] = []
     if agent_tokens:
@@ -6120,18 +7384,28 @@ async def dm_count(
         seen.add(token)
         unique_tokens.append(token)
     if unique_tokens:
+        record_legacy_dm_get(operation="count", blocked=False)
         total = 0
         for token in unique_tokens[:32]:
             total += dm_relay.count_legacy(agent_token=token)
-        return {"ok": True, "count": total}
-    return {"ok": True, "count": 0}
+        return dm_mailbox_response_view(
+            {"ok": True, "count": _coarsen_dm_count(total)},
+            exposure=exposure,
+            diagnostic={"source_counts": {"legacy": total, "exact_total": total}, "token_count": len(unique_tokens)},
+        )
+    return dm_mailbox_response_view(
+        {"ok": True, "count": 0},
+        exposure=exposure,
+        diagnostic={"source_counts": {"legacy": 0, "exact_total": 0}, "token_count": 0},
+    )
 
 
 @app.post("/api/mesh/dm/block")
 @limiter.limit("10/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_BLOCK)
 async def dm_block(request: Request):
     """Block or unblock a sender from DMing you."""
-    body = await request.json()
+    body = _signed_body(request)
     agent_id = body.get("agent_id", "").strip()
     blocked_id = body.get("blocked_id", "").strip()
     action = body.get("action", "block").strip().lower()
@@ -6144,24 +7418,15 @@ async def dm_block(request: Request):
         return {"ok": False, "detail": "Missing agent_id or blocked_id"}
     from services.mesh.mesh_dm_relay import dm_relay
 
-    block_payload = {"blocked_id": blocked_id, "action": action}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="dm_block",
-        node_id=agent_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=block_payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
     try:
         from services.mesh.mesh_hashchain import infonet
 
-        ok_seq, seq_reason = infonet.validate_and_set_sequence(agent_id, sequence)
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            agent_id,
+            sequence,
+            domain=f"dm_block:{action}",
+        )
         if not ok_seq:
             return {"ok": False, "detail": seq_reason}
     except Exception:
@@ -6176,9 +7441,10 @@ async def dm_block(request: Request):
 
 @app.post("/api/mesh/dm/witness")
 @limiter.limit("20/minute")
+@requires_signed_write(kind=SignedWriteKind.DM_WITNESS)
 async def dm_key_witness(request: Request):
     """Record a lightweight witness for a DM key (dual-path spot-check)."""
-    body = await request.json()
+    body = _signed_body(request)
     witness_id = body.get("witness_id", "").strip()
     target_id = body.get("target_id", "").strip()
     dh_pub_key = body.get("dh_pub_key", "").strip()
@@ -6193,36 +7459,24 @@ async def dm_key_witness(request: Request):
     now_ts = int(time.time())
     if abs(timestamp - now_ts) > 7 * 86400:
         return {"ok": False, "detail": "Witness timestamp is too far from current time"}
-    payload = {"target_id": target_id, "dh_pub_key": dh_pub_key, "timestamp": timestamp}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="dm_key_witness",
-        node_id=witness_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
-
-    integrity_ok, integrity_reason = _preflight_signed_event_integrity(
-        event_type="dm_key_witness",
-        node_id=witness_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        protocol_version=protocol_version,
-    )
-    if not integrity_ok:
-        return {"ok": False, "detail": integrity_reason}
 
     try:
         from services.mesh.mesh_reputation import reputation_ledger
 
         reputation_ledger.register_node(witness_id, public_key, public_key_algo)
+    except Exception:
+        pass
+    try:
+        from services.mesh.mesh_hashchain import infonet
+
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            witness_id,
+            sequence,
+            domain="dm_witness",
+        )
+        if not ok_seq:
+            return {"ok": False, "detail": seq_reason}
     except Exception:
         pass
     from services.mesh.mesh_dm_relay import dm_relay
@@ -6253,9 +7507,10 @@ async def dm_key_witness_get(request: Request, target_id: str = "", dh_pub_key: 
 
 @app.post("/api/mesh/trust/vouch")
 @limiter.limit("20/minute")
+@requires_signed_write(kind=SignedWriteKind.TRUST_VOUCH)
 async def trust_vouch(request: Request):
     """Record a trust vouch for a node (web-of-trust signal)."""
-    body = await request.json()
+    body = _signed_body(request)
     voucher_id = body.get("voucher_id", "").strip()
     target_id = body.get("target_id", "").strip()
     note = body.get("note", "").strip()
@@ -6270,23 +7525,19 @@ async def trust_vouch(request: Request):
     now_ts = int(time.time())
     if abs(timestamp - now_ts) > 7 * 86400:
         return {"ok": False, "detail": "Vouch timestamp is too far from current time"}
-    payload = {"target_id": target_id, "note": note, "timestamp": timestamp}
-    sig_ok, sig_reason = _verify_signed_event(
-        event_type="trust_vouch",
-        node_id=voucher_id,
-        sequence=sequence,
-        public_key=public_key,
-        public_key_algo=public_key_algo,
-        signature=signature,
-        payload=payload,
-        protocol_version=protocol_version,
-    )
-    if not sig_ok:
-        return {"ok": False, "detail": sig_reason}
     try:
         from services.mesh.mesh_reputation import reputation_ledger
+        from services.mesh.mesh_hashchain import infonet
 
         reputation_ledger.register_node(voucher_id, public_key, public_key_algo)
+        ok_seq, seq_reason = _validate_private_signed_sequence(
+            infonet,
+            voucher_id,
+            sequence,
+            domain="trust_vouch",
+        )
+        if not ok_seq:
+            return {"ok": False, "detail": seq_reason}
         ok, reason = reputation_ledger.add_vouch(voucher_id, target_id, note, timestamp)
         return {"ok": ok, "detail": reason}
     except Exception:
@@ -6314,7 +7565,7 @@ async def debug_latest_data(request: Request):
     return list(get_latest_data().keys())
 
 
-# ── CCTV media proxy (bypass CORS for cross-origin video/image streams) ───
+# â”€â”€ CCTV media proxy (bypass CORS for cross-origin video/image streams) â”€â”€â”€
 _CCTV_PROXY_ALLOWED_HOSTS = {
     "s3-eu-west-1.amazonaws.com",  # TfL JamCams
     "jamcams.tfl.gov.uk",
@@ -6752,6 +8003,13 @@ async def api_get_openmhz_calls(request: Request, sys_name: str):
     return get_recent_openmhz_calls(sys_name)
 
 
+@app.get("/api/radio/openmhz/audio")
+@limiter.limit("120/minute")
+async def api_get_openmhz_audio(request: Request, url: str = Query(..., min_length=10)):
+    from services.radio_intercept import openmhz_audio_response
+    return openmhz_audio_response(url)
+
+
 @app.get("/api/radio/nearest")
 @limiter.limit("60/minute")
 async def api_get_nearest_radio(
@@ -6821,12 +8079,12 @@ def api_region_dossier(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
 ):
-    """Sync def so FastAPI runs it in a threadpool — prevents blocking the event loop."""
+    """Sync def so FastAPI runs it in a threadpool â€” prevents blocking the event loop."""
     return get_region_dossier(lat, lng)
 
 
 # ---------------------------------------------------------------------------
-# Geocoding — proxy to Nominatim with caching and proper headers
+# Geocoding â€” proxy to Nominatim with caching and proper headers
 # ---------------------------------------------------------------------------
 from services.geocode import search_geocode, reverse_geocode
 
@@ -6999,7 +8257,7 @@ async def api_sentinel_tile(request: Request):
     evalscript = evalscripts.get(preset, evalscripts["TRUE-COLOR"])
 
     # Adaptive time range: wider window at lower zoom for better coverage.
-    # Sentinel-2 has 5-day revisit — a single day often has gaps.
+    # Sentinel-2 has 5-day revisit â€” a single day often has gaps.
     # At low zoom we mosaic over more days to fill gaps.
     from datetime import datetime as _dt, timedelta as _td
 
@@ -7069,9 +8327,9 @@ async def api_sentinel_tile(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# API Settings — key registry & management
+# API Settings â€” key registry & management
 # ---------------------------------------------------------------------------
-from services.api_settings import get_api_keys, update_api_key
+from services.api_settings import get_api_keys, get_env_path_info
 from services.shodan_connector import (
     ShodanConnectorError,
     count_shodan,
@@ -7080,11 +8338,6 @@ from services.shodan_connector import (
     search_shodan,
 )
 from pydantic import BaseModel
-
-
-class ApiKeyUpdate(BaseModel):
-    env_key: str
-    value: str
 
 
 class ShodanSearchRequest(BaseModel):
@@ -7109,13 +8362,10 @@ async def api_get_keys(request: Request):
     return get_api_keys()
 
 
-@app.put("/api/settings/api-keys", dependencies=[Depends(require_admin)])
-@limiter.limit("10/minute")
-async def api_update_key(request: Request, body: ApiKeyUpdate):
-    ok = update_api_key(body.env_key, body.value)
-    if ok:
-        return {"status": "updated", "env_key": body.env_key}
-    return {"status": "error", "message": "Failed to update .env file"}
+@app.get("/api/settings/api-keys/meta")
+@limiter.limit("30/minute")
+async def api_get_keys_meta(request: Request):
+    return get_env_path_info()
 
 
 @app.get("/api/tools/shodan/status", dependencies=[Depends(require_local_operator)])
@@ -7152,7 +8402,7 @@ async def api_shodan_host(request: Request, body: ShodanHostRequest):
 
 
 # ---------------------------------------------------------------------------
-# Finnhub — free market intelligence (quotes, congress trades, insider txns)
+# Finnhub â€” free market intelligence (quotes, congress trades, insider txns)
 # ---------------------------------------------------------------------------
 from services.unusual_whales_connector import (
     FinnhubConnectorError,
@@ -7237,7 +8487,7 @@ async def api_reset_news_feeds(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Wormhole Settings — local agent toggle
+# Wormhole Settings â€” local agent toggle
 # ---------------------------------------------------------------------------
 from services.wormhole_settings import read_wormhole_settings, write_wormhole_settings
 from services.wormhole_status import read_wormhole_status
@@ -7247,11 +8497,47 @@ from services.wormhole_supervisor import (
     get_wormhole_state,
     restart_wormhole,
 )
-from services.mesh.mesh_wormhole_identity import (
-    bootstrap_wormhole_identity,
-    register_wormhole_dm_key,
-    sign_wormhole_message,
-    sign_wormhole_event,
+from services.mesh import mesh_wormhole_identity as _mesh_wormhole_identity
+
+bootstrap_wormhole_identity = _mesh_wormhole_identity.bootstrap_wormhole_identity
+read_wormhole_identity = _mesh_wormhole_identity.read_wormhole_identity
+register_wormhole_dm_key = _mesh_wormhole_identity.register_wormhole_dm_key
+sign_wormhole_message = _mesh_wormhole_identity.sign_wormhole_message
+sign_wormhole_event = _mesh_wormhole_identity.sign_wormhole_event
+
+
+def _wormhole_identity_unavailable(*_args, **_kwargs) -> dict[str, Any]:
+    return {"ok": False, "detail": "wormhole_identity_unavailable"}
+
+
+export_wormhole_dm_invite = getattr(
+    _mesh_wormhole_identity,
+    "export_wormhole_dm_invite",
+    _wormhole_identity_unavailable,
+)
+import_wormhole_dm_invite = getattr(
+    _mesh_wormhole_identity,
+    "import_wormhole_dm_invite",
+    _wormhole_identity_unavailable,
+)
+lookup_handle_rotation_status_snapshot = getattr(
+    _mesh_wormhole_identity,
+    "lookup_handle_rotation_status_snapshot",
+    lambda: {
+        "state": "lookup_handle_rotation_unavailable",
+        "detail": "wormhole_identity_unavailable",
+        "active_handle_count": 0,
+        "fresh_handle_available": False,
+    },
+)
+maybe_rotate_prekey_lookup_handles = getattr(
+    _mesh_wormhole_identity,
+    "maybe_rotate_prekey_lookup_handles",
+    lambda **_kwargs: {
+        "ok": False,
+        "rotated": False,
+        "detail": "wormhole_identity_unavailable",
+    },
 )
 from services.mesh.mesh_wormhole_persona import (
     activate_gate_persona,
@@ -7268,11 +8554,19 @@ from services.mesh.mesh_wormhole_persona import (
     sign_gate_wormhole_event,
     sign_public_wormhole_event,
 )
-from services.mesh.mesh_wormhole_prekey import (
-    bootstrap_decrypt_from_sender,
-    bootstrap_encrypt_for_peer,
-    fetch_dm_prekey_bundle,
-    register_wormhole_prekey_bundle,
+from services.mesh import mesh_wormhole_prekey as _mesh_wormhole_prekey
+
+bootstrap_decrypt_from_sender = _mesh_wormhole_prekey.bootstrap_decrypt_from_sender
+bootstrap_encrypt_for_peer = _mesh_wormhole_prekey.bootstrap_encrypt_for_peer
+fetch_dm_prekey_bundle = _mesh_wormhole_prekey.fetch_dm_prekey_bundle
+register_wormhole_prekey_bundle = _mesh_wormhole_prekey.register_wormhole_prekey_bundle
+observe_remote_prekey_bundle = getattr(
+    _mesh_wormhole_prekey,
+    "observe_remote_prekey_bundle",
+    lambda *_args, **_kwargs: {
+        "ok": False,
+        "detail": "wormhole_prekey_unavailable",
+    },
 )
 from services.mesh.mesh_wormhole_sender_token import (
     consume_wormhole_dm_sender_token,
@@ -7281,21 +8575,48 @@ from services.mesh.mesh_wormhole_sender_token import (
 )
 from services.mesh.mesh_wormhole_seal import build_sender_seal, open_sender_seal
 from services.mesh.mesh_wormhole_dead_drop import (
+    AliasRotationReason,
+    apply_inbound_alias_binding_frame,
     derive_dead_drop_token_pair,
-    derive_sas_phrase,
     derive_dead_drop_tokens_for_contacts,
+    derive_sas_phrase,
     issue_pairwise_dm_alias,
+    mark_contact_alias_reply_observed,
+    maybe_prepare_pairwise_dm_alias_rotation,
+    PAIRWISE_ALIAS_GRACE_DEFAULT_MS,
+    prepare_outbound_alias_binding_payload,
+    register_outbound_alias_rotation_commit,
     rotate_pairwise_dm_alias,
+    _unwrap_pairwise_alias_payload,
 )
 from services.mesh.mesh_gate_mls import (
     compose_encrypted_gate_message,
     decrypt_gate_message_for_local_identity,
     ensure_gate_member_access,
+    export_gate_state_snapshot,
     get_local_gate_key_status,
     is_gate_locked_to_mls as is_gate_mls_locked,
     mark_gate_rekey_recommended,
     rotate_gate_epoch,
+    sign_encrypted_gate_message,
 )
+try:
+    from services.mesh.mesh_gate_repair import (
+        compose_gate_message_with_repair,
+        decrypt_gate_message_with_repair,
+        export_gate_state_snapshot_with_repair,
+        gate_repair_status_snapshot,
+        sign_gate_message_with_repair,
+    )
+except Exception:
+    compose_gate_message_with_repair = compose_encrypted_gate_message
+    decrypt_gate_message_with_repair = decrypt_gate_message_for_local_identity
+    export_gate_state_snapshot_with_repair = export_gate_state_snapshot
+    sign_gate_message_with_repair = sign_encrypted_gate_message
+    gate_repair_status_snapshot = lambda *_args, **_kwargs: {
+        "available": False,
+        "state": "gate_repair_unavailable",
+    }
 from services.mesh.mesh_dm_mls import (
     decrypt_dm as decrypt_mls_dm,
     encrypt_dm as encrypt_mls_dm,
@@ -7430,6 +8751,24 @@ class WormholeDmBootstrapDecryptRequest(BaseModel):
     ciphertext: str
 
 
+class WormholeDmInviteImportRequest(BaseModel):
+    invite: dict[str, Any]
+    alias: str = ""
+
+
+class WormholeRootWitnessImportRequest(BaseModel):
+    material: dict[str, Any]
+
+
+class WormholeRootWitnessImportPathRequest(BaseModel):
+    path: str = ""
+
+
+class WormholeRootTransparencyLedgerPublishRequest(BaseModel):
+    path: str = ""
+    max_records: int = 64
+
+
 class WormholeDmSenderTokenRequest(BaseModel):
     recipient_id: str
     delivery_class: str
@@ -7439,21 +8778,22 @@ class WormholeDmSenderTokenRequest(BaseModel):
 
 class WormholeOpenSealRequest(BaseModel):
     sender_seal: str
-    candidate_dh_pub: str
+    candidate_dh_pub: str = ""
     recipient_id: str
     expected_msg_id: str
 
 
 class WormholeBuildSealRequest(BaseModel):
     recipient_id: str
-    recipient_dh_pub: str
+    recipient_dh_pub: str = ""
     msg_id: str
     timestamp: int
 
 
 class WormholeDeadDropTokenRequest(BaseModel):
     peer_id: str
-    peer_dh_pub: str
+    peer_dh_pub: str = ""
+    peer_ref: str = ""
 
 
 class WormholePairwiseAliasRequest(BaseModel):
@@ -7464,7 +8804,8 @@ class WormholePairwiseAliasRequest(BaseModel):
 class WormholePairwiseAliasRotateRequest(BaseModel):
     peer_id: str
     peer_dh_pub: str = ""
-    grace_ms: int = 45_000
+    grace_ms: int = PAIRWISE_ALIAS_GRACE_DEFAULT_MS
+    reason: str = AliasRotationReason.MANUAL.value
 
 
 class WormholeDeadDropContactsRequest(BaseModel):
@@ -7474,7 +8815,15 @@ class WormholeDeadDropContactsRequest(BaseModel):
 
 class WormholeSasRequest(BaseModel):
     peer_id: str
-    peer_dh_pub: str
+    peer_dh_pub: str = ""
+    words: int = 8
+    peer_ref: str = ""
+
+
+class WormholeSasConfirmRequest(BaseModel):
+    peer_id: str
+    sas_phrase: str = ""
+    peer_ref: str = ""
     words: int = 8
 
 
@@ -7504,6 +8853,40 @@ class WormholeGateComposeRequest(BaseModel):
     gate_id: str
     plaintext: str
     reply_to: str = ""
+    compat_plaintext: bool = False
+
+
+class WormholeGateEncryptedSignRequest(BaseModel):
+    gate_id: str
+    epoch: int = 0
+    ciphertext: str
+    nonce: str
+    format: str = "mls1"
+    reply_to: str = ""
+    compat_reply_to: bool = False
+    recovery_plaintext: str = ""
+    envelope_hash: str = ""
+    transport_lock: str = "private_strong"
+
+
+class WormholeGateEncryptedPostRequest(BaseModel):
+    gate_id: str
+    sender_id: str
+    public_key: str
+    public_key_algo: str
+    signature: str
+    sequence: int = 0
+    protocol_version: str = ""
+    epoch: int = 0
+    ciphertext: str
+    nonce: str
+    sender_ref: str
+    format: str = "mls1"
+    gate_envelope: str = ""
+    envelope_hash: str = ""
+    transport_lock: str = "private_strong"
+    reply_to: str = ""
+    compat_reply_to: bool = False
 
 
 class WormholeGateDecryptRequest(BaseModel):
@@ -7514,6 +8897,10 @@ class WormholeGateDecryptRequest(BaseModel):
     sender_ref: str = ""
     format: str = "mls1"
     gate_envelope: str = ""
+    envelope_hash: str = ""
+    recovery_envelope: bool = False
+    compat_decrypt: bool = False
+    event_id: str = ""
 
 
 class WormholeGateDecryptBatchRequest(BaseModel):
@@ -7543,6 +8930,22 @@ def _default_dm_local_alias(peer_id: str = "") -> str:
     return f"dm-{derived}"
 
 
+def _preferred_remote_dm_alias(peer_id: str) -> str:
+    candidate = str(peer_id or "").strip()
+    if not candidate:
+        return ""
+    try:
+        from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+
+        contact = dict(list_wormhole_dm_contacts().get(candidate) or {})
+        shared_alias = str(contact.get("sharedAlias", "") or "").strip()
+        if shared_alias:
+            return shared_alias
+    except Exception:
+        pass
+    return candidate
+
+
 def _resolve_dm_aliases(
     *,
     peer_id: str,
@@ -7550,8 +8953,18 @@ def _resolve_dm_aliases(
     remote_alias: str | None,
 ) -> tuple[str, str]:
     resolved_local = str(local_alias or "").strip() or _default_dm_local_alias(peer_id=peer_id)
-    resolved_remote = str(remote_alias or "").strip() or str(peer_id or "").strip()
+    resolved_remote = str(remote_alias or "").strip() or _preferred_remote_dm_alias(peer_id)
     return resolved_local, resolved_remote
+
+
+def _get_contact_trust_level(peer_id: str) -> str:
+    """Look up the current backend-authoritative trust_level for a peer."""
+    try:
+        from services.mesh.mesh_wormhole_contacts import get_contact_trust_level
+
+        return get_contact_trust_level(str(peer_id or "").strip())
+    except Exception:
+        return "unpinned"
 
 
 def compose_wormhole_dm(
@@ -7563,17 +8976,36 @@ def compose_wormhole_dm(
     remote_alias: str | None = None,
     remote_prekey_bundle: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    prepared_alias = maybe_prepare_pairwise_dm_alias_rotation(
+        peer_id=str(peer_id or "").strip(),
+        peer_dh_pub=str(peer_dh_pub or "").strip(),
+    )
     resolved_local, resolved_remote = _resolve_dm_aliases(
         peer_id=peer_id,
         local_alias=local_alias,
         remote_alias=remote_alias,
     )
+    alias_wrapped = prepare_outbound_alias_binding_payload(
+        peer_id=str(peer_id or "").strip(),
+        plaintext=str(plaintext or ""),
+    )
+    outgoing_plaintext = str(alias_wrapped.get("plaintext", plaintext) or plaintext)
+    commit_updates = dict(alias_wrapped.get("commit_updates") or {})
+    _compose_trust_level = _get_contact_trust_level(peer_id)
+
     has_session = has_mls_dm_session(resolved_local, resolved_remote)
     if not has_session.get("ok"):
         return has_session
     if has_session.get("exists"):
-        encrypted = encrypt_mls_dm(resolved_local, resolved_remote, plaintext)
+        encrypted = encrypt_mls_dm(resolved_local, resolved_remote, outgoing_plaintext)
         if encrypted.get("ok"):
+            if commit_updates:
+                register_outbound_alias_rotation_commit(
+                    peer_id=str(peer_id or "").strip(),
+                    payload_format="mls1",
+                    ciphertext=str(encrypted.get("ciphertext", "") or ""),
+                    updates=commit_updates,
+                )
             return {
                 "ok": True,
                 "peer_id": str(peer_id or "").strip(),
@@ -7583,6 +9015,11 @@ def compose_wormhole_dm(
                 "nonce": str(encrypted.get("nonce", "") or ""),
                 "format": "mls1",
                 "session_welcome": "",
+                "trust_level": _compose_trust_level,
+                "alias_update_embedded": bool(alias_wrapped.get("alias_update_embedded")),
+                "alias_update_reason": str(alias_wrapped.get("alias_update_reason", "") or ""),
+                "alias_update_seq": int(alias_wrapped.get("alias_update_seq", 0) or 0),
+                "alias_prepare_rotated": bool(prepared_alias.get("rotated", False)),
             }
         if str(encrypted.get("detail", "") or "") != "session_expired":
             return encrypted
@@ -7594,35 +9031,43 @@ def compose_wormhole_dm(
             bundle = fetched_bundle
     if bundle and str(peer_id or "").strip():
         try:
-            from services.mesh.mesh_wormhole_contacts import observe_remote_prekey_identity
-            from services.mesh.mesh_wormhole_prekey import trust_fingerprint_for_bundle_record
+            trust_state = observe_remote_prekey_bundle(str(peer_id or "").strip(), bundle)
+            _compose_trust_level = str(trust_state.get("trust_level", "") or "")
+            from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
 
-            trust_fingerprint = str(bundle.get("trust_fingerprint", "") or "").strip().lower()
-            if not trust_fingerprint:
-                trust_fingerprint = trust_fingerprint_for_bundle_record(
-                    {
-                        "agent_id": str(peer_id or "").strip(),
-                        "bundle": bundle,
-                        "public_key": str(bundle.get("public_key", "") or ""),
-                        "public_key_algo": str(bundle.get("public_key_algo", "") or ""),
-                        "protocol_version": str(bundle.get("protocol_version", "") or ""),
-                    }
-                )
-            trust_state = observe_remote_prekey_identity(
+            verified_first_contact = verified_first_contact_requirement(
                 str(peer_id or "").strip(),
-                fingerprint=trust_fingerprint,
-                sequence=_safe_int(bundle.get("sequence", 0) or 0),
-                signed_at=_safe_int(bundle.get("signed_at", 0) or 0),
+                trust_level=_compose_trust_level,
             )
-            if trust_state.get("trust_changed"):
+            if not verified_first_contact.get("ok"):
                 return {
                     "ok": False,
                     "peer_id": str(peer_id or "").strip(),
-                    "detail": "remote prekey identity changed; verification required",
-                    "trust_changed": True,
+                    "detail": str(verified_first_contact.get("detail", "") or "verified first contact required"),
+                    "trust_changed": _compose_trust_level in ("mismatch", "continuity_broken"),
+                    "trust_level": str(
+                        verified_first_contact.get("trust_level", "") or _compose_trust_level or "unpinned"
+                    ),
                 }
         except Exception as exc:
             logger.warning("remote prekey trust pin unavailable: %s", type(exc).__name__)
+    try:
+        from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
+
+        verified_first_contact = verified_first_contact_requirement(
+            str(peer_id or "").strip(),
+            trust_level=_compose_trust_level,
+        )
+        if not verified_first_contact.get("ok"):
+            return {
+                "ok": False,
+                "peer_id": str(peer_id or "").strip(),
+                "detail": str(verified_first_contact.get("detail", "") or "verified first contact required"),
+                "trust_changed": _compose_trust_level in ("mismatch", "continuity_broken"),
+                "trust_level": str(verified_first_contact.get("trust_level", "") or _compose_trust_level or "unpinned"),
+            }
+    except Exception:
+        pass
     if str(bundle.get("mls_key_package", "") or "").strip():
         initiated = initiate_mls_dm_session(
             resolved_local,
@@ -7637,9 +9082,16 @@ def compose_wormhole_dm(
         )
         if not initiated.get("ok"):
             return initiated
-        encrypted = encrypt_mls_dm(resolved_local, resolved_remote, plaintext)
+        encrypted = encrypt_mls_dm(resolved_local, resolved_remote, outgoing_plaintext)
         if not encrypted.get("ok"):
             return encrypted
+        if commit_updates:
+            register_outbound_alias_rotation_commit(
+                peer_id=str(peer_id or "").strip(),
+                payload_format="mls1",
+                ciphertext=str(encrypted.get("ciphertext", "") or ""),
+                updates=commit_updates,
+            )
         return {
             "ok": True,
             "peer_id": str(peer_id or "").strip(),
@@ -7649,6 +9101,11 @@ def compose_wormhole_dm(
             "nonce": str(encrypted.get("nonce", "") or ""),
             "format": "mls1",
             "session_welcome": str(initiated.get("welcome", "") or ""),
+            "trust_level": _compose_trust_level,
+            "alias_update_embedded": bool(alias_wrapped.get("alias_update_embedded")),
+            "alias_update_reason": str(alias_wrapped.get("alias_update_reason", "") or ""),
+            "alias_update_seq": int(alias_wrapped.get("alias_update_seq", 0) or 0),
+            "alias_prepare_rotated": bool(prepared_alias.get("rotated", False)),
         }
 
     from services.wormhole_supervisor import get_transport_tier
@@ -7657,15 +9114,60 @@ def compose_wormhole_dm(
     if str(current_tier or "").startswith("private_"):
         return {
             "ok": False,
-            "detail": "MLS session required in private transport mode — legacy DM fallback blocked",
+            "detail": "MLS session required in private transport mode - legacy DM fallback blocked",
         }
-    if not str(peer_dh_pub or "").strip():
+    contact: dict[str, Any] = {}
+    resolved_peer_dh_pub = str(peer_dh_pub or "").strip()
+    if not resolved_peer_dh_pub and str(peer_id or "").strip():
+        try:
+            from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+
+            contact = dict(list_wormhole_dm_contacts().get(str(peer_id or "").strip()) or {})
+            resolved_peer_dh_pub = str(
+                contact.get("dhPubKey") or contact.get("invitePinnedDhPubKey") or ""
+            ).strip()
+        except Exception:
+            contact = {}
+            resolved_peer_dh_pub = ""
+    elif str(peer_id or "").strip():
+        try:
+            from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+
+            contact = dict(list_wormhole_dm_contacts().get(str(peer_id or "").strip()) or {})
+        except Exception:
+            contact = {}
+    if str(contact.get("invitePinnedPrekeyLookupHandle", "") or "").strip():
+        return {
+            "ok": False,
+            "peer_id": str(peer_id or "").strip(),
+            "detail": "invite-scoped bootstrap required; legacy DM fallback disabled",
+            "trust_level": _compose_trust_level,
+        }
+    if not _legacy_dm1_allowed():
+        return {
+            "ok": False,
+            "peer_id": str(peer_id or "").strip(),
+            "detail": "legacy dm1 fallback disabled; MLS bootstrap required",
+            "trust_level": _compose_trust_level,
+        }
+    if not resolved_peer_dh_pub:
         return {"ok": False, "detail": "peer_dh_pub required for legacy DM fallback"}
 
     logger.warning("legacy dm compose path used")
-    legacy = encrypt_wormhole_dm(peer_id=str(peer_id or ""), peer_dh_pub=str(peer_dh_pub or ""), plaintext=plaintext)
+    legacy = encrypt_wormhole_dm(
+        peer_id=str(peer_id or ""),
+        peer_dh_pub=resolved_peer_dh_pub,
+        plaintext=outgoing_plaintext,
+    )
     if not legacy.get("ok"):
         return legacy
+    if commit_updates:
+        register_outbound_alias_rotation_commit(
+            peer_id=str(peer_id or "").strip(),
+            payload_format="dm1",
+            ciphertext=str(legacy.get("result", "") or ""),
+            updates=commit_updates,
+        )
     return {
         "ok": True,
         "peer_id": str(peer_id or "").strip(),
@@ -7675,6 +9177,11 @@ def compose_wormhole_dm(
         "nonce": "",
         "format": "dm1",
         "session_welcome": "",
+        "trust_level": _compose_trust_level,
+        "alias_update_embedded": bool(alias_wrapped.get("alias_update_embedded")),
+        "alias_update_reason": str(alias_wrapped.get("alias_update_reason", "") or ""),
+        "alias_update_seq": int(alias_wrapped.get("alias_update_seq", 0) or 0),
+        "alias_prepare_rotated": bool(prepared_alias.get("rotated", False)),
     }
 
 
@@ -7706,7 +9213,22 @@ def decrypt_wormhole_dm_envelope(
         if not has_session.get("ok"):
             return has_session
         if not has_session.get("exists"):
-            ensured = ensure_mls_dm_session(resolved_local, resolved_remote, str(session_welcome or ""))
+            local_dh_secret = ""
+            local_identity_alias = ""
+            try:
+                local_identity = read_wormhole_identity()
+                local_dh_secret = str(local_identity.get("dh_private_key", "") or "")
+                local_identity_alias = str(local_identity.get("node_id", "") or "")
+            except Exception:
+                local_dh_secret = ""
+                local_identity_alias = ""
+            ensured = ensure_mls_dm_session(
+                resolved_local,
+                resolved_remote,
+                str(session_welcome or ""),
+                local_dh_secret=local_dh_secret,
+                identity_alias=local_identity_alias,
+            )
             if not ensured.get("ok"):
                 return ensured
         decrypted = decrypt_mls_dm(
@@ -7717,14 +9239,26 @@ def decrypt_wormhole_dm_envelope(
         )
         if not decrypted.get("ok"):
             return decrypted
-        return {
+        plain_text, alias_update = _unwrap_pairwise_alias_payload(str(decrypted.get("plaintext", "") or ""))
+        alias_applied = False
+        if alias_update:
+            alias_result = apply_inbound_alias_binding_frame(
+                peer_id=str(peer_id or "").strip(),
+                alias_update=alias_update,
+            )
+            alias_applied = bool(alias_result.get("ok"))
+        mark_contact_alias_reply_observed(str(peer_id or "").strip())
+        response = {
             "ok": True,
             "peer_id": str(peer_id or "").strip(),
             "local_alias": resolved_local,
             "remote_alias": resolved_remote,
-            "plaintext": str(decrypted.get("plaintext", "") or ""),
+            "plaintext": plain_text,
             "format": "mls1",
         }
+        if alias_update:
+            response["alias_update_applied"] = alias_applied
+        return response
 
     from services.wormhole_supervisor import get_transport_tier
 
@@ -7732,20 +9266,37 @@ def decrypt_wormhole_dm_envelope(
     if str(current_tier or "").startswith("private_"):
         return {
             "ok": False,
-            "detail": "MLS format required in private transport mode — legacy DM decrypt blocked",
+            "detail": "MLS format required in private transport mode â€” legacy DM decrypt blocked",
+        }
+    if not _legacy_dm1_allowed():
+        return {
+            "ok": False,
+            "detail": "legacy dm1 decrypt disabled; migrate peer to MLS",
         }
     logger.warning("legacy dm decrypt path used")
     legacy = decrypt_wormhole_dm(peer_id=str(peer_id or ""), ciphertext=str(ciphertext or ""))
     if not legacy.get("ok"):
         return legacy
-    return {
+    plain_text, alias_update = _unwrap_pairwise_alias_payload(str(legacy.get("result", "") or ""))
+    alias_applied = False
+    if alias_update:
+        alias_result = apply_inbound_alias_binding_frame(
+            peer_id=str(peer_id or "").strip(),
+            alias_update=alias_update,
+        )
+        alias_applied = bool(alias_result.get("ok"))
+    mark_contact_alias_reply_observed(str(peer_id or "").strip())
+    response = {
         "ok": True,
         "peer_id": str(peer_id or "").strip(),
         "local_alias": resolved_local,
         "remote_alias": resolved_remote,
-        "plaintext": str(legacy.get("result", "") or ""),
+        "plaintext": plain_text,
         "format": "dm1",
     }
+    if alias_update:
+        response["alias_update_applied"] = alias_applied
+    return response
 
 
 @app.get("/api/settings/privacy-profile")
@@ -7769,13 +9320,65 @@ async def api_get_wormhole_status(request: Request):
         and _is_debug_test_request(request)
     ):
         transport_tier = "private_strong"
+    authenticated = _scoped_view_authenticated(request, "wormhole")
     full_state = {
         **state,
         "transport_tier": transport_tier,
     }
+    _resume_private_delivery_background_work(
+        current_tier=transport_tier,
+        reason="startup_resume",
+    )
+    full_state["private_lane_readiness"] = private_transport_manager.observe_state(
+        current_tier=transport_tier,
+    )
+    full_state["local_custody"] = local_custody_status_snapshot()
+    lookup_handle_rotation = {
+        **lookup_handle_rotation_status_snapshot(),
+        "last_refresh_ok": False,
+    }
+    private_delivery_exposure = metadata_exposure_for_request(
+        request,
+        authenticated=authenticated,
+    )
+    if authenticated:
+        contact_preference_refresh = await asyncio.to_thread(
+            _upgrade_invite_scoped_contact_preferences_background
+        )
+        rotation_refresh = await asyncio.to_thread(
+            _refresh_lookup_handle_rotation_background,
+            reason="status_surface",
+        )
+        lookup_handle_rotation = {
+            **lookup_handle_rotation_status_snapshot(),
+            "last_refresh_ok": bool(rotation_refresh.get("ok", False)),
+        }
+        privacy_core = _privacy_core_status()
+        diagnostic_package = _diagnostic_review_package_snapshot(
+            current_tier=transport_tier,
+            local_custody=full_state.get("local_custody"),
+            privacy_core=privacy_core,
+            contact_preference_refresh=contact_preference_refresh,
+            lookup_handle_rotation=lookup_handle_rotation,
+        )
+        full_state["privacy_core"] = privacy_core
+        full_state["strong_claims"] = diagnostic_package.get("strong_claims")
+        full_state["release_gate"] = diagnostic_package.get("release_gate")
+        full_state["privacy_status"] = diagnostic_package.get("privacy_status")
+        if private_delivery_exposure == "diagnostic":
+            full_state["privacy_claims"] = diagnostic_package.get("claim_surface", {}).get("privacy_claims")
+            full_state["rollout_readiness"] = diagnostic_package.get("rollout_readiness")
+            full_state["rollout_controls"] = diagnostic_package.get("rollout_controls")
+            full_state["rollout_health"] = diagnostic_package.get("rollout_health")
+            full_state["claim_surface_sources"] = diagnostic_package.get("claim_surface_sources")
+            full_state["review_export"] = diagnostic_package.get("review_export")
+            full_state["final_review_bundle"] = diagnostic_package.get("final_review_bundle")
+            full_state["staged_rollout_telemetry"] = diagnostic_package.get("staged_rollout_telemetry")
+            full_state["release_claims_matrix"] = diagnostic_package.get("release_claims_matrix")
+            full_state["release_checklist"] = diagnostic_package.get("release_checklist")
     return _redact_wormhole_status(
         full_state,
-        authenticated=_scoped_view_authenticated(request, "wormhole"),
+        authenticated=authenticated,
     )
 
 
@@ -7806,7 +9409,7 @@ async def api_wormhole_join(request: Request):
     )
 
     # Enable node participation so the sync/push workers connect to peers.
-    # This is the voluntary opt-in — the node only joins the network when
+    # This is the voluntary opt-in â€” the node only joins the network when
     # the user explicitly opens the Wormhole.
     from services.node_settings import write_node_settings
 
@@ -7844,6 +9447,8 @@ async def api_wormhole_leave(request: Request):
 async def api_wormhole_identity(request: Request):
     try:
         bootstrap_wormhole_persona_state()
+        await asyncio.to_thread(_upgrade_invite_scoped_contact_preferences_background)
+        await asyncio.to_thread(_refresh_lookup_handle_rotation_background, reason="transport_identity_surface")
         return get_transport_identity()
     except Exception as exc:
         logger.exception("wormhole transport identity fetch failed")
@@ -7855,7 +9460,17 @@ async def api_wormhole_identity(request: Request):
 async def api_wormhole_identity_bootstrap(request: Request):
     bootstrap_wormhole_identity()
     bootstrap_wormhole_persona_state()
-    return get_transport_identity()
+    identity = get_transport_identity()
+    dm_key = register_wormhole_dm_key()
+    prekeys = register_wormhole_prekey_bundle()
+    return {
+        **identity,
+        "dm_key_ok": bool(dm_key.get("ok")),
+        "dm_key_detail": dm_key,
+        "prekeys_ok": bool(prekeys.get("ok")),
+        "prekey_detail": prekeys,
+        "dm_ready": bool(dm_key.get("ok")) and bool(prekeys.get("ok")),
+    }
 
 
 @app.get("/api/wormhole/dm/identity", dependencies=[Depends(require_local_operator)])
@@ -7863,10 +9478,716 @@ async def api_wormhole_identity_bootstrap(request: Request):
 async def api_wormhole_dm_identity(request: Request):
     try:
         bootstrap_wormhole_persona_state()
+        await asyncio.to_thread(_upgrade_invite_scoped_contact_preferences_background)
+        await asyncio.to_thread(_refresh_lookup_handle_rotation_background, reason="dm_identity_surface")
         return get_dm_identity()
     except Exception as exc:
         logger.exception("wormhole dm identity fetch failed")
         raise HTTPException(status_code=500, detail="wormhole_dm_identity_failed") from exc
+
+
+@app.get("/api/wormhole/dm/invite", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_invite(request: Request):
+    return export_wormhole_dm_invite()
+
+
+@app.post("/api/wormhole/dm/invite/import", dependencies=[Depends(require_admin)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_invite_import(request: Request, body: WormholeDmInviteImportRequest):
+    return import_wormhole_dm_invite(
+        dict(body.invite or {}),
+        alias=str(body.alias or "").strip(),
+    )
+
+
+def _dm_root_operator_summary(distribution: dict[str, Any], transparency: dict[str, Any]) -> dict[str, Any]:
+    def _warning_window_s(configured: int, freshness_window_s: int) -> int:
+        window = max(0, _safe_int(freshness_window_s or 0, 0))
+        explicit = max(0, _safe_int(configured or 0, 0))
+        if window <= 0:
+            return explicit
+        if explicit <= 0 or explicit >= window:
+            if window <= 1:
+                return window
+            return max(1, min(window - 1, int(window * 0.75)))
+        return explicit
+
+    def _append_alert(
+        alerts: list[dict[str, Any]],
+        *,
+        code: str,
+        severity: str,
+        detail: str,
+        action: str,
+        target: str,
+        blocking: bool,
+        age_s: int = 0,
+        warning_window_s: int = 0,
+        freshness_window_s: int = 0,
+    ) -> None:
+        alert: dict[str, Any] = {
+            "code": str(code or "").strip(),
+            "severity": str(severity or "warning").strip(),
+            "detail": str(detail or "").strip(),
+            "action": str(action or "").strip(),
+            "target": str(target or "").strip(),
+            "blocking": bool(blocking),
+        }
+        if age_s > 0:
+            alert["age_s"] = _safe_int(age_s, 0)
+        if warning_window_s > 0:
+            alert["warning_window_s"] = _safe_int(warning_window_s, 0)
+        if freshness_window_s > 0:
+            alert["freshness_window_s"] = _safe_int(freshness_window_s, 0)
+        alerts.append(alert)
+
+    witness_state = str(distribution.get("external_witness_operator_state", "not_configured") or "not_configured")
+    transparency_state = str(transparency.get("ledger_operator_state", "not_configured") or "not_configured")
+    witness_configured = bool(distribution.get("external_witness_source_configured", False))
+    transparency_configured = bool(transparency.get("ledger_readback_configured", False))
+    witness_detail = str(distribution.get("external_witness_refresh_detail", "") or "").strip()
+    transparency_detail = str(transparency.get("ledger_readback_detail", "") or "").strip()
+    witness_age_s = _safe_int(distribution.get("external_witness_source_age_s", 0) or 0, 0)
+    transparency_age_s = _safe_int(transparency.get("ledger_readback_export_age_s", 0) or 0, 0)
+    witness_freshness_window_s = _safe_int(distribution.get("external_witness_freshness_window_s", 0) or 0, 0)
+    transparency_freshness_window_s = _safe_int(transparency.get("ledger_freshness_window_s", 0) or 0, 0)
+    witness_warning_window_s = _warning_window_s(
+        getattr(get_settings(), "MESH_DM_ROOT_EXTERNAL_WITNESS_WARN_AGE_S", 0),
+        witness_freshness_window_s,
+    )
+    transparency_warning_window_s = _warning_window_s(
+        getattr(get_settings(), "MESH_DM_ROOT_TRANSPARENCY_LEDGER_WARN_AGE_S", 0),
+        transparency_freshness_window_s,
+    )
+    witness_warning_due = bool(
+        witness_state == "current"
+        and witness_warning_window_s > 0
+        and witness_age_s >= witness_warning_window_s
+    )
+    transparency_warning_due = bool(
+        transparency_state == "current"
+        and transparency_warning_window_s > 0
+        and transparency_age_s >= transparency_warning_window_s
+    )
+    witness_attention = bool(distribution.get("external_witness_reacquire_required", False)) or witness_state in {
+        "stale",
+        "error",
+        "descriptors_only",
+    } or witness_warning_due
+    transparency_attention = bool(transparency.get("ledger_external_verification_required", False)) or transparency_state in {
+        "stale",
+        "error",
+    } or transparency_warning_due
+    any_external_configured = bool(witness_configured or transparency_configured)
+    external_assurance_current = witness_state == "current" and transparency_state == "current"
+    requires_attention = bool(witness_attention or transparency_attention)
+    if external_assurance_current:
+        state = "current_external"
+        detail = "configured external witness and transparency assurances are current"
+        if witness_warning_due or transparency_warning_due:
+            detail = "configured external assurance is current but approaching freshness limit"
+    elif any_external_configured and requires_attention:
+        state = "stale_external"
+        detail = "configured external witness or transparency assurance requires refresh"
+    else:
+        state = "local_cached_only"
+        detail = "external witness and transparency assurance are not fully configured"
+    if witness_state == "error" or transparency_state == "error":
+        health_state = "error"
+    elif state == "stale_external":
+        health_state = "stale"
+    elif witness_warning_due or transparency_warning_due:
+        health_state = "warning"
+    elif state == "current_external":
+        health_state = "ok"
+    else:
+        health_state = "warning"
+    witness_health_state = (
+        "warning"
+        if witness_state == "current" and witness_warning_due
+        else
+        "ok"
+        if witness_state == "current"
+        else "error"
+        if witness_state == "error"
+        else "stale"
+        if witness_state in {"stale", "descriptors_only"}
+        else "warning"
+    )
+    transparency_health_state = (
+        "warning"
+        if transparency_state == "current" and transparency_warning_due
+        else
+        "ok"
+        if transparency_state == "current"
+        else "error"
+        if transparency_state == "error"
+        else "stale"
+        if transparency_state == "stale"
+        else "warning"
+    )
+    strong_trust_blocked = bool(
+        (witness_configured and witness_state != "current")
+        or (transparency_configured and transparency_state != "current")
+    )
+    alerts: list[dict[str, Any]] = []
+    witness_detail_lower = witness_detail.lower()
+    transparency_detail_lower = transparency_detail.lower()
+    if not witness_configured:
+        _append_alert(
+            alerts,
+            code="external_witness_not_configured",
+            severity="warning",
+            detail="external witness source is not configured",
+            action="configure_external_witness_source",
+            target="external_witness",
+            blocking=False,
+        )
+    elif witness_state == "descriptors_only":
+        _append_alert(
+            alerts,
+            code="external_witness_receipts_missing",
+            severity="stale",
+            detail=witness_detail or "external witness descriptors are present but current-manifest receipts are missing",
+            action="reacquire_external_witness_receipts",
+            target="external_witness",
+            blocking=True,
+        )
+    elif witness_state == "stale":
+        if any(
+            marker in witness_detail_lower
+            for marker in (
+                "manifest_fingerprint mismatch",
+                "waiting for current-manifest receipts",
+            )
+        ):
+            _append_alert(
+                alerts,
+                code="external_witness_receipts_stale",
+                severity="stale",
+                detail=witness_detail or "external witness receipts do not match the current manifest",
+                action="reacquire_external_witness_receipts",
+                target="external_witness",
+                blocking=True,
+            )
+        else:
+            _append_alert(
+                alerts,
+                code="external_witness_source_stale",
+                severity="stale",
+                detail=witness_detail or "external witness source is stale",
+                action="refresh_external_witness_source",
+                target="external_witness",
+                blocking=True,
+                age_s=witness_age_s,
+                warning_window_s=witness_warning_window_s,
+                freshness_window_s=witness_freshness_window_s,
+            )
+    elif witness_state == "error":
+        _append_alert(
+            alerts,
+            code="external_witness_source_error",
+            severity="error",
+            detail=witness_detail or "external witness source refresh failed",
+            action="check_external_witness_source",
+            target="external_witness",
+            blocking=True,
+            age_s=witness_age_s,
+            warning_window_s=witness_warning_window_s,
+            freshness_window_s=witness_freshness_window_s,
+        )
+    elif witness_warning_due:
+        _append_alert(
+            alerts,
+            code="external_witness_age_warning",
+            severity="warning",
+            detail="external witness source is current but approaching the freshness limit",
+            action="refresh_external_witness_source",
+            target="external_witness",
+            blocking=False,
+            age_s=witness_age_s,
+            warning_window_s=witness_warning_window_s,
+            freshness_window_s=witness_freshness_window_s,
+        )
+    if not transparency_configured:
+        _append_alert(
+            alerts,
+            code="external_transparency_not_configured",
+            severity="warning",
+            detail="external transparency readback is not configured",
+            action="configure_external_transparency_readback",
+            target="external_transparency",
+            blocking=False,
+        )
+    elif transparency_state == "stale":
+        if any(
+            marker in transparency_detail_lower
+            for marker in (
+                "head mismatch",
+                "binding mismatch",
+                "external ledger stale",
+                "exported_at required",
+            )
+        ):
+            _append_alert(
+                alerts,
+                code="external_transparency_stale",
+                severity="stale",
+                detail=transparency_detail or "external transparency ledger is stale or mismatched",
+                action="republish_transparency_ledger",
+                target="external_transparency",
+                blocking=True,
+                age_s=transparency_age_s,
+                warning_window_s=transparency_warning_window_s,
+                freshness_window_s=transparency_freshness_window_s,
+            )
+        else:
+            _append_alert(
+                alerts,
+                code="external_transparency_readback_stale",
+                severity="stale",
+                detail=transparency_detail or "external transparency readback requires verification",
+                action="verify_external_readback",
+                target="external_transparency",
+                blocking=True,
+                age_s=transparency_age_s,
+                warning_window_s=transparency_warning_window_s,
+                freshness_window_s=transparency_freshness_window_s,
+            )
+    elif transparency_state == "error":
+        _append_alert(
+            alerts,
+            code="external_transparency_readback_error",
+            severity="error",
+            detail=transparency_detail or "external transparency readback failed",
+            action="check_external_transparency_readback",
+            target="external_transparency",
+            blocking=True,
+            age_s=transparency_age_s,
+            warning_window_s=transparency_warning_window_s,
+            freshness_window_s=transparency_freshness_window_s,
+        )
+    elif transparency_warning_due:
+        _append_alert(
+            alerts,
+            code="external_transparency_age_warning",
+            severity="warning",
+            detail="external transparency ledger is current but approaching the freshness limit",
+            action="republish_transparency_ledger",
+            target="external_transparency",
+            blocking=False,
+            age_s=transparency_age_s,
+            warning_window_s=transparency_warning_window_s,
+            freshness_window_s=transparency_freshness_window_s,
+        )
+    seen_actions: set[str] = set()
+    deduped_actions: list[str] = []
+    runbook_actions: list[dict[str, Any]] = []
+    for alert in alerts:
+        action = str(alert.get("action", "") or "").strip()
+        target = str(alert.get("target", "") or "").strip()
+        key = f"{action}:{target}"
+        if action and action not in deduped_actions:
+            deduped_actions.append(action)
+        if not action or key in seen_actions:
+            continue
+        seen_actions.add(key)
+        runbook_actions.append(
+            {
+                "action": action,
+                "target": target,
+                "severity": str(alert.get("severity", "warning") or "warning").strip(),
+                "blocking": bool(alert.get("blocking", False)),
+                "reason": str(alert.get("detail", "") or "").strip(),
+            }
+        )
+    next_action = ""
+    for item in runbook_actions:
+        if item.get("blocking"):
+            next_action = str(item.get("action", "") or "").strip()
+            break
+    if not next_action and runbook_actions:
+        next_action = str(runbook_actions[0].get("action", "") or "").strip()
+    blocking_alert_count = sum(1 for alert in alerts if bool(alert.get("blocking", False)))
+    warning_alert_count = sum(
+        1 for alert in alerts if str(alert.get("severity", "") or "").strip() == "warning"
+    )
+    return {
+        "state": state,
+        "detail": detail,
+        "health_state": health_state,
+        "witness_health_state": witness_health_state,
+        "transparency_health_state": transparency_health_state,
+        "external_assurance_current": external_assurance_current,
+        "external_assurance_configured": bool(witness_configured and transparency_configured),
+        "requires_attention": requires_attention,
+        "strong_trust_blocked": strong_trust_blocked,
+        "warning_due": bool(witness_warning_due or transparency_warning_due),
+        "witness_warning_due": witness_warning_due,
+        "transparency_warning_due": transparency_warning_due,
+        "witness_warning_window_s": witness_warning_window_s,
+        "transparency_warning_window_s": transparency_warning_window_s,
+        "recommended_actions": deduped_actions,
+        "next_action": next_action,
+        "alerts": alerts,
+        "alert_count": len(alerts),
+        "blocking_alert_count": blocking_alert_count,
+        "warning_alert_count": warning_alert_count,
+        "runbook_actions": runbook_actions,
+        "witness_state": witness_state,
+        "witness_detail": witness_detail,
+        "transparency_state": transparency_state,
+        "transparency_detail": transparency_detail,
+        "independent_quorum_met": bool(distribution.get("witness_independent_quorum_met", False)),
+        "witness_configured": witness_configured,
+        "transparency_configured": transparency_configured,
+    }
+
+
+def _dm_root_monitoring_view(summary: dict[str, Any]) -> dict[str, Any]:
+    alerts = [dict(item or {}) for item in list(summary.get("alerts") or []) if isinstance(item, dict)]
+    runbook_actions = [dict(item or {}) for item in list(summary.get("runbook_actions") or []) if isinstance(item, dict)]
+    strong_trust_blocked = bool(summary.get("strong_trust_blocked", False))
+    health_state = str(summary.get("health_state", "warning") or "warning").strip().lower()
+    summary_state = str(summary.get("state", "local_cached_only") or "local_cached_only").strip().lower()
+    if strong_trust_blocked or health_state in {"error", "stale"}:
+        monitor_state = "critical"
+    elif health_state == "warning":
+        monitor_state = "warning"
+    else:
+        monitor_state = "ok"
+    page_required = bool(monitor_state == "critical")
+    ticket_required = bool(monitor_state == "warning" or page_required)
+    primary_alert = next((item for item in alerts if bool(item.get("blocking", False))), alerts[0] if alerts else {})
+    if page_required:
+        status_line = "DM root external assurance is blocking strong trust and needs operator action"
+    elif ticket_required:
+        status_line = "DM root external assurance needs operator attention soon"
+    else:
+        status_line = "DM root external assurance is healthy"
+    recommended_check_interval_s = 60 if page_required else 300 if ticket_required else 900
+    return {
+        "state": monitor_state,
+        "page_required": page_required,
+        "ticket_required": ticket_required,
+        "runbook_required": bool(runbook_actions),
+        "strong_trust_blocked": strong_trust_blocked,
+        "status_line": status_line,
+        "summary_state": summary_state,
+        "summary_health_state": health_state,
+        "primary_alert": primary_alert,
+        "active_alert_codes": [
+            str(item.get("code", "") or "").strip()
+            for item in alerts
+            if str(item.get("code", "") or "").strip()
+        ],
+        "recommended_check_interval_s": recommended_check_interval_s,
+    }
+
+
+def _dm_root_runbook_action_detail(
+    action: str,
+    *,
+    target: str,
+    severity: str,
+    blocking: bool,
+    reason: str,
+) -> dict[str, Any]:
+    action_key = str(action or "").strip()
+    target_key = str(target or "").strip()
+    severity_key = str(severity or "warning").strip().lower()
+    templates: dict[str, dict[str, Any]] = {
+        "configure_external_witness_source": {
+            "title": "Configure external witness source",
+            "summary": "Point DM root witness refresh at an independently managed witness package source.",
+            "steps": [
+                "Choose an external witness package source URI or file path that is managed outside the local runtime.",
+                "Set MESH_DM_ROOT_EXTERNAL_WITNESS_IMPORT_URI or MESH_DM_ROOT_EXTERNAL_WITNESS_IMPORT_PATH.",
+                "Confirm the source publishes descriptors and current-manifest receipts for the active root manifest.",
+            ],
+        },
+        "reacquire_external_witness_receipts": {
+            "title": "Reacquire external witness receipts",
+            "summary": "Refresh current-manifest witness receipts so the active root manifest satisfies the external witness policy again.",
+            "steps": [
+                "Request fresh external witness receipts for the current published root manifest fingerprint.",
+                "Restage the refreshed receipt package through the configured external witness source.",
+                "Recheck /api/wormhole/dm/root-health until witness state returns to current.",
+            ],
+        },
+        "refresh_external_witness_source": {
+            "title": "Refresh external witness source",
+            "summary": "Publish a fresh external witness package before the configured freshness window expires or after it has gone stale.",
+            "steps": [
+                "Regenerate or republish the external witness package with a fresh exported_at timestamp.",
+                "Include any required current-manifest receipts for the active root manifest.",
+                "Verify the configured source is readable and root health clears the warning or stale state.",
+            ],
+        },
+        "check_external_witness_source": {
+            "title": "Check external witness source",
+            "summary": "Investigate why the configured external witness source is unreadable or invalid.",
+            "steps": [
+                "Verify the configured witness source URI or path is reachable from the backend.",
+                "Validate the package schema, exported_at, descriptors, and manifest_fingerprint fields.",
+                "Restore the source and confirm strong DM trust is no longer blocked.",
+            ],
+        },
+        "configure_external_transparency_readback": {
+            "title": "Configure external transparency readback",
+            "summary": "Point DM root transparency verification at an externally published transparency ledger.",
+            "steps": [
+                "Choose an external transparency ledger readback URI or exported ledger path.",
+                "Set MESH_DM_ROOT_TRANSPARENCY_LEDGER_READBACK_URI and, if needed, MESH_DM_ROOT_TRANSPARENCY_LEDGER_EXPORT_PATH.",
+                "Verify the readback source exposes the current transparency binding for the active root manifest.",
+            ],
+        },
+        "republish_transparency_ledger": {
+            "title": "Republish transparency ledger",
+            "summary": "Republish the stable-root transparency ledger so external readback reflects the current manifest and witness binding.",
+            "steps": [
+                "Publish a fresh transparency ledger export to the configured external location.",
+                "Confirm the external ledger head and binding match the current manifest and witness set.",
+                "Recheck /api/wormhole/dm/root-health until transparency state returns to current.",
+            ],
+        },
+        "verify_external_readback": {
+            "title": "Verify external transparency readback",
+            "summary": "Investigate why external transparency readback is stale or incomplete for the current root binding.",
+            "steps": [
+                "Confirm the configured readback URI is reachable and serving the latest ledger export.",
+                "Validate the exported ledger chain and current head binding fingerprint.",
+                "Restore readback visibility and verify the health endpoint clears the transparency alert.",
+            ],
+        },
+        "check_external_transparency_readback": {
+            "title": "Check external transparency readback",
+            "summary": "Investigate why the configured external transparency readback source is unreadable or invalid.",
+            "steps": [
+                "Verify the configured ledger readback URI or file path is reachable from the backend.",
+                "Validate the exported ledger JSON and chain integrity at the source.",
+                "Restore the source and confirm transparency verification returns to current.",
+            ],
+        },
+    }
+    template = dict(templates.get(action_key) or {})
+    if blocking:
+        urgency = "page"
+    elif severity_key == "warning":
+        urgency = "watch"
+    else:
+        urgency = "ticket"
+    return {
+        "action": action_key,
+        "target": target_key,
+        "severity": severity_key or "warning",
+        "blocking": bool(blocking),
+        "urgency": urgency,
+        "title": str(template.get("title", action_key.replace("_", " ").title()) or action_key).strip(),
+        "summary": str(template.get("summary", reason or action_key.replace("_", " ")) or "").strip(),
+        "reason": str(reason or "").strip(),
+        "steps": [str(step or "").strip() for step in list(template.get("steps") or []) if str(step or "").strip()],
+        "owner": "dm_root_ops",
+    }
+
+
+def _dm_root_runbook_view(summary: dict[str, Any], monitoring: dict[str, Any]) -> dict[str, Any]:
+    raw_actions = [dict(item or {}) for item in list(summary.get("runbook_actions") or []) if isinstance(item, dict)]
+    enriched_actions = [
+        _dm_root_runbook_action_detail(
+            str(item.get("action", "") or "").strip(),
+            target=str(item.get("target", "") or "").strip(),
+            severity=str(item.get("severity", "warning") or "warning").strip(),
+            blocking=bool(item.get("blocking", False)),
+            reason=str(item.get("reason", "") or "").strip(),
+        )
+        for item in raw_actions
+    ]
+    next_action = str(summary.get("next_action", "") or "").strip()
+    next_action_detail = next(
+        (dict(item) for item in enriched_actions if str(item.get("action", "") or "").strip() == next_action),
+        {},
+    )
+    monitor_state = str(monitoring.get("state", "warning") or "warning").strip().lower()
+    summary_state = str(summary.get("state", "local_cached_only") or "local_cached_only").strip().lower()
+    if monitor_state == "critical":
+        urgency = "page"
+    elif monitor_state == "warning" and summary_state == "local_cached_only":
+        urgency = "ticket"
+    elif monitor_state == "warning":
+        urgency = "watch"
+    else:
+        urgency = "none"
+    return {
+        "attention_required": bool(summary.get("requires_attention", False)),
+        "strong_trust_blocked": bool(summary.get("strong_trust_blocked", False)),
+        "urgency": urgency,
+        "status_line": str(monitoring.get("status_line", "") or "").strip(),
+        "next_action": next_action,
+        "next_action_detail": next_action_detail,
+        "actions": enriched_actions,
+    }
+
+
+@app.get("/api/wormhole/dm/root-distribution", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_distribution(request: Request):
+    from services.mesh.mesh_wormhole_root_manifest import get_current_root_manifest
+    from services.mesh.mesh_wormhole_root_transparency import get_current_root_transparency_record
+
+    distribution = get_current_root_manifest()
+    transparency = get_current_root_transparency_record(distribution=distribution)
+    return {
+        **distribution,
+        "dm_root_operator_summary": _dm_root_operator_summary(distribution, transparency),
+    }
+
+
+@app.post("/api/wormhole/dm/root-witnesses/import", dependencies=[Depends(require_admin)])
+@limiter.limit("20/minute")
+async def api_wormhole_dm_root_witness_import(request: Request, body: WormholeRootWitnessImportRequest):
+    from services.mesh.mesh_wormhole_root_manifest import import_external_root_witness_material
+
+    return import_external_root_witness_material(dict(body.material or {}))
+
+
+@app.post("/api/wormhole/dm/root-witnesses/import-config", dependencies=[Depends(require_admin)])
+@limiter.limit("20/minute")
+async def api_wormhole_dm_root_witness_import_config(
+    request: Request, body: WormholeRootWitnessImportPathRequest
+):
+    from services.mesh.mesh_wormhole_root_manifest import import_external_root_witness_material_from_file
+
+    return import_external_root_witness_material_from_file(path=str(body.path or "").strip() or None)
+
+
+@app.get("/api/wormhole/dm/root-transparency", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_transparency(request: Request):
+    from services.mesh.mesh_wormhole_root_manifest import get_current_root_manifest
+    from services.mesh.mesh_wormhole_root_transparency import get_current_root_transparency_record
+
+    distribution = get_current_root_manifest()
+    transparency = get_current_root_transparency_record(distribution=distribution)
+    return {
+        **transparency,
+        "dm_root_operator_summary": _dm_root_operator_summary(distribution, transparency),
+    }
+
+
+@app.get("/api/wormhole/dm/root-health", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_health(request: Request):
+    from services.mesh.mesh_wormhole_root_manifest import get_current_root_manifest
+    from services.mesh.mesh_wormhole_root_transparency import get_current_root_transparency_record
+
+    distribution = get_current_root_manifest()
+    transparency = get_current_root_transparency_record(distribution=distribution)
+    summary = _dm_root_operator_summary(distribution, transparency)
+    monitoring = _dm_root_monitoring_view(summary)
+    runbook = _dm_root_runbook_view(summary, monitoring)
+    return {
+        "ok": True,
+        "checked_at": int(time.time()),
+        **summary,
+        "monitoring": monitoring,
+        "runbook": runbook,
+        "witness": {
+            "state": summary.get("witness_state", "not_configured"),
+            "health_state": summary.get("witness_health_state", "warning"),
+            "detail": summary.get("witness_detail", ""),
+            "source_ref": str(distribution.get("external_witness_refresh_source_ref", "") or "").strip(),
+            "source_scope": str(distribution.get("external_witness_source_scope", "") or "").strip(),
+            "source_label": str(distribution.get("external_witness_source_label", "") or "").strip(),
+            "age_s": _safe_int(distribution.get("external_witness_source_age_s", 0) or 0, 0),
+            "warning_window_s": _safe_int(summary.get("witness_warning_window_s", 0) or 0, 0),
+            "freshness_window_s": _safe_int(distribution.get("external_witness_freshness_window_s", 0) or 0, 0),
+            "manifest_matches_current": bool(distribution.get("external_witness_manifest_matches_current", False)),
+            "reacquire_required": bool(distribution.get("external_witness_reacquire_required", False)),
+            "independent_quorum_met": bool(distribution.get("witness_independent_quorum_met", False)),
+        },
+        "transparency": {
+            "state": summary.get("transparency_state", "not_configured"),
+            "health_state": summary.get("transparency_health_state", "warning"),
+            "detail": summary.get("transparency_detail", ""),
+            "source_ref": str(transparency.get("ledger_readback_source_ref", "") or "").strip(),
+            "export_path": str(transparency.get("ledger_export_path", "") or "").strip(),
+            "age_s": _safe_int(transparency.get("ledger_readback_export_age_s", 0) or 0, 0),
+            "warning_window_s": _safe_int(summary.get("transparency_warning_window_s", 0) or 0, 0),
+            "freshness_window_s": _safe_int(transparency.get("ledger_freshness_window_s", 0) or 0, 0),
+            "verification_required": bool(transparency.get("ledger_external_verification_required", False)),
+        },
+    }
+
+
+@app.get("/api/wormhole/dm/root-health/runbook", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_health_runbook(request: Request):
+    from services.mesh.mesh_wormhole_root_manifest import get_current_root_manifest
+    from services.mesh.mesh_wormhole_root_transparency import get_current_root_transparency_record
+
+    distribution = get_current_root_manifest()
+    transparency = get_current_root_transparency_record(distribution=distribution)
+    summary = _dm_root_operator_summary(distribution, transparency)
+    monitoring = _dm_root_monitoring_view(summary)
+    return {
+        "ok": True,
+        "checked_at": int(time.time()),
+        **_dm_root_runbook_view(summary, monitoring),
+    }
+
+
+@app.get("/api/wormhole/dm/root-health/alerts", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_health_alerts(request: Request):
+    from services.mesh.mesh_wormhole_root_manifest import get_current_root_manifest
+    from services.mesh.mesh_wormhole_root_transparency import get_current_root_transparency_record
+
+    distribution = get_current_root_manifest()
+    transparency = get_current_root_transparency_record(distribution=distribution)
+    summary = _dm_root_operator_summary(distribution, transparency)
+    monitoring = _dm_root_monitoring_view(summary)
+    return {
+        "ok": True,
+        "checked_at": int(time.time()),
+        **monitoring,
+        "alerts": [dict(item or {}) for item in list(summary.get("alerts") or []) if isinstance(item, dict)],
+        "alert_count": _safe_int(summary.get("alert_count", 0) or 0, 0),
+        "blocking_alert_count": _safe_int(summary.get("blocking_alert_count", 0) or 0, 0),
+        "warning_alert_count": _safe_int(summary.get("warning_alert_count", 0) or 0, 0),
+        "next_action": str(summary.get("next_action", "") or "").strip(),
+        "runbook_actions": [dict(item or {}) for item in list(summary.get("runbook_actions") or []) if isinstance(item, dict)],
+    }
+
+
+@app.get("/api/wormhole/dm/root-transparency/ledger", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_transparency_ledger(request: Request, max_records: int = Query(64, ge=1, le=256)):
+    from services.mesh.mesh_wormhole_root_transparency import export_root_transparency_ledger
+
+    return export_root_transparency_ledger(max_records=_safe_int(max_records or 64, 64))
+
+
+@app.post("/api/wormhole/dm/root-transparency/ledger/publish", dependencies=[Depends(require_local_operator)])
+@limiter.limit("20/minute")
+async def api_wormhole_dm_root_transparency_ledger_publish(
+    request: Request, body: WormholeRootTransparencyLedgerPublishRequest
+):
+    from services.mesh.mesh_wormhole_root_transparency import publish_root_transparency_ledger_to_file
+
+    return publish_root_transparency_ledger_to_file(
+        path=str(body.path or "").strip() or None,
+        max_records=_safe_int(body.max_records or 64, 64),
+    )
+
+
+@app.get("/api/wormhole/dm/root-transparency/ledger/published", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_root_transparency_ledger_published(request: Request, path: str = Query("")):
+    from services.mesh.mesh_wormhole_root_transparency import read_exported_root_transparency_ledger
+
+    return read_exported_root_transparency_ledger(path=str(path or "").strip() or None)
 
 
 @app.post("/api/wormhole/sign", dependencies=[Depends(require_local_operator)])
@@ -7901,7 +10222,15 @@ async def api_wormhole_sign(request: Request, body: WormholeSignRequest):
 @app.post("/api/wormhole/gate/enter", dependencies=[Depends(require_local_operator)])
 @limiter.limit("20/minute")
 async def api_wormhole_gate_enter(request: Request, body: WormholeGateRequest):
-    return enter_gate_anonymously(str(body.gate_id or ""), rotate=bool(body.rotate))
+    gate_id = str(body.gate_id or "")
+    result = enter_gate_anonymously(gate_id, rotate=bool(body.rotate))
+    if result.get("ok"):
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
+    return result
 
 
 @app.post("/api/wormhole/gate/leave", dependencies=[Depends(require_local_operator)])
@@ -7925,16 +10254,25 @@ async def api_wormhole_gate_personas(request: Request, gate_id: str):
 @app.get("/api/wormhole/gate/{gate_id}/key", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_key_status(request: Request, gate_id: str):
-    return get_local_gate_key_status(gate_id)
+    exposure = metadata_exposure_for_request(request, authenticated=True)
+    return gate_repair_status_snapshot(gate_id, exposure=exposure)
 
 
 @app.post("/api/wormhole/gate/key/rotate", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_gate_key_rotate(request: Request, body: WormholeGateRotateRequest):
-    return rotate_gate_epoch(
-        gate_id=str(body.gate_id or ""),
+    gate_id = str(body.gate_id or "")
+    result = rotate_gate_epoch(
+        gate_id=gate_id,
         reason=str(body.reason or "manual_rotate"),
     )
+    if result.get("ok"):
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
+    return result
 
 
 @app.post("/api/wormhole/gate/persona/create", dependencies=[Depends(require_local_operator)])
@@ -7942,7 +10280,15 @@ async def api_wormhole_gate_key_rotate(request: Request, body: WormholeGateRotat
 async def api_wormhole_gate_persona_create(
     request: Request, body: WormholeGatePersonaCreateRequest
 ):
-    return create_gate_persona(str(body.gate_id or ""), label=str(body.label or ""))
+    gate_id = str(body.gate_id or "")
+    result = create_gate_persona(gate_id, label=str(body.label or ""))
+    if result.get("ok"):
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
+    return result
 
 
 @app.post("/api/wormhole/gate/persona/activate", dependencies=[Depends(require_local_operator)])
@@ -7950,13 +10296,29 @@ async def api_wormhole_gate_persona_create(
 async def api_wormhole_gate_persona_activate(
     request: Request, body: WormholeGatePersonaActivateRequest
 ):
-    return activate_gate_persona(str(body.gate_id or ""), str(body.persona_id or ""))
+    gate_id = str(body.gate_id or "")
+    result = activate_gate_persona(gate_id, str(body.persona_id or ""))
+    if result.get("ok"):
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
+    return result
 
 
 @app.post("/api/wormhole/gate/persona/clear", dependencies=[Depends(require_local_operator)])
 @limiter.limit("20/minute")
 async def api_wormhole_gate_persona_clear(request: Request, body: WormholeGateRequest):
-    return clear_active_gate_persona(str(body.gate_id or ""))
+    gate_id = str(body.gate_id or "")
+    result = clear_active_gate_persona(gate_id)
+    if result.get("ok"):
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
+    return result
 
 
 @app.post("/api/wormhole/gate/persona/retire", dependencies=[Depends(require_local_operator)])
@@ -7964,12 +10326,18 @@ async def api_wormhole_gate_persona_clear(request: Request, body: WormholeGateRe
 async def api_wormhole_gate_persona_retire(
     request: Request, body: WormholeGatePersonaActivateRequest
 ):
-    result = retire_gate_persona(str(body.gate_id or ""), str(body.persona_id or ""))
+    gate_id = str(body.gate_id or "")
+    result = retire_gate_persona(gate_id, str(body.persona_id or ""))
     if result.get("ok"):
         result["gate_key_status"] = mark_gate_rekey_recommended(
-            str(body.gate_id or ""),
+            gate_id,
             reason="persona_retired",
         )
+        snapshot = export_gate_state_snapshot(gate_id)
+        if snapshot.get("ok"):
+            result["gate_state_snapshot"] = snapshot
+        else:
+            result["gate_state_snapshot_error"] = str(snapshot.get("detail") or "gate_state_export_failed")
     return result
 
 
@@ -7984,12 +10352,48 @@ async def api_wormhole_gate_key_grant(request: Request, body: WormholeGateKeyGra
     )
 
 
+def _backend_gate_plaintext_guard(
+    *,
+    gate_id: str,
+    compat_plaintext: bool,
+) -> dict[str, Any] | None:
+    # These endpoints are already guarded by require_local_operator and are
+    # the atomic local-control path that encrypts/signs before append. They
+    # must remain available as the durable-envelope recovery path when the
+    # browser/native split cannot carry gate_envelope material.
+    return None
+
+
+def _backend_gate_encrypted_reply_to_guard(
+    *,
+    gate_id: str,
+    reply_to: str,
+    compat_reply_to: bool,
+) -> dict[str, Any] | None:
+    reply_to_val = str(reply_to or "").strip()
+    if not reply_to_val or compat_reply_to:
+        return None
+    return {
+        "ok": False,
+        "detail": "gate_encrypted_reply_to_hidden_required",
+        "gate_id": gate_id,
+        "compat_reply_to": False,
+    }
+
+
 @app.post("/api/wormhole/gate/message/compose", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_message_compose(request: Request, body: WormholeGateComposeRequest):
-    composed = compose_encrypted_gate_message(
+    blocked = _backend_gate_plaintext_guard(
+        gate_id=str(body.gate_id or ""),
+        compat_plaintext=bool(body.compat_plaintext),
+    )
+    if blocked is not None:
+        return blocked
+    composed = compose_gate_message_with_repair(
         gate_id=str(body.gate_id or ""),
         plaintext=str(body.plaintext or ""),
+        reply_to=str(body.reply_to or ""),
     )
     if composed.get("ok") and _is_debug_test_request(request):
         return {**dict(composed), "epoch": composed.get("epoch", 0)}
@@ -7998,12 +10402,87 @@ async def api_wormhole_gate_message_compose(request: Request, body: WormholeGate
     return composed
 
 
+@app.post("/api/wormhole/gate/message/sign-encrypted", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_gate_message_sign_encrypted(
+    request: Request,
+    body: WormholeGateEncryptedSignRequest,
+):
+    blocked = _backend_gate_encrypted_reply_to_guard(
+        gate_id=str(body.gate_id or ""),
+        reply_to=str(body.reply_to or ""),
+        compat_reply_to=bool(body.compat_reply_to),
+    )
+    if blocked is not None:
+        return blocked
+    signed = sign_gate_message_with_repair(
+        gate_id=str(body.gate_id or ""),
+        epoch=_safe_int(body.epoch or 0),
+        ciphertext=str(body.ciphertext or ""),
+        nonce=str(body.nonce or ""),
+        payload_format=str(body.format or "mls1"),
+        reply_to=str(body.reply_to or ""),
+        compat_reply_to=bool(body.compat_reply_to),
+        recovery_plaintext=str(getattr(body, "recovery_plaintext", "") or ""),
+        envelope_hash=str(body.envelope_hash or ""),
+        transport_lock=str(getattr(body, "transport_lock", "private_strong") or "private_strong"),
+    )
+    if signed.get("ok") and _is_debug_test_request(request):
+        return signed
+    if signed.get("ok"):
+        return _redact_signed_gate_message(signed)
+    return signed
+
+
+@app.post("/api/wormhole/gate/message/post-encrypted", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_gate_message_post_encrypted(
+    request: Request,
+    body: WormholeGateEncryptedPostRequest,
+):
+    blocked = _backend_gate_encrypted_reply_to_guard(
+        gate_id=str(body.gate_id or ""),
+        reply_to=str(body.reply_to or ""),
+        compat_reply_to=bool(body.compat_reply_to),
+    )
+    if blocked is not None:
+        return blocked
+    return _submit_gate_message_envelope(
+        request,
+        str(body.gate_id or ""),
+        {
+            "sender_id": str(body.sender_id or ""),
+            "public_key": str(body.public_key or ""),
+            "public_key_algo": str(body.public_key_algo or ""),
+            "signature": str(body.signature or ""),
+            "sequence": _safe_int(body.sequence or 0),
+            "protocol_version": str(body.protocol_version or ""),
+            "epoch": _safe_int(body.epoch or 0),
+            "ciphertext": str(body.ciphertext or ""),
+            "nonce": str(body.nonce or ""),
+            "sender_ref": str(body.sender_ref or ""),
+            "format": str(body.format or "mls1"),
+            "gate_envelope": str(body.gate_envelope or ""),
+            "envelope_hash": str(body.envelope_hash or ""),
+            "transport_lock": str(getattr(body, "transport_lock", "private_strong") or "private_strong"),
+            "reply_to": str(body.reply_to or ""),
+        },
+    )
+
+
 @app.post("/api/wormhole/gate/message/post", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_message_post(request: Request, body: WormholeGateComposeRequest):
-    composed = compose_encrypted_gate_message(
+    blocked = _backend_gate_plaintext_guard(
+        gate_id=str(body.gate_id or ""),
+        compat_plaintext=bool(body.compat_plaintext),
+    )
+    if blocked is not None:
+        return blocked
+    composed = compose_gate_message_with_repair(
         gate_id=str(body.gate_id or ""),
         plaintext=str(body.plaintext or ""),
+        reply_to=str(body.reply_to or ""),
     )
     if not composed.get("ok"):
         return composed
@@ -8024,9 +10503,30 @@ async def api_wormhole_gate_message_post(request: Request, body: WormholeGateCom
             "sender_ref": composed.get("sender_ref", ""),
             "format": composed.get("format", "mls1"),
             "gate_envelope": composed.get("gate_envelope", ""),
+            "envelope_hash": composed.get("envelope_hash", ""),
+            "transport_lock": composed.get("transport_lock", "private_strong"),
             "reply_to": reply_to,
         },
     )
+
+
+def _backend_gate_decrypt_guard(
+    *,
+    gate_id: str,
+    payload_format: str,
+    recovery_envelope: bool,
+    compat_decrypt: bool,
+) -> dict[str, Any] | None:
+    normalized_format = str(payload_format or "mls1").strip().lower() or "mls1"
+    if normalized_format != "mls1" or recovery_envelope:
+        return None
+    return {
+        "ok": False,
+        "detail": "gate_backend_decrypt_recovery_only",
+        "gate_id": gate_id,
+        "compat_requested": bool(compat_decrypt),
+        "compat_effective": False,
+    }
 
 
 @app.post("/api/wormhole/gate/message/decrypt", dependencies=[Depends(require_local_operator)])
@@ -8044,13 +10544,24 @@ async def api_wormhole_gate_message_decrypt(request: Request, body: WormholeGate
             "required_format": "mls1",
             "current_format": payload_format or "mls1",
         }
-    return decrypt_gate_message_for_local_identity(
+    blocked = _backend_gate_decrypt_guard(
+        gate_id=gate_id,
+        payload_format=payload_format,
+        recovery_envelope=bool(body.recovery_envelope),
+        compat_decrypt=bool(body.compat_decrypt),
+    )
+    if blocked is not None:
+        return blocked
+    return decrypt_gate_message_with_repair(
         gate_id=gate_id,
         epoch=_safe_int(body.epoch or 0),
         ciphertext=str(body.ciphertext or ""),
         nonce=str(body.nonce or ""),
         sender_ref=str(body.sender_ref or ""),
         gate_envelope=str(body.gate_envelope or ""),
+        envelope_hash=str(body.envelope_hash or ""),
+        recovery_envelope=bool(body.recovery_envelope),
+        event_id=str(body.event_id or ""),
     )
 
 
@@ -8078,17 +10589,35 @@ async def api_wormhole_gate_messages_decrypt(request: Request, body: WormholeGat
                 }
             )
             continue
+        blocked = _backend_gate_decrypt_guard(
+            gate_id=gate_id,
+            payload_format=payload_format,
+            recovery_envelope=bool(item.recovery_envelope),
+            compat_decrypt=bool(item.compat_decrypt),
+        )
+        if blocked is not None:
+            results.append(blocked)
+            continue
         results.append(
-            decrypt_gate_message_for_local_identity(
+            decrypt_gate_message_with_repair(
                 gate_id=gate_id,
                 epoch=_safe_int(item.epoch or 0),
                 ciphertext=str(item.ciphertext or ""),
                 nonce=str(item.nonce or ""),
                 sender_ref=str(item.sender_ref or ""),
                 gate_envelope=str(item.gate_envelope or ""),
+                envelope_hash=str(item.envelope_hash or ""),
+                recovery_envelope=bool(item.recovery_envelope),
+                event_id=str(item.event_id or ""),
             )
         )
     return {"ok": True, "results": results}
+
+
+@app.post("/api/wormhole/gate/state/export", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_gate_state_export(request: Request, body: WormholeGateRequest):
+    return export_gate_state_snapshot_with_repair(str(body.gate_id or ""))
 
 
 @app.post("/api/wormhole/gate/proof", dependencies=[Depends(require_local_operator)])
@@ -8110,34 +10639,60 @@ async def api_wormhole_sign_raw(request: Request, body: WormholeSignRawRequest):
 @limiter.limit("10/minute")
 async def api_wormhole_dm_register_key(request: Request):
     result = register_wormhole_dm_key()
-    if not result.get("ok"):
-        return result
     prekeys = register_wormhole_prekey_bundle()
-    return {**result, "prekeys_ok": bool(prekeys.get("ok")), "prekey_detail": prekeys}
+    response = {
+        **result,
+        "dm_key_ok": bool(result.get("ok")),
+        "dm_key_detail": result,
+        "prekeys_ok": bool(prekeys.get("ok")),
+        "prekey_detail": prekeys,
+        "dm_ready": bool(result.get("ok")) and bool(prekeys.get("ok")),
+    }
+    if not response.get("ok") and prekeys.get("ok"):
+        response["ok"] = False
+    return response
 
 
 @app.post("/api/wormhole/dm/prekey/register", dependencies=[Depends(require_admin)])
 @limiter.limit("10/minute")
 async def api_wormhole_dm_prekey_register(request: Request):
-    return register_wormhole_prekey_bundle()
+    dm_key = register_wormhole_dm_key()
+    prekeys = register_wormhole_prekey_bundle()
+    response = {
+        **prekeys,
+        "dm_key_ok": bool(dm_key.get("ok")),
+        "dm_key_detail": dm_key,
+        "prekeys_ok": bool(prekeys.get("ok")),
+        "prekey_detail": prekeys,
+        "dm_ready": bool(dm_key.get("ok")) and bool(prekeys.get("ok")),
+    }
+    if not response.get("ok") and dm_key.get("ok"):
+        response["ok"] = False
+    return response
 
 
 @app.post("/api/wormhole/dm/bootstrap-encrypt", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def api_wormhole_dm_bootstrap_encrypt(request: Request, body: WormholeDmBootstrapEncryptRequest):
-    return bootstrap_encrypt_for_peer(
+    result = bootstrap_encrypt_for_peer(
         peer_id=str(body.peer_id or ""),
         plaintext=str(body.plaintext or ""),
     )
+    if isinstance(result, dict) and "trust_level" not in result:
+        result["trust_level"] = _get_contact_trust_level(str(body.peer_id or ""))
+    return result
 
 
 @app.post("/api/wormhole/dm/bootstrap-decrypt", dependencies=[Depends(require_admin)])
 @limiter.limit("60/minute")
 async def api_wormhole_dm_bootstrap_decrypt(request: Request, body: WormholeDmBootstrapDecryptRequest):
-    return bootstrap_decrypt_from_sender(
+    result = bootstrap_decrypt_from_sender(
         sender_id=str(body.sender_id or ""),
         ciphertext=str(body.ciphertext or ""),
     )
+    if isinstance(result, dict) and "trust_level" not in result:
+        result["trust_level"] = _get_contact_trust_level(str(body.sender_id or ""))
+    return result
 
 
 @app.post("/api/wormhole/dm/sender-token", dependencies=[Depends(require_admin)])
@@ -8182,10 +10737,15 @@ async def api_wormhole_dm_build_seal(request: Request, body: WormholeBuildSealRe
 @app.post("/api/wormhole/dm/dead-drop-token", dependencies=[Depends(require_admin)])
 @limiter.limit("60/minute")
 async def api_wormhole_dm_dead_drop_token(request: Request, body: WormholeDeadDropTokenRequest):
-    return derive_dead_drop_token_pair(
-        peer_id=str(body.peer_id or ""),
-        peer_dh_pub=str(body.peer_dh_pub or ""),
-    )
+    try:
+        return derive_dead_drop_token_pair(
+            peer_id=str(body.peer_id or ""),
+            peer_dh_pub=str(body.peer_dh_pub or ""),
+            peer_ref=str(body.peer_ref or ""),
+        )
+    except Exception as exc:
+        logger.exception("wormhole dm dead-drop token derivation failed")
+        return {"ok": False, "detail": str(exc) or "dead_drop_token_failed"}
 
 
 @app.post("/api/wormhole/dm/pairwise-alias", dependencies=[Depends(require_admin)])
@@ -8205,17 +10765,22 @@ async def api_wormhole_dm_pairwise_alias_rotate(
     return rotate_pairwise_dm_alias(
         peer_id=str(body.peer_id or ""),
         peer_dh_pub=str(body.peer_dh_pub or ""),
-        grace_ms=_safe_int(body.grace_ms or 45_000, 45_000),
+        grace_ms=_safe_int(body.grace_ms or PAIRWISE_ALIAS_GRACE_DEFAULT_MS, PAIRWISE_ALIAS_GRACE_DEFAULT_MS),
+        reason=str(body.reason or AliasRotationReason.MANUAL.value),
     )
 
 
 @app.post("/api/wormhole/dm/dead-drop-tokens", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def api_wormhole_dm_dead_drop_tokens(request: Request, body: WormholeDeadDropContactsRequest):
-    return derive_dead_drop_tokens_for_contacts(
-        contacts=list(body.contacts or []),
-        limit=_safe_int(body.limit or 24, 24),
-    )
+    try:
+        return derive_dead_drop_tokens_for_contacts(
+            contacts=list(body.contacts or []),
+            limit=_safe_int(body.limit or 24, 24),
+        )
+    except Exception as exc:
+        logger.exception("wormhole dm dead-drop token batch derivation failed")
+        return {"ok": False, "detail": str(exc) or "dead_drop_tokens_failed", "tokens": []}
 
 
 @app.post("/api/wormhole/dm/sas", dependencies=[Depends(require_admin)])
@@ -8224,6 +10789,39 @@ async def api_wormhole_dm_sas(request: Request, body: WormholeSasRequest):
     return derive_sas_phrase(
         peer_id=str(body.peer_id or ""),
         peer_dh_pub=str(body.peer_dh_pub or ""),
+        words=_safe_int(body.words or 8, 8),
+        peer_ref=str(body.peer_ref or ""),
+    )
+
+
+@app.post("/api/wormhole/dm/sas/confirm", dependencies=[Depends(require_admin)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_sas_confirm(request: Request, body: WormholeSasConfirmRequest):
+    from services.mesh.mesh_wormhole_contacts import confirm_sas_verification
+    return confirm_sas_verification(
+        peer_id=str(body.peer_id or ""),
+        sas_phrase=str(body.sas_phrase or ""),
+        peer_ref=str(body.peer_ref or ""),
+        words=_safe_int(body.words or 8, 8),
+    )
+
+
+@app.post("/api/wormhole/dm/sas/acknowledge", dependencies=[Depends(require_admin)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_sas_acknowledge(request: Request, body: WormholeSasConfirmRequest):
+    from services.mesh.mesh_wormhole_contacts import acknowledge_changed_fingerprint
+    return acknowledge_changed_fingerprint(peer_id=str(body.peer_id or ""))
+
+
+@app.post("/api/wormhole/dm/sas/recover-root", dependencies=[Depends(require_admin)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_sas_recover_root(request: Request, body: WormholeSasConfirmRequest):
+    from services.mesh.mesh_wormhole_contacts import recover_verified_root_continuity
+
+    return recover_verified_root_continuity(
+        peer_id=str(body.peer_id or ""),
+        sas_phrase=str(body.sas_phrase or ""),
+        peer_ref=str(body.peer_ref or ""),
         words=_safe_int(body.words or 8, 8),
     )
 
@@ -8337,18 +10935,214 @@ async def api_wormhole_status(request: Request):
     ):
         transport_tier = "private_strong"
     try:
-        _fallback_policy = str(get_settings().MESH_PRIVATE_CLEARNET_FALLBACK or "block").strip().lower()
+        from services.config import (
+            private_clearnet_fallback_effective,
+            private_clearnet_fallback_requested,
+        )
+
+        _fallback_policy = private_clearnet_fallback_effective(get_settings())
+        _fallback_requested = private_clearnet_fallback_requested(get_settings())
     except Exception:
         _fallback_policy = "block"
+        _fallback_requested = "block"
     full_state = {
         **state,
         "transport_tier": transport_tier,
         "clearnet_fallback_policy": _fallback_policy,
+        "clearnet_fallback_requested": _fallback_requested,
     }
+    _resume_private_delivery_background_work(
+        current_tier=transport_tier,
+        reason="startup_resume",
+    )
+    full_state["private_lane_readiness"] = private_transport_manager.observe_state(
+        current_tier=transport_tier,
+    )
+    full_state["local_custody"] = local_custody_status_snapshot()
     ok, _detail = _check_scoped_auth(request, "wormhole")
     if not ok:
         ok = _is_debug_test_request(request)
+    contact_preference_refresh = (
+        await asyncio.to_thread(_upgrade_invite_scoped_contact_preferences_background)
+        if ok
+        else {"ok": False, "upgraded_contacts": 0}
+    )
+    rotation_refresh = (
+        await asyncio.to_thread(
+            _refresh_lookup_handle_rotation_background,
+            reason="status_surface",
+        )
+        if ok
+        else {"ok": False, "rotated": False}
+    )
+    try:
+        lookup_rotation_snapshot = lookup_handle_rotation_status_snapshot()
+    except Exception:
+        lookup_rotation_snapshot = {
+            "state": "lookup_handle_rotation_unknown",
+            "detail": "lookup handle rotation status unavailable",
+            "checked_at": 0,
+            "last_success_at": 0,
+            "last_failure_at": 0,
+            "active_handle_count": 0,
+            "fresh_handle_available": False,
+        }
+    full_state["lookup_handle_rotation"] = {
+        **lookup_rotation_snapshot,
+        "last_refresh_ok": bool(rotation_refresh.get("ok", False)),
+    }
+    private_delivery_exposure = metadata_exposure_for_request(
+        request,
+        authenticated=ok,
+    )
+    compatibility_readiness: dict[str, Any] = {}
+    gate_privilege_access: dict[str, Any] = {}
+    if ok:
+        full_state["private_delivery"] = private_delivery_outbox.summary(
+            current_tier=transport_tier,
+            exposure=private_delivery_exposure,
+        )
+        privacy_core = _privacy_core_status()
+        diagnostic_package = _diagnostic_review_package_snapshot(
+            current_tier=transport_tier,
+            local_custody=full_state.get("local_custody"),
+            privacy_core=privacy_core,
+            contact_preference_refresh=contact_preference_refresh,
+            lookup_handle_rotation=full_state.get("lookup_handle_rotation"),
+        )
+        claim_surface = dict(diagnostic_package.get("claim_surface") or {})
+        gate_privilege_access = dict(claim_surface.get("gate_privilege_access") or {})
+        full_state["gate_privilege_access"] = gate_privilege_access
+        compatibility_readiness = dict(
+            claim_surface.get("compatibility_readiness") or {}
+        )
+        full_state["compatibility_debt"] = dict(
+            claim_surface.get("compatibility_debt") or {}
+        )
+        full_state["compatibility_readiness"] = compatibility_readiness
+        full_state["privacy_core"] = privacy_core
+        full_state["strong_claims"] = diagnostic_package.get("strong_claims")
+        full_state["release_gate"] = diagnostic_package.get("release_gate")
+        full_state["privacy_status"] = diagnostic_package.get("privacy_status")
+        if private_delivery_exposure == "diagnostic":
+            compatibility_snapshot = dict(claim_surface.get("compatibility_snapshot") or {})
+            if compatibility_snapshot:
+                full_state["legacy_compatibility"] = compatibility_snapshot
+            full_state["privacy_claims"] = claim_surface.get("privacy_claims")
+            full_state["rollout_readiness"] = diagnostic_package.get("rollout_readiness")
+            full_state["rollout_controls"] = diagnostic_package.get("rollout_controls")
+            full_state["rollout_health"] = diagnostic_package.get("rollout_health")
+            full_state["claim_surface_sources"] = diagnostic_package.get("claim_surface_sources")
+            full_state["review_export"] = diagnostic_package.get("review_export")
+            full_state["final_review_bundle"] = diagnostic_package.get("final_review_bundle")
+            full_state["staged_rollout_telemetry"] = diagnostic_package.get("staged_rollout_telemetry")
+            full_state["release_claims_matrix"] = diagnostic_package.get("release_claims_matrix")
+            full_state["release_checklist"] = diagnostic_package.get("release_checklist")
     return _redact_wormhole_status(full_state, authenticated=ok)
+
+
+@app.get("/api/wormhole/review-export", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_review_export(request: Request):
+    state = await asyncio.to_thread(get_wormhole_state)
+    transport_tier = _current_private_lane_tier(state)
+    if (
+        transport_tier == "public_degraded"
+        and bool(state.get("arti_ready"))
+        and _is_debug_test_request(request)
+    ):
+        transport_tier = "private_strong"
+    contact_preference_refresh = await asyncio.to_thread(
+        _upgrade_invite_scoped_contact_preferences_background
+    )
+    rotation_refresh = await asyncio.to_thread(
+        _refresh_lookup_handle_rotation_background,
+        reason="review_export_surface",
+    )
+    lookup_handle_rotation = {
+        **lookup_handle_rotation_status_snapshot(),
+        "last_refresh_ok": bool(rotation_refresh.get("ok", False)),
+    }
+    diagnostic_package = _diagnostic_review_package_snapshot(
+        current_tier=transport_tier,
+        local_custody=local_custody_status_snapshot(),
+        privacy_core=_privacy_core_status(),
+        contact_preference_refresh=contact_preference_refresh,
+        lookup_handle_rotation=lookup_handle_rotation,
+    )
+    return diagnostic_package.get("explicit_review_export", {})
+
+
+@app.get("/api/wormhole/review-manifest", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_review_manifest(request: Request):
+    state = await asyncio.to_thread(get_wormhole_state)
+    transport_tier = _current_private_lane_tier(state)
+    if (
+        transport_tier == "public_degraded"
+        and bool(state.get("arti_ready"))
+        and _is_debug_test_request(request)
+    ):
+        transport_tier = "private_strong"
+    contact_preference_refresh = await asyncio.to_thread(
+        _upgrade_invite_scoped_contact_preferences_background
+    )
+    rotation_refresh = await asyncio.to_thread(
+        _refresh_lookup_handle_rotation_background,
+        reason="review_manifest_surface",
+    )
+    lookup_handle_rotation = {
+        **lookup_handle_rotation_status_snapshot(),
+        "last_refresh_ok": bool(rotation_refresh.get("ok", False)),
+    }
+    diagnostic_package = _diagnostic_review_package_snapshot(
+        current_tier=transport_tier,
+        local_custody=local_custody_status_snapshot(),
+        privacy_core=_privacy_core_status(),
+        contact_preference_refresh=contact_preference_refresh,
+        lookup_handle_rotation=lookup_handle_rotation,
+    )
+    return _review_manifest_status(
+        explicit_review_export=diagnostic_package.get("explicit_review_export"),
+    )
+
+
+@app.get("/api/wormhole/review-consistency", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_review_consistency(request: Request):
+    state = await asyncio.to_thread(get_wormhole_state)
+    transport_tier = _current_private_lane_tier(state)
+    if (
+        transport_tier == "public_degraded"
+        and bool(state.get("arti_ready"))
+        and _is_debug_test_request(request)
+    ):
+        transport_tier = "private_strong"
+    contact_preference_refresh = await asyncio.to_thread(
+        _upgrade_invite_scoped_contact_preferences_background
+    )
+    rotation_refresh = await asyncio.to_thread(
+        _refresh_lookup_handle_rotation_background,
+        reason="review_consistency_surface",
+    )
+    lookup_handle_rotation = {
+        **lookup_handle_rotation_status_snapshot(),
+        "last_refresh_ok": bool(rotation_refresh.get("ok", False)),
+    }
+    diagnostic_package = _diagnostic_review_package_snapshot(
+        current_tier=transport_tier,
+        local_custody=local_custody_status_snapshot(),
+        privacy_core=_privacy_core_status(),
+        contact_preference_refresh=contact_preference_refresh,
+        lookup_handle_rotation=lookup_handle_rotation,
+    )
+    manifest = _review_manifest_status(
+        explicit_review_export=diagnostic_package.get("explicit_review_export"),
+    )
+    return _review_consistency_status(
+        explicit_review_export=diagnostic_package.get("explicit_review_export"),
+        review_manifest=manifest,
+    )
 
 
 @app.get("/api/wormhole/health")
@@ -8427,7 +11221,7 @@ async def api_set_privacy_profile(request: Request, body: PrivacyProfileUpdate):
 
 
 # ---------------------------------------------------------------------------
-# System — self-update
+# System â€” self-update
 # ---------------------------------------------------------------------------
 from pathlib import Path
 from services.updater import perform_update, schedule_restart
@@ -8452,7 +11246,7 @@ async def system_update(request: Request):
             status_code=500,
             media_type="application/json",
         )
-    # Docker: skip restart — user must pull new images manually
+    # Docker: skip restart â€” user must pull new images manually
     if result.get("status") == "docker":
         return result
     # Schedule restart AFTER response flushes (2s delay)

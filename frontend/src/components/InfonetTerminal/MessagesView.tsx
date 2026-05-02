@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Ban,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { API_BASE } from '@/lib/api';
+import { classifyTick, MAX_CATCHUP_POLLS } from '@/lib/dmPollScheduler';
 import {
   buildMailboxClaims,
   countDmMailboxes,
@@ -88,11 +89,29 @@ import {
 import {
   fetchWormholeStatus,
   fetchWormholeIdentity,
+  getWormholeDmInviteImportErrorResult,
+  importWormholeDmInvite,
   isWormholeReady,
   isWormholeSecureRequired,
+  prepareWormholeInteractiveLane,
   issueWormholePairwiseAlias,
   openWormholeSenderSeal,
 } from '@/mesh/wormholeIdentityClient';
+import {
+  updatePrivateDeliveryAction,
+  type PrivateDeliveryItem,
+  type PrivateDeliverySummary,
+} from '@/mesh/wormholeClient';
+import {
+  buildDmTrustHint,
+  dmTrustPrimaryActionLabel,
+  requiresVerifiedFirstContact,
+} from '@/mesh/meshPrivacyHints';
+import {
+  getContactTrustSummary,
+  rootWitnessBadgeLabel,
+  rootWitnessContinuityLabel,
+} from '@/mesh/contactTrustSummary';
 
 type ViewTab = 'mailbox' | 'compose' | 'contacts' | 'restricted';
 type MailFolder = 'inbox' | 'sent' | 'junk' | 'spam' | 'trash';
@@ -100,6 +119,7 @@ type MailKind = 'mail' | 'request' | 'system';
 
 interface MessagesViewProps {
   onBack: () => void;
+  onOpenDeadDrop?: (peerId: string, options?: { showSas?: boolean }) => void;
 }
 
 interface MailItem {
@@ -143,7 +163,7 @@ const FOLDERS: Array<{ key: MailFolder; label: string; icon: React.ReactNode }> 
   { key: 'trash', label: 'TRASH', icon: <Trash2 size={14} className="mr-2" /> },
 ];
 
-const MAIL_POLL_MS = 12_000;
+const MAIL_POLL_BASE_MS = 12_000;
 const STORAGE_VERSION = 1;
 const SHADOWBROKER_WELCOME_ID = 'shadowbroker-welcome';
 const MAIL_SUBJECT_PREFIX = 'MAIL_SUBJECT:';
@@ -185,7 +205,7 @@ function createShadowbrokerWelcomeMail(): MailItem {
       '- Once a contact is approved, mail moves through the shared DM mailbox.',
       '- Inbox, Junk, Spam, and Trash are local client folders for this install.',
       '- Moving mail to Trash or deleting it does not touch the public hashchain.',
-      '- If Wormhole is required but not ready, mail stays locked until the obfuscated lane comes up.',
+      '- If the private lane is still starting, mail waits locally and resumes when it is ready.',
     ].join('\n'),
     timestamp: Math.floor(Date.now() / 1000),
     read: false,
@@ -264,6 +284,122 @@ function displayNameForPeer(peerId: string, contacts: Record<string, Contact>): 
   return peerId;
 }
 
+function shortFingerprint(value: string): string {
+  const fingerprint = String(value || '').trim().toLowerCase();
+  if (!fingerprint) return 'unknown';
+  if (fingerprint.length <= 14) return fingerprint;
+  return `${fingerprint.slice(0, 8)}..${fingerprint.slice(-6)}`;
+}
+
+function rootTrustLabel(summary: ReturnType<typeof getContactTrustSummary>): string {
+  return rootWitnessBadgeLabel(summary);
+}
+
+function contactTrustSummary(contact: Contact): { label: string; tone: string; detail: string } | null {
+  const summary = getContactTrustSummary(contact);
+  if (!summary) return null;
+  if (summary.transparencyConflict) {
+    return {
+      label: 'HISTORY CONFLICT',
+      tone: 'border-red-500/30 text-red-300 bg-red-950/20',
+      detail: 'Prekey transparency history conflicted. Trust stays degraded until you acknowledge the changed fingerprint.',
+    };
+  }
+  if (summary.state === 'invite_pinned') {
+    const root = shortFingerprint(
+      contact.invitePinnedRootFingerprint || contact.remotePrekeyRootFingerprint || '',
+    );
+    return {
+      label: 'INVITE PINNED',
+      tone: 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20',
+      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.invitePinnedTrustFingerprint || contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
+    };
+  }
+  if (summary.state === 'sas_verified') {
+    const root = shortFingerprint(
+      contact.invitePinnedRootFingerprint || contact.remotePrekeyRootFingerprint || '',
+    );
+    return {
+      label: 'SAS VERIFIED',
+      tone: 'border-cyan-500/30 text-cyan-300 bg-cyan-950/20',
+      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
+    };
+  }
+  if (
+    summary.state === 'mismatch' ||
+    summary.state === 'continuity_broken' ||
+    summary.registryMismatch
+  ) {
+    const observedRoot = shortFingerprint(contact.remotePrekeyObservedRootFingerprint || '');
+    return {
+      label: summary.state === 'continuity_broken' ? 'CONTINUITY BROKEN' : 'REVERIFY',
+      tone: 'border-red-500/30 text-red-300 bg-red-950/20',
+      detail: `${summary.rootMismatch ? `Observed root ${observedRoot} • ` : ''}Observed ${shortFingerprint(contact.remotePrekeyObservedFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
+    };
+  }
+  if (contact.remotePrekeyLookupMode === 'legacy_agent_id') {
+    return {
+      label: 'LEGACY LOOKUP',
+      tone: 'border-yellow-500/30 text-yellow-300 bg-yellow-950/20',
+      detail: 'This contact still bootstraps through direct agent ID lookup. Import a signed invite to tighten lookup privacy.',
+    };
+  }
+  if (summary.state === 'tofu_pinned') {
+    return {
+      label: 'TOFU PINNED',
+      tone: 'border-amber-500/30 text-amber-300 bg-amber-950/10',
+      detail: `Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
+    };
+  }
+  return null;
+}
+
+function contactTrustNextStep(
+  contact?: Contact,
+): { label: string; detail: string; action: 'import_invite' | 'dead_drop' } | null {
+  const summary = getContactTrustSummary(contact);
+  if (!summary) return null;
+  if (summary.recommendedAction === 'import_invite') {
+    return {
+      label: dmTrustPrimaryActionLabel(contact),
+      detail:
+        'Import a signed invite in this panel before treating the contact as a trusted first-contact anchor.',
+      action: 'import_invite',
+    };
+  }
+  if (summary.recommendedAction === 'verify_sas') {
+    return {
+      label: dmTrustPrimaryActionLabel(contact),
+      detail: 'Compare the SAS phrase in Dead Drop chat before sensitive mail or contact approval.',
+      action: 'dead_drop',
+    };
+  }
+  if (summary.recommendedAction === 'reverify') {
+    return {
+      label: dmTrustPrimaryActionLabel(contact),
+      detail: summary.rootMismatch
+        ? `${rootWitnessContinuityLabel(summary)} changed. Re-verify the SAS phrase or replace the signed invite in Dead Drop chat before trusting this contact again.`
+        : 'Pause private use and re-verify the SAS phrase or replace the signed invite in Dead Drop chat.',
+      action: 'dead_drop',
+    };
+  }
+  if (summary.recommendedAction === 'show_sas') {
+    return {
+      label: dmTrustPrimaryActionLabel(contact),
+      detail: 'Optional: review the SAS phrase in Dead Drop chat for an extra continuity check.',
+      action: 'dead_drop',
+    };
+  }
+  return null;
+}
+
+function deadDropLaunchOptions(contact?: Contact): { showSas?: boolean } {
+  const summary = getContactTrustSummary(contact);
+  return {
+    showSas: Boolean(summary && summary.recommendedAction !== 'import_invite'),
+  };
+}
+
 function formatTimestamp(timestamp: number): string {
   if (!timestamp) return 'unknown';
   return new Date(timestamp * 1000).toLocaleString();
@@ -283,7 +419,7 @@ function normalizeMailError(message: string): string {
     lowered.includes('transport tier insufficient') ||
     lowered.includes('dm send requires private transport')
   ) {
-    return 'Secure mail needs the full obfuscated lane online before it can sync or send.';
+    return 'Secure mail needs the Wormhole private lane online before it can sync or send.';
   }
   return detail;
 }
@@ -388,7 +524,7 @@ async function decryptKnownContactMessage(
   }
 }
 
-export default function MessagesView({ onBack }: MessagesViewProps) {
+export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewProps) {
   const [activeTab, setActiveTab] = useState<ViewTab>('mailbox');
   const [selectedFolder, setSelectedFolder] = useState<MailFolder>('inbox');
   const [selectedMailId, setSelectedMailId] = useState<string>('');
@@ -410,8 +546,23 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     body: '',
   });
   const [contactRequestTarget, setContactRequestTarget] = useState('');
+  const [inviteImportAlias, setInviteImportAlias] = useState('');
+  const [inviteImportBlob, setInviteImportBlob] = useState('');
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteScanOpen, setInviteScanOpen] = useState(false);
+  const [inviteScanStatus, setInviteScanStatus] = useState('');
+  const [dmLaneWarmStatus, setDmLaneWarmStatus] = useState('');
+  const [privateDelivery, setPrivateDelivery] = useState<PrivateDeliverySummary | null>(null);
+  const [privateDeliveryBusyId, setPrivateDeliveryBusyId] = useState('');
+  const inviteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const dmLaneWarmRef = useRef<Promise<boolean> | null>(null);
 
   const scopeId = identity?.nodeId || 'guest';
+  const qrScanAvailable =
+    typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    Boolean((window as Window & { BarcodeDetector?: unknown }).BarcodeDetector) &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
 
   useEffect(() => {
     setMessages(loadMailbox(scopeId));
@@ -432,6 +583,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       setSecureRequired(secure);
       setWormholeReadyState(Boolean(status?.ready));
       setWormholeTransportTier(String(status?.transport_tier || 'public_degraded'));
+      setPrivateDelivery((status?.private_delivery as PrivateDeliverySummary) || null);
       timer = setTimeout(syncRuntime, 5000);
     };
 
@@ -488,7 +640,88 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     };
   }, [secureRequired, wormholeReadyState]);
 
-  const dmLaneReady = wormholeTransportTier === 'private_strong';
+  const dmLaneReady =
+    wormholeTransportTier === 'private_control_only' ||
+    wormholeTransportTier === 'private_transitional' ||
+    wormholeTransportTier === 'private_strong';
+  const privateDeliveryRows = useMemo(
+    () =>
+      ((privateDelivery?.items || []) as PrivateDeliveryItem[]).filter(
+        (item) => item.lane === 'dm' && item.release_state !== 'delivered',
+      ),
+    [privateDelivery],
+  );
+
+  const resolveMessagingIdentity = useCallback(async () => {
+    const localIdentity = getNodeIdentity();
+    if (localIdentity && hasSovereignty()) {
+      return localIdentity;
+    }
+    try {
+      const wormholeIdentity = await fetchWormholeIdentity();
+      return {
+        publicKey: wormholeIdentity.public_key,
+        privateKey: '',
+        nodeId: wormholeIdentity.node_id,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const syncSecureMailRuntime = useCallback(async () => {
+    const [secure, status, resolvedIdentity, hydratedContacts] = await Promise.all([
+      isWormholeSecureRequired().catch(() => false),
+      fetchWormholeStatus().catch(() => null),
+      resolveMessagingIdentity(),
+      hydrateWormholeContacts(true).catch(() => getContacts()),
+    ]);
+    setSecureRequired(Boolean(secure));
+    setWormholeReadyState(Boolean(status?.ready));
+    setWormholeTransportTier(String(status?.transport_tier || 'public_degraded'));
+    setPrivateDelivery((status?.private_delivery as PrivateDeliverySummary) || null);
+    setContacts(hydratedContacts);
+    setIdentity(resolvedIdentity);
+    return resolvedIdentity;
+  }, [resolveMessagingIdentity]);
+
+  const ensureSecureMailLane = useCallback(async (statusLine: string): Promise<boolean> => {
+    if (dmLaneReady && wormholeReadyState && identity) {
+      return true;
+    }
+    if (dmLaneWarmRef.current) {
+      return dmLaneWarmRef.current;
+    }
+    const task = (async () => {
+      setDmLaneWarmStatus(statusLine);
+      try {
+        const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+        setSecureRequired(Boolean(prepared.settingsEnabled));
+        setWormholeReadyState(Boolean(prepared.ready));
+        setWormholeTransportTier(String(prepared.transportTier || 'private_transitional'));
+        const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+        setContacts(hydratedContacts);
+        setIdentity(
+          prepared.identity
+            ? {
+                publicKey: prepared.identity.public_key,
+                privateKey: '',
+                nodeId: prepared.identity.node_id,
+              }
+            : null,
+        );
+        setDmLaneWarmStatus('');
+        return true;
+      } catch {
+        setDmLaneWarmStatus('');
+        return false;
+      }
+    })();
+    dmLaneWarmRef.current = task.finally(() => {
+      dmLaneWarmRef.current = null;
+    });
+    return dmLaneWarmRef.current;
+  }, [dmLaneReady, identity, wormholeReadyState]);
 
   useEffect(() => {
     if (dmLaneReady) {
@@ -498,6 +731,121 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     setServerPendingCount(0);
     setPollError('');
   }, [dmLaneReady]);
+
+  useEffect(() => {
+    if (dmLaneReady && wormholeReadyState && identity) {
+      return;
+    }
+    void ensureSecureMailLane('Preparing secure mail in the background...');
+  }, [dmLaneReady, ensureSecureMailLane, identity, wormholeReadyState]);
+
+  const handlePrivateDeliveryAction = useCallback(
+    async (itemId: string, action: 'wait' | 'relay') => {
+      setPrivateDeliveryBusyId(itemId);
+      setComposeError('');
+      try {
+        await updatePrivateDeliveryAction(itemId, action);
+        await syncSecureMailRuntime();
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : 'private delivery action failed';
+        setComposeError(detail || 'private delivery action failed');
+      } finally {
+        setPrivateDeliveryBusyId('');
+      }
+    },
+    [syncSecureMailRuntime],
+  );
+
+  useEffect(() => {
+    if (!inviteScanOpen) {
+      setInviteScanStatus('');
+      return;
+    }
+
+    const DetectorCtor = (window as Window & { BarcodeDetector?: any }).BarcodeDetector;
+    if (!DetectorCtor || !navigator.mediaDevices?.getUserMedia) {
+      setInviteScanStatus('QR scan is unavailable in this browser. Paste the signed invite JSON instead.');
+      return;
+    }
+
+    let active = true;
+    let stream: MediaStream | null = null;
+    let rafId = 0;
+    const detector = new DetectorCtor({ formats: ['qr_code'] });
+
+    const stop = () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        stream = null;
+      }
+      if (inviteVideoRef.current) {
+        inviteVideoRef.current.srcObject = null;
+      }
+    };
+
+    const scanFrame = async () => {
+      if (!active) return;
+      const video = inviteVideoRef.current;
+      if (video && video.readyState >= 2) {
+        try {
+          const codes = await detector.detect(video);
+          const match = Array.isArray(codes)
+            ? codes.find((code: { rawValue?: string }) => String(code?.rawValue || '').trim())
+            : null;
+          if (match?.rawValue) {
+            setInviteImportBlob(String(match.rawValue || '').trim());
+            setInviteScanOpen(false);
+            setInviteScanStatus('QR invite scanned. Review or import it below.');
+            setComposeError('');
+            setComposeStatus('QR invite scanned. Import it to pin the contact.');
+            return;
+          }
+        } catch {
+          /* ignore transient detection failures */
+        }
+      }
+      rafId = window.requestAnimationFrame(() => {
+        void scanFrame();
+      });
+    };
+
+    void (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        });
+        if (!active) {
+          stop();
+          return;
+        }
+        const video = inviteVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play().catch(() => null);
+        }
+        setInviteScanStatus('Scanning for a signed DM invite QR...');
+        rafId = window.requestAnimationFrame(() => {
+          void scanFrame();
+        });
+      } catch (error) {
+        setInviteScanStatus(
+          error instanceof Error ? error.message : 'Camera access failed. Paste the invite JSON instead.',
+        );
+      }
+    })();
+
+    return () => {
+      active = false;
+      stop();
+    };
+  }, [inviteScanOpen]);
 
   const upsertLocalMessage = useCallback((mail: MailItem) => {
     setMessages((prev) => {
@@ -595,6 +943,15 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         .filter(([, contact]) => !contact.blocked)
         .sort(([left], [right]) => left.localeCompare(right)),
     [contacts],
+  );
+  const composeRecipient = draft.recipient.trim();
+  const composeRecipientContact = composeRecipient ? contacts[composeRecipient] : undefined;
+  const composeTrustHint = composeRecipientContact ? buildDmTrustHint(composeRecipientContact) : null;
+  const composeTrustSummary = composeRecipientContact
+    ? contactTrustSummary(composeRecipientContact)
+    : null;
+  const composeNeedsVerifiedFirstContact = Boolean(
+    composeRecipient && requiresVerifiedFirstContact(composeRecipientContact),
   );
 
   const buildInboundMail = useCallback(
@@ -776,6 +1133,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
 
       let consent: DmConsentMessage | null = null;
       secureRequiredNow = await isWormholeSecureRequired().catch(() => secureRequiredNow);
+      const existingContact = senderId ? getContacts()[senderId] : undefined;
 
       try {
         if (envelope.ciphertext.startsWith('x3dh1:') && (await canUseWormholeBootstrap())) {
@@ -785,7 +1143,11 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
           );
           consent = parseDmConsentMessage(requestText);
         } else if (!senderId.startsWith('sealed:') && !secureRequiredNow) {
-          const senderKey = await fetchDmPublicKey(API_BASE, senderId);
+          const senderKey = await fetchDmPublicKey(
+            API_BASE,
+            senderId,
+            existingContact?.invitePinnedPrekeyLookupHandle,
+          );
           if (senderKey?.dh_pub_key) {
             const sharedKey = await deriveSharedKey(String(senderKey.dh_pub_key));
             const requestText = await decryptDM(envelope.ciphertext, sharedKey);
@@ -797,11 +1159,18 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       }
 
       if (consent?.kind === 'contact_accept' && senderId && !senderId.startsWith('sealed:')) {
-        const senderKey = await fetchDmPublicKey(API_BASE, senderId).catch(() => null);
+        const senderKey = await fetchDmPublicKey(
+          API_BASE,
+          senderId,
+          existingContact?.invitePinnedPrekeyLookupHandle,
+        ).catch(() => null);
         if (senderKey?.dh_pub_key) {
           addContact(senderId, String(senderKey.dh_pub_key), undefined, senderKey.dh_algo);
           updateContact(senderId, {
             dhAlgo: senderKey.dh_algo,
+            remotePrekeyLookupMode:
+              String(senderKey.lookup_mode || '').trim().toLowerCase() ||
+              existingContact?.remotePrekeyLookupMode,
             sharedAlias: consent.shared_alias,
             previousSharedAliases: [],
             pendingSharedAlias: undefined,
@@ -906,17 +1275,24 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     [identity?.nodeId, secureRequired],
   );
 
-  const refreshMailbox = useCallback(async () => {
-    if (!identity) {
-      setPollError('Generate or load an obfuscated identity before using secure mail.');
-      return;
-    }
-    if (!wormholeReadyState) {
-      setPollError('Enter the Wormhole first so secure mail can sync.');
-      return;
-    }
+  const pollHasMoreRef = useRef(false);
+
+  const refreshMailbox = useCallback(async (includeCount = true) => {
+    pollHasMoreRef.current = false;
     if (!dmLaneReady) {
-      setPollError('Secure mail needs the full obfuscated lane online before it can sync.');
+      return 'Secure mail is starting the private lane in the background.';
+    }
+    let activeIdentity = identity;
+    if (!wormholeReadyState || !dmLaneReady || !activeIdentity) {
+      const warmed = await ensureSecureMailLane('Preparing secure mail in the background...');
+      if (!warmed) {
+        setPollError('Secure mail is still warming up in the background.');
+        return;
+      }
+      activeIdentity = await syncSecureMailRuntime();
+    }
+    if (!activeIdentity) {
+      setPollError('Secure mail is still preparing your private identity.');
       return;
     }
     setSyncing(true);
@@ -924,15 +1300,19 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     try {
       const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
       setContacts(hydratedContacts);
-      const claims = await buildMailboxClaims(hydratedContacts);
-      const [pollResult, countResult] = await Promise.all([
-        pollDmMailboxes(API_BASE, identity, claims),
-        countDmMailboxes(API_BASE, identity, claims).catch(() => ({ ok: false, count: 0 })),
-      ]);
+      const claims = await buildMailboxClaims(hydratedContacts, activeIdentity);
+      const pollPromise = pollDmMailboxes(API_BASE, activeIdentity, claims);
+      const countPromise = includeCount
+        ? countDmMailboxes(API_BASE, activeIdentity, claims).catch(() => ({ ok: false, count: 0 }))
+        : null;
+      const [pollResult, countResult] = await Promise.all([pollPromise, countPromise]);
       if (!pollResult.ok) {
         throw new Error(pollResult.detail || 'mailbox poll failed');
       }
-      setServerPendingCount(Number(countResult.count || 0));
+      pollHasMoreRef.current = Boolean(pollResult.has_more);
+      if (countResult) {
+        setServerPendingCount(Number(countResult.count || 0));
+      }
       const incoming: MailItem[] = [];
       for (const envelope of pollResult.messages || []) {
         const mail = await buildInboundMail(envelope, getContacts());
@@ -952,28 +1332,38 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       }
       setContacts(getContacts());
     } catch (error) {
+      pollHasMoreRef.current = false;
       setPollError(
         normalizeMailError(error instanceof Error ? error.message : 'mailbox sync failed'),
       );
     } finally {
       setSyncing(false);
     }
-  }, [buildInboundMail, dmLaneReady, identity, wormholeReadyState]);
+  }, [buildInboundMail, dmLaneReady, ensureSecureMailLane, identity, syncSecureMailRuntime, wormholeReadyState]);
 
   useEffect(() => {
     if (!identity || !dmLaneReady) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let catchUpBudget = MAX_CATCHUP_POLLS;
 
-    const tick = async () => {
+    const tick = async (includeCount = true) => {
       if (cancelled) return;
-      await refreshMailbox();
-      if (!cancelled) {
-        timer = setTimeout(() => void tick(), MAIL_POLL_MS);
-      }
+      await refreshMailbox(includeCount);
+      if (cancelled) return;
+      const classification = classifyTick(
+        pollHasMoreRef.current,
+        catchUpBudget,
+        MAIL_POLL_BASE_MS,
+      );
+      catchUpBudget = classification.newBudget;
+      timer = setTimeout(
+        () => void tick(classification.refreshCount),
+        classification.delay,
+      );
     };
 
-    void tick();
+    void tick(); // first tick always includes count
 
     return () => {
       cancelled = true;
@@ -1000,10 +1390,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     const recipient = draft.recipient.trim();
     const subject = draft.subject.trim();
     const body = draft.body.trim();
-    if (!identity) {
-      setComposeError('Obfuscated identity not ready.');
-      return;
-    }
+    let activeIdentity = identity;
     if (!recipient) {
       setComposeError('Recipient is required.');
       return;
@@ -1012,12 +1399,24 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       setComposeError('Write a message first.');
       return;
     }
-    if (!wormholeReadyState) {
-      setComposeError('Enter the Wormhole first so secure mail can send.');
+    if (!wormholeReadyState || !dmLaneReady || !activeIdentity) {
+      setComposeStatus('Preparing secure mail in the background...');
+      const warmed = await ensureSecureMailLane('Preparing secure mail in the background...');
+      if (!warmed) {
+        setComposeStatus('');
+        setComposeError('Secure mail is still warming up in the background.');
+        return;
+      }
+      activeIdentity = await syncSecureMailRuntime();
+    }
+    if (!activeIdentity) {
+      setComposeStatus('');
+      setComposeError('Secure mail is still preparing your private identity.');
       return;
     }
-    if (!dmLaneReady) {
-      setComposeError('Secure mail needs the full obfuscated lane online before it can send.');
+    if (requiresVerifiedFirstContact(contacts[recipient])) {
+      setComposeStatus('');
+      setComposeError('Import a signed invite first. Unverified TOFU first-contact requests are disabled.');
       return;
     }
 
@@ -1034,7 +1433,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       }
 
       if (existingContact?.dhPubKey) {
-        await ensureRegisteredDmKey(API_BASE, identity, { force: false });
+        await ensureRegisteredDmKey(API_BASE, activeIdentity, { force: false });
         const recipientId = preferredDmPeerId(recipient, existingContact);
         const ciphertext = await ratchetEncryptDM(
           recipient,
@@ -1045,11 +1444,11 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
           recipientId,
           String(existingContact.dhPubKey || ''),
         );
-        const msgId = `dm_${Date.now()}_${identity.nodeId.slice(-4)}`;
+        const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
         const timestamp = Math.floor(Date.now() / 1000);
         const sent = await sendDmMessage({
           apiBase: API_BASE,
-          identity,
+          identity: activeIdentity,
           recipientId,
           recipientDhPub: String(existingContact.dhPubKey || ''),
           ciphertext,
@@ -1065,7 +1464,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         queueSentMail({
           msgId,
           kind: 'mail',
-          senderId: identity.nodeId,
+          senderId: activeIdentity.nodeId,
           recipientId: recipient,
           subject: subject || 'Secure Message',
           body,
@@ -1084,14 +1483,23 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         return;
       }
 
-      const registration = await ensureRegisteredDmKey(API_BASE, identity, { force: false });
+      const registration = await ensureRegisteredDmKey(API_BASE, activeIdentity, { force: false });
       const myDhPub = String(registration.dhPubKey || '').trim();
       if (!myDhPub) {
         throw new Error('Local DM key is unavailable.');
       }
-      const targetKey = await fetchDmPublicKey(API_BASE, recipient);
+      const recipientContact = getContacts()[recipient];
+      const lookupHandle = String(recipientContact?.invitePinnedPrekeyLookupHandle || '').trim();
+      if (!lookupHandle) {
+        throw new Error(
+          'Import or re-import a signed invite before sending a contact request; legacy direct lookup is disabled.',
+        );
+      }
+      const targetKey = await fetchDmPublicKey(API_BASE, recipient, lookupHandle);
       if (!targetKey?.dh_pub_key) {
-        throw new Error('Recipient has not published a DM key yet.');
+        throw new Error(
+          'Invite-scoped lookup failed for this contact. Re-import a signed invite and try again.',
+        );
       }
       const offerPlaintext = buildContactOfferMessage(
         myDhPub,
@@ -1112,11 +1520,11 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       if (!ciphertext) {
         throw new Error('Secure bootstrap path is unavailable for this contact request.');
       }
-      const msgId = `dm_${Date.now()}_${identity.nodeId.slice(-4)}`;
+      const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
       const timestamp = Math.floor(Date.now() / 1000);
       const sent = await sendOffLedgerConsentMessage({
         apiBase: API_BASE,
-        identity,
+        identity: activeIdentity,
         recipientId: recipient,
         recipientDhPub: String(targetKey.dh_pub_key),
         ciphertext,
@@ -1129,7 +1537,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       queueSentMail({
         msgId,
         kind: 'system',
-        senderId: identity.nodeId,
+        senderId: activeIdentity.nodeId,
         recipientId: recipient,
         subject: `Contact request to ${recipient}`,
         body:
@@ -1152,7 +1560,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
     } finally {
       setBusy(false);
     }
-  }, [dmLaneReady, draft, identity, queueSentMail, secureRequired, wormholeReadyState]);
+  }, [contacts, dmLaneReady, draft, ensureSecureMailLane, identity, queueSentMail, secureRequired, syncSecureMailRuntime, wormholeReadyState]);
 
   const handleSendContactRequest = useCallback(async () => {
     const recipient = contactRequestTarget.trim();
@@ -1165,25 +1573,114 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
       recipient,
     }));
     setActiveTab('compose');
-    setComposeStatus('');
-    setComposeError(
-      contacts[recipient]?.dhPubKey
-        ? ''
-        : 'This peer is not in your contacts yet. Sending from Compose will open with a contact request first.',
+    setComposeError('');
+    setComposeStatus(
+      requiresVerifiedFirstContact(contacts[recipient])
+        ? 'Signed invite import is required before first contact. Unverified TOFU contact requests are disabled.'
+        : '',
     );
   }, [contactRequestTarget, contacts]);
 
+  const handleImportInvite = useCallback(async () => {
+    const raw = inviteImportBlob.trim();
+    if (!raw) {
+      setComposeStatus('');
+      setComposeError('Paste a signed DM invite first.');
+      return;
+    }
+
+    setInviteBusy(true);
+    setComposeError('');
+    setComposeStatus('');
+    try {
+      if (!wormholeReadyState) {
+        const warmed = await ensureSecureMailLane('Preparing secure mail in the background...');
+        if (!warmed) {
+          throw new Error('Secure mail is still warming up in the background.');
+        }
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const nestedInvite = parsed?.invite;
+      const invite =
+        nestedInvite && typeof nestedInvite === 'object' && !Array.isArray(nestedInvite)
+          ? (nestedInvite as Record<string, unknown>)
+          : parsed;
+      const result = await importWormholeDmInvite(invite, inviteImportAlias.trim());
+      const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+      const importedContact = hydratedContacts[result.peer_id];
+      const importedTrust = importedContact ? contactTrustSummary(importedContact) : null;
+      const importedTrustLabel =
+        importedTrust?.label ||
+        (result.trust_level === 'invite_pinned'
+          ? 'INVITE PINNED'
+          : result.trust_level === 'tofu_pinned'
+            ? 'TOFU PINNED'
+            : 'INVITE IMPORTED');
+      setContacts(hydratedContacts);
+      setInviteImportBlob('');
+      setInviteImportAlias('');
+      setComposeStatus(
+        `${importedTrustLabel} for ${displayNameForPeer(result.peer_id, hydratedContacts)} (${shortFingerprint(result.trust_fingerprint)}).${result.detail ? ` ${result.detail}` : ''}`,
+      );
+    } catch (error) {
+      setComposeStatus('');
+      const failure = getWormholeDmInviteImportErrorResult(error);
+      if (failure?.peer_id) {
+        const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+        setContacts(hydratedContacts);
+        const failedContact = hydratedContacts[failure.peer_id];
+        const failedTrustSummary = getContactTrustSummary(failedContact);
+        if (failedTrustSummary?.state === 'continuity_broken' && failedTrustSummary.rootMismatch) {
+          setComposeError(
+            `CONTINUITY BROKEN for ${displayNameForPeer(failure.peer_id, hydratedContacts)}. Stable root continuity changed. Re-verify SAS in Dead Drop or replace the signed invite before trusting this contact again.${failure.detail ? ` ${failure.detail}` : ''}`,
+          );
+          return;
+        }
+      }
+      setComposeError(error instanceof Error ? error.message : 'invite import failed');
+    } finally {
+      setInviteBusy(false);
+    }
+  }, [ensureSecureMailLane, inviteImportAlias, inviteImportBlob, wormholeReadyState]);
+
+  const handleStartInviteScan = useCallback(() => {
+    setComposeError('');
+    setComposeStatus('');
+    if (!qrScanAvailable) {
+      setInviteScanStatus('QR scan is unavailable in this browser. Paste the signed invite JSON instead.');
+      return;
+    }
+    setInviteScanOpen(true);
+  }, [qrScanAvailable]);
+
   const handleAcceptRequest = useCallback(
     async (mail: MailItem) => {
-      if (!identity) return;
+      let activeIdentity = identity;
       if (!mail.requestDhPubKey || !mail.senderId || mail.senderId.startsWith('sealed:')) {
         setComposeError('This request cannot be accepted until the sender is resolved.');
+        return;
+      }
+      if (!wormholeReadyState || !dmLaneReady || !activeIdentity) {
+        const warmed = await ensureSecureMailLane('Preparing secure mail in the background...');
+        if (!warmed) {
+          setComposeError('Secure mail is still warming up in the background.');
+          return;
+        }
+        activeIdentity = await syncSecureMailRuntime();
+      }
+      if (!activeIdentity) {
+        setComposeError('Secure mail is still preparing your private identity.');
         return;
       }
       setBusy(true);
       setComposeError('');
       try {
-        const registry = await fetchDmPublicKey(API_BASE, mail.senderId).catch(() => null);
+        const existingContact = getContacts()[mail.senderId];
+        const registry = await fetchDmPublicKey(
+          API_BASE,
+          mail.senderId,
+          existingContact?.invitePinnedPrekeyLookupHandle,
+        ).catch(() => null);
         const dhPubKey = String(registry?.dh_pub_key || mail.requestDhPubKey || '').trim();
         const dhAlgo = String(registry?.dh_algo || mail.requestDhAlgo || 'X25519').trim();
         if (!dhPubKey) {
@@ -1231,11 +1728,11 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
           throw new Error('Unable to build secure contact acceptance.');
         }
 
-        const msgId = `dm_${Date.now()}_${identity.nodeId.slice(-4)}`;
+        const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
         const timestamp = Math.floor(Date.now() / 1000);
         const sent = await sendOffLedgerConsentMessage({
           apiBase: API_BASE,
-          identity,
+          identity: activeIdentity,
           recipientId: mail.senderId,
           recipientDhPub: dhPubKey,
           ciphertext,
@@ -1250,7 +1747,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         queueSentMail({
           msgId,
           kind: 'system',
-          senderId: identity.nodeId,
+          senderId: activeIdentity.nodeId,
           recipientId: mail.senderId,
           subject: `Accepted ${displayNameForPeer(mail.senderId, getContacts())}`,
           body: 'Secure mailbox opened. Future messages can flow through the shared DM lane.',
@@ -1267,14 +1764,26 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         setBusy(false);
       }
     },
-    [identity, moveMessageToFolder, queueSentMail, secureRequired],
+    [dmLaneReady, ensureSecureMailLane, identity, moveMessageToFolder, queueSentMail, secureRequired, syncSecureMailRuntime, wormholeReadyState],
   );
 
   const handleDenyRequest = useCallback(
     async (mail: MailItem) => {
-      if (!identity) return;
+      let activeIdentity = identity;
       if (!mail.requestDhPubKey || !mail.senderId || mail.senderId.startsWith('sealed:')) {
         moveMessageToFolder(mail.id, 'trash');
+        return;
+      }
+      if (!wormholeReadyState || !dmLaneReady || !activeIdentity) {
+        const warmed = await ensureSecureMailLane('Preparing secure mail in the background...');
+        if (!warmed) {
+          setComposeError('Secure mail is still warming up in the background.');
+          return;
+        }
+        activeIdentity = await syncSecureMailRuntime();
+      }
+      if (!activeIdentity) {
+        setComposeError('Secure mail is still preparing your private identity.');
         return;
       }
       setBusy(true);
@@ -1294,11 +1803,11 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
           ciphertext = await encryptDM(denyPlaintext, sharedKey);
         }
         if (ciphertext) {
-          const msgId = `dm_${Date.now()}_${identity.nodeId.slice(-4)}`;
+          const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
           const timestamp = Math.floor(Date.now() / 1000);
           await sendOffLedgerConsentMessage({
             apiBase: API_BASE,
-            identity,
+            identity: activeIdentity,
             recipientId: mail.senderId,
             recipientDhPub: mail.requestDhPubKey,
             ciphertext,
@@ -1308,7 +1817,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
           queueSentMail({
             msgId,
             kind: 'system',
-            senderId: identity.nodeId,
+            senderId: activeIdentity.nodeId,
             recipientId: mail.senderId,
             subject: `Declined ${displayNameForPeer(mail.senderId, getContacts())}`,
             body: 'You declined this secure mailbox request.',
@@ -1325,7 +1834,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
         setBusy(false);
       }
     },
-    [identity, moveMessageToFolder, queueSentMail, secureRequired],
+    [dmLaneReady, ensureSecureMailLane, identity, moveMessageToFolder, queueSentMail, secureRequired, syncSecureMailRuntime, wormholeReadyState],
   );
 
   const handleReply = useCallback((mail: MailItem) => {
@@ -1341,20 +1850,23 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
   }, []);
 
   const statusLine = useMemo(() => {
+    if (dmLaneWarmStatus) {
+      return dmLaneWarmStatus;
+    }
     if (!wormholeReadyState) {
-      return 'OBFUSCATED LANE LOCKED — enter the Wormhole to unlock secure mail.';
+      return 'Secure mail is preparing the local obfuscated identity in the background.';
     }
     if (!dmLaneReady) {
-      return 'SECURE MAIL WAITING — direct obfuscated DM transport is still coming online.';
+      return 'Secure mail is starting the direct obfuscated DM transport in the background.';
     }
     if (!identity) {
-      return 'NO OBFUSCATED IDENTITY — generate or load an obfuscated identity to use secure mail.';
+      return 'Secure mail is preparing the local private identity in the background.';
     }
     if (syncing) {
       return 'SYNCING SECURE MAILBOX...';
     }
-    return `SECURE MAIL READY — ${serverPendingCount} remote items still pending on the server.`;
-  }, [dmLaneReady, identity, serverPendingCount, syncing, wormholeReadyState]);
+    return `SECURE MAIL READY - ${serverPendingCount} remote items still pending on the server.`;
+  }, [dmLaneReady, dmLaneWarmStatus, identity, serverPendingCount, syncing, wormholeReadyState]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -1511,7 +2023,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
                     <div className="mt-4 flex flex-wrap gap-3">
                       <button
                         onClick={() => void handleAcceptRequest(selectedMessage)}
-                        disabled={busy || !dmLaneReady || selectedMessage.requestStatus !== 'pending'}
+                        disabled={busy || selectedMessage.requestStatus !== 'pending'}
                         className="px-4 py-2 border border-emerald-500/40 bg-emerald-950/20 text-emerald-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50 flex items-center"
                       >
                         <Check size={14} className="mr-2" />
@@ -1519,7 +2031,7 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
                       </button>
                       <button
                         onClick={() => void handleDenyRequest(selectedMessage)}
-                        disabled={busy || !dmLaneReady || selectedMessage.requestStatus === 'denied'}
+                        disabled={busy || selectedMessage.requestStatus === 'denied'}
                         className="px-4 py-2 border border-red-500/40 bg-red-950/20 text-red-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50 flex items-center"
                       >
                         <X size={14} className="mr-2" />
@@ -1623,23 +2135,155 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
               </div>
 
               <div className="mt-4 border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-xs text-amber-300">
-                {!wormholeReadyState
-                  ? 'Enter the Wormhole before sending secure mail.'
-                  : !dmLaneReady
-                    ? 'Secure mail send stays locked until the full obfuscated DM transport is online.'
-                    : 'If the recipient is not already in your contacts, sending from here opens with a secure contact request first. Full mail begins after they accept.'}
+                {dmLaneWarmStatus
+                  ? dmLaneWarmStatus
+                  : !wormholeReadyState
+                    ? 'Secure mail is waking up in the background. You can finish the draft now and send when the lane is ready.'
+                    : !dmLaneReady
+                      ? 'Secure mail is bringing the private lane online in the background.'
+                      : 'If the recipient is not already in your contacts, sending from here opens with a secure contact request first. Full mail begins after they accept.'}
               </div>
+
+              {privateDeliveryRows.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {privateDeliveryRows.map((item) => {
+                    const approval = item.approval || {};
+                    const detail =
+                      approval.detail ||
+                      item.status?.reason ||
+                      'Trying more private routing in the background.';
+                    const busy = privateDeliveryBusyId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-cyan-900/60 bg-slate-950/80 px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/85">
+                            {approval.status_label || item.status?.label || 'Preparing private lane'}
+                          </div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500">
+                            queued secure mail
+                          </div>
+                        </div>
+                        <div className="mt-2 text-[11px] leading-[1.65] text-gray-200">
+                          {detail}
+                        </div>
+                        {approval.required && (
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handlePrivateDeliveryAction(item.id, 'wait')}
+                              disabled={busy}
+                              className="border border-cyan-500/40 bg-cyan-950/20 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-cyan-200 disabled:opacity-60"
+                            >
+                              Keep waiting
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrivateDeliveryAction(item.id, 'relay')}
+                              disabled={busy}
+                              className="border border-gray-700 bg-transparent px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-gray-200 disabled:opacity-60"
+                            >
+                              Send via relay
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {composeRecipient && composeNeedsVerifiedFirstContact && (
+                <div className="mt-4 border border-red-500/30 bg-red-950/20 px-4 py-4 text-sm text-red-200">
+                  <div className="text-xs tracking-[0.18em] uppercase text-red-300">
+                    Verified First Contact Required
+                  </div>
+                  <div className="mt-2 leading-[1.65]">
+                    This recipient has no imported signed invite or other verified first-contact
+                    anchor yet. Secure request bootstrap is blocked until you import a signed invite
+                    or otherwise verify the contact out of band first.
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => {
+                        setInviteImportAlias((prev) => prev || composeRecipient);
+                        setContactRequestTarget(composeRecipient);
+                        setActiveTab('contacts');
+                        setComposeStatus(
+                          `Import a signed invite for ${composeRecipient} before returning to Compose.`,
+                        );
+                        setComposeError('');
+                      }}
+                      className="px-4 py-2 border border-emerald-500/40 bg-emerald-950/20 text-emerald-300 text-xs tracking-[0.18em] uppercase"
+                    >
+                      Import Signed Invite
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {composeRecipient && !composeNeedsVerifiedFirstContact && composeTrustHint && (
+                <div
+                  className={`mt-4 border px-4 py-4 text-sm ${
+                    composeTrustHint.severity === 'danger'
+                      ? 'border-red-500/30 bg-red-950/20 text-red-200'
+                      : 'border-amber-500/20 bg-amber-950/10 text-amber-200'
+                  }`}
+                >
+                  <div
+                    className={`text-xs tracking-[0.18em] uppercase ${
+                      composeTrustHint.severity === 'danger' ? 'text-red-300' : 'text-amber-300'
+                    }`}
+                  >
+                    {composeTrustHint.title}
+                  </div>
+                  <div className="mt-2 leading-[1.65]">{composeTrustHint.detail}</div>
+                  {composeTrustSummary?.detail && (
+                    <div className="mt-3 text-xs leading-[1.7] text-cyan-200/85">
+                      {composeTrustSummary.detail}
+                    </div>
+                  )}
+                  {composeRecipientContact && contactTrustNextStep(composeRecipientContact) && (
+                    <>
+                      <div className="mt-3 text-xs leading-[1.7] text-cyan-200/85">
+                        Next: {contactTrustNextStep(composeRecipientContact)?.label} •{' '}
+                        {contactTrustNextStep(composeRecipientContact)?.detail}
+                      </div>
+                      {contactTrustNextStep(composeRecipientContact)?.action === 'dead_drop' &&
+                        onOpenDeadDrop && (
+                          <div className="mt-3">
+                            <button
+                              onClick={() =>
+                                onOpenDeadDrop(
+                                  composeRecipient,
+                                  deadDropLaunchOptions(composeRecipientContact),
+                                )
+                              }
+                              className="px-4 py-2 border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 text-xs tracking-[0.18em] uppercase"
+                            >
+                              {contactTrustNextStep(composeRecipientContact)?.label}
+                            </button>
+                          </div>
+                        )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
                   onClick={() => void handleComposeSubmit()}
-                  disabled={busy || !dmLaneReady}
+                  disabled={busy || composeNeedsVerifiedFirstContact}
                   className="px-5 py-3 border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
                 >
                   {busy ? 'Sending...' : 'Send Secure Mail'}
                 </button>
                 <button
-                  onClick={() => setDraft({ recipient: '', subject: '', body: '' })}
+                  onClick={() => {
+                    setDraft({ recipient: '', subject: '', body: '' });
+                  }}
                   className="px-5 py-3 border border-gray-700 bg-gray-950/20 text-gray-300 text-xs tracking-[0.18em] uppercase"
                 >
                   Clear Draft
@@ -1660,53 +2304,98 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
                 {activeContacts.length === 0 ? (
                   <div className="text-sm text-gray-500">No approved secure contacts yet.</div>
                 ) : (
-                  activeContacts.map(([peerId, contact]) => (
-                    <div key={peerId} className="border border-gray-800/60 p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-cyan-300 font-semibold">
-                            {displayNameForPeer(peerId, contacts)}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">{peerId}</div>
-                          {contact.sharedAlias && (
-                            <div className="text-[11px] text-emerald-300 mt-2">
-                              Shared alias: {contact.sharedAlias}
+                  activeContacts.map(([peerId, contact]) => {
+                    const trust = contactTrustSummary(contact);
+                    const nextStep = contactTrustNextStep(contact);
+                    return (
+                      <div key={peerId} className="border border-gray-800/60 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-cyan-300 font-semibold">
+                              {displayNameForPeer(peerId, contacts)}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setDraft({ recipient: peerId, subject: '', body: '' });
-                              setActiveTab('compose');
-                            }}
-                            disabled={!dmLaneReady}
-                            className="px-3 py-2 border border-cyan-500/30 text-cyan-300 text-sm tracking-[0.18em] uppercase disabled:opacity-50"
-                          >
-                            Compose
-                          </button>
-                          <button
-                            onClick={() => {
-                              blockContact(peerId);
-                              setContacts(getContacts());
-                            }}
-                            className="px-3 py-2 border border-amber-500/30 text-amber-300 text-sm tracking-[0.18em] uppercase"
-                          >
-                            Restrict
-                          </button>
-                          <button
-                            onClick={() => {
-                              removeContact(peerId);
-                              setContacts(getContacts());
-                            }}
-                            className="px-3 py-2 border border-red-500/30 text-red-300 text-sm tracking-[0.18em] uppercase"
-                          >
-                            Remove
-                          </button>
+                            <div className="text-xs text-gray-500 mt-1">{peerId}</div>
+                            {trust && (
+                              <>
+                                <div
+                                  className={`inline-flex mt-2 px-2 py-1 border text-[11px] tracking-[0.16em] uppercase ${trust.tone}`}
+                                >
+                                  {trust.label}
+                                </div>
+                                <div className="text-[11px] text-gray-500 mt-2">
+                                  {trust.detail}
+                                </div>
+                                {nextStep && (
+                                  <div className="text-[11px] text-cyan-300/80 mt-2">
+                                    Next: {nextStep.label} • {nextStep.detail}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            {contact.sharedAlias && (
+                              <div className="text-[11px] text-emerald-300 mt-2">
+                                Shared alias: {contact.sharedAlias}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setDraft({ recipient: peerId, subject: '', body: '' });
+                                setActiveTab('compose');
+                              }}
+                              className="px-3 py-2 border border-cyan-500/30 text-cyan-300 text-sm tracking-[0.18em] uppercase disabled:opacity-50"
+                            >
+                              Compose
+                            </button>
+                            {nextStep?.action === 'import_invite' && (
+                              <button
+                                onClick={() => {
+                                  setInviteImportAlias((prev) => prev || peerId);
+                                  setContactRequestTarget(peerId);
+                                  setComposeStatus(
+                                    `Import a signed invite for ${displayNameForPeer(peerId, contacts)} in the panel below.`,
+                                  );
+                                  setComposeError('');
+                                }}
+                                className="px-3 py-2 border border-emerald-500/30 text-emerald-300 text-sm tracking-[0.18em] uppercase"
+                              >
+                                Import Invite
+                              </button>
+                            )}
+                            {nextStep?.action === 'dead_drop' && onOpenDeadDrop && (
+                              <button
+                                onClick={() =>
+                                  onOpenDeadDrop(peerId, deadDropLaunchOptions(contact))
+                                }
+                                className="px-3 py-2 border border-cyan-500/30 text-cyan-300 text-sm tracking-[0.18em] uppercase"
+                              >
+                                {nextStep.label}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                blockContact(peerId);
+                                setContacts(getContacts());
+                              }}
+                              className="px-3 py-2 border border-amber-500/30 text-amber-300 text-sm tracking-[0.18em] uppercase"
+                            >
+                              Restrict
+                            </button>
+                            <button
+                              onClick={() => {
+                                removeContact(peerId);
+                                setContacts(getContacts());
+                              }}
+                              className="px-3 py-2 border border-red-500/30 text-red-300 text-sm tracking-[0.18em] uppercase"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1727,16 +2416,89 @@ export default function MessagesView({ onBack }: MessagesViewProps) {
                 />
               </label>
               <div className="mt-4 text-sm text-gray-500">
-                Sending a first-contact request does not expose the public hashchain. It stays on the obfuscated DM lane.
+                Signed invite import is now the required first-contact path for new secure contact
+                requests. Verify the invite over QR or another trusted side channel first.
               </div>
               <div className="mt-6">
-                <button
-                  onClick={() => void handleSendContactRequest()}
-                  disabled={!wormholeReadyState || !dmLaneReady}
-                  className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
-                >
-                  Open Compose / Contact Request
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => void handleSendContactRequest()}
+                    className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 text-cyan-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
+                  >
+                    Prepare First Contact
+                  </button>
+                  <button
+                    onClick={() => handleStartInviteScan()}
+                    className="px-4 py-3 border border-emerald-500/40 bg-emerald-950/20 text-emerald-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
+                  >
+                    Scan Invite QR
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-800/80">
+                <div className="text-xs tracking-[0.2em] uppercase text-emerald-300 mb-4">
+                  Import Verified Invite
+                </div>
+                <label className="text-xs tracking-[0.18em] uppercase text-gray-500">
+                  Local Alias
+                  <input
+                    value={inviteImportAlias}
+                    onChange={(event) => setInviteImportAlias(event.target.value)}
+                    className="mt-2 w-full bg-transparent border border-gray-800 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/40"
+                    placeholder="Optional display label"
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="text-xs tracking-[0.18em] uppercase text-gray-500 block mt-4">
+                  Signed Invite JSON
+                  <textarea
+                    value={inviteImportBlob}
+                    onChange={(event) => setInviteImportBlob(event.target.value)}
+                    className="mt-2 w-full min-h-[200px] bg-transparent border border-gray-800 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/40 font-mono"
+                    placeholder='Paste the full export blob or the nested "invite" object here...'
+                    spellCheck={false}
+                  />
+                </label>
+                <div className="mt-4 text-sm text-gray-500 leading-[1.65]">
+                  Importing a signed invite pins first contact to a trusted out-of-band identity
+                  instead of plain first-sight TOFU. Use this when the invite came from QR,
+                  in-person exchange, or another authenticated side channel.
+                </div>
+                {(inviteScanOpen || inviteScanStatus) && (
+                  <div className="mt-4 border border-emerald-500/20 bg-black/30 p-4">
+                    {inviteScanOpen && (
+                      <video
+                        ref={inviteVideoRef}
+                        className="w-full max-w-md border border-gray-800 bg-black"
+                        muted
+                        playsInline
+                      />
+                    )}
+                    {inviteScanStatus && (
+                      <div className="mt-3 text-sm text-emerald-300">{inviteScanStatus}</div>
+                    )}
+                    {inviteScanOpen && (
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setInviteScanOpen(false)}
+                          className="px-3 py-2 border border-gray-700 bg-gray-950/20 text-gray-300 text-xs tracking-[0.18em] uppercase"
+                        >
+                          Stop Scan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="mt-6">
+                  <button
+                    onClick={() => void handleImportInvite()}
+                    disabled={inviteBusy || !inviteImportBlob.trim()}
+                    className="px-4 py-3 border border-emerald-500/40 bg-emerald-950/20 text-emerald-300 text-xs tracking-[0.18em] uppercase disabled:opacity-50"
+                  >
+                    {inviteBusy ? 'Importing...' : 'Import Signed Invite'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

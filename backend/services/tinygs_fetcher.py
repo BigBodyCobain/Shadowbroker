@@ -29,7 +29,7 @@ _TLE_CACHE_PATH = Path(__file__).parent.parent / "data" / "tinygs_tle_cache.json
 _tle_cache: dict = {"data": None, "last_fetch": 0.0}
 
 # TinyGS API telemetry cache
-_TINYGS_FETCH_INTERVAL = 300  # 5 minutes
+_TINYGS_FETCH_INTERVAL = 1800  # 30 minutes (TinyGS has limited infra, avoid IP bans)
 _tinygs_telemetry: dict[str, dict] = {}  # name_key → {modulation, frequency, status}
 _tinygs_last_fetch: float = 0.0
 _tinygs_known_names: set[str] = set()  # names seen from TinyGS API

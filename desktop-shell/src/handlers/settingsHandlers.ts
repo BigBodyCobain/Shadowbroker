@@ -7,7 +7,6 @@ export function createSettingsHandlers(): Pick<
   | 'settings.privacy.get'
   | 'settings.privacy.set'
   | 'settings.api_keys.get'
-  | 'settings.api_keys.set'
   | 'settings.news.get'
   | 'settings.news.set'
   | 'settings.news.reset'
@@ -29,12 +28,6 @@ export function createSettingsHandlers(): Pick<
         body: JSON.stringify(payload),
       }),
     'settings.api_keys.get': async (_payload, _ctx, exec) => exec('/api/settings/api-keys'),
-    'settings.api_keys.set': async (payload, _ctx, exec) =>
-      exec('/api/settings/api-keys', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }),
     'settings.news.get': async (_payload, _ctx, exec) => exec('/api/settings/news-feeds'),
     'settings.news.set': async (payload, _ctx, exec) =>
       exec('/api/settings/news-feeds', {

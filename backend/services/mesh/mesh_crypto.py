@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,10 +14,19 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519
 from cryptography.exceptions import InvalidSignature
 
+from services.mesh.mesh_compatibility import (
+    legacy_node_id_compat_blocked,
+    record_legacy_node_id_binding,
+    sunset_target_label,
+    LEGACY_NODE_ID_BINDING_TARGET,
+)
 from services.mesh.mesh_protocol import PROTOCOL_VERSION, NETWORK_ID, normalize_payload
 
 NODE_ID_PREFIX = "!sb_"
-NODE_ID_HEX_LEN = 16
+NODE_ID_HEX_LEN = 32
+NODE_ID_COMPAT_HEX_LEN = 16
+logger = logging.getLogger(__name__)
+_WARNED_LEGACY_NODE_BINDINGS: set[str] = set()
 
 
 def canonical_json(obj: dict[str, Any]) -> str:
@@ -64,15 +74,37 @@ def _node_digest(public_key_b64: str) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def derive_node_id(public_key_b64: str, *, legacy: bool = False) -> str:
-    digest = _node_digest(public_key_b64)
-    length = NODE_ID_HEX_LEN
+def _derive_node_id_from_digest(digest: str, length: int) -> str:
     return NODE_ID_PREFIX + digest[:length]
 
 
+def derive_node_id(public_key_b64: str, *, legacy: bool = False) -> str:
+    digest = _node_digest(public_key_b64)
+    length = NODE_ID_COMPAT_HEX_LEN if legacy else NODE_ID_HEX_LEN
+    return _derive_node_id_from_digest(digest, length)
+
+
 def derive_node_id_candidates(public_key_b64: str) -> tuple[str, ...]:
-    current = derive_node_id(public_key_b64, legacy=False)
-    return (current,)
+    digest = _node_digest(public_key_b64)
+    candidates: list[str] = []
+    for length in (NODE_ID_HEX_LEN, NODE_ID_COMPAT_HEX_LEN):
+        candidate = _derive_node_id_from_digest(digest, length)
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return tuple(candidates)
+
+
+def _warn_legacy_node_binding(node_id: str, current_node_id: str) -> None:
+    legacy_node_id = str(node_id or "").strip().lower()
+    if not legacy_node_id or legacy_node_id in _WARNED_LEGACY_NODE_BINDINGS:
+        return
+    _WARNED_LEGACY_NODE_BINDINGS.add(legacy_node_id)
+    logger.warning(
+        "mesh legacy node-id compatibility match used for %s; rotate peers to current 32-hex id %s before removal in %s",
+        legacy_node_id,
+        str(current_node_id or "").strip().lower(),
+        sunset_target_label(LEGACY_NODE_ID_BINDING_TARGET),
+    )
 
 
 def build_signature_payload(
@@ -83,11 +115,10 @@ def build_signature_payload(
     payload: dict[str, Any],
 ) -> str:
     normalized = normalize_payload(event_type, payload)
-    # gate_envelope and reply_to ride alongside the signed payload — they are
-    # added after the message is signed so must be excluded from verification.
+    # gate_envelope rides alongside the signed payload. envelope_hash binds it,
+    # but the envelope itself is never part of the signature payload.
     if event_type == "gate_message":
-        for _unsig in ("gate_envelope", "reply_to"):
-            normalized.pop(_unsig, None)
+        normalized.pop("gate_envelope", None)
     payload_json = canonical_json(normalized)
     return "|".join(
         [PROTOCOL_VERSION, NETWORK_ID, event_type, node_id, str(sequence), payload_json]
@@ -142,6 +173,15 @@ def verify_signature(
 
 def verify_node_binding(node_id: str, public_key_b64: str) -> bool:
     try:
-        return str(node_id or "") in derive_node_id_candidates(public_key_b64)
+        raw_node_id = str(node_id or "").strip()
+        current_id, *compat_ids = derive_node_id_candidates(public_key_b64)
+        if raw_node_id == current_id:
+            return True
+        if raw_node_id in compat_ids:
+            blocked = legacy_node_id_compat_blocked()
+            record_legacy_node_id_binding(raw_node_id, current_id, blocked=blocked)
+            _warn_legacy_node_binding(raw_node_id, current_id)
+            return not blocked
+        return False
     except Exception:
         return False

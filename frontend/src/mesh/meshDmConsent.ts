@@ -163,7 +163,7 @@ export function parseAliasRotateMessage(
 
 export function mergeAliasHistory(
   aliases: Array<string | undefined | null>,
-  limit: number = 3,
+  limit: number = 2,
 ): string[] {
   const unique = new Set<string>();
   const ordered: string[] = [];
@@ -199,10 +199,27 @@ export function allDmPeerIds(
   const pendingAlias = String(contact?.pendingSharedAlias || '').trim();
   if (pendingAlias) unique.add(pendingAlias);
   if (sharedAlias) unique.add(sharedAlias);
-  for (const alias of contact?.previousSharedAliases || []) {
+  for (const alias of (contact?.previousSharedAliases || []).slice(0, 2)) {
     const value = String(alias || '').trim();
-    if (value) unique.add(value);
+    if (value && unique.size < 4) unique.add(value);
   }
   if (peerId) unique.add(peerId);
+  return Array.from(unique);
+}
+
+export function mailboxPeerRefs(
+  peerId: string,
+  contact?: ContactAliasLike | null,
+): string[] {
+  const unique = new Set<string>();
+  const sharedAlias = String(contact?.sharedAlias || '').trim();
+  const pendingAlias = String(contact?.pendingSharedAlias || '').trim();
+  if (sharedAlias) unique.add(sharedAlias);
+  if (pendingAlias) unique.add(pendingAlias);
+  for (const alias of (contact?.previousSharedAliases || []).slice(0, 2)) {
+    const value = String(alias || '').trim();
+    if (value && unique.size < 4) unique.add(value);
+  }
+  if (unique.size === 0 && peerId) unique.add(peerId);
   return Array.from(unique);
 }

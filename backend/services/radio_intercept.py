@@ -4,8 +4,11 @@ import logging
 from cachetools import cached, TTLCache
 import cloudscraper
 import reverse_geocoder as rg
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+_OPENMHZ_AUDIO_HOSTS = {"media.openmhz.com", "media2.openmhz.com", "media3.openmhz.com"}
 
 # Cache the top feeds for 5 minutes so we don't hammer Broadcastify
 radio_cache = TTLCache(maxsize=1, ttl=300)
@@ -126,6 +129,52 @@ def get_recent_openmhz_calls(sys_name: str):
     except (requests.RequestException, ConnectionError, TimeoutError, ValueError, KeyError) as e:
         logger.error(f"OpenMHZ Calls Scrape Exception ({sys_name}): {e}")
         return []
+
+
+def openmhz_audio_response(target_url: str):
+    """Fetch an OpenMHz audio object through the backend with browser-safe headers."""
+    from fastapi import HTTPException
+    from fastapi.responses import StreamingResponse
+
+    parsed = urlparse(str(target_url or ""))
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or host not in _OPENMHZ_AUDIO_HOSTS:
+        raise HTTPException(status_code=400, detail="Unsupported OpenMHz audio URL")
+
+    try:
+        upstream = requests.get(
+            target_url,
+            stream=True,
+            timeout=(5, 20),
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "audio/mpeg,audio/*,*/*;q=0.8",
+                "Referer": "https://openmhz.com/",
+            },
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="OpenMHz audio fetch failed") from exc
+
+    if upstream.status_code >= 400:
+        upstream.close()
+        raise HTTPException(status_code=upstream.status_code, detail="OpenMHz audio unavailable")
+
+    def chunks():
+        try:
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    return StreamingResponse(
+        chunks(),
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "Accept-Ranges": "bytes",
+        },
+    )
 
 
 US_STATES = {

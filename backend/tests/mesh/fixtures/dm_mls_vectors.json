@@ -1,0 +1,42 @@
+{
+  "_comment": "DM MLS test vectors — validated by test_mls_vectors.py",
+  "dm_initiate_accept_round_trip": {
+    "description": "Full DM lifecycle: export key package, initiate session, accept welcome, encrypt/decrypt both directions",
+    "alias_a": "alice",
+    "alias_b": "bob",
+    "messages": [
+      {"sender": "alice", "recipient": "bob", "plaintext": "hello bob"},
+      {"sender": "bob", "recipient": "alice", "plaintext": "hello alice"}
+    ]
+  },
+  "dm_welcome_seal_unseal": {
+    "description": "Welcome payload sealed to alias-scoped X25519 key can be unsealed by recipient only",
+    "alias_a": "alice",
+    "alias_b": "bob"
+  },
+  "dm_lock_rejects_legacy_dm1": {
+    "description": "After MLS session is established, DM1 format is permanently hard-failed",
+    "alias_a": "alice",
+    "alias_b": "bob",
+    "legacy_format": "dm1"
+  },
+  "dm_session_isolation": {
+    "description": "DM sessions between different alias pairs are isolated; cross-pair decrypt fails",
+    "pairs": [
+      {"a": "alice", "b": "bob"},
+      {"a": "alice", "b": "charlie"}
+    ],
+    "plaintext": "pair-scoped message"
+  },
+  "dm_private_tier_blocks_dm1_fallback": {
+    "description": "In private_transitional or private_strong tier, DM1 legacy path is hard-failed even without prior MLS",
+    "alias_a": "alice",
+    "alias_b": "bob",
+    "transport_tiers": ["private_transitional", "private_strong"]
+  },
+  "dm_key_package_export": {
+    "description": "Export key package produces valid bundle with welcome_dh_pub",
+    "alias": "bob",
+    "expected_fields": ["ok", "welcome_dh_pub"]
+  }
+}

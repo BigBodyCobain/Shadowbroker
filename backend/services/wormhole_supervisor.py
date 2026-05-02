@@ -16,6 +16,7 @@ from urllib.request import urlopen
 
 from services.wormhole_settings import read_wormhole_settings
 from services.wormhole_status import read_wormhole_status, write_wormhole_status
+from services.mesh.mesh_privacy_policy import transport_tier_from_state
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ _PRIVATE_CLEARNET_FALLBACK_WINDOW_S = 300.0
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BACKEND_DIR / "data"
+VENV_MARKER = BACKEND_DIR / ".venv-dir"
 WORMHOLE_SCRIPT = BACKEND_DIR / "wormhole_server.py"
 WORMHOLE_STDOUT = DATA_DIR / "wormhole_stdout.log"
 WORMHOLE_STDERR = DATA_DIR / "wormhole_stderr.log"
@@ -62,25 +64,10 @@ _WORMHOLE_ENV_EXPLICIT = {
     "ALLOW_INSECURE_ADMIN",
     "CORS_ORIGINS",
     "PUBLIC_API_KEY",
+    "PRIVACY_CORE_ALLOWED_SHA256",
+    "PRIVACY_CORE_LIB",
+    "PRIVACY_CORE_MIN_VERSION",
 }
-
-
-def transport_tier_from_state(state: dict[str, Any] | None) -> str:
-    snapshot = state or {}
-    if not bool(snapshot.get("configured")):
-        return "public_degraded"
-    if not bool(snapshot.get("ready")):
-        return "public_degraded"
-    arti = bool(snapshot.get("arti_ready"))
-    rns = bool(snapshot.get("rns_ready"))
-    if arti and rns:
-        return "private_strong"
-    if arti or rns:
-        return "private_transitional"
-    # Once Wormhole is configured and ready, the private lane is online for
-    # transitional gate/chat use even if the strongest transports are still warming.
-    return "private_transitional"
-
 
 def _check_arti_ready() -> bool:
     from services.config import get_settings
@@ -177,11 +164,24 @@ def _recent_private_clearnet_fallback_warning(now: float | None = None) -> dict[
 
 
 def _python_bin() -> str:
-    venv_python = BACKEND_DIR / "venv" / ("Scripts" if os.name == "nt" else "bin") / (
-        "python.exe" if os.name == "nt" else "python3"
-    )
-    if venv_python.exists():
-        return str(venv_python)
+    candidate_dirs: list[Path] = []
+    try:
+        persisted = VENV_MARKER.read_text(encoding="utf-8").strip()
+    except OSError:
+        persisted = ""
+    if persisted:
+        persisted_dir = Path(persisted)
+        if not persisted_dir.is_absolute():
+            persisted_dir = BACKEND_DIR / persisted_dir
+        candidate_dirs.append(persisted_dir)
+    candidate_dirs.append(BACKEND_DIR / "venv")
+
+    for venv_dir in candidate_dirs:
+        venv_python = venv_dir / ("Scripts" if os.name == "nt" else "bin") / (
+            "python.exe" if os.name == "nt" else "python3"
+        )
+        if venv_python.exists():
+            return str(venv_python)
     return sys.executable
 
 
@@ -228,6 +228,12 @@ def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
     except OSError:
+        return False
+    except SystemError as exc:
+        logger.warning("Wormhole supervisor PID probe failed for %s: %s", pid, exc)
+        return False
+    except Exception as exc:
+        logger.warning("Unexpected Wormhole PID probe failure for %s: %s", pid, exc)
         return False
     return True
 
@@ -518,3 +524,14 @@ def sync_wormhole_with_settings() -> dict[str, Any]:
 
 def shutdown_wormhole_supervisor() -> None:
     disconnect_wormhole(reason="backend_shutdown")
+
+
+def kickoff_wormhole_bootstrap(*, reason: str = "background_bootstrap") -> bool:
+    def _run() -> None:
+        try:
+            connect_wormhole(reason=reason)
+        except Exception:
+            logger.debug("Background wormhole bootstrap failed", exc_info=True)
+
+    threading.Thread(target=_run, daemon=True, name="wormhole-background-bootstrap").start()
+    return True

@@ -1,5 +1,5 @@
 import { currentMailboxEpoch } from '@/mesh/meshMailbox';
-import { allDmPeerIds } from '@/mesh/meshDmConsent';
+import { mailboxPeerRefs } from '@/mesh/meshDmConsent';
 import { deriveSharedSecret, getStoredNodeDescriptor, type Contact } from '@/mesh/meshIdentity';
 import {
   deriveWormholeDeadDropTokenPair,
@@ -21,21 +21,27 @@ export async function hmacSha256(keyBytes: ArrayBuffer, message: string): Promis
   return crypto.subtle.sign('HMAC', key, data);
 }
 
-function contactContext(peerId: string): string | null {
+function contactContext(peerRef: string): string | null {
   const identity = getStoredNodeDescriptor();
   if (!identity) return null;
-  const ids = [identity.nodeId, peerId].sort().join('|');
+  const ids = [identity.nodeId, peerRef].sort().join('|');
   return ids;
 }
 
-export async function deadDropToken(peerId: string, peerDhPub: string, epoch?: number): Promise<string> {
+export async function deadDropToken(
+  peerId: string,
+  peerDhPub: string,
+  epoch?: number,
+  peerRef?: string,
+): Promise<string> {
+  const resolvedPeerRef = String(peerRef || peerId || '').trim();
   if (await isWormholeReady()) {
-    const pair = await deriveWormholeDeadDropTokenPair(peerId, peerDhPub).catch(() => null);
+    const pair = await deriveWormholeDeadDropTokenPair(peerId, peerDhPub, resolvedPeerRef).catch(() => null);
     if (pair?.ok) {
       return epoch === pair.epoch - 1 ? pair.previous : pair.current;
     }
   }
-  const ctx = contactContext(peerId);
+  const ctx = contactContext(resolvedPeerRef);
   if (!ctx) return '';
   const bucket = typeof epoch === 'number' ? epoch : currentMailboxEpoch();
   const secret = await deriveSharedSecret(peerDhPub);
@@ -46,10 +52,11 @@ export async function deadDropToken(peerId: string, peerDhPub: string, epoch?: n
 export async function deadDropTokenPair(
   peerId: string,
   peerDhPub: string,
+  peerRef?: string,
 ): Promise<{ current: string; previous: string; epoch: number }> {
   const epoch = currentMailboxEpoch();
-  const current = await deadDropToken(peerId, peerDhPub, epoch);
-  const previous = await deadDropToken(peerId, peerDhPub, epoch - 1);
+  const current = await deadDropToken(peerId, peerDhPub, epoch, peerRef);
+  const previous = await deadDropToken(peerId, peerDhPub, epoch - 1, peerRef);
   return { current, previous, epoch };
 }
 
@@ -60,12 +67,12 @@ export async function deadDropTokensForContacts(
   if (await isWormholeReady()) {
     const items = Object.entries(contacts)
       .filter(([_, contact]) => Boolean(contact?.dhPubKey) && !contact.blocked)
-      .flatMap(([peerId, contact]) =>
-        allDmPeerIds(peerId, contact).map((candidateId) => ({
-          peer_id: candidateId,
-          peer_dh_pub: String(contact?.dhPubKey || ''),
-        })),
-      )
+      .map(([peerId, contact]) => ({
+        peer_id: peerId,
+        peer_dh_pub: String(contact?.dhPubKey || ''),
+        peer_refs: mailboxPeerRefs(peerId, contact),
+      }))
+      .filter((item) => item.peer_refs.length > 0)
       .slice(0, limit);
     if (items.length > 0) {
       const batch = await deriveWormholeDeadDropTokens(items, limit).catch(() => null);
@@ -87,9 +94,9 @@ export async function deadDropTokensForContacts(
   const tokens: string[] = [];
   for (const [peerId, contact] of Object.entries(contacts)) {
     if (!contact?.dhPubKey || contact.blocked) continue;
-    for (const candidateId of allDmPeerIds(peerId, contact)) {
+    for (const candidateId of mailboxPeerRefs(peerId, contact)) {
       try {
-        const pair = await deadDropTokenPair(candidateId, contact.dhPubKey);
+        const pair = await deadDropTokenPair(peerId, contact.dhPubKey, candidateId);
         if (pair.current) tokens.push(pair.current);
         if (pair.previous) tokens.push(pair.previous);
         if (tokens.length >= limit) break;

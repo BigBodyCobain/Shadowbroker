@@ -201,10 +201,12 @@ def _is_gibberish(text):
 # Persistent cache for article titles — survives across GDELT cache refreshes
 # Bounded to 5000 entries with 24hr TTL to prevent unbounded memory growth
 _article_title_cache = TTLCache(maxsize=5000, ttl=86400)
+_article_snippet_cache: dict[str, str | None] = {}
 _article_url_safety_cache = TTLCache(maxsize=5000, ttl=3600)
 _TITLE_FETCH_MAX_REDIRECTS = 3
 _TITLE_FETCH_READ_BYTES = 32768
 _ALLOWED_ARTICLE_PORTS = {80, 443, 8080, 8443}
+_MAX_SNIPPET_LEN = 200
 
 
 def _hostname_resolves_public(hostname: str, port: int) -> bool:
@@ -267,6 +269,30 @@ def _is_safe_public_article_url(url: str) -> tuple[bool, str]:
 
     _article_url_safety_cache[url] = result
     return result
+
+
+def _extract_snippet(url: str, chunk: str) -> None:
+    """Extract og:description or meta description from an already-fetched HTML chunk."""
+    import re
+    import html as html_mod
+
+    if url in _article_snippet_cache:
+        return
+    snippet = None
+    # Try og:description first
+    for pattern in (
+        r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\'>]+)["\']',
+        r'<meta[^>]+content=["\']([^"\'>]+)["\'][^>]+property=["\']og:description["\']',
+        r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\'>]+)["\']',
+        r'<meta[^>]+content=["\']([^"\'>]+)["\'][^>]+name=["\']description["\']',
+    ):
+        m = re.search(pattern, chunk, re.I)
+        if m:
+            snippet = html_mod.unescape(m.group(1)).strip()
+            break
+    if snippet and len(snippet) > _MAX_SNIPPET_LEN:
+        snippet = snippet[:_MAX_SNIPPET_LEN - 3].rsplit(" ", 1)[0] + "..."
+    _article_snippet_cache[url] = snippet if snippet and len(snippet) > 15 else None
 
 
 def _fetch_article_title(url):
@@ -343,6 +369,8 @@ def _fetch_article_title(url):
                 title = title[:117] + "..."
             if len(title) > 10:
                 _article_title_cache[url] = title
+                # Also extract og:description / meta description for snippet
+                _extract_snippet(url, chunk)
                 return title
 
         _article_title_cache[url] = None
@@ -405,21 +433,49 @@ def _parse_gdelt_export_zip(zip_bytes, conflict_codes, seen_locs, features, loc_
                     actor1 = row[6].strip() if len(row) > 6 else ""
                     actor2 = row[16].strip() if len(row) > 16 else ""
 
+                    # Extract enrichment fields from GDELT CSV
+                    event_date = row[1].strip() if len(row) > 1 else ""
+                    full_event_code = row[26].strip() if len(row) > 26 else ""
+                    quad_class = int(row[29]) if len(row) > 29 and row[29].strip().isdigit() else 0
+                    goldstein = float(row[30]) if len(row) > 30 and row[30].strip() else 0.0
+                    num_mentions = int(row[31]) if len(row) > 31 and row[31].strip().isdigit() else 0
+                    num_sources = int(row[32]) if len(row) > 32 and row[32].strip().isdigit() else 0
+                    num_articles = int(row[33]) if len(row) > 33 and row[33].strip().isdigit() else 0
+                    avg_tone = float(row[34]) if len(row) > 34 and row[34].strip() else 0.0
+
                     loc_key = f"{round(lat, 1)}_{round(lng, 1)}"
                     if loc_key in seen_locs:
-                        # Merge: increment count and add source URL if new (dedup by domain)
+                        # Merge: increment count, accumulate intensity, add source URL
                         idx = loc_index[loc_key]
                         feat = features[idx]
-                        feat["properties"]["count"] = feat["properties"].get("count", 1) + 1
-                        urls = feat["properties"].get("_urls", [])
-                        seen_domains = feat["properties"].get("_domains", set())
+                        props = feat["properties"]
+                        props["count"] = props.get("count", 1) + 1
+                        # Track worst Goldstein score (most negative = most intense)
+                        if goldstein < props.get("goldstein", 0):
+                            props["goldstein"] = round(goldstein, 1)
+                        # Accumulate mentions/sources for importance ranking
+                        props["num_mentions"] = props.get("num_mentions", 0) + num_mentions
+                        props["num_sources"] = props.get("num_sources", 0) + num_sources
+                        props["num_articles"] = props.get("num_articles", 0) + num_articles
+                        # Track latest date
+                        if event_date and event_date > props.get("event_date", ""):
+                            props["event_date"] = event_date
+                        # Collect actors
+                        actors = props.get("_actors_set", set())
+                        if actor1:
+                            actors.add(actor1)
+                        if actor2:
+                            actors.add(actor2)
+                        props["_actors_set"] = actors
+                        urls = props.get("_urls", [])
+                        seen_domains = props.get("_domains", set())
                         if source_url:
                             domain = _extract_domain(source_url)
                             if domain not in seen_domains and len(urls) < 10:
                                 urls.append(source_url)
                                 seen_domains.add(domain)
-                                feat["properties"]["_urls"] = urls
-                                feat["properties"]["_domains"] = seen_domains
+                                props["_urls"] = urls
+                                props["_domains"] = seen_domains
                         continue
                     seen_locs.add(loc_key)
 
@@ -429,6 +485,11 @@ def _parse_gdelt_export_zip(zip_bytes, conflict_codes, seen_locs, features, loc_
                         or "Unknown Incident"
                     )
                     domain = _extract_domain(source_url) if source_url else ""
+                    actors_set = set()
+                    if actor1:
+                        actors_set.add(actor1)
+                    if actor2:
+                        actors_set.add(actor2)
                     loc_index[loc_key] = len(features)
                     features.append(
                         {
@@ -436,6 +497,17 @@ def _parse_gdelt_export_zip(zip_bytes, conflict_codes, seen_locs, features, loc_
                             "properties": {
                                 "name": name,
                                 "count": 1,
+                                "event_date": event_date,
+                                "event_code": full_event_code,
+                                "quad_class": quad_class,
+                                "goldstein": round(goldstein, 1),
+                                "num_mentions": num_mentions,
+                                "num_sources": num_sources,
+                                "num_articles": num_articles,
+                                "avg_tone": round(avg_tone, 1),
+                                "actor1": actor1,
+                                "actor2": actor2,
+                                "_actors_set": actors_set,
                                 "_urls": [source_url] if source_url else [],
                                 "_domains": {domain} if domain else set(),
                             },
@@ -468,12 +540,19 @@ def _build_feature_html(features, fetched_titles=None):
     for f in features:
         urls = f["properties"].pop("_urls", [])
         f["properties"].pop("_domains", None)
+        # Convert actors set to sorted list for JSON serialization
+        actors_set = f["properties"].pop("_actors_set", set())
+        if actors_set:
+            f["properties"]["actors"] = sorted(actors_set)[:6]
         headlines = []
+        snippets = []
         for u in urls:
             real_title = fetched_titles.get(u) if fetched_titles else None
             headlines.append(real_title if real_title else _url_to_headline(u))
+            snippets.append(_article_snippet_cache.get(u) or "")
         f["properties"]["_urls_list"] = urls
         f["properties"]["_headlines_list"] = headlines
+        f["properties"]["_snippets_list"] = snippets
         if urls:
             links = []
             for u, h in zip(urls, headlines):
@@ -498,16 +577,19 @@ def _enrich_gdelt_titles_background(features, all_article_urls):
         fetched_count = sum(1 for v in fetched_titles.values() if v)
         logger.info(f"[BG] Resolved {fetched_count}/{len(all_article_urls)} article titles")
 
-        # Update features in-place with real titles
+        # Update features in-place with real titles and snippets
         for f in features:
             urls = f["properties"].get("_urls_list", [])
             if not urls:
                 continue
             headlines = []
+            snippets = []
             for u in urls:
                 real_title = fetched_titles.get(u)
                 headlines.append(real_title if real_title else _url_to_headline(u))
+                snippets.append(_article_snippet_cache.get(u) or "")
             f["properties"]["_headlines_list"] = headlines
+            f["properties"]["_snippets_list"] = snippets
             links = []
             for u, h in zip(urls, headlines):
                 safe_url = u if u.startswith(("http://", "https://")) else "about:blank"
@@ -564,8 +646,8 @@ def fetch_global_military_incidents():
 
         latest_ts = datetime.strptime(ts_match.group(1), "%Y%m%d%H%M%S")
 
-        # Generate URLs for the last 8 hours (32 files at 15-min intervals)
-        NUM_FILES = 32
+        # Generate URLs for the last 12 hours (48 files at 15-min intervals)
+        NUM_FILES = 48
         urls = []
         for i in range(NUM_FILES):
             ts = latest_ts - timedelta(minutes=15 * i)
@@ -583,7 +665,7 @@ def fetch_global_military_incidents():
         logger.info(f"Downloaded {successful}/{len(urls)} GDELT exports")
 
         # Parse all downloaded files
-        CONFLICT_CODES = {"14", "17", "18", "19", "20"}
+        CONFLICT_CODES = {"13", "14", "15", "16", "17", "18", "19", "20"}
         features = []
         seen_locs = set()
         loc_index = {}  # loc_key -> index in features

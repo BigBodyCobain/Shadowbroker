@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2 } from 'lucide-react';
 import React, { useEffect, useRef, useCallback } from 'react';
 import WikiImage from '@/components/WikiImage';
 import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
@@ -57,16 +57,43 @@ const AIRCRAFT_WIKI: Record<string, string> = {
     GLF6: 'Gulfstream G650', G280: 'Gulfstream G280', GA5C: 'Gulfstream G500/G600',
     GA6C: 'Gulfstream G500/G600', LJ35: 'Learjet 35', LJ45: 'Learjet 45', LJ60: 'Learjet 60',
     F900: 'Dassault Falcon 900', FA7X: 'Dassault Falcon 7X', FA8X: 'Dassault Falcon 8X',
-    // Military common
-    C130: 'Lockheed C-130 Hercules', C17: 'Boeing C-17 Globemaster III',
+    // Military — US
+    C130: 'Lockheed C-130 Hercules', C30J: 'Lockheed Martin C-130J Super Hercules',
+    C17: 'Boeing C-17 Globemaster III',
     KC35: 'Boeing KC-135 Stratotanker', KC46: 'Boeing KC-46 Pegasus', K35R: 'Boeing KC-135 Stratotanker',
-    E3CF: 'Boeing E-3 Sentry', E6B: 'Boeing E-6 Mercury', P8: 'Boeing P-8 Poseidon',
-    B52H: 'Boeing B-52 Stratofortress', F16: 'General Dynamics F-16 Fighting Falcon',
-    F15: 'McDonnell Douglas F-15 Eagle', F18H: 'Boeing F/A-18E/F Super Hornet',
+    E3CF: 'Boeing E-3 Sentry', E3TF: 'Boeing E-3 Sentry', E6B: 'Boeing E-6 Mercury',
+    P8: 'Boeing P-8 Poseidon', P8A: 'Boeing P-8 Poseidon',
+    B52H: 'Boeing B-52 Stratofortress', B1: 'Rockwell B-1 Lancer', B1B: 'Rockwell B-1 Lancer',
+    B2: 'Northrop Grumman B-2 Spirit', B21: 'Northrop Grumman B-21 Raider',
+    F16: 'General Dynamics F-16 Fighting Falcon', F16C: 'General Dynamics F-16 Fighting Falcon',
+    F15: 'McDonnell Douglas F-15 Eagle', F15E: 'McDonnell Douglas F-15E Strike Eagle',
+    F18: 'Boeing F/A-18E/F Super Hornet', F18H: 'Boeing F/A-18E/F Super Hornet',
+    FA18: 'Boeing F/A-18E/F Super Hornet',
     F35: 'Lockheed Martin F-35 Lightning II', F22: 'Lockheed Martin F-22 Raptor',
     A10: 'Fairchild Republic A-10 Thunderbolt II', V22: 'Bell Boeing V-22 Osprey',
-    C5M: 'Lockheed C-5 Galaxy', C2: 'Grumman C-2 Greyhound',
+    C5M: 'Lockheed C-5 Galaxy', C5: 'Lockheed C-5 Galaxy', C2: 'Grumman C-2 Greyhound',
+    C40: 'Boeing C-40 Clipper', C37: 'Gulfstream V',
+    E4B: 'Boeing E-4', E8: 'Northrop Grumman E-8 Joint STARS',
+    RC135: 'Boeing RC-135', RC35: 'Boeing RC-135', R135: 'Boeing RC-135',
+    U2: 'Lockheed U-2', U2S: 'Lockheed U-2',
+    RQ4: 'Northrop Grumman RQ-4 Global Hawk', MQ9: 'General Atomics MQ-9 Reaper',
+    MQ4C: 'Northrop Grumman MQ-4C Triton',
+    H60: 'Sikorsky UH-60 Black Hawk', MH60: 'Sikorsky SH-60 Seahawk',
+    CH47: 'Boeing CH-47 Chinook', H47: 'Boeing CH-47 Chinook',
+    AH64: 'Boeing AH-64 Apache', H64: 'Boeing AH-64 Apache',
+    EP3: 'Lockheed EP-3', P3: 'Lockheed P-3 Orion',
+    T38: 'Northrop T-38 Talon', T6: 'Beechcraft T-6 Texan II',
+    // Military — NATO / Allied
     EUFI: 'Eurofighter Typhoon', RFAL: 'Dassault Rafale', TORN: 'Panavia Tornado',
+    GROB: 'Grob G 120TP', GRIS: 'Saab JAS 39 Gripen', J39: 'Saab JAS 39 Gripen',
+    F4: 'McDonnell Douglas F-4 Phantom II', HAWK: 'BAE Systems Hawk',
+    MRTT: 'Airbus A330 MRTT', A310M: 'Airbus A310 MRTT',
+    P1: 'Kawasaki P-1', C1: 'Kawasaki C-1', C2JP: 'Kawasaki C-2 (aircraft)',
+    // Military — Russian
+    SU27: 'Sukhoi Su-27', SU30: 'Sukhoi Su-30', SU34: 'Sukhoi Su-34', SU35: 'Sukhoi Su-35',
+    SU57: 'Sukhoi Su-57', MIG29: 'Mikoyan MiG-29', MIG31: 'Mikoyan MiG-31',
+    TU95: 'Tupolev Tu-95', TU160: 'Tupolev Tu-160', TU22M: 'Tupolev Tu-22M',
+    IL78: 'Ilyushin Il-78', A50: 'Beriev A-50',
     // GA
     C172: 'Cessna 172', C182: 'Cessna 182 Skylane', C206: 'Cessna 206', C208: 'Cessna 208 Caravan',
     C210: 'Cessna 210 Centurion', PA28: 'Piper PA-28 Cherokee', PA32: 'Piper PA-32',
@@ -83,6 +110,91 @@ const AIRCRAFT_WIKI: Record<string, string> = {
     IL76: 'Ilyushin Il-76', IL96: 'Ilyushin Il-96',
     A400: 'Airbus A400M Atlas', C295: 'Airbus C-295',
 };
+
+/**
+ * Maps plane_alert_db `ac_type` substrings → correct Wikipedia article titles.
+ * The ac_type field often includes variant suffixes (e.g. "KC-135R", "F-16AM")
+ * that don't correspond to Wikipedia article names. Checked in order — first match wins.
+ */
+const AC_TYPE_WIKI_OVERRIDES: [RegExp, string][] = [
+    // US Fighters & Attack
+    [/F-?22/i, 'Lockheed Martin F-22 Raptor'],
+    [/F-?35/i, 'Lockheed Martin F-35 Lightning II'],
+    [/F-?16/i, 'General Dynamics F-16 Fighting Falcon'],
+    [/F-?15E/i, 'McDonnell Douglas F-15E Strike Eagle'],
+    [/F-?15/i, 'McDonnell Douglas F-15 Eagle'],
+    [/F.?\/A.?18/i, 'Boeing F/A-18E/F Super Hornet'],
+    [/F-?18/i, 'Boeing F/A-18E/F Super Hornet'],
+    [/A-?10/i, 'Fairchild Republic A-10 Thunderbolt II'],
+    // US Bombers
+    [/B-?52/i, 'Boeing B-52 Stratofortress'],
+    [/B-?1B|B-?1\b/i, 'Rockwell B-1 Lancer'],
+    [/B-?2\b/i, 'Northrop Grumman B-2 Spirit'],
+    [/B-?21/i, 'Northrop Grumman B-21 Raider'],
+    // US Tankers & Transport
+    [/KC-?135/i, 'Boeing KC-135 Stratotanker'],
+    [/KC-?46/i, 'Boeing KC-46 Pegasus'],
+    [/KC-?10/i, 'McDonnell Douglas KC-10 Extender'],
+    [/C-?17/i, 'Boeing C-17 Globemaster III'],
+    [/C-?130J/i, 'Lockheed Martin C-130J Super Hercules'],
+    [/C-?130/i, 'Lockheed C-130 Hercules'],
+    [/C-?5/i, 'Lockheed C-5 Galaxy'],
+    [/V-?22/i, 'Bell Boeing V-22 Osprey'],
+    // US ISR & Special
+    [/P-?8/i, 'Boeing P-8 Poseidon'],
+    [/E-?3/i, 'Boeing E-3 Sentry'],
+    [/E-?6/i, 'Boeing E-6 Mercury'],
+    [/E-?4/i, 'Boeing E-4'],
+    [/E-?8|Joint.?STARS/i, 'Northrop Grumman E-8 Joint STARS'],
+    [/RC-?135/i, 'Boeing RC-135'],
+    [/EP-?3/i, 'Lockheed EP-3'],
+    [/P-?3/i, 'Lockheed P-3 Orion'],
+    [/U-?2/i, 'Lockheed U-2'],
+    [/RQ-?4|Global.?Hawk/i, 'Northrop Grumman RQ-4 Global Hawk'],
+    [/MQ-?9|Reaper/i, 'General Atomics MQ-9 Reaper'],
+    [/MQ-?4C|Triton/i, 'Northrop Grumman MQ-4C Triton'],
+    // US Helicopters
+    [/AH-?64|Apache/i, 'Boeing AH-64 Apache'],
+    [/CH-?47|Chinook/i, 'Boeing CH-47 Chinook'],
+    [/UH-?60|Black.?Hawk/i, 'Sikorsky UH-60 Black Hawk'],
+    [/SH-?60|MH-?60|Seahawk/i, 'Sikorsky SH-60 Seahawk'],
+    // NATO / Allied
+    [/Eurofighter|Typhoon/i, 'Eurofighter Typhoon'],
+    [/Rafale/i, 'Dassault Rafale'],
+    [/Tornado/i, 'Panavia Tornado'],
+    [/Gripen/i, 'Saab JAS 39 Gripen'],
+    [/A400M/i, 'Airbus A400M Atlas'],
+    [/A330\s*MRTT|Voyager/i, 'Airbus A330 MRTT'],
+    [/Hawk\s*T/i, 'BAE Systems Hawk'],
+    // Russian
+    [/Su-?57/i, 'Sukhoi Su-57'],
+    [/Su-?35/i, 'Sukhoi Su-35'],
+    [/Su-?34/i, 'Sukhoi Su-34'],
+    [/Su-?30/i, 'Sukhoi Su-30'],
+    [/Su-?27/i, 'Sukhoi Su-27'],
+    [/Su-?25/i, 'Sukhoi Su-25'],
+    [/MiG-?31/i, 'Mikoyan MiG-31'],
+    [/MiG-?29/i, 'Mikoyan MiG-29'],
+    [/Tu-?160/i, 'Tupolev Tu-160'],
+    [/Tu-?95/i, 'Tupolev Tu-95'],
+    [/Tu-?22M/i, 'Tupolev Tu-22M'],
+    [/Il-?76/i, 'Ilyushin Il-76'],
+    [/Il-?78/i, 'Ilyushin Il-78'],
+    [/A-?50\b/i, 'Beriev A-50'],
+    // Chinese
+    [/J-?20/i, 'Chengdu J-20'],
+    [/J-?16/i, 'Shenyang J-16'],
+    [/J-?10/i, 'Chengdu J-10'],
+    [/Y-?20/i, 'Xi\'an Y-20'],
+];
+
+/** Resolve a plane_alert_db ac_type string to a Wikipedia article title. */
+function resolveAcTypeWiki(acType: string): string | null {
+    for (const [pattern, wikiTitle] of AC_TYPE_WIKI_OVERRIDES) {
+        if (pattern.test(acType)) return wikiTitle;
+    }
+    return null;
+}
 
 // Module-level cache for Wikipedia thumbnails (persists across re-renders)
 const _wikiThumbCache: Record<string, { url: string | null; loading: boolean }> = {};
@@ -124,7 +236,7 @@ const VESSEL_TYPE_WIKI: Record<string, string> = {
     'military_vessel': 'https://en.wikipedia.org/wiki/Warship',
 };
 
-function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, onArticleClick }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number) => void }) {
+function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, onArticleClick }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void }) {
     const data = useDataKeys([
       'news', 'fimi', 'commercial_flights', 'private_flights', 'private_jets',
       'military_flights', 'tracked_flights', 'ships', 'gdelt', 'liveuamap',
@@ -133,6 +245,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
     const [isMinimized, setIsMinimized] = useState(false);
     const [expandedIndexes, setExpandedIndexes] = useState<number[]>([]);
     const [fimiExpanded, setFimiExpanded] = useState(false);
+    const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
+    const [aiSummary, setAiSummary] = useState<any>(null);
+    const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     // Intentionally omitting map click triggers for expanding
@@ -222,24 +337,24 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                 className="w-full bg-black/60 backdrop-blur-sm border border-emerald-800 flex flex-col z-10 font-mono shadow-[0_4px_30px_rgba(0,255,128,0.2)] pointer-events-auto overflow-hidden flex-shrink-0"
             >
                 <div className="p-3 border-b border-emerald-500/30 bg-emerald-950/40 flex justify-between items-center">
-                    <h2 className="text-xs tracking-widest font-bold text-emerald-400">REGION DOSSIER</h2>
-                    <span className="text-[8px] text-[var(--text-muted)]">
+                    <h2 className="text-sm tracking-widest font-bold text-emerald-400">REGION DOSSIER</h2>
+                    <span className="text-[10px] text-[var(--text-muted)]">
                         {selectedEntity.extra ? `${selectedEntity.extra.lat.toFixed(3)}, ${selectedEntity.extra.lng.toFixed(3)}` : ''}
                     </span>
                 </div>
                 {regionDossierLoading ? (
                     <div className="p-6 flex items-center justify-center">
-                        <span className="text-emerald-400 text-[10px] font-mono tracking-widest">COMPILING INTELLIGENCE...</span>
+                        <span className="text-emerald-400 text-[12px] font-mono tracking-widest">COMPILING INTELLIGENCE...</span>
                     </div>
                 ) : d && !d.error ? (
-                    <div className="p-3 flex flex-col gap-1.5 max-h-[500px] overflow-y-auto styled-scrollbar text-[10px]">
+                    <div className="p-3 flex flex-col gap-2 max-h-[500px] overflow-y-auto styled-scrollbar text-[12px]">
                         {d.warning && (
-                            <div className="mb-2 p-2 bg-amber-950/40 border border-amber-800/50 text-[9px] text-amber-300 leading-relaxed">
+                            <div className="mb-2 p-2 bg-amber-950/40 border border-amber-800/50 text-[11px] text-amber-300 leading-relaxed">
                                 {d.warning}
                             </div>
                         )}
                         {/* COUNTRY */}
-                        <div className="text-[9px] text-emerald-500 tracking-widest font-bold border-b border-emerald-900/50 pb-1">COUNTRY LEVEL {d.country?.flag_emoji || ''}</div>
+                        <div className="text-[11px] text-emerald-500 tracking-widest font-bold border-b border-emerald-900/50 pb-1">COUNTRY LEVEL {d.country?.flag_emoji || ''}</div>
                         <div className="flex justify-between"><span className="text-[var(--text-muted)]">COUNTRY</span><span className="text-[var(--text-primary)] font-bold">{d.country?.name}</span></div>
                         {d.country?.official_name && d.country.official_name !== d.country.name && (
                             <div className="flex justify-between"><span className="text-[var(--text-muted)]">OFFICIAL</span><span className="text-[var(--text-secondary)] text-right max-w-[180px]">{d.country.official_name}</span></div>
@@ -260,12 +375,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         {/* LOCAL */}
                         {(d.local?.name || d.local?.state) && (
                             <>
-                                <div className="text-[9px] text-emerald-500 tracking-widest font-bold border-b border-emerald-900/50 pb-1 mt-2">LOCAL LEVEL</div>
+                                <div className="text-[11px] text-emerald-500 tracking-widest font-bold border-b border-emerald-900/50 pb-1 mt-2">LOCAL LEVEL</div>
                                 {d.local.name && <div className="flex justify-between"><span className="text-[var(--text-muted)]">LOCALITY</span><span className="text-[var(--text-primary)] font-bold">{d.local.name}</span></div>}
                                 {d.local.state && <div className="flex justify-between"><span className="text-[var(--text-muted)]">STATE/PROVINCE</span><span className="text-[var(--text-primary)] font-bold">{d.local.state}</span></div>}
                                 {d.local.description && <div className="flex justify-between"><span className="text-[var(--text-muted)]">TYPE</span><span className="text-[var(--text-secondary)]">{d.local.description}</span></div>}
                                 {d.local.summary && (
-                                    <div className="mt-1 p-2 bg-black/60 border border-emerald-800/50 text-[9px] text-[var(--text-secondary)] leading-relaxed">
+                                    <div className="mt-1 p-2 bg-black/60 border border-emerald-800/50 text-[11px] text-[var(--text-secondary)] leading-relaxed">
                                         <span className="text-emerald-400 font-bold">&gt;_ INTEL: </span>
                                         {d.local.summary.length > 500 ? d.local.summary.substring(0, 500) + '...' : d.local.summary}
                                     </div>
@@ -276,9 +391,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         {/* Sentinel-2 imagery now shown as map popup — see MaplibreViewer */}
                     </div>
                 ) : d?.error ? (
-                    <div className="p-4 text-[var(--text-secondary)] text-[10px]">{d.error}</div>
+                    <div className="p-4 text-[var(--text-secondary)] text-[12px]">{d.error}</div>
                 ) : (
-                    <div className="p-4 text-red-400 text-[10px]">INTEL UNAVAILABLE</div>
+                    <div className="p-4 text-red-400 text-[12px]">INTEL UNAVAILABLE</div>
                 )}
             </motion.div>
         );
@@ -303,7 +418,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                 </div>
 
                 <div className="p-4 flex flex-col gap-2 text-[10px]">
-                    <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1">
+                    <div className="text-[11px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1">
                         ATTRIBUTION
                     </div>
                     <div className="text-green-300/90">
@@ -318,7 +433,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         </div>
                     )}
 
-                    <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
+                    <div className="text-[11px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
                         HOST
                     </div>
                     <div className="flex justify-between"><span className="text-[var(--text-muted)]">IP</span><span className="text-green-300 font-bold">{host.ip || 'UNKNOWN'}</span></div>
@@ -340,7 +455,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                     )}
                     {Array.isArray(host.services) && host.services.length > 0 && (
                         <>
-                            <div className="text-[9px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
+                            <div className="text-[11px] text-green-500 tracking-widest font-bold border-b border-green-900/50 pb-1 mt-2">
                                 SERVICES
                             </div>
                             <div className="flex flex-col gap-2">
@@ -356,12 +471,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             {service.product || 'Unknown service'}
                                         </div>
                                         {service.tags?.length > 0 && (
-                                            <div className="mt-1 text-[9px] text-green-500/80">
+                                            <div className="mt-1 text-[11px] text-green-500/80">
                                                 TAGS: {service.tags.join(', ')}
                                             </div>
                                         )}
                                         {service.banner_excerpt && (
-                                            <div className="mt-1 text-[9px] text-green-300/90 leading-relaxed">
+                                            <div className="mt-1 text-[11px] text-green-300/90 leading-relaxed">
                                                 {service.banner_excerpt}
                                             </div>
                                         )}
@@ -371,7 +486,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         </>
                     )}
                     {host.data_snippet && (
-                        <div className="mt-2 border border-green-900/50 bg-black/50 p-2 text-[9px] text-green-300/90 leading-relaxed">
+                        <div className="mt-2 border border-green-900/50 bg-black/50 p-2 text-[11px] text-green-300/90 leading-relaxed">
                             <span className="text-green-400 font-bold">&gt;_ BANNER: </span>
                             {host.data_snippet}
                         </div>
@@ -450,46 +565,96 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 <span className={`text-xs font-bold ${headerColor}`}>UNKNOWN</span>
                             )}
                         </div>
-                        {/* Owner/Operator Wikipedia photo */}
-                        {flight.alert_operator && flight.alert_operator !== "UNKNOWN" && (() => {
-                            const wikiSlug = flight.alert_wiki || flight.alert_operator.replace(/\s*\(.*?\)\s*/g, '').trim().replace(/ /g, '_');
-                            const wikiHref = `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiSlug)}`;
+                        {/* Primary image: military → aircraft model photo; everything else → operator/company photo */}
+                        {(() => {
+                            // Categories where the aircraft model should be the primary image
+                            const MILITARY_CATEGORIES = new Set([
+                                'USAF', 'RAF', 'GAF', 'Royal Navy Fleet Air Arm', 'Army Air Corps',
+                                'Other Air Forces', 'Other Navies', 'United States Navy',
+                                'United States Marine Corps', 'Special Forces', 'Gunship', 'Nuclear',
+                                'UAV', 'Coastguard', 'Da Comrade', 'Hired Gun', 'Oxcart', 'Zoomies',
+                                'Toy Soldiers', 'Police Forces', 'Flying Doctors', 'Aerial Firefighter',
+                            ]);
+                            const cat = flight.alert_category || '';
+                            const isMilitary = MILITARY_CATEGORIES.has(cat);
+
+                            // Resolve aircraft model wiki info (for link or image depending on context)
+                            let acWikiTitle = flight.model ? AIRCRAFT_WIKI[flight.model] : undefined;
+                            if (!acWikiTitle && flight.alert_type && flight.alert_type !== "UNKNOWN") {
+                                acWikiTitle = resolveAcTypeWiki(flight.alert_type) || flight.alert_type;
+                            }
+                            const acModelWikiUrl = acWikiTitle ? `https://en.wikipedia.org/wiki/${acWikiTitle.replace(/ /g, '_')}` : null;
+
+                            // Resolve operator wiki info
+                            const operatorSlug = flight.alert_wiki || (flight.alert_operator && flight.alert_operator !== "UNKNOWN"
+                                ? flight.alert_operator.replace(/\s*\(.*?\)\s*/g, '').trim().replace(/ /g, '_')
+                                : null);
+                            const operatorWikiUrl = operatorSlug ? `https://en.wikipedia.org/wiki/${encodeURIComponent(operatorSlug)}` : null;
+
+                            const accentClass = ac === 'pink' ? 'hover:border-pink-500/50' : ac === 'red' ? 'hover:border-red-500/50' : 'hover:border-cyan-500/50';
+
+                            if (isMilitary) {
+                                // MILITARY: aircraft model photo as primary image, operator as text link above
+                                return acModelWikiUrl ? (
+                                    <div className="border-b border-[var(--border-primary)] pb-2">
+                                        <WikiImage
+                                            wikiUrl={acModelWikiUrl}
+                                            label={acWikiTitle || flight.model}
+                                            maxH="max-h-36"
+                                            accent={accentClass}
+                                        />
+                                    </div>
+                                ) : null;
+                            }
+
+                            // NON-MILITARY (tracked jets, celebs, companies, airlines):
+                            // Operator/company photo as primary image
+                            // Aircraft model as a text link below
                             return (
-                                <div className="border-b border-[var(--border-primary)] pb-2">
-                                    <WikiImage
-                                        wikiUrl={wikiHref}
-                                        label={flight.alert_operator}
-                                        maxH="max-h-36"
-                                        accent={ac === 'pink' ? 'hover:border-pink-500/50' : ac === 'red' ? 'hover:border-red-500/50' : 'hover:border-cyan-500/50'}
-                                    />
-                                </div>
+                                <>
+                                    {operatorWikiUrl && (
+                                        <div className="border-b border-[var(--border-primary)] pb-2">
+                                            <WikiImage
+                                                wikiUrl={operatorWikiUrl}
+                                                label={flight.alert_operator || 'Operator'}
+                                                maxH="max-h-36"
+                                                accent={accentClass}
+                                            />
+                                        </div>
+                                    )}
+                                    {acModelWikiUrl && (
+                                        <div className="border-b border-[var(--border-primary)] pb-1">
+                                            <a href={acModelWikiUrl} target="_blank" rel="noopener noreferrer"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline inline-block">
+                                                📖 {acWikiTitle || flight.alert_type || flight.model} — Wikipedia →
+                                            </a>
+                                        </div>
+                                    )}
+                                </>
                             );
                         })()}
-                        {/* Aircraft model Wikipedia photo */}
-                        {aircraftImgUrl && (
-                            <div className="border-b border-[var(--border-primary)] pb-2">
-                                <a href={aircraftWikiUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                    <img
-                                        src={aircraftImgUrl}
-                                        alt={AIRCRAFT_WIKI[flight.model] || flight.model}
-                                        className={`w-full h-auto max-h-28 object-cover border border-[var(--border-primary)]/50 ${ac === 'pink' ? 'hover:border-pink-500/50' : 'hover:border-cyan-500/50'} transition-colors`}
-                                    />
-                                </a>
-                                {aircraftWikiUrl && (
-                                    <a href={aircraftWikiUrl} target="_blank" rel="noopener noreferrer"
-                                        className="text-[10px] text-cyan-400 hover:text-cyan-300 underline mt-1 inline-block">
-                                        📖 {AIRCRAFT_WIKI[flight.model] || flight.model} — Wikipedia →
-                                    </a>
-                                )}
-                            </div>
-                        )}
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">CATEGORY</span>
                             <span className={`text-xs font-bold ${headerColor}`}>{flight.alert_category || "N/A"}</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">AIRCRAFT</span>
-                            <span className="text-[var(--text-primary)] text-xs font-bold">{flight.alert_type || flight.model || "UNKNOWN"}</span>
+                            {(() => {
+                                const acLabel = flight.alert_type || flight.model || "UNKNOWN";
+                                let acLink = flight.model ? AIRCRAFT_WIKI[flight.model] : undefined;
+                                if (!acLink && flight.alert_type && flight.alert_type !== "UNKNOWN") {
+                                    acLink = resolveAcTypeWiki(flight.alert_type) || undefined;
+                                }
+                                const acHref = acLink ? `https://en.wikipedia.org/wiki/${acLink.replace(/ /g, '_')}` : null;
+                                return acHref ? (
+                                    <a href={acHref} target="_blank" rel="noreferrer"
+                                        className="text-xs font-bold text-cyan-400 hover:text-cyan-300 underline transition-opacity">
+                                        {acLabel}
+                                    </a>
+                                ) : (
+                                    <span className="text-[var(--text-primary)] text-xs font-bold">{acLabel}</span>
+                                );
+                            })()}
                         </div>
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">REGISTRATION</span>
@@ -523,12 +688,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">EMISSIONS ESTIMATE</span>
                             <div className="flex gap-3">
                                 <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
-                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
-                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[8px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
+                                    <div className="text-[11px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
+                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[11px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
                                 </div>
                                 <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
-                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
-                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[8px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
+                                    <div className="text-[11px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
+                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[11px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
                                 </div>
                             </div>
                         </div>
@@ -600,16 +765,16 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
             } else if ('airline_code' in flight && flight.airline_code) {
                 // Use the airline code resolved from adsb.lol routeset API
                 const codeMap: Record<string, string> = {
-                    "UAL": "UNITED AIRLINES", "DAL": "DELTA AIR LINES", "SWA": "SOUTHWEST AIRLINES",
-                    "AAL": "AMERICAN AIRLINES", "BAW": "BRITISH AIRWAYS", "AFR": "AIR FRANCE",
-                    "JBU": "JETBLUE AIRWAYS", "NKS": "SPIRIT AIRLINES", "THY": "TURKISH AIRLINES",
-                    "UAE": "EMIRATES", "QFA": "QANTAS", "ACA": "AIR CANADA",
-                    "FFT": "FRONTIER AIRLINES", "WJA": "WESTJET", "RPA": "REPUBLIC AIRWAYS",
-                    "SKW": "SKYWEST AIRLINES", "ENY": "ENVOY AIR", "ASA": "ALASKA AIRLINES",
-                    "HAL": "HAWAIIAN AIRLINES", "DLH": "LUFTHANSA", "KLM": "KLM",
-                    "EZY": "EASYJET", "RYR": "RYANAIR", "SIA": "SINGAPORE AIRLINES",
-                    "CPA": "CATHAY PACIFIC", "ANA": "ALL NIPPON AIRWAYS", "JAL": "JAPAN AIRLINES",
-                    "QTR": "QATAR AIRWAYS", "ETD": "ETIHAD AIRWAYS", "SAS": "SAS SCANDINAVIAN"
+                    "UAL": "United Airlines", "DAL": "Delta Air Lines", "SWA": "Southwest Airlines",
+                    "AAL": "American Airlines", "BAW": "British Airways", "AFR": "Air France",
+                    "JBU": "JetBlue Airways", "NKS": "Spirit Airlines", "THY": "Turkish Airlines",
+                    "UAE": "Emirates", "QFA": "Qantas", "ACA": "Air Canada",
+                    "FFT": "Frontier Airlines", "WJA": "WestJet", "RPA": "Republic Airways",
+                    "SKW": "SkyWest Airlines", "ENY": "Envoy Air", "ASA": "Alaska Airlines",
+                    "HAL": "Hawaiian Airlines", "DLH": "Lufthansa", "KLM": "KLM",
+                    "EZY": "EasyJet", "RYR": "Ryanair", "SIA": "Singapore Airlines",
+                    "CPA": "Cathay Pacific", "ANA": "All Nippon Airways", "JAL": "Japan Airlines",
+                    "QTR": "Qatar Airways", "ETD": "Etihad Airways", "SAS": "SAS Scandinavian"
                 };
                 airline = codeMap[flight.airline_code] || flight.airline_code;
             } else if (callsign !== "UNKNOWN") {
@@ -633,8 +798,30 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                     <div className="p-4 flex flex-col gap-3">
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">OPERATOR</span>
-                            <span className="text-[var(--text-primary)] text-xs font-bold">{airline}</span>
+                            {selectedEntity.type !== 'military_flight' && airline && airline !== 'COMMERCIAL FLIGHT' && airline !== 'UNKNOWN' ? (
+                                <a
+                                    href={`https://en.wikipedia.org/wiki/${encodeURIComponent(airline.replace(/ /g, '_'))}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs font-bold text-cyan-400 hover:text-cyan-300 underline"
+                                >
+                                    {airline}
+                                </a>
+                            ) : (
+                                <span className="text-[var(--text-primary)] text-xs font-bold">{airline}</span>
+                            )}
                         </div>
+                        {/* Commercial: Airline company Wikipedia image */}
+                        {selectedEntity.type !== 'military_flight' && airline && airline !== 'COMMERCIAL FLIGHT' && airline !== 'UNKNOWN' && (
+                            <div className="border-b border-[var(--border-primary)] pb-2">
+                                <WikiImage
+                                    wikiUrl={`https://en.wikipedia.org/wiki/${encodeURIComponent(airline.replace(/ /g, '_'))}`}
+                                    label={airline}
+                                    maxH="max-h-32"
+                                    accent="hover:border-cyan-500/50"
+                                />
+                            </div>
+                        )}
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">REGISTRATION</span>
                             <span className="text-[var(--text-primary)] text-xs font-bold">{flight.registration || "N/A"}</span>
@@ -643,8 +830,56 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             <span className="text-[var(--text-muted)] text-[10px]">AIRCRAFT MODEL</span>
                             <span className="text-[var(--text-primary)] text-xs font-bold">{flight.model || "UNKNOWN"}</span>
                         </div>
-                        {/* Aircraft photo + Wikipedia link */}
-                        {(aircraftImgUrl || aircraftImgLoading || aircraftWikiUrl) && (
+                        {/* Military: Aircraft model Wikipedia image (gold accent) */}
+                        {selectedEntity.type === 'military_flight' && (() => {
+                            // Resolve model to Wikipedia article — ICAO code first, then ac_type regex
+                            const milAcType = (flight as Record<string, any>).alert_type as string | undefined;
+                            const milWikiTitle = (flight.model ? AIRCRAFT_WIKI[flight.model] : undefined)
+                                || (milAcType ? resolveAcTypeWiki(milAcType) : null)
+                                || (flight.model ? resolveAcTypeWiki(flight.model) : null);
+                            const milModelUrl = milWikiTitle ? `https://en.wikipedia.org/wiki/${milWikiTitle.replace(/ /g, '_')}` : null;
+                            if (milModelUrl) {
+                                return (
+                                    <div className="border-b border-[var(--border-primary)] pb-3">
+                                        <WikiImage
+                                            wikiUrl={milModelUrl}
+                                            label={milWikiTitle || flight.model}
+                                            maxH="max-h-36"
+                                            accent="hover:border-amber-400/60"
+                                        />
+                                    </div>
+                                );
+                            }
+                            // Fall back to cached thumbnail if available
+                            if (aircraftImgUrl || aircraftImgLoading) {
+                                return (
+                                    <div className="border-b border-[var(--border-primary)] pb-3">
+                                        {aircraftImgLoading && (
+                                            <div className="w-full h-24 bg-[var(--bg-tertiary)]/60" />
+                                        )}
+                                        {aircraftImgUrl && (
+                                            <a href={aircraftWikiUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                                                <img
+                                                    src={aircraftImgUrl}
+                                                    alt={AIRCRAFT_WIKI[flight.model] || flight.model}
+                                                    className="w-full h-auto max-h-32 object-cover border border-amber-500/30 hover:border-amber-400/60 transition-colors"
+                                                    style={{ imageRendering: 'auto' }}
+                                                />
+                                            </a>
+                                        )}
+                                        {aircraftWikiUrl && (
+                                            <a href={aircraftWikiUrl} target="_blank" rel="noopener noreferrer"
+                                                className="text-[10px] text-amber-400 hover:text-amber-300 underline mt-1 inline-block">
+                                                📖 {AIRCRAFT_WIKI[flight.model] || flight.model} — Wikipedia →
+                                            </a>
+                                        )}
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
+                        {/* Non-military: Aircraft model photo (secondary, below airline image) */}
+                        {selectedEntity.type !== 'military_flight' && (aircraftImgUrl || aircraftImgLoading || aircraftWikiUrl) && (
                             <div className="border-b border-[var(--border-primary)] pb-3">
                                 {aircraftImgLoading && (
                                     <div className="w-full h-24 bg-[var(--bg-tertiary)]/60" />
@@ -693,12 +928,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">EMISSIONS ESTIMATE</span>
                             <div className="flex gap-3">
                                 <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
-                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
-                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[8px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
+                                    <div className="text-[11px] text-[var(--text-muted)] tracking-widest">FUEL BURN</div>
+                                    <div className="text-xs font-bold text-orange-400">{flight.emissions ? <>{flight.emissions.fuel_gph} <span className="text-[11px] text-[var(--text-muted)] font-normal">GPH</span></> : 'UNKNOWN'}</div>
                                 </div>
                                 <div className="flex-1 bg-[var(--bg-primary)]/50 border border-[var(--border-primary)] px-2 py-1.5">
-                                    <div className="text-[8px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
-                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[8px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
+                                    <div className="text-[11px] text-[var(--text-muted)] tracking-widest">CO2 OUTPUT</div>
+                                    <div className="text-xs font-bold text-red-400">{flight.emissions ? <>{flight.emissions.co2_kg_per_hour.toLocaleString()} <span className="text-[11px] text-[var(--text-muted)] font-normal">KG/HR</span></> : 'UNKNOWN'}</div>
                                 </div>
                             </div>
                         </div>
@@ -875,7 +1110,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                                     {headline || domain || 'View Article'}
                                                 </span>
                                                 {headline && domain && (
-                                                    <span className="text-[var(--text-muted)] text-[9px] block mt-0.5">{domain}</span>
+                                                    <span className="text-[var(--text-muted)] text-[11px] block mt-0.5">{domain}</span>
                                                 )}
                                             </a>
                                         );
@@ -980,7 +1215,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">MARKET CORRELATION</span>
                                 <div className="p-2 bg-purple-950/30 border border-purple-500/30 rounded-sm">
                                     <div className="text-[10px] text-purple-300 font-bold leading-tight mb-1">{item.prediction_odds.title}</div>
-                                    <div className="flex items-center gap-3 text-[9px] font-mono">
+                                    <div className="flex items-center gap-3 text-[11px] font-mono">
                                         <span className="text-white font-bold">CONSENSUS: {item.prediction_odds.consensus_pct}%</span>
                                         {item.prediction_odds.polymarket_pct != null && <span className="text-cyan-400">Polymarket {item.prediction_odds.polymarket_pct}%</span>}
                                         {item.prediction_odds.kalshi_pct != null && <span className="text-orange-400">Kalshi {item.prediction_odds.kalshi_pct}%</span>}
@@ -989,7 +1224,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             </div>
                         )}
                         {item.machine_assessment && (
-                            <div className="mt-2 p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[9px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
+                            <div className="mt-2 p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
                                 <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
                                 <span className="font-bold text-white">&gt;_ SYS.ANALYSIS: </span>
                                 <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
@@ -1053,19 +1288,48 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className={`w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col z-10 font-mono pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[50px] flex-shrink-0' : 'flex-1 min-h-0'}`}
+            className={`w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col z-10 font-mono pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}
         >
             <div
-                className="p-3 border-b border-[var(--border-primary)]/50 relative overflow-hidden cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
+                className="px-3 py-2.5 border-b border-cyan-900/40 relative overflow-hidden cursor-pointer hover:bg-cyan-950/30 transition-colors"
                 onClick={() => setIsMinimized(!isMinimized)}
             >
-                <div className="flex justify-between items-center relative z-10">
-                    <h2 className="text-xs tracking-widest font-bold text-cyan-400 flex items-center gap-2">
-                        <AlertTriangle size={14} /> GLOBAL THREAT INTERCEPT
-                    </h2>
-                    <button className="text-cyan-500 hover:text-[var(--text-primary)] transition-colors">
-                        {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                    </button>
+                <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-2">
+                        <AlertTriangle size={16} className="text-cyan-400" />
+                        <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+                            GLOBAL THREAT INTERCEPT
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const next = !aiSummaryOpen;
+                                setAiSummaryOpen(next);
+                                if (next && !aiSummary) {
+                                    setAiSummaryLoading(true);
+                                    fetch('/api/ai/news/summary')
+                                        .then(r => r.json())
+                                        .then(d => { setAiSummary(d); setAiSummaryLoading(false); })
+                                        .catch(() => setAiSummaryLoading(false));
+                                }
+                            }}
+                            className={`p-0.5 rounded-sm transition-colors ${
+                                aiSummaryOpen
+                                    ? 'text-purple-400 bg-purple-900/30 border border-purple-700/40'
+                                    : 'text-gray-600 hover:text-purple-400 border border-transparent hover:border-purple-700/30'
+                            }`}
+                            title="AI Intelligence Brief"
+                        >
+                            <Brain size={14} />
+                        </button>
+                        {isMinimized ? (
+                            <Plus size={16} className="text-cyan-400" />
+                        ) : (
+                            <Minus size={16} className="text-cyan-400" />
+                        )}
+                    </div>
                 </div>
 
                 <AnimatePresence>
@@ -1104,22 +1368,108 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             <div className={`w-2 h-2 rounded-full ${
                                 data.threat_level.level === 'SEVERE' || data.threat_level.level === 'HIGH' ? 'animate-pulse' : ''
                             }`} style={{ backgroundColor: data.threat_level.color }} />
-                            <span className="text-[9px] font-bold tracking-wider" style={{ color: data.threat_level.color }}>
+                            <span className="text-[12px] font-bold tracking-wider" style={{ color: data.threat_level.color }}>
                                 THREAT: {data.threat_level.level}
                             </span>
-                            <span className="text-[9px] text-[var(--text-muted)] ml-auto">
+                            <span className="text-[12px] text-[var(--text-muted)] ml-auto">
                                 {data.threat_level.score}/100
                             </span>
                         </div>
-                        {data.threat_level.drivers.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1 mb-1">
-                                {data.threat_level.drivers.map((d: string, i: number) => (
-                                    <span key={i} className="text-[7px] px-1 py-0.5 bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-muted)] rounded-sm">
-                                        {d}
-                                    </span>
-                                ))}
+                        {/* Threat drivers removed — the level bar is sufficient */}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* AI Intelligence Brief */}
+            <AnimatePresence>
+                {!isMinimized && aiSummaryOpen && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="px-3 pt-1 pb-2 overflow-hidden"
+                    >
+                        <div className="border border-purple-500/30 bg-purple-950/10 rounded-sm">
+                            <div className="flex items-center gap-2 px-2 py-1.5 border-b border-purple-500/20">
+                                <Brain size={12} className="text-purple-400" />
+                                <span className="text-[11px] font-bold tracking-wider text-purple-400">AI INTELLIGENCE BRIEF</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse ml-auto" />
                             </div>
-                        )}
+                            {aiSummaryLoading ? (
+                                <div className="p-3 flex items-center gap-2 text-[10px] text-purple-300">
+                                    <Loader2 size={12} className="animate-spin" />
+                                    COMPILING INTELLIGENCE BRIEF...
+                                </div>
+                            ) : aiSummary ? (
+                                <div className="p-2 flex flex-col gap-2 text-[10px]">
+                                    <div className="text-purple-200 font-mono leading-relaxed">
+                                        {aiSummary.summary}
+                                    </div>
+                                    {aiSummary.top_stories?.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">TOP STORIES</div>
+                                            <div className="flex flex-col gap-1">
+                                                {aiSummary.top_stories.slice(0, 5).map((s: any, i: number) => (
+                                                    <a key={i} href={s.link} target="_blank" rel="noreferrer" className="text-[11px] text-purple-200/80 hover:text-white transition-colors truncate">
+                                                        <span className={`mr-1 ${
+                                                            s.risk_score >= 9 ? 'text-red-400' :
+                                                            s.risk_score >= 7 ? 'text-orange-400' :
+                                                            s.risk_score >= 4 ? 'text-yellow-400' : 'text-green-400'
+                                                        }`}>●</span>
+                                                        [{s.risk_score}/10] {s.title}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {aiSummary.keywords?.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">TRENDING KEYWORDS</div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {aiSummary.keywords.slice(0, 10).map((kw: any, i: number) => (
+                                                    <span key={i} className="text-[10px] px-1 py-0.5 bg-purple-950/50 border border-purple-500/20 text-purple-300 rounded-sm">
+                                                        {kw.word} ({kw.count})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {aiSummary.threat_distribution && (
+                                        <div>
+                                            <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">THREAT BREAKDOWN</div>
+                                            <div className="flex gap-1">
+                                                {Object.entries(aiSummary.threat_distribution).map(([level, count]) => (
+                                                    <span key={level} className={`text-[10px] px-1.5 py-0.5 border rounded-sm font-bold ${
+                                                        level === 'CRITICAL' ? 'bg-red-950/40 border-red-500/30 text-red-400' :
+                                                        level === 'HIGH' ? 'bg-orange-950/40 border-orange-500/30 text-orange-400' :
+                                                        level === 'ELEVATED' ? 'bg-yellow-950/40 border-yellow-500/30 text-yellow-400' :
+                                                        level === 'MODERATE' ? 'bg-blue-950/40 border-blue-500/30 text-blue-400' :
+                                                        'bg-green-950/40 border-green-500/30 text-green-400'
+                                                    }`}>
+                                                        {level}: {count as number}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setAiSummaryLoading(true);
+                                            setAiSummary(null);
+                                            fetch('/api/ai/news/summary')
+                                                .then(r => r.json())
+                                                .then(d => { setAiSummary(d); setAiSummaryLoading(false); })
+                                                .catch(() => setAiSummaryLoading(false));
+                                        }}
+                                        className="text-[11px] text-purple-500 hover:text-purple-300 transition-colors self-end"
+                                    >
+                                        ↻ REFRESH BRIEF
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="p-3 text-[10px] text-purple-300/50">No data available.</div>
+                            )}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1145,7 +1495,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             <div className={`w-2 h-2 rounded-full ${
                                 fimi.major_wave ? 'bg-amber-400 animate-pulse' : 'bg-purple-400'
                             }`} />
-                            <span className={`text-[9px] font-bold tracking-wider ${
+                            <span className={`text-[11px] font-bold tracking-wider ${
                                 fimi.major_wave ? 'text-amber-400' : 'text-purple-400'
                             }`}>
                                 {fimi.major_wave
@@ -1153,14 +1503,14 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     : '⚠ DISINFORMATION INDEX'
                                 }
                             </span>
-                            <span className="text-[8px] text-[var(--text-muted)] ml-auto flex items-center gap-1">
+                            <span className="text-[11px] text-[var(--text-muted)] ml-auto flex items-center gap-1">
                                 {Object.keys(fimi.threat_actors).length > 0 && (
                                     <span className="text-red-400">
                                         {Object.keys(fimi.threat_actors)[0]}
                                     </span>
                                 )}
                                 <span>{fimi.narratives.length} NARR</span>
-                                {fimiExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                {fimiExpanded ? <Minus size={10} /> : <Plus size={10} />}
                             </span>
                         </button>
 
@@ -1176,7 +1526,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     {/* Threat Actor Bar */}
                                     {Object.keys(fimi.threat_actors).length > 0 && (
                                         <div className="px-2 py-1.5 border-b border-purple-500/10">
-                                            <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">THREAT ACTORS</div>
+                                            <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">THREAT ACTORS</div>
                                             <div className="flex gap-1 h-2 rounded-sm overflow-hidden">
                                                 {(() => {
                                                     const total = Object.values(fimi.threat_actors).reduce((a, b) => a + b, 0);
@@ -1197,7 +1547,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             </div>
                                             <div className="flex gap-2 mt-1 flex-wrap">
                                                 {Object.entries(fimi.threat_actors).map(([actor, count]) => (
-                                                    <span key={actor} className="text-[7px] text-[var(--text-muted)]">
+                                                    <span key={actor} className="text-[10px] text-[var(--text-muted)]">
                                                         <span className={`font-bold ${
                                                             actor === 'Russia' ? 'text-red-400' :
                                                             actor === 'China' ? 'text-amber-400' :
@@ -1212,7 +1562,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
 
                                     {/* Top Narratives */}
                                     <div className="px-2 py-1.5 border-b border-purple-500/10">
-                                        <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">LATEST NARRATIVES</div>
+                                        <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">LATEST NARRATIVES</div>
                                         <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto styled-scrollbar">
                                             {fimi.narratives.slice(0, 5).map((n, i) => (
                                                 <a
@@ -1220,7 +1570,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                                     href={n.link}
                                                     target="_blank"
                                                     rel="noreferrer"
-                                                    className="text-[9px] text-[var(--text-secondary)] hover:text-purple-300 transition-colors leading-tight flex items-start gap-1"
+                                                    className="text-[11px] text-[var(--text-secondary)] hover:text-purple-300 transition-colors leading-tight flex items-start gap-1"
                                                 >
                                                     <ExternalLink size={8} className="text-purple-500 mt-0.5 flex-shrink-0" />
                                                     <span className="flex-1">{n.title}</span>
@@ -1232,7 +1582,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     {/* Debunked Claims */}
                                     {fimi.claims.length > 0 && (
                                         <div className="px-2 py-1.5 border-b border-purple-500/10">
-                                            <div className="text-[8px] text-red-400 tracking-widest font-bold mb-1">DEBUNKED CLAIMS ({fimi.claims.length})</div>
+                                            <div className="text-[11px] text-red-400 tracking-widest font-bold mb-1">DEBUNKED CLAIMS ({fimi.claims.length})</div>
                                             <div className="flex flex-col gap-0.5 max-h-[80px] overflow-y-auto styled-scrollbar">
                                                 {fimi.claims.slice(0, 5).map((c, i) => (
                                                     <a
@@ -1240,7 +1590,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                                         href={c.url}
                                                         target="_blank"
                                                         rel="noreferrer"
-                                                        className="text-[8px] text-red-300/70 hover:text-red-300 transition-colors truncate"
+                                                        className="text-[11px] text-red-300/70 hover:text-red-300 transition-colors truncate"
                                                     >
                                                         ✕ {c.title}
                                                     </a>
@@ -1252,10 +1602,10 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     {/* Target Countries */}
                                     {Object.keys(fimi.targets).length > 0 && (
                                         <div className="px-2 py-1.5">
-                                            <div className="text-[8px] text-purple-400 tracking-widest font-bold mb-1">TARGETS</div>
+                                            <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">TARGETS</div>
                                             <div className="flex flex-wrap gap-1">
                                                 {Object.entries(fimi.targets).slice(0, 10).map(([target, count]) => (
-                                                    <span key={target} className="text-[7px] px-1 py-0.5 bg-purple-950/50 border border-purple-500/20 text-purple-300 rounded-sm">
+                                                    <span key={target} className="text-[10px] px-1 py-0.5 bg-purple-950/50 border border-purple-500/20 text-purple-300 rounded-sm">
                                                         {target} ({count})
                                                     </span>
                                                 ))}
@@ -1265,10 +1615,10 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
 
                                     {/* Source attribution */}
                                     <div className="px-2 py-1 border-t border-purple-500/10 flex justify-between items-center">
-                                        <a href={fimi.source_url} target="_blank" rel="noreferrer" className="text-[7px] text-purple-500 hover:text-purple-300 transition-colors">
+                                        <a href={fimi.source_url} target="_blank" rel="noreferrer" className="text-[10px] text-purple-500 hover:text-purple-300 transition-colors">
                                             Source: {fimi.source}
                                         </a>
-                                        <span className="text-[7px] text-[var(--text-muted)]">
+                                        <span className="text-[10px] text-[var(--text-muted)]">
                                             {fimi.last_fetched ? new Date(fimi.last_fetched).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                                         </span>
                                     </div>
@@ -1322,7 +1672,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     transition={idx < 15 ? { delay: 0.1 + (idx * 0.05) } : { duration: 0 }}
                                     className={`p-2 rounded-sm border-l-[2px] border-r border-t border-b ${bgClass} flex flex-col gap-1 relative group shrink-0`}
                                 >
-                                    <div className="flex items-center justify-between text-[8px] text-[var(--text-secondary)] uppercase tracking-widest">
+                                    <div className="flex items-center justify-between text-[12px] text-[var(--text-secondary)] uppercase tracking-widest">
                                         <span className="font-bold flex items-center gap-1 text-white">
                                             {isBreaking && <span className="text-red-400 mr-1">BREAKING</span>}
                                             &gt;_ {item.source}
@@ -1330,22 +1680,22 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                         <span>[{item.published ? formatTime(item.published) : ''}]</span>
                                     </div>
 
-                                    <button 
-                                        onClick={() => onArticleClick?.(idx, item.coords?.[0], item.coords?.[1])}
-                                        className={`text-left text-[11px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight cursor-pointer`}
+                                    <button
+                                        onClick={() => onArticleClick?.(idx, item.coords?.[0], item.coords?.[1], item.title)}
+                                        className={`text-left text-[12px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight cursor-pointer`}
                                     >
                                         {item.title}
                                     </button>
 
                                     {item.machine_assessment && (
-                                        <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[8.5px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
+                                        <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
                                             <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
                                             <span className="font-bold text-white">&gt;_ SYS.ANALYSIS: </span>
                                             <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
                                         </div>
                                     )}
                                     {item.prediction_odds && item.prediction_odds.consensus_pct != null && (
-                                        <div className="mt-1 px-1.5 py-1 bg-purple-950/30 border border-purple-500/30 rounded-sm text-[8px] font-mono flex items-center gap-1.5">
+                                        <div className="mt-1 px-1.5 py-1 bg-purple-950/30 border border-purple-500/30 rounded-sm text-[11px] font-mono flex items-center gap-1.5">
                                             <span className="text-purple-400 font-bold">MKT</span>
                                             <span className="text-purple-300 truncate flex-1" title={item.prediction_odds.title}>{item.prediction_odds.title}</span>
                                             <span className="text-white font-bold whitespace-nowrap">{item.prediction_odds.consensus_pct}%</span>
@@ -1353,11 +1703,11 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     )}
 
                                     <div className="flex items-center gap-1.5 mt-1 relative z-10 flex-wrap">
-                                        <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${badgeClass}`}>
+                                        <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${badgeClass}`}>
                                             {isBreaking ? 'BREAKING' : `LVL: ${item.risk_score}/10`}
                                         </span>
                                         {item.sentiment != null && (
-                                            <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
+                                            <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
                                                 item.sentiment < -0.1 ? 'bg-red-500/10 text-red-400 border-red-500/30' :
                                                 item.sentiment > 0.1 ? 'bg-green-500/10 text-green-400 border-green-500/30' :
                                                 'bg-gray-500/10 text-gray-400 border-gray-500/30'
@@ -1367,7 +1717,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             </span>
                                         )}
                                         {item.oracle_score != null && (
-                                            <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
+                                            <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
                                                 item.oracle_score >= 7 ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' :
                                                 item.oracle_score >= 4 ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' :
                                                 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
@@ -1376,17 +1726,17 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             </span>
                                         )}
                                         {checkDisinfoLinked(item.title) && (
-                                            <span className="text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm border bg-amber-500/15 text-amber-400 border-amber-500/40 animate-pulse" title="This article echoes known disinformation narratives tracked by EUvsDisinfo">
+                                            <span className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border bg-amber-500/15 text-amber-400 border-amber-500/40 animate-pulse" title="This article echoes known disinformation narratives tracked by EUvsDisinfo">
                                                 ⚠ DISINFORMATION-LINKED
                                             </span>
                                         )}
                                         {item.cluster_count > 1 && (
-                                            <button onClick={() => toggleExpand(idx)} className="text-[8px] font-bold font-mono text-cyan-500 bg-[var(--bg-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)] border border-cyan-500/30 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer">
+                                            <button onClick={() => toggleExpand(idx)} className="text-[11px] font-bold font-mono text-cyan-500 bg-[var(--bg-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)] border border-cyan-500/30 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer">
                                                 {isExpanded ? '- COLLAPSE' : `+${item.cluster_count - 1} SOURCES`}
                                             </button>
                                         )}
                                         {item.coords && (
-                                            <span className="text-[8px] text-[var(--text-muted)] font-mono tracking-tighter ml-auto">
+                                            <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-tighter ml-auto">
                                                 {item.coords[0].toFixed(2)}, {item.coords[1].toFixed(2)}
                                             </span>
                                         )}
@@ -1402,7 +1752,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             >
                                                 {item.articles.slice(1).map((subItem: any, subIdx: number) => (
                                                     <div key={subIdx} className="flex flex-col gap-0.5 pl-2 border-l border-cyan-500/20">
-                                                        <div className="flex items-center justify-between text-[7.5px] uppercase font-bold">
+                                                        <div className="flex items-center justify-between text-[11px] uppercase font-bold">
                                                             <span className="text-white">&gt;_ {subItem.source}</span>
                                                             <span className={
                                                                 subItem.risk_score >= 9 ? 'text-red-400' :
@@ -1411,7 +1761,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                                                             'text-green-400'
                                                             }>LVL: {subItem.risk_score}/10</span>
                                                         </div>
-                                                        <a href={subItem.link} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors leading-tight">
+                                                        <a href={subItem.link} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors leading-tight">
                                                             {subItem.title}
                                                         </a>
                                                     </div>
@@ -1425,7 +1775,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         {news.length === 0 && (
                             <div className="text-cyan-500/50 text-[10px] tracking-widest font-bold text-center mt-6">
                                 NO NEWS ITEMS LOADED
-                                <div className="mt-2 text-[9px] font-normal tracking-normal text-cyan-600/80">
+                                <div className="mt-2 text-[11px] font-normal tracking-normal text-cyan-600/80">
                                     Feed ingest is empty or still warming up.
                                 </div>
                             </div>

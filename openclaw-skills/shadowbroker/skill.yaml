@@ -1,0 +1,66 @@
+name: shadowbroker
+description: >-
+  ShadowBroker OSINT intelligence co-pilot.
+  Provides autonomous monitoring, map pinning, satellite imagery,
+  news aggregation, proximity alerts, and full Wormhole/InfoNet participation.
+
+version: 1.0.0
+author: ShadowBroker AI Module
+
+# Heartbeat configuration — how often the autonomous monitor runs
+heartbeat:
+  enabled: true
+  interval_seconds: 60
+  handler: sb_monitor.heartbeat
+
+# Skill entry points
+entry_points:
+  query: sb_query.ShadowBrokerClient
+  signatures: sb_signatures
+  briefing: sb_briefing
+  monitor: sb_monitor
+
+# Dependencies
+requirements:
+  - httpx>=0.25.0
+
+# Capabilities declared
+capabilities:
+  - live_telemetry          # Real-time OSINT data (flights, ships, SIGINT, etc.)
+  - pin_placement           # Place custom pins on the map
+  - satellite_imagery       # On-demand Sentinel-2 satellite photos
+  - news_aggregation        # GDELT + news by location
+  - data_injection          # Inject data into native ShadowBroker layers
+  - proximity_monitoring    # "Near Me" radius-based telemetry
+  - anomaly_detection       # Spike detection, new entity tracking
+  - geofencing              # Trip-wire zones with instant alerts
+  - time_machine            # Historical snapshot queries and pattern detection
+  - correlation_alerts      # Multi-layer correlation alerts (RF, military, infra)
+  - alpr_awareness          # ALPR/surveillance camera location awareness
+  - wormhole_identity       # Ed25519 identity on the Wormhole network
+  - infonet_participation   # Read/write to the decentralized InfoNet
+  - gate_messaging          # Encrypted group channel communication
+  - encrypted_dm            # End-to-end encrypted direct messages
+  - meshtastic_bridge       # LoRa radio network interaction
+  - dead_drop               # Anonymous intelligence exchange
+  - cover_traffic           # Command channel cover polling (high-privacy mode)
+  - sar_ground_change       # SAR anomaly queries, AOI management, map fly-to
+  - analysis_zones          # Agent-authored map overlays with written assessments
+
+# Message signatures — branded prefixes for all outbound messages
+signatures:
+  brief:       "🌍📡 SHADOWBROKER BRIEF:"
+  warning:     "🌍⚠️ SHADOWBROKER WARNING:"
+  news:        "🌍📰 SHADOWBROKER NEWS:"
+  intel:       "🌍🛰️ SHADOWBROKER INTEL:"
+  update:      "🌍🌐 SHADOWBROKER UPDATE:"
+  searching:   "🌍🔍 SHADOWBROKER SEARCHING:"
+  pinning:     "🌍📌 SHADOWBROKER PINNING:"
+  near_you:    "🌍📍 SHADOWBROKER NEAR YOU:"
+  threat:      "🌍🔴 SHADOWBROKER THREAT:"
+  anomaly:     "🌍🔶 SHADOWBROKER ANOMALY:"
+
+# API base URL (local-only, no auth needed for loopback)
+config:
+  api_base: "http://127.0.0.1:8000"
+  auth_mode: "local_operator"   # Uses require_local_operator (loopback)

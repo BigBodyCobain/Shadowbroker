@@ -21,6 +21,7 @@ export interface InfonetBootstrapSnapshot {
   sync_peer_count?: number;
   push_peer_count?: number;
   operator_peer_count?: number;
+  default_sync_peer_count?: number;
   last_bootstrap_error?: string;
 }
 
@@ -70,6 +71,16 @@ export interface InfonetNodeStatusSnapshot {
   private_lane_tier?: string;
 }
 
+export interface NodeSettingsSnapshot {
+  enabled?: boolean;
+  timemachine_enabled?: boolean;
+  updated_at?: number;
+  node_mode?: string;
+  node_enabled?: boolean;
+}
+
+export const DEFAULT_INFONET_SEED_URL = 'https://node.shadowbroker.info';
+
 const CACHE_TTL_MS = 15000;
 
 type CacheEntry<T> = {
@@ -102,6 +113,12 @@ async function loadRnsStatus(): Promise<RnsStatusSnapshot> {
 
 function loadInfonetNodeStatus(): Promise<InfonetNodeStatusSnapshot> {
   return controlPlaneJson<InfonetNodeStatusSnapshot>('/api/mesh/infonet/status', {
+    requireAdminSession: false,
+  });
+}
+
+function loadNodeSettings(): Promise<NodeSettingsSnapshot> {
+  return controlPlaneJson<NodeSettingsSnapshot>('/api/settings/node', {
     requireAdminSession: false,
   });
 }
@@ -187,4 +204,19 @@ export async function fetchInfonetNodeStatusSnapshot(
     },
     force,
   );
+}
+
+export async function fetchNodeSettingsSnapshot(): Promise<NodeSettingsSnapshot> {
+  return loadNodeSettings();
+}
+
+export async function setInfonetNodeEnabled(enabled: boolean): Promise<NodeSettingsSnapshot> {
+  const result = await controlPlaneJson<NodeSettingsSnapshot>('/api/settings/node', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+    requireAdminSession: false,
+  });
+  invalidateInfonetNodeStatusCache();
+  return result;
 }

@@ -17,7 +17,7 @@ from cachetools import TTLCache
 from services.mesh.mesh_wormhole_identity import bootstrap_wormhole_identity, read_wormhole_identity
 from services.mesh.mesh_protocol import PROTOCOL_VERSION
 
-_SENDER_TOKEN_TTL_S = 5 * 60
+_SENDER_TOKEN_TTL_S = 2 * 60
 _sender_tokens: TTLCache[str, dict[str, Any]] = TTLCache(maxsize=2048, ttl=_SENDER_TOKEN_TTL_S)
 
 
@@ -27,6 +27,15 @@ def _sender_token_hash(token: str) -> str:
 
 def _token_binding_hash(recipient_token: str) -> str:
     return hashlib.sha256((recipient_token or "").encode("utf-8")).hexdigest()
+
+
+def _sender_token_ttl_seconds(delivery_class: str, ttl_seconds: int) -> int:
+    requested = int(ttl_seconds or _SENDER_TOKEN_TTL_S)
+    delivery = str(delivery_class or "").strip().lower()
+    maximum = _SENDER_TOKEN_TTL_S
+    if delivery == "request":
+        maximum = min(maximum, 90)
+    return max(30, min(requested, maximum))
 
 
 def issue_wormhole_dm_sender_token(
@@ -54,7 +63,7 @@ def issue_wormhole_dm_sender_token(
 
     token = secrets.token_urlsafe(32)
     now = int(time.time())
-    expires_at = now + max(30, min(int(ttl_seconds or _SENDER_TOKEN_TTL_S), _SENDER_TOKEN_TTL_S))
+    expires_at = now + _sender_token_ttl_seconds(delivery_class, ttl_seconds)
     _sender_tokens[token] = {
         "sender_id": str(data.get("node_id", "")),
         "public_key": str(data.get("public_key", "")),

@@ -11,6 +11,7 @@ export const DESKTOP_CONTROL_COMMANDS = [
   'wormhole.gate.persona.clear',
   'wormhole.gate.key.get',
   'wormhole.gate.key.rotate',
+  'wormhole.gate.state.resync',
   'wormhole.gate.proof',
   'wormhole.gate.message.compose',
   'wormhole.gate.message.post',
@@ -21,7 +22,6 @@ export const DESKTOP_CONTROL_COMMANDS = [
   'settings.privacy.get',
   'settings.privacy.set',
   'settings.api_keys.get',
-  'settings.api_keys.set',
   'settings.news.get',
   'settings.news.set',
   'settings.news.reset',
@@ -80,6 +80,8 @@ export interface DesktopGateRotatePayload {
 export interface DesktopGateComposePayload {
   gate_id: string;
   plaintext: string;
+  reply_to?: string;
+  compat_plaintext?: boolean;
 }
 
 export interface DesktopGateDecryptPayload {
@@ -96,11 +98,6 @@ export interface DesktopGateDecryptBatchPayload {
 
 export interface DesktopPrivacySettingsPayload {
   profile: string;
-}
-
-export interface DesktopApiKeyPayload {
-  env_key: string;
-  value: string;
 }
 
 export interface DesktopNewsFeedPayload {
@@ -122,6 +119,7 @@ export interface DesktopControlPayloadMap {
   'wormhole.gate.persona.clear': DesktopGateRequestPayload;
   'wormhole.gate.key.get': DesktopGateRequestPayload;
   'wormhole.gate.key.rotate': DesktopGateRotatePayload;
+  'wormhole.gate.state.resync': DesktopGateRequestPayload;
   'wormhole.gate.proof': DesktopGateRequestPayload;
   'wormhole.gate.message.compose': DesktopGateComposePayload;
   'wormhole.gate.message.post': DesktopGateComposePayload;
@@ -132,7 +130,6 @@ export interface DesktopControlPayloadMap {
   'settings.privacy.get': undefined;
   'settings.privacy.set': DesktopPrivacySettingsPayload;
   'settings.api_keys.get': undefined;
-  'settings.api_keys.set': DesktopApiKeyPayload;
   'settings.news.get': undefined;
   'settings.news.set': DesktopNewsFeedPayload[];
   'settings.news.reset': undefined;
@@ -161,6 +158,7 @@ export function controlCommandCapability(
       return 'wormhole_gate_persona';
     case 'wormhole.gate.key.get':
     case 'wormhole.gate.key.rotate':
+    case 'wormhole.gate.state.resync':
       return 'wormhole_gate_key';
     case 'wormhole.gate.proof':
     case 'wormhole.gate.message.compose':
@@ -173,7 +171,6 @@ export function controlCommandCapability(
     case 'settings.privacy.get':
     case 'settings.privacy.set':
     case 'settings.api_keys.get':
-    case 'settings.api_keys.set':
     case 'settings.news.get':
     case 'settings.news.set':
     case 'settings.news.reset':
@@ -248,12 +245,7 @@ export function isDesktopControlCommand(value: string): value is DesktopControlC
 }
 
 export function describeNativeControlError(err: unknown): string | null {
-  const msg =
-    typeof err === 'object' && err !== null && 'message' in err
-      ? String((err as { message?: string }).message || '')
-      : typeof err === 'string'
-        ? err
-        : '';
+  const msg = getNativeControlErrorMessage(err);
   if (msg.includes('native_control_profile_mismatch')) {
     return 'Denied — current native session profile does not include the required access';
   }
@@ -266,7 +258,27 @@ export function describeNativeControlError(err: unknown): string | null {
   if (msg.includes('desktop_runtime_shim_enforcement_inactive')) {
     return 'Denied — this command requires a native runtime with session-profile enforcement';
   }
+  if (msg.includes('native_gate_state_resync_required:')) {
+    return 'Gate state changed on another path. Run a gate resync before retrying.';
+  }
   return null;
+}
+
+export function extractNativeGateResyncTarget(err: unknown): string | null {
+  const msg = getNativeControlErrorMessage(err);
+  const marker = 'native_gate_state_resync_required:';
+  const idx = msg.indexOf(marker);
+  if (idx < 0) return null;
+  const value = msg.slice(idx + marker.length).trim();
+  return value || null;
+}
+
+function getNativeControlErrorMessage(err: unknown): string {
+  return typeof err === 'object' && err !== null && 'message' in err
+    ? String((err as { message?: string }).message || '')
+    : typeof err === 'string'
+      ? err
+      : '';
 }
 
 export function extractGateTargetRef(
@@ -285,6 +297,7 @@ export function extractGateTargetRef(
     case 'wormhole.gate.persona.clear':
     case 'wormhole.gate.key.get':
     case 'wormhole.gate.key.rotate':
+    case 'wormhole.gate.state.resync':
     case 'wormhole.gate.proof':
     case 'wormhole.gate.message.compose':
     case 'wormhole.gate.message.post':

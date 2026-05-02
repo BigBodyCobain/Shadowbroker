@@ -9,9 +9,15 @@ interface InfonetTerminalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenLiveGate?: (gate: string) => void;
+  onOpenDeadDrop?: (peerId: string, options?: { showSas?: boolean }) => void;
 }
 
-export default function InfonetTerminal({ isOpen, onClose, onOpenLiveGate }: InfonetTerminalProps) {
+export default function InfonetTerminal({
+  isOpen,
+  onClose,
+  onOpenLiveGate,
+  onOpenDeadDrop,
+}: InfonetTerminalProps) {
   /* Close on Escape */
   useEffect(() => {
     if (!isOpen) return;
@@ -68,7 +74,12 @@ export default function InfonetTerminal({ isOpen, onClose, onOpenLiveGate }: Inf
 
             {/* Shell content — fills remaining space, scrolls internally */}
             <div className="flex-1 overflow-hidden">
-              <InfonetShell isOpen={isOpen} onClose={onClose} onOpenLiveGate={onOpenLiveGate} />
+              <InfonetShell
+                isOpen={isOpen}
+                onClose={onClose}
+                onOpenLiveGate={onOpenLiveGate}
+                onOpenDeadDrop={onOpenDeadDrop}
+              />
             </div>
           </motion.div>
         </motion.div>

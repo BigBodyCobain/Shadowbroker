@@ -3,8 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronUp,
-  ChevronDown,
+  Minus,
+  Plus,
   Filter,
   Plane,
   Shield,
@@ -300,27 +300,29 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
         initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono text-sm pointer-events-auto flex-shrink-0"
+        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
       >
         {/* Header Toggle */}
         <div
-          className="flex justify-between items-center p-4 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors border-b border-[var(--border-primary)]/50"
+          className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
           onClick={() => setIsMinimized(!isMinimized)}
         >
           <div className="flex items-center gap-2">
-            <Filter size={12} className="text-cyan-500" />
-            <span className="text-[12px] text-[var(--text-muted)] font-mono tracking-widest">
+            <Filter size={16} className="text-cyan-400" />
+            <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
               DATA FILTERS
             </span>
             {activeCount > 0 && (
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded-sm font-mono">
+              <span className="text-[11px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 font-mono">
                 {activeCount} ACTIVE
               </span>
             )}
           </div>
-          <button className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-            {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          </button>
+          {isMinimized ? (
+            <Plus size={16} className="text-cyan-400" />
+          ) : (
+            <Minus size={16} className="text-cyan-400" />
+          )}
         </div>
 
         <AnimatePresence>
@@ -356,7 +358,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
                         </span>
                         {count > 0 && (
                           <span
-                            className={`text-[8px] ${bgColors[section.color]} ${textColors[section.color]} px-1.5 py-0.5 rounded-sm`}
+                            className={`text-[11px] ${bgColors[section.color]} ${textColors[section.color]} px-1.5 py-0.5 rounded-sm`}
                           >
                             {count}
                           </span>

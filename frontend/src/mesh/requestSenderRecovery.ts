@@ -31,9 +31,10 @@ export function requiresSenderRecovery(
   if (isCanonicalReducedRequestEnvelope(message)) {
     return true;
   }
+  const senderId = String(message.sender_id || '').trim();
   return Boolean(
     String(message.sender_seal || '').trim() &&
-      String(message.sender_id || '').trim().startsWith('sealed:'),
+      (senderId.startsWith('sealed:') || senderId.startsWith('sender_token:')),
   );
 }
 

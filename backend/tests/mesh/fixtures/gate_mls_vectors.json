@@ -1,0 +1,70 @@
+{
+  "_comment": "Gate MLS test vectors — validated by test_mls_vectors.py",
+  "gate_compose_decrypt_round_trip": {
+    "description": "Compose a gate message, decrypt with the same identity, verify plaintext round-trips",
+    "gate_id": "finance",
+    "label": "scribe",
+    "plaintext": "hello mls gate",
+    "expected_format": "mls1",
+    "expected_identity_scope": "persona"
+  },
+  "gate_compose_decrypt_with_reply_to": {
+    "description": "Compose with reply_to, verify hidden reply_to survives encrypt/decrypt",
+    "gate_id": "finance",
+    "labels": ["sender", "receiver"],
+    "plaintext": "hello hidden thread",
+    "reply_to": "evt-parent-hidden",
+    "expected_identity_scope": "persona"
+  },
+  "gate_two_persona_cross_decrypt": {
+    "description": "Two personas in same gate can decrypt each other's messages",
+    "gate_id": "intel",
+    "labels": ["alice", "bob"],
+    "messages": [
+      {"sender": "alice", "plaintext": "message from alice"},
+      {"sender": "bob", "plaintext": "message from bob"}
+    ]
+  },
+  "gate_member_add_epoch_advance": {
+    "description": "Adding a member advances the epoch; new member can decrypt post-add messages",
+    "gate_id": "ops",
+    "initial_label": "founder",
+    "added_label": "recruit",
+    "pre_add_plaintext": "before recruit joined",
+    "post_add_plaintext": "after recruit joined"
+  },
+  "gate_member_remove_epoch_advance": {
+    "description": "Removing a member advances the epoch; removed member cannot decrypt post-remove messages",
+    "gate_id": "ops",
+    "labels": ["keeper", "evicted"],
+    "pre_remove_plaintext": "before eviction",
+    "post_remove_plaintext": "after eviction"
+  },
+  "gate_rekey_epoch_advance": {
+    "description": "Explicit rekey (without member change) advances epoch",
+    "gate_id": "rotating",
+    "label": "operator",
+    "plaintext_before": "pre-rekey",
+    "plaintext_after": "post-rekey"
+  },
+  "gate_export_import_state": {
+    "description": "Export gate state snapshot, verify opaque blob contains no plaintext",
+    "gate_id": "finance",
+    "label": "scribe",
+    "plaintext": "opaque export test",
+    "forbidden_in_blob": ["opaque export test", "gate_envelope"]
+  },
+  "gate_chain_plaintext_stamp": {
+    "description": "Decrypt stamps local plaintext on hashchain; lookup returns it without re-decrypting",
+    "gate_id": "finance",
+    "label": "stamper",
+    "plaintext": "stamp this on chain",
+    "event_id": "evt-stamp-test-001"
+  },
+  "gate_envelope_policy_recovery": {
+    "description": "When envelope_policy=envelope_recovery, gate_envelope field is populated for cross-node decrypt",
+    "gate_id": "recovery",
+    "label": "sender",
+    "plaintext": "recoverable message"
+  }
+}

@@ -56,6 +56,46 @@ def test_gate_anonymous_session_differs_from_transport_identity(tmp_path, monkey
     assert gate_identity["identity"]["node_id"] != transport_identity["node_id"]
 
 
+def test_gate_access_proof_prefers_rotating_session_identity_over_persistent_persona(tmp_path, monkeypatch):
+    persona_mod, _identity_mod = _fresh_persona_state(tmp_path, monkeypatch)
+
+    persona_mod.bootstrap_wormhole_persona_state(force=True)
+    session = persona_mod.enter_gate_anonymously("journalists", rotate=True)["identity"]
+    persona = persona_mod.create_gate_persona("journalists", label="source-a")["identity"]
+
+    import main
+
+    proof_identity = main._resolve_gate_proof_identity("journalists")
+
+    assert proof_identity is not None
+    assert proof_identity["scope"] == "gate_session"
+    assert proof_identity["node_id"] == session["node_id"]
+    assert proof_identity["node_id"] != persona["node_id"]
+
+
+def test_gate_access_proof_auto_enters_gate_when_identity_missing(tmp_path, monkeypatch):
+    persona_mod, _identity_mod = _fresh_persona_state(tmp_path, monkeypatch)
+
+    persona_mod.bootstrap_wormhole_persona_state(force=True)
+
+    import main
+
+    proof = asyncio.run(
+        main.api_wormhole_gate_proof(
+            _request("/api/wormhole/gate/proof"),
+            main.WormholeGateRequest(gate_id="journalists"),
+        )
+    )
+    active = persona_mod.get_active_gate_identity("journalists")
+
+    assert proof["ok"] is True
+    assert proof["gate_id"] == "journalists"
+    assert active["ok"] is True
+    assert active["source"] == "anonymous"
+    assert active["identity"]["scope"] == "gate_session"
+    assert active["identity"]["node_id"] == proof["node_id"]
+
+
 def test_gate_identities_are_separate_from_root_identity(tmp_path, monkeypatch):
     persona_mod, _identity_mod = _fresh_persona_state(tmp_path, monkeypatch)
 
@@ -126,6 +166,21 @@ def test_sign_public_event_uses_transport_identity(tmp_path, monkeypatch):
     assert signed["identity_scope"] == "transport"
     assert signed["node_id"] == transport_identity["node_id"]
     assert signed["public_key"] == transport_identity["public_key"]
+
+
+def test_sign_root_event_uses_root_identity(tmp_path, monkeypatch):
+    persona_mod, _identity_mod = _fresh_persona_state(tmp_path, monkeypatch)
+
+    persona_mod.bootstrap_wormhole_persona_state(force=True)
+    root_identity = persona_mod.get_root_identity()
+    signed = persona_mod.sign_root_wormhole_event(
+        event_type="dm_prekey_root_attestation",
+        payload={"agent_id": "alias-1", "bundle_signature": "sig"},
+    )
+
+    assert signed["identity_scope"] == "root"
+    assert signed["node_id"] == root_identity["node_id"]
+    assert signed["public_key"] == root_identity["public_key"]
 
 
 def test_sign_gate_event_uses_gate_session_identity(tmp_path, monkeypatch):
@@ -231,6 +286,32 @@ def test_gate_enter_leave_do_not_emit_public_breadcrumbs(tmp_path, monkeypatch):
     assert entered["ok"] is True
     assert left["ok"] is True
     assert append_called["count"] == 0
+
+
+def test_gate_enter_route_allows_private_control_only(tmp_path, monkeypatch):
+    import auth
+    import main
+    from httpx import ASGITransport, AsyncClient
+    from services import wormhole_supervisor
+
+    _fresh_persona_state(tmp_path, monkeypatch)
+    monkeypatch.setattr(auth, "_debug_mode_enabled", lambda: True)
+    monkeypatch.setattr(
+        wormhole_supervisor,
+        "get_wormhole_state",
+        lambda: {"configured": True, "ready": True, "arti_ready": False, "rns_ready": False},
+    )
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.post("/api/wormhole/gate/enter", json={"gate_id": "sources", "rotate": True})
+            return response.status_code, response.json()
+
+    status_code, payload = asyncio.run(_run())
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["identity"]["scope"] == "gate_session"
 
 
 def test_clear_active_persona_reverts_gate_to_anonymous_session(tmp_path, monkeypatch):

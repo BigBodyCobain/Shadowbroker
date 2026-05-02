@@ -147,12 +147,15 @@ export type SatelliteMission =
   | 'military_recon'
   | 'military_sar'
   | 'military_ew'
+  | 'military_comms'
   | 'sar'
   | 'commercial_imaging'
   | 'navigation'
   | 'early_warning'
   | 'space_station'
   | 'sigint'
+  | 'starlink'
+  | 'constellation'
   | 'general';
 
 export interface Satellite {
@@ -167,6 +170,41 @@ export interface Satellite {
   alt_km: number;
   speed_knots: number;
   heading: number;
+}
+
+export interface SatManeuverAlert {
+  norad_id: number;
+  name: string;
+  type: 'maneuver';
+  reasons: string[];
+  epoch: string;
+  delta_period_min: number;
+  delta_inclination_deg: number;
+  delta_eccentricity: number;
+}
+
+export interface SatDecayAlert {
+  norad_id: number;
+  name: string;
+  type: 'decay_anomaly';
+  mm_rate: number;
+  current_mm: number;
+  approx_alt_km: number;
+  epoch: string;
+  dt_days: number;
+}
+
+export interface StarlinkSummary {
+  total: number;
+  shells: Record<string, number>;
+}
+
+export interface SatelliteAnalysis {
+  maneuvers: SatManeuverAlert[];
+  decay_anomalies: SatDecayAlert[];
+  starlink: StarlinkSummary;
+  catalog_size: number;
+  classified_count: number;
 }
 
 // ─── EARTHQUAKES ────────────────────────────────────────────────────────────
@@ -458,6 +496,51 @@ export interface Volcano {
   lng: number;
 }
 
+// ─── UAP SIGHTINGS ─────────────────────────────────────────────────────
+
+export interface UAPSighting {
+  id: string;
+  date_time: string;
+  city: string;
+  state: string;
+  country: string;
+  shape: string;
+  shape_raw: string;
+  duration: string;
+  summary: string;
+  posted: string;
+  lat: number;
+  lng: number;
+  source: string;
+}
+
+// ─── WASTEWATER SCAN ────────────────────────────────��─────────────────
+
+export interface WastewaterPathogen {
+  name: string;
+  target_key: string;
+  concentration: number;
+  normalized: number;
+  activity: string;
+  alert: boolean;
+}
+
+export interface WastewaterPlant {
+  id: string;
+  name: string;
+  site_name: string;
+  city: string;
+  state: string;
+  country: string;
+  population: number | null;
+  lat: number;
+  lng: number;
+  pathogens: WastewaterPathogen[];
+  alert_count: number;
+  collection_date: string;
+  source: string;
+}
+
 export interface FishingEvent {
   id: string;
   type: string;
@@ -465,21 +548,67 @@ export interface FishingEvent {
   lng: number;
   start: string;
   end: string;
+  vessel_id?: string;
+  vessel_ssvid?: string;
   vessel_name: string;
   vessel_flag: string;
   duration_hrs: number;
+  event_count?: number;
 }
 
 // ─── CORRELATION ALERTS ────────────────────────────────────────────────────
 
+// ─── CROWDTHREAT ───────────────────────────────────────────────────────────
+
+export interface CrowdThreatItem {
+  id: number;
+  title: string;
+  summary?: string;
+  lat: number;
+  lng: number;
+  address: string;
+  city: string;
+  country?: string;
+  category: string;
+  category_id: number;
+  category_colour: string;
+  subcategory: string;
+  threat_type: string;
+  icon_id: string;
+  occurred: string;
+  occurred_iso?: string;
+  timeago: string;
+  reported?: string;
+  verification?: string;
+  severity?: string;
+  source_url?: string;
+  media_urls?: string[];
+  votes?: number;
+  reporter?: string;
+  source: string;
+}
+
 export interface CorrelationAlert {
   lat: number;
   lng: number;
-  type: 'rf_anomaly' | 'military_buildup' | 'infra_cascade';
+  type: 'rf_anomaly' | 'military_buildup' | 'infra_cascade' | 'contradiction' | 'analysis_zone';
   severity: 'high' | 'medium' | 'low';
   score: number;
   drivers: string[];
   cell_size: number;
+  // Contradiction-specific fields
+  context?: 'STRONG' | 'MODERATE' | 'WEAK' | 'DETECTION_GAP';
+  alternatives?: string[];
+  location_name?: string;
+  headlines?: string[];
+  related_markets?: { title: string; probability: number }[];
+  nearby_outages?: { region: string; severity: number; distance_km: number }[];
+  // Analysis zone fields (OpenClaw-placed overlays)
+  id?: string;
+  title?: string;
+  body?: string;
+  category?: string;
+  source?: string;
 }
 
 // ─── NEWS / GLOBAL INCIDENTS ────────────────────────────────────────────────
@@ -544,8 +673,20 @@ export interface GDELTIncident {
   properties: {
     name: string;
     count: number;
+    event_date?: string;
+    event_code?: string;
+    quad_class?: number;
+    goldstein?: number;
+    num_mentions?: number;
+    num_sources?: number;
+    num_articles?: number;
+    avg_tone?: number;
+    actor1?: string;
+    actor2?: string;
+    actors?: string[];
     _urls_list: string[];
     _headlines_list: string[];
+    _snippets_list?: string[];
   };
 }
 
@@ -557,11 +698,13 @@ export interface LiveUAmapIncident {
   lng: number;
   title: string;
   description?: string;
-  date: string;
-  timestamp?: number;
+  date?: string;
+  timestamp?: number | string;
   link?: string;
   category?: string;
   region?: string;
+  image?: string;
+  source?: string;
 }
 
 // ─── STOCKS & COMMODITIES ───────────────────────────────────────────────────
@@ -702,6 +845,7 @@ export interface DashboardData {
   liveuamap?: LiveUAmapIncident[];
   gps_jamming?: GPSJammingZone[];
   satellites?: Satellite[];
+  satellite_analysis?: SatelliteAnalysis;
   sigint?: SigintSignal[];
   trains?: Train[];
 
@@ -755,8 +899,80 @@ export interface DashboardData {
   // Cross-layer correlations
   correlations?: CorrelationAlert[];
 
+  // UAP sightings
+  uap_sightings?: UAPSighting[];
+
+  // WastewaterSCAN pathogen surveillance
+  wastewater?: WastewaterPlant[];
+
+  // CrowdThreat — crowdsourced threat intelligence
+  crowdthreat?: CrowdThreatItem[];
+
   // FIMI disinformation
   fimi?: FimiData;
+
+  // SAR (Synthetic Aperture Radar) layer
+  sar_scenes?: SarScene[];
+  sar_anomalies?: SarAnomaly[];
+  sar_aoi_coverage?: SarAoiCoverage[];
+  sar_aois?: SarAoi[];
+}
+
+// ─── SAR ─────────────────────────────────────────────────────────────────────
+
+export interface SarScene {
+  scene_id: string;
+  platform: string;
+  mode: string;
+  level: string;
+  time: string;
+  aoi_id: string;
+  relative_orbit: number;
+  flight_direction: string;
+  bbox: number[];
+  download_url: string;
+  provider: string;
+  raw_provider_id?: string;
+}
+
+export interface SarAnomaly {
+  anomaly_id: string;
+  kind: string;
+  lat: number;
+  lon: number;
+  magnitude: number;
+  magnitude_unit: string;
+  confidence: number;
+  first_seen: number;
+  last_seen: number;
+  aoi_id: string;
+  scene_count: number;
+  solver: string;
+  source_constellation: string;
+  provenance_url: string;
+  category: string;
+  title: string;
+  summary: string;
+  evidence_hash?: string;
+  extras?: Record<string, unknown>;
+}
+
+export interface SarAoi {
+  id: string;
+  name: string;
+  description?: string;
+  center: [number, number]; // [lat, lon]
+  radius_km: number;
+  polygon?: number[][] | null;
+  category: string;
+}
+
+export interface SarAoiCoverage {
+  aoi_id: string;
+  scene_count?: number;
+  last_pass?: string;
+  next_pass?: string;
+  [key: string]: unknown;
 }
 
 // ─── COMPONENT PROPS ────────────────────────────────────────────────────────
@@ -803,6 +1019,12 @@ export interface ActiveLayers {
   shodan_overlay: boolean;
   viirs_nightlights: boolean;
   correlations: boolean;
+  contradictions: boolean;
+  uap_sightings: boolean;
+  wastewater: boolean;
+  ai_intel: boolean;
+  crowdthreat: boolean;
+  sar: boolean;
 }
 
 export interface SelectedEntity {
@@ -861,4 +1083,10 @@ export interface MaplibreViewerProps {
   setTrackedScanner?: (scanner: Scanner | null) => void;
   shodanResults?: import('@/types/shodan').ShodanSearchMatch[];
   shodanStyle?: import('@/types/shodan').ShodanStyleConfig;
+  pinPlacementMode?: boolean;
+  onPinPlaced?: () => void;
+  sarAoiDropMode?: boolean;
+  onSarAoiDropped?: (coords: { lat: number; lng: number }) => void;
+  /** Incremented when the AOI list is modified — triggers immediate re-fetch. */
+  sarAoiListVersion?: number;
 }

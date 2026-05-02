@@ -18,6 +18,9 @@ import {
   buildTrainsGeoJSON,
   buildVIIRSChangeNodesGeoJSON,
   buildVolcanoesGeoJSON,
+  buildUapSightingsGeoJSON,
+  buildWastewaterGeoJSON,
+  buildCrowdThreatGeoJSON,
 } from '@/components/map/geoJSONBuilders';
 import type {
   AirQualityStation,
@@ -34,9 +37,13 @@ import type {
   PowerPlant,
   SatNOGSStation,
   Scanner,
+  Ship,
   Train,
+  UAPSighting,
+  WastewaterPlant,
   VIIRSChangeNode,
   Volcano,
+  CrowdThreatItem,
 } from '@/types/dashboard';
 
 type BoundsTuple = [number, number, number, number];
@@ -59,7 +66,11 @@ export type StaticMapLayersDataPayload = {
   airQuality?: AirQualityStation[];
   volcanoes?: Volcano[];
   fishingActivity?: FishingEvent[];
+  ships?: Ship[];
   trains?: Train[];
+  uapSightings?: UAPSighting[];
+  wastewater?: WastewaterPlant[];
+  crowdthreat?: CrowdThreatItem[];
 };
 
 export type StaticMapLayersBuildPayload = {
@@ -81,6 +92,9 @@ export type StaticMapLayersBuildPayload = {
     volcanoes: boolean;
     fishing_activity: boolean;
     trains: boolean;
+    uap_sightings: boolean;
+    wastewater: boolean;
+    crowdthreat: boolean;
   };
 };
 
@@ -102,6 +116,9 @@ export type StaticMapLayersResult = {
   volcanoesGeoJSON: FC;
   fishingGeoJSON: FC;
   trainsGeoJSON: FC;
+  uapSightingsGeoJSON: FC;
+  wastewaterGeoJSON: FC;
+  crowdthreatGeoJSON: FC;
 };
 
 type SyncRequest = {
@@ -168,9 +185,12 @@ function buildStaticLayers(payload: StaticMapLayersBuildPayload): StaticMapLayer
     airQualityGeoJSON: payload.activeLayers.air_quality ? buildAirQualityGeoJSON(staticData.airQuality) : null,
     volcanoesGeoJSON: payload.activeLayers.volcanoes ? buildVolcanoesGeoJSON(staticData.volcanoes) : null,
     fishingGeoJSON: payload.activeLayers.fishing_activity
-      ? buildFishingActivityGeoJSON(staticData.fishingActivity)
+      ? buildFishingActivityGeoJSON(staticData.fishingActivity, staticData.ships)
       : null,
     trainsGeoJSON: payload.activeLayers.trains ? buildTrainsGeoJSON(staticData.trains) : null,
+    uapSightingsGeoJSON: payload.activeLayers.uap_sightings ? buildUapSightingsGeoJSON(staticData.uapSightings) : null,
+    wastewaterGeoJSON: payload.activeLayers.wastewater ? buildWastewaterGeoJSON(staticData.wastewater) : null,
+    crowdthreatGeoJSON: payload.activeLayers.crowdthreat ? buildCrowdThreatGeoJSON(staticData.crowdthreat, inView) : null,
   };
 }
 

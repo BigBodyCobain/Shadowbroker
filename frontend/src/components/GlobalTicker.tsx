@@ -51,7 +51,7 @@ export default function GlobalTicker() {
         <div className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-red-950/90 via-black/80 to-transparent w-[450px] z-10 flex items-center justify-end px-4 pointer-events-none">
           <div className="flex items-center gap-2 text-red-400 bg-red-950/50 px-2 pl-3 py-0.5 border border-red-500/30 rounded shadow-[0_0_10px_rgba(239,68,68,0.2)]">
             <AlertTriangle size={10} className="animate-pulse" />
-            <span className="text-[8px] font-mono font-bold tracking-widest uppercase shadow-black drop-shadow-md">
+            <span className="text-[11px] font-mono font-bold tracking-widest uppercase shadow-black drop-shadow-md">
               SYS WARN: FINNHUB API KEY MISSING — YAHOO FALLBACK ACTIVE (LIMITED)
             </span>
           </div>

@@ -46,6 +46,8 @@ import logging
 import threading
 import atexit
 import tempfile
+import base64
+import zlib
 from pathlib import Path
 from collections import deque
 from typing import Any
@@ -59,6 +61,7 @@ from services.mesh.mesh_crypto import (
 )
 from services.mesh.mesh_protocol import NETWORK_ID, PROTOCOL_VERSION, normalize_payload
 from services.mesh.mesh_schema import (
+    ACTIVE_PUBLIC_LEDGER_EVENT_TYPES,
     PUBLIC_LEDGER_EVENT_TYPES,
     validate_event_payload,
     validate_protocol_fields,
@@ -118,6 +121,12 @@ MESSAGE_RETENTION_DAYS = 90  # Non-ephemeral messages kept for 90 days
 CHAIN_LOCK_DEPTH = 6
 GATE_REPLAY_WINDOW_S = 86400 * 30
 GATE_REPLAY_PRUNE_INTERVAL = 256
+GATE_SEGMENT_EVENT_TARGET = max(1, int(os.environ.get("MESH_GATE_SEGMENT_EVENT_TARGET", "1000") or "1000"))
+GATE_SEGMENT_MAX_COMPRESSED_BYTES = max(
+    16 * 1024,
+    int(os.environ.get("MESH_GATE_SEGMENT_MAX_COMPRESSED_BYTES", str(2 * 1024 * 1024)) or str(2 * 1024 * 1024)),
+)
+GATE_SEGMENT_STORAGE_VERSION = 1
 _PUBLIC_EVENT_APPEND_HOOKS: list[Any] = []
 _PUBLIC_EVENT_APPEND_HOOKS_LOCK = threading.Lock()
 
@@ -151,7 +160,11 @@ def _notify_public_event_append_hooks(event_dict: dict[str, Any]) -> None:
 
 # ─── Protocol Constraints ────────────────────────────────────────────────
 
+ACTIVE_APPEND_EVENT_TYPES = set(ACTIVE_PUBLIC_LEDGER_EVENT_TYPES)
+"""Event types allowed for new append() calls — gate_message excluded since S3A/S4B."""
+
 ALLOWED_EVENT_TYPES = set(PUBLIC_LEDGER_EVENT_TYPES)
+"""Full set including legacy types — used by ingest_events() and apply_fork()."""
 
 MAX_PAYLOAD_BYTES = 4096
 REPLAY_FILTER_BITS = 1_000_000
@@ -177,7 +190,9 @@ def build_gate_replay_fingerprint(gate_id: str, event: dict[str, Any]) -> str:
     material = {
         "gate": str(gate_id or "").strip().lower(),
         "event_type": "gate_message",
+        "timestamp": float(event.get("timestamp", 0) or 0),
         "ciphertext": str(payload.get("ciphertext", "") or ""),
+        "nonce": str(payload.get("nonce", "") or ""),
         "format": str(payload.get("format", "") or ""),
     }
     return hashlib.sha256(
@@ -185,25 +200,70 @@ def build_gate_replay_fingerprint(gate_id: str, event: dict[str, Any]) -> str:
     ).hexdigest()
 
 
-def build_gate_wire_ref(gate_id: str, event: dict[str, Any]) -> str:
-    gate_key = str(gate_id or "").strip().lower()
-    if not gate_key:
-        return ""
+def _peer_pair_ref_key(peer_url: str) -> bytes:
+    """Derive a per-hop HMAC key for gate wire refs.
+
+    Sprint 3 / Rec #4: the wire ref used to be HMAC-keyed by the
+    global ``MESH_PEER_PUSH_SECRET``, which let any authenticated peer
+    enumerate gate memberships by HMACing every gate_id they knew. The
+    new key is bound to the authenticated *hop* (the receiving peer's
+    URL) via the same HKDF chain as the peer-push HMAC, with a fresh
+    domain separator. A peer who intercepts push traffic addressed to
+    *another* receiver cannot derive the matching key — they only
+    learn gate_ids on pushes where they are the intended receiver,
+    which they would learn anyway via MLS membership.
+
+    Returns an empty key on misconfiguration so callers fail closed.
+    """
     try:
         from services.config import get_settings
+        from services.mesh.mesh_crypto import _derive_peer_key, normalize_peer_url
 
         secret = str(get_settings().MESH_PEER_PUSH_SECRET or "").strip()
     except Exception:
-        secret = ""
+        return b""
     if not secret:
+        return b""
+    normalized = normalize_peer_url(peer_url or "")
+    if not normalized:
+        return b""
+    peer_key = _derive_peer_key(secret, normalized)
+    if not peer_key:
+        return b""
+    # Domain-separate from the transport HMAC key so the two
+    # derivations can't cross-contaminate in analysis.
+    return hmac.new(peer_key, b"sb-gate-ref-v2", hashlib.sha256).digest()
+
+
+def build_gate_wire_ref(
+    gate_id: str,
+    event: dict[str, Any],
+    *,
+    peer_url: str = "",
+) -> str:
+    gate_key = str(gate_id or "").strip().lower()
+    if not gate_key:
+        return ""
+    key = _peer_pair_ref_key(peer_url)
+    if not key:
         return ""
     material = f"{gate_key}|{_gate_wire_event_material(event)}".encode("utf-8")
-    return hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
+    return hmac.new(key, material, hashlib.sha256).hexdigest()
 
 
-def resolve_gate_wire_ref(gate_ref: str, event: dict[str, Any]) -> str:
+def resolve_gate_wire_ref(
+    gate_ref: str,
+    event: dict[str, Any],
+    *,
+    peer_url: str = "",
+) -> str:
     ref = str(gate_ref or "").strip().lower()
     if not ref:
+        return ""
+    if not peer_url:
+        # Sprint 3 / Rec #4: pair-binding is mandatory. Refuse to
+        # resolve refs that don't identify the hop — fail-closed
+        # stops stale callers from enumerating via a one-sided key.
         return ""
     candidates: set[str] = set()
     try:
@@ -220,13 +280,22 @@ def resolve_gate_wire_ref(gate_ref: str, event: dict[str, Any]) -> str:
     except Exception:
         pass
     for gate_id in sorted(candidates):
-        candidate_ref = build_gate_wire_ref(gate_id, event)
+        candidate_ref = build_gate_wire_ref(
+            gate_id,
+            event,
+            peer_url=peer_url,
+        )
         if candidate_ref and hmac.compare_digest(candidate_ref, ref):
             return gate_id
     return ""
 
 
-def _private_gate_signature_payload(gate_id: str, event: dict[str, Any]) -> dict[str, Any]:
+def _private_gate_signature_payload(
+    gate_id: str,
+    event: dict[str, Any],
+    *,
+    include_reply_to: bool = True,
+) -> dict[str, Any]:
     payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
     normalized = {
         "gate": str(gate_id or "").strip().lower(),
@@ -238,12 +307,28 @@ def _private_gate_signature_payload(gate_id: str, event: dict[str, Any]) -> dict
     epoch = _safe_int(payload.get("epoch", 0) or 0, 0)
     if epoch > 0:
         normalized["epoch"] = epoch
+    envelope_hash = str(payload.get("envelope_hash", "") or "").strip()
+    if envelope_hash:
+        normalized["envelope_hash"] = envelope_hash
+    transport_lock = str(payload.get("transport_lock", "") or "").strip().lower()
+    if transport_lock:
+        normalized["transport_lock"] = transport_lock
+    reply_to = str(payload.get("reply_to", "") or "").strip()
+    if include_reply_to and reply_to:
+        normalized["reply_to"] = reply_to
     return normalize_payload("gate_message", normalized)
 
 
-def _private_gate_event_id(gate_id: str, node_id: str, sequence: int, event: dict[str, Any]) -> str:
+def _private_gate_event_id(
+    gate_id: str,
+    node_id: str,
+    sequence: int,
+    event: dict[str, Any],
+    *,
+    include_reply_to: bool = True,
+) -> str:
     payload_json = json.dumps(
-        _private_gate_signature_payload(gate_id, event),
+        _private_gate_signature_payload(gate_id, event, include_reply_to=include_reply_to),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -277,22 +362,28 @@ def _sanitize_private_gate_event(gate_id: str, event: dict[str, Any]) -> dict[st
     epoch = _safe_int(payload.get("epoch", 0) or 0, 0)
     if epoch > 0:
         sanitized["payload"]["epoch"] = epoch
+    envelope_hash = str(payload.get("envelope_hash", "") or "").strip()
+    if envelope_hash:
+        sanitized["payload"]["envelope_hash"] = envelope_hash
     gate_envelope = str(payload.get("gate_envelope", "") or "").strip()
     if gate_envelope:
         sanitized["payload"]["gate_envelope"] = gate_envelope
+    transport_lock = str(payload.get("transport_lock", "") or "").strip().lower()
+    if transport_lock:
+        sanitized["payload"]["transport_lock"] = transport_lock
     reply_to = str(payload.get("reply_to", "") or "").strip()
     if reply_to:
         sanitized["payload"]["reply_to"] = reply_to
+    # Local-only decrypted plaintext — persisted on the private chain so
+    # leave/rejoin and restarts never lose readable messages. These fields are
+    # stamped post-decrypt and never leave the node.
+    local_pt = payload.get("_local_plaintext")
+    if isinstance(local_pt, str) and local_pt:
+        sanitized["payload"]["_local_plaintext"] = local_pt
+    local_rt = payload.get("_local_reply_to")
+    if isinstance(local_rt, str) and local_rt:
+        sanitized["payload"]["_local_reply_to"] = local_rt
     return sanitized
-
-
-def _is_relay_node() -> bool:
-    """Return True when this node is running in relay mode."""
-    try:
-        from services.config import get_settings
-        return str(get_settings().MESH_NODE_MODE or "participant").strip().lower() == "relay"
-    except Exception:
-        return False
 
 
 def _authorize_private_gate_transport_author(
@@ -313,11 +404,6 @@ def _authorize_private_gate_transport_author(
         reputation_ledger.register_node(candidate, public_key, public_key_algo)
     except Exception:
         return False, "private gate authorization unavailable"
-    # Relay nodes are store-and-forward: they don't manage gates locally,
-    # so they won't have gate configs.  Skip the gate-existence check —
-    # the message is already signature-verified at this point.
-    if _is_relay_node():
-        return True, "ok (relay passthrough)"
     ok, reason = gate_manager.can_enter(candidate, gate_key)
     if ok:
         return True, "ok"
@@ -346,27 +432,71 @@ def _verify_private_gate_transport_event(gate_id: str, event: dict[str, Any]) ->
     algo = parse_public_key_algo(public_key_algo)
     if not algo:
         return False, "Unsupported public_key_algo", None
-    sig_payload = build_signature_payload(
-        event_type="gate_message",
-        node_id=node_id,
-        sequence=sequence,
-        payload=payload,
-    )
-    if not verify_signature(
-        public_key_b64=public_key,
-        public_key_algo=algo,
-        signature_hex=signature,
-        payload=sig_payload,
-    ):
+    reply_to = str(((event.get("payload") or {}) if isinstance(event.get("payload"), dict) else {}).get("reply_to", "") or "").strip()
+    legacy_unsigned_reply_to = False
+    legacy_unsigned_epoch = False
+    variants: list[tuple[dict[str, Any], bool, bool]] = [(payload, False, False)]
+    if reply_to:
+        variants.append((_private_gate_signature_payload(gate_id, event, include_reply_to=False), True, False))
+    if "epoch" in payload:
+        no_epoch = dict(payload)
+        no_epoch.pop("epoch", None)
+        variants.append((no_epoch, False, True))
+        if reply_to:
+            no_epoch_no_reply = _private_gate_signature_payload(gate_id, event, include_reply_to=False)
+            no_epoch_no_reply.pop("epoch", None)
+            variants.append((no_epoch_no_reply, True, True))
+    sig_ok = False
+    for candidate_payload, candidate_unsigned_reply, candidate_unsigned_epoch in variants:
+        candidate_sig_payload = build_signature_payload(
+            event_type="gate_message",
+            node_id=node_id,
+            sequence=sequence,
+            payload=candidate_payload,
+        )
+        if verify_signature(
+            public_key_b64=public_key,
+            public_key_algo=algo,
+            signature_hex=signature,
+            payload=candidate_sig_payload,
+        ):
+            sig_ok = True
+            legacy_unsigned_reply_to = candidate_unsigned_reply
+            legacy_unsigned_epoch = candidate_unsigned_epoch
+            break
+    if not sig_ok:
         return False, "Invalid signature", None
+    envelope_hash = str(((event.get("payload") or {}) if isinstance(event.get("payload"), dict) else {}).get("envelope_hash", "") or "").strip()
+    gate_envelope = str(((event.get("payload") or {}) if isinstance(event.get("payload"), dict) else {}).get("gate_envelope", "") or "").strip()
+    if envelope_hash:
+        if not gate_envelope:
+            return False, "gate_envelope required when envelope_hash is present", None
+        if hashlib.sha256(gate_envelope.encode("ascii")).hexdigest() != envelope_hash:
+            return False, "gate_envelope does not match envelope_hash", None
     authorized, reason = _authorize_private_gate_transport_author(gate_id, node_id, public_key, public_key_algo)
     if not authorized:
         return False, f"private gate access denied: {reason}", None
-    expected_event_id = _private_gate_event_id(gate_id, node_id, sequence, event)
+    event_for_id = event
+    if legacy_unsigned_epoch:
+        event_for_id = dict(event)
+        event_payload_for_id = dict((event.get("payload") or {}) if isinstance(event.get("payload"), dict) else {})
+        event_payload_for_id.pop("epoch", None)
+        event_for_id["payload"] = event_payload_for_id
+    expected_event_id = _private_gate_event_id(
+        gate_id,
+        node_id,
+        sequence,
+        event_for_id,
+        include_reply_to=not legacy_unsigned_reply_to,
+    )
     provided_event_id = str(event.get("event_id", "") or "").strip()
     if provided_event_id and provided_event_id != expected_event_id:
         return False, "private gate event_id mismatch", None
     sanitized = _sanitize_private_gate_event(gate_id, event)
+    if legacy_unsigned_reply_to:
+        sanitized["payload"].pop("reply_to", None)
+    if legacy_unsigned_epoch:
+        sanitized["payload"].pop("epoch", None)
     sanitized["event_id"] = provided_event_id or expected_event_id
     return True, "ok", sanitized
 
@@ -381,11 +511,29 @@ class GateMessageStore:
         self._replay_prune_counter = 0
         self._data_dir = Path(data_dir) if data_dir else GATE_STORE_DIR
         self._lock = threading.Lock()
+        self._change_condition = threading.Condition(self._lock)
         self._load()
 
+    def _gate_digest(self, gate_id: str) -> str:
+        return hashlib.sha256(str(gate_id or "").encode("utf-8")).hexdigest()
+
     def _gate_file_path(self, gate_id: str) -> Path:
-        digest = hashlib.sha256(str(gate_id or "").encode("utf-8")).hexdigest()
-        return self._data_dir / f"gate_{digest}.jsonl"
+        return self._data_dir / f"gate_{self._gate_digest(gate_id)}.jsonl"
+
+    def _gate_legacy_domain_filename(self, gate_id: str) -> str:
+        return f"gate_{self._gate_digest(gate_id)}.jsonl"
+
+    def _gate_manifest_filename_for_digest(self, digest: str) -> str:
+        return f"gate_{digest}.manifest.json"
+
+    def _gate_manifest_filename(self, gate_id: str) -> str:
+        return self._gate_manifest_filename_for_digest(self._gate_digest(gate_id))
+
+    def _gate_segment_filename_for_digest(self, digest: str, segment_no: int) -> str:
+        return f"gate_{digest}_seg_{max(0, int(segment_no)):08d}.gseg"
+
+    def _gate_segment_filename(self, gate_id: str, segment_no: int) -> str:
+        return self._gate_segment_filename_for_digest(self._gate_digest(gate_id), segment_no)
 
     def _gate_storage_base_dir(self) -> Path:
         return self._data_dir.parent
@@ -431,10 +579,160 @@ class GateMessageStore:
         if self._replay_prune_counter % GATE_REPLAY_PRUNE_INTERVAL == 0:
             self._prune_replay_index()
 
+    def _stable_bytes(self, payload: Any) -> bytes:
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+    def _segment_material_hash(self, payload: dict[str, Any]) -> str:
+        material = dict(payload)
+        material.pop("segment_hash", None)
+        return hashlib.sha256(self._stable_bytes(material)).hexdigest()
+
+    def _encode_segment_events(self, events: list[dict]) -> str:
+        raw = self._stable_bytes(events)
+        return base64.b64encode(zlib.compress(raw, level=9)).decode("ascii")
+
+    def _decode_segment_events(self, segment_payload: dict[str, Any]) -> list[dict[str, Any]]:
+        if not isinstance(segment_payload, dict):
+            return []
+        if str(segment_payload.get("codec", "") or "") != "zlib":
+            return []
+        encoded = str(segment_payload.get("events_b64", "") or "")
+        if not encoded:
+            return []
+        try:
+            raw = zlib.decompress(base64.b64decode(encoded.encode("ascii")))
+            decoded = json.loads(raw.decode("utf-8"))
+        except Exception:
+            return []
+        return [evt for evt in decoded if isinstance(evt, dict)] if isinstance(decoded, list) else []
+
+    def _build_segment_payload(
+        self,
+        *,
+        gate_digest: str,
+        segment_no: int,
+        events: list[dict],
+        prev_segment_hash: str = "",
+    ) -> dict[str, Any]:
+        encoded_events = self._encode_segment_events(events)
+        first_event_id = str((events[0] or {}).get("event_id", "") or "") if events else ""
+        last_event_id = str((events[-1] or {}).get("event_id", "") or "") if events else ""
+        payload = {
+            "version": GATE_SEGMENT_STORAGE_VERSION,
+            "storage": "gate-segment-v1",
+            "gate_digest": str(gate_digest or ""),
+            "segment_no": int(segment_no),
+            "prev_segment_hash": str(prev_segment_hash or ""),
+            "count": len(events),
+            "first_event_id": first_event_id,
+            "last_event_id": last_event_id,
+            "codec": "zlib",
+            "encoding": "json",
+            "events_b64": encoded_events,
+        }
+        payload["segment_hash"] = self._segment_material_hash(payload)
+        return payload
+
+    def _segment_meta_from_payload(self, payload: dict[str, Any], filename: str) -> dict[str, Any]:
+        return {
+            "segment_no": int(payload.get("segment_no", 0) or 0),
+            "filename": str(filename or ""),
+            "count": int(payload.get("count", 0) or 0),
+            "first_event_id": str(payload.get("first_event_id", "") or ""),
+            "last_event_id": str(payload.get("last_event_id", "") or ""),
+            "prev_segment_hash": str(payload.get("prev_segment_hash", "") or ""),
+            "segment_hash": str(payload.get("segment_hash", "") or ""),
+        }
+
+    def _read_gate_manifest(self, gate_id: str) -> dict[str, Any] | None:
+        try:
+            manifest = read_domain_json(
+                GATE_STORAGE_DOMAIN,
+                self._gate_manifest_filename(gate_id),
+                lambda: {},
+                base_dir=self._gate_storage_base_dir(),
+            )
+        except Exception:
+            return None
+        if not isinstance(manifest, dict):
+            return None
+        if str(manifest.get("storage", "") or "") != "gate-segments-v1":
+            return None
+        return manifest
+
+    def _read_segment_file(self, filename: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        payload = read_domain_json(
+            GATE_STORAGE_DOMAIN,
+            filename,
+            lambda: {},
+            base_dir=self._gate_storage_base_dir(),
+        )
+        if not isinstance(payload, dict):
+            return {}, []
+        expected_hash = str(payload.get("segment_hash", "") or "")
+        if expected_hash and expected_hash != self._segment_material_hash(payload):
+            logger.warning("Gate segment hash mismatch for %s", filename)
+            return {}, []
+        return payload, self._decode_segment_events(payload)
+
+    def _load_segmented_gates(self) -> set[str]:
+        encrypted_dir = self._gate_domain_dir()
+        loaded_digests: set[str] = set()
+        if not encrypted_dir.exists():
+            return loaded_digests
+        for manifest_path in sorted(encrypted_dir.glob("gate_*.manifest.json")):
+            try:
+                manifest = read_domain_json(
+                    GATE_STORAGE_DOMAIN,
+                    manifest_path.name,
+                    lambda: {},
+                    base_dir=self._gate_storage_base_dir(),
+                )
+            except Exception:
+                continue
+            if not isinstance(manifest, dict) or str(manifest.get("storage", "") or "") != "gate-segments-v1":
+                continue
+            gate_digest = str(manifest.get("gate_digest", "") or "")
+            if gate_digest:
+                loaded_digests.add(gate_digest)
+            segments = manifest.get("segments", [])
+            if not isinstance(segments, list):
+                continue
+            for segment_meta in sorted(
+                [item for item in segments if isinstance(item, dict)],
+                key=lambda item: int(item.get("segment_no", 0) or 0),
+            ):
+                filename = str(segment_meta.get("filename", "") or "")
+                if not filename:
+                    continue
+                _payload, events = self._read_segment_file(filename)
+                for evt in events:
+                    payload = evt.get("payload") or {}
+                    if not isinstance(payload, dict):
+                        continue
+                    gate_id = str(payload.get("gate", "") or "").strip().lower()
+                    if not gate_id:
+                        continue
+                    storage_event = _sanitize_private_gate_event(gate_id, evt)
+                    if not str(storage_event.get("event_id", "") or "").strip():
+                        storage_event["event_id"] = self._synth_event_id(gate_id, storage_event)
+                    replay_fingerprint = build_gate_replay_fingerprint(gate_id, storage_event)
+                    if replay_fingerprint in self._replay_index:
+                        continue
+                    event_id = str(storage_event.get("event_id", "") or "")
+                    if event_id and event_id in self._event_index:
+                        continue
+                    self._gates.setdefault(gate_id, []).append(storage_event)
+                    if event_id:
+                        self._event_index[event_id] = storage_event
+                    self._remember_replay_fingerprint(replay_fingerprint, storage_event)
+        return loaded_digests
+
     def _load(self) -> None:
         encrypted_dir = self._gate_domain_dir()
         if not self._data_dir.exists() and not encrypted_dir.exists():
             return
+        segmented_digests = self._load_segmented_gates()
         dirty_gates: set[str] = set()
         file_names = {
             path.name for path in self._data_dir.glob("gate_*.jsonl")
@@ -442,8 +740,12 @@ class GateMessageStore:
             path.name for path in encrypted_dir.glob("gate_*.jsonl")
         }
         for file_name in sorted(file_names):
+            digest = file_name.removeprefix("gate_").removesuffix(".jsonl")
+            if digest in segmented_digests:
+                continue
             events: list[dict[str, Any]] | None = None
             encrypted_path = encrypted_dir / file_name
+            loaded_from_legacy_domain_list = False
             if encrypted_path.exists():
                 try:
                     loaded = read_domain_json(
@@ -454,6 +756,7 @@ class GateMessageStore:
                     )
                     if isinstance(loaded, list):
                         events = [evt for evt in loaded if isinstance(evt, dict)]
+                        loaded_from_legacy_domain_list = True
                 except Exception:
                     events = None
             if events is None:
@@ -502,7 +805,7 @@ class GateMessageStore:
                 if event_id:
                     self._event_index[event_id] = evt
                 self._remember_replay_fingerprint(replay_fingerprint, evt)
-            if not encrypted_path.exists():
+            if loaded_from_legacy_domain_list or not encrypted_path.exists():
                 dirty_gates.update(loaded_gate_ids)
         self._prune_replay_index()
         for gate_id in list(self._gates.keys()):
@@ -510,16 +813,188 @@ class GateMessageStore:
         for gate_id in sorted(dirty_gates):
             self._persist_gate(gate_id)
 
-    def _persist_gate(self, gate_id: str) -> None:
-        events = self._gates.get(gate_id, [])
-        file_name = self._gate_file_path(gate_id).name
+    def _persist_gate(self, gate_id: str, events: list[dict] | None = None) -> None:
+        if events is None:
+            events = self._gates.get(gate_id, [])
+        gate_key = str(gate_id or "").strip().lower()
+        if not gate_key:
+            return
+        gate_digest = self._gate_digest(gate_key)
+        old_manifest = self._read_gate_manifest(gate_key)
+        old_segment_files = {
+            str(item.get("filename", "") or "")
+            for item in list((old_manifest or {}).get("segments", []) or [])
+            if isinstance(item, dict)
+        }
+        clean_events = [_sanitize_private_gate_event(gate_key, evt) for evt in list(events or []) if isinstance(evt, dict)]
+        segments: list[dict[str, Any]] = []
+        prev_hash = ""
+        written_segment_files: set[str] = set()
+        for segment_no, start in enumerate(range(0, len(clean_events), GATE_SEGMENT_EVENT_TARGET)):
+            chunk = clean_events[start : start + GATE_SEGMENT_EVENT_TARGET]
+            filename = self._gate_segment_filename_for_digest(gate_digest, segment_no)
+            segment_payload = self._build_segment_payload(
+                gate_digest=gate_digest,
+                segment_no=segment_no,
+                events=chunk,
+                prev_segment_hash=prev_hash,
+            )
+            write_domain_json(
+                GATE_STORAGE_DOMAIN,
+                filename,
+                segment_payload,
+                base_dir=self._gate_storage_base_dir(),
+            )
+            written_segment_files.add(filename)
+            segments.append(self._segment_meta_from_payload(segment_payload, filename))
+            prev_hash = str(segment_payload.get("segment_hash", "") or "")
+        manifest = {
+            "version": GATE_SEGMENT_STORAGE_VERSION,
+            "storage": "gate-segments-v1",
+            "gate_digest": gate_digest,
+            "segment_event_target": GATE_SEGMENT_EVENT_TARGET,
+            "segment_max_compressed_bytes": GATE_SEGMENT_MAX_COMPRESSED_BYTES,
+            "total_events": len(clean_events),
+            "segment_count": len(segments),
+            "head_segment_hash": prev_hash,
+            "segments": segments,
+            "updated_at": int(time.time()),
+        }
         write_domain_json(
             GATE_STORAGE_DOMAIN,
-            file_name,
-            events,
+            self._gate_manifest_filename_for_digest(gate_digest),
+            manifest,
             base_dir=self._gate_storage_base_dir(),
         )
+        for stale_filename in old_segment_files - written_segment_files:
+            if stale_filename:
+                (self._gate_domain_dir() / stale_filename).unlink(missing_ok=True)
+        legacy_domain_path = self._gate_domain_dir() / self._gate_legacy_domain_filename(gate_key)
+        legacy_domain_path.unlink(missing_ok=True)
         self._gate_file_path(gate_id).unlink(missing_ok=True)
+
+    def _persist_gate_new_events(self, gate_id: str, new_events: list[dict]) -> None:
+        gate_key = str(gate_id or "").strip().lower()
+        clean_new_events = [
+            _sanitize_private_gate_event(gate_key, evt)
+            for evt in list(new_events or [])
+            if isinstance(evt, dict)
+        ]
+        if not gate_key or not clean_new_events:
+            return
+        manifest = self._read_gate_manifest(gate_key)
+        if not manifest:
+            self._persist_gate(gate_key, list(self._gates.get(gate_key, [])) + clean_new_events)
+            return
+
+        gate_digest = self._gate_digest(gate_key)
+        segments = [
+            dict(item)
+            for item in list(manifest.get("segments", []) or [])
+            if isinstance(item, dict)
+        ]
+        remaining = list(clean_new_events)
+        if not segments:
+            segment_no = 0
+            events_for_segment: list[dict] = []
+            filename = self._gate_segment_filename_for_digest(gate_digest, segment_no)
+            prev_for_segment = ""
+        else:
+            last_meta = dict(segments[-1])
+            segment_no = int(last_meta.get("segment_no", len(segments) - 1) or 0)
+            filename = str(last_meta.get("filename", "") or self._gate_segment_filename_for_digest(gate_digest, segment_no))
+            segment_payload, events_for_segment = self._read_segment_file(filename)
+            prev_for_segment = str(segment_payload.get("prev_segment_hash", "") or last_meta.get("prev_segment_hash", "") or "")
+            if not events_for_segment:
+                self._persist_gate(gate_key, list(self._gates.get(gate_key, [])) + clean_new_events)
+                return
+        while remaining:
+            candidate = events_for_segment + [remaining[0]]
+            candidate_payload = self._build_segment_payload(
+                gate_digest=gate_digest,
+                segment_no=segment_no,
+                events=candidate,
+                prev_segment_hash=prev_for_segment,
+            )
+            compressed_len = len(str(candidate_payload.get("events_b64", "") or ""))
+            if (
+                events_for_segment
+                and (
+                    len(candidate) > GATE_SEGMENT_EVENT_TARGET
+                    or compressed_len > GATE_SEGMENT_MAX_COMPRESSED_BYTES
+                )
+            ):
+                segment_payload = self._build_segment_payload(
+                    gate_digest=gate_digest,
+                    segment_no=segment_no,
+                    events=events_for_segment,
+                    prev_segment_hash=prev_for_segment,
+                )
+                existing_meta_matches = (
+                    bool(segments)
+                    and _safe_int(segments[-1].get("segment_no", -1), -1) == segment_no
+                    and str(segments[-1].get("segment_hash", "") or "") == str(segment_payload.get("segment_hash", "") or "")
+                )
+                if existing_meta_matches:
+                    meta = segments[-1]
+                else:
+                    write_domain_json(
+                        GATE_STORAGE_DOMAIN,
+                        filename,
+                        segment_payload,
+                        base_dir=self._gate_storage_base_dir(),
+                    )
+                    meta = self._segment_meta_from_payload(segment_payload, filename)
+                    if segments and _safe_int(segments[-1].get("segment_no", -1), -1) == segment_no:
+                        segments[-1] = meta
+                    else:
+                        segments.append(meta)
+                prev_for_segment = str(meta.get("segment_hash", "") or segment_payload.get("segment_hash", "") or "")
+                segment_no += 1
+                filename = self._gate_segment_filename_for_digest(gate_digest, segment_no)
+                events_for_segment = []
+                continue
+            events_for_segment = candidate
+            remaining.pop(0)
+
+        segment_payload = self._build_segment_payload(
+            gate_digest=gate_digest,
+            segment_no=segment_no,
+            events=events_for_segment,
+            prev_segment_hash=prev_for_segment,
+        )
+        write_domain_json(
+            GATE_STORAGE_DOMAIN,
+            filename,
+            segment_payload,
+            base_dir=self._gate_storage_base_dir(),
+        )
+        meta = self._segment_meta_from_payload(segment_payload, filename)
+        if segments and _safe_int(segments[-1].get("segment_no", -1), -1) == segment_no:
+            segments[-1] = meta
+        else:
+            segments.append(meta)
+        manifest = {
+            "version": GATE_SEGMENT_STORAGE_VERSION,
+            "storage": "gate-segments-v1",
+            "gate_digest": gate_digest,
+            "segment_event_target": GATE_SEGMENT_EVENT_TARGET,
+            "segment_max_compressed_bytes": GATE_SEGMENT_MAX_COMPRESSED_BYTES,
+            "total_events": int(manifest.get("total_events", 0) or 0) + len(clean_new_events),
+            "segment_count": len(segments),
+            "head_segment_hash": str(segment_payload.get("segment_hash", "") or ""),
+            "segments": segments,
+            "updated_at": int(time.time()),
+        }
+        write_domain_json(
+            GATE_STORAGE_DOMAIN,
+            self._gate_manifest_filename(gate_key),
+            manifest,
+            base_dir=self._gate_storage_base_dir(),
+        )
+        legacy_domain_path = self._gate_domain_dir() / self._gate_legacy_domain_filename(gate_key)
+        legacy_domain_path.unlink(missing_ok=True)
+        self._gate_file_path(gate_key).unlink(missing_ok=True)
 
     def _synth_event_id(self, gate_id: str, event: dict) -> str:
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
@@ -550,20 +1025,100 @@ class GateMessageStore:
             event_id = str(clean_event.get("event_id", "") or "")
             if event_id and event_id in self._event_index:
                 return self._event_index[event_id]
-            self._gates[gate_id].append(clean_event)
-            self._sort_gate(gate_id)
+            # Stage: build new gate list without mutating in-memory state yet
+            staged = list(self._gates[gate_id]) + [clean_event]
+            staged.sort(
+                key=lambda evt: (
+                    float(evt.get("timestamp", 0) or 0),
+                    _safe_int(evt.get("sequence", 0) or 0, 0),
+                    str(evt.get("event_id", "") or ""),
+                )
+            )
+            # Persist first — raises on failure, no in-memory mutation yet
+            self._persist_gate_new_events(gate_id, [clean_event])
+            # Commit in-memory state only after durable persistence
+            self._gates[gate_id] = staged
             if event_id:
                 self._event_index[event_id] = clean_event
             self._remember_replay_fingerprint(replay_fingerprint, clean_event)
             self._maybe_prune_replay_index()
-            self._persist_gate(gate_id)
+            self._change_condition.notify_all()
             return clean_event
 
     def get_messages(self, gate_id: str, limit: int = 20, offset: int = 0) -> list[dict]:
+        messages, _cursor = self.get_messages_with_cursor(gate_id, limit=limit, offset=offset)
+        return messages
+
+    def get_messages_with_cursor(self, gate_id: str, limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
         gate_id = str(gate_id or "").strip().lower()
         with self._lock:
             msgs = self._gates.get(gate_id, [])
-            return list(reversed(msgs))[offset : offset + limit]
+            cursor = len(msgs)
+            return list(reversed(msgs))[offset : offset + limit], cursor
+
+    def gate_cursor(self, gate_id: str) -> int:
+        gate_id = str(gate_id or "").strip().lower()
+        with self._lock:
+            return len(self._gates.get(gate_id, []))
+
+    def wait_for_gate_change(
+        self,
+        gate_id: str,
+        after_cursor: int = 0,
+        timeout_s: float = 20.0,
+    ) -> tuple[bool, int]:
+        gate_key = str(gate_id or "").strip().lower()
+        if not gate_key:
+            return False, 0
+        target_cursor = max(0, _safe_int(after_cursor, 0))
+        deadline = time.monotonic() + max(0.0, float(timeout_s or 0.0))
+        with self._lock:
+            current_cursor = len(self._gates.get(gate_key, []))
+            if current_cursor > target_cursor:
+                return True, current_cursor
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False, len(self._gates.get(gate_key, []))
+                self._change_condition.wait(timeout=remaining)
+                current_cursor = len(self._gates.get(gate_key, []))
+                if current_cursor > target_cursor:
+                    return True, current_cursor
+
+    def wait_for_any_gate_change(
+        self,
+        gate_cursors: dict[str, int],
+        timeout_s: float = 20.0,
+    ) -> dict[str, int]:
+        normalized = {
+            str(gate_id or "").strip().lower(): max(0, _safe_int(cursor, 0))
+            for gate_id, cursor in dict(gate_cursors or {}).items()
+            if str(gate_id or "").strip()
+        }
+        if not normalized:
+            return {}
+        deadline = time.monotonic() + max(0.0, float(timeout_s or 0.0))
+
+        def _changed() -> dict[str, int]:
+            updates: dict[str, int] = {}
+            for gate_id, after_cursor in normalized.items():
+                current_cursor = len(self._gates.get(gate_id, []))
+                if current_cursor > after_cursor:
+                    updates[gate_id] = current_cursor
+            return updates
+
+        with self._lock:
+            updates = _changed()
+            if updates:
+                return updates
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return {}
+                self._change_condition.wait(timeout=remaining)
+                updates = _changed()
+                if updates:
+                    return updates
 
     def known_gate_ids(self) -> list[str]:
         with self._lock:
@@ -573,15 +1128,73 @@ class GateMessageStore:
         with self._lock:
             return self._event_index.get(str(event_id or ""))
 
+    def stamp_local_plaintext(
+        self,
+        gate_id: str,
+        event_id: str,
+        plaintext: str,
+        reply_to: str = "",
+    ) -> bool:
+        """Stamp decrypted plaintext onto a stored event and re-persist.
+
+        This is the durable path for the leave/rejoin invariant: once a message
+        is decrypted (by any path — MLS, envelope, self-echo), the plaintext is
+        written into the private chain so it survives restarts and MLS epoch
+        resets.  The ``_local_plaintext`` / ``_local_reply_to`` fields are
+        local-only and never transmitted to peers.
+        """
+        gate_id = str(gate_id or "").strip().lower()
+        event_id = str(event_id or "").strip()
+        if not gate_id or not event_id or not plaintext:
+            return False
+        with self._lock:
+            evt = self._event_index.get(event_id)
+            if evt is None:
+                return False
+            payload = evt.get("payload")
+            if not isinstance(payload, dict):
+                return False
+            if payload.get("_local_plaintext"):
+                return True  # already stamped
+            payload["_local_plaintext"] = plaintext
+            if reply_to:
+                payload["_local_reply_to"] = reply_to
+            self._persist_gate(gate_id)
+            return True
+
+    def lookup_local_plaintext(
+        self,
+        gate_id: str,
+        event_id: str,
+    ) -> tuple[str, str] | None:
+        """Return stamped plaintext for an event, or None."""
+        event_id = str(event_id or "").strip()
+        if not event_id:
+            return None
+        with self._lock:
+            evt = self._event_index.get(event_id)
+            if evt is None:
+                return None
+            payload = evt.get("payload")
+            if not isinstance(payload, dict):
+                return None
+            pt = payload.get("_local_plaintext")
+            if not isinstance(pt, str) or not pt:
+                return None
+            return pt, str(payload.get("_local_reply_to", "") or "")
+
     def ingest_peer_events(self, gate_id: str, events: list[dict]) -> dict:
         gate_id = str(gate_id or "").strip().lower()
-        accepted = 0
         duplicates = 0
         rejected = 0
         if not gate_id:
             return {"accepted": 0, "duplicates": 0, "rejected": 0}
         with self._lock:
             self._gates.setdefault(gate_id, [])
+            # Collect validated candidates without mutating in-memory state
+            candidates: list[tuple[dict, str, str]] = []  # (clean_event, event_id, fingerprint)
+            batch_fingerprints: set[str] = set()
+            batch_event_ids: set[str] = set()
             for evt in events:
                 if not isinstance(evt, dict):
                     rejected += 1
@@ -603,7 +1216,7 @@ class GateMessageStore:
                     rejected += 1
                     continue
                 replay_fingerprint = build_gate_replay_fingerprint(gate_id, evt)
-                if replay_fingerprint in self._replay_index:
+                if replay_fingerprint in self._replay_index or replay_fingerprint in batch_fingerprints:
                     duplicates += 1
                     continue
                 if event_id:
@@ -617,7 +1230,7 @@ class GateMessageStore:
                         continue
                 else:
                     event_id = ""
-                if event_id and event_id in self._event_index:
+                if event_id and (event_id in self._event_index or event_id in batch_event_ids):
                     duplicates += 1
                     continue
                 ok, reason, clean_event = _verify_private_gate_transport_event(gate_id, evt)
@@ -626,18 +1239,36 @@ class GateMessageStore:
                     rejected += 1
                     continue
                 event_id = str(clean_event.get("event_id", "") or "")
-                if event_id in self._event_index:
+                if event_id in self._event_index or event_id in batch_event_ids:
                     duplicates += 1
                     continue
-                self._gates[gate_id].append(clean_event)
-                self._event_index[event_id] = clean_event
+                candidates.append((clean_event, event_id, replay_fingerprint))
+                batch_fingerprints.add(replay_fingerprint)
+                if event_id:
+                    batch_event_ids.add(event_id)
+            if not candidates:
+                return {"accepted": 0, "duplicates": duplicates, "rejected": rejected}
+            # Stage: build new gate list without mutating in-memory state
+            staged = list(self._gates[gate_id])
+            for clean_event, _, _ in candidates:
+                staged.append(clean_event)
+            staged.sort(
+                key=lambda evt: (
+                    float(evt.get("timestamp", 0) or 0),
+                    _safe_int(evt.get("sequence", 0) or 0, 0),
+                    str(evt.get("event_id", "") or ""),
+                )
+            )
+            # Persist first — raises on failure, no in-memory mutation yet
+            self._persist_gate_new_events(gate_id, [clean_event for clean_event, _, _ in candidates])
+            # Commit in-memory state only after durable persistence
+            self._gates[gate_id] = staged
+            for clean_event, event_id, replay_fingerprint in candidates:
+                if event_id:
+                    self._event_index[event_id] = clean_event
                 self._remember_replay_fingerprint(replay_fingerprint, clean_event)
-                accepted += 1
-            if accepted:
-                self._maybe_prune_replay_index()
-                self._sort_gate(gate_id)
-                self._persist_gate(gate_id)
-        return {"accepted": accepted, "duplicates": duplicates, "rejected": rejected}
+            self._maybe_prune_replay_index()
+        return {"accepted": len(candidates), "duplicates": duplicates, "rejected": rejected}
 
 
 class ReplayFilter:
@@ -798,6 +1429,7 @@ class Infonet:
         self.events: list[dict] = []  # Stored as dicts for efficiency
         self.head_hash: str = GENESIS_HASH  # Hash of the latest event
         self.node_sequences: dict[str, int] = {}  # {node_id: last_sequence}
+        self.sequence_domains: dict[str, int] = {}  # {node_id|domain: last_sequence}
         self.event_index: dict[str, int] = {}  # {event_id: index in events list}
         self.public_key_bindings: dict[str, str] = {}  # {public_key: canonical node_id}
         self.revocations: dict[str, dict] = {}
@@ -817,7 +1449,13 @@ class Infonet:
     # ─── Persistence ──────────────────────────────────────────────────
 
     def _load(self):
-        """Load Infonet from disk."""
+        """Load Infonet from disk, self-healing on corruption.
+
+        Sprint 2 / Rec #8: if the chain file or WAL is unreadable we
+        quarantine the bad files, reset to genesis, and let the peer
+        sync worker rebuild state from the network. The user never sees
+        a crashed backend — recovery happens in the background.
+        """
         if CHAIN_FILE.exists():
             try:
                 data = json.loads(CHAIN_FILE.read_text(encoding="utf-8"))
@@ -831,20 +1469,65 @@ class Infonet:
                 self.events = loaded_events
                 self.head_hash = data.get("head_hash", GENESIS_HASH)
                 self.node_sequences = data.get("node_sequences", {})
+                self.sequence_domains = data.get("sequence_domains", {})
                 self._rebuild_state()
                 self._rebuild_revocations()
                 self._rebuild_counters()
                 logger.info(
-                    f"Loaded Infonet: {len(self.events)} events, " f"head={self.head_hash[:16]}..."
+                    f"Loaded Infonet: {len(self.events)} events, head={self.head_hash[:16]}..."
                 )
             except Exception as e:
-                logger.error(f"Failed to load Infonet: {e}")
-                raise
-        self._replay_wal()
+                logger.error("Failed to load Infonet: %s — quarantining and resetting", e)
+                self._quarantine_chain_file(reason=f"load_failed:{e}")
+                self._reset_to_genesis()
+        try:
+            self._replay_wal()
+        except RuntimeError as exc:
+            # WAL quarantine already happened inside _replay_wal — the
+            # chain advances we lost will re-flow from peers. Degraded
+            # state, not a crash.
+            logger.error("[infonet] WAL replay failed, continuing in re-sync mode: %s", exc)
+            self._reset_to_genesis()
+
+    def _quarantine_chain_file(self, *, reason: str) -> None:
+        """Move a corrupt chain file aside so the next boot starts clean."""
+        try:
+            if not CHAIN_FILE.exists():
+                return
+            stamp = int(time.time())
+            dest = CHAIN_FILE.with_suffix(f".json.quarantine.{stamp}")
+            CHAIN_FILE.rename(dest)
+            logger.error(
+                "[infonet] Chain file quarantined (%s) → %s. Node will re-sync from peers.",
+                reason,
+                dest.name,
+            )
+        except Exception as exc:
+            logger.error("[infonet] Failed to quarantine chain file: %s", exc)
+
+    def _reset_to_genesis(self) -> None:
+        """In-memory reset to empty state so peer sync can rebuild."""
+        self.events = []
+        self.head_hash = GENESIS_HASH
+        self.node_sequences = {}
+        self.sequence_domains = {}
+        self.event_index = {}
+        self.public_key_bindings = {}
+        self.revocations = {}
+        self._replay_filter = ReplayFilter()
+        self._last_validated_index = 0
+        self._type_counts = {}
+        self._active_count = 0
+        self._chain_bytes = 2
 
     def _rebuild_state(self) -> None:
         self.event_index = {}
         self.node_sequences = {}
+        # Keep private signed-write replay domains across public-chain
+        # rebuilds; these domains protect local side effects that are not
+        # represented as public Infonet events.
+        if not isinstance(getattr(self, "sequence_domains", None), dict):
+            self.sequence_domains = {}
         self.public_key_bindings = {}
         self.revocations = {}
         self._replay_filter = ReplayFilter()
@@ -914,27 +1597,73 @@ class Infonet:
             logger.error(f"Failed to clear WAL: {e}")
 
     def _replay_wal(self) -> None:
+        """Replay any surviving WAL entry after a crash, fail-closed.
+
+        Sprint 2 / Rec #8: a corrupt or unreplayable WAL means the node
+        crashed mid-append — we do NOT silently discard it. Instead we
+        quarantine the WAL file, log loudly, and raise so the caller
+        (__init__ via _load) can surface the degraded state rather than
+        pretending the chain is healthy. The user never gets a silent
+        data-loss window.
+        """
         if not WAL_FILE.exists():
             return
         try:
             data = json.loads(WAL_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            self._clear_wal()
-            return
+        except Exception as exc:
+            self._quarantine_wal(f"corrupt_json:{exc}")
+            raise RuntimeError(
+                "Infonet WAL is corrupt — quarantined. Chain is in a degraded state; "
+                "recover by re-syncing from peers."
+            ) from exc
         evt = data.get("event") if isinstance(data, dict) else None
         if not isinstance(evt, dict):
-            self._clear_wal()
-            return
+            self._quarantine_wal("malformed_shape")
+            raise RuntimeError(
+                "Infonet WAL shape invalid — quarantined. Chain is in a degraded state."
+            )
         if evt.get("event_id") in self.event_index:
+            # Already durable in the chain file — WAL is stale but safe.
             self._clear_wal()
             return
         if evt.get("prev_hash") != self.head_hash:
+            # The WAL entry is for an older head — the chain advanced past
+            # it through another path. Safe to drop.
             self._clear_wal()
             return
-        result = self.ingest_events([evt])
-        if result.get("accepted"):
-            logger.info("Replayed WAL event after restart")
-        self._clear_wal()
+        try:
+            result = self.ingest_events([evt])
+        except Exception as exc:
+            self._quarantine_wal(f"replay_raised:{exc}")
+            raise RuntimeError(
+                "Infonet WAL event failed to replay — quarantined. Recover by re-syncing."
+            ) from exc
+        if not result.get("accepted"):
+            self._quarantine_wal("replay_rejected")
+            raise RuntimeError(
+                f"Infonet WAL event rejected on replay: {result.get('rejected') or 'unknown'}"
+            )
+        logger.info("Replayed WAL event after restart")
+        # Force a synchronous flush so the replayed event is durable
+        # before we hand control back to the rest of the boot sequence.
+        # _flush() clears the WAL as part of a successful write.
+        self._flush()
+
+    def _quarantine_wal(self, reason: str) -> None:
+        """Move a bad WAL file aside so subsequent boots don't loop on it."""
+        try:
+            if not WAL_FILE.exists():
+                return
+            stamp = int(time.time())
+            dest = WAL_FILE.with_suffix(f".wal.quarantine.{stamp}")
+            WAL_FILE.rename(dest)
+            logger.error(
+                "[infonet] WAL quarantined (%s) → %s. Node is degraded until re-sync.",
+                reason,
+                dest.name,
+            )
+        except Exception as exc:
+            logger.error("[infonet] Failed to quarantine WAL: %s", exc)
 
     def reset_chain(self) -> None:
         """Wipe local chain state so the next sync starts from genesis.
@@ -946,6 +1675,7 @@ class Infonet:
         self.events = []
         self.head_hash = GENESIS_HASH
         self.node_sequences = {}
+        self.sequence_domains = {}
         self.event_index = {}
         self.public_key_bindings = {}
         self.revocations = {}
@@ -973,7 +1703,12 @@ class Infonet:
                 self._save_timer.start()
 
     def _flush(self):
-        """Actually write to disk (called by timer or atexit)."""
+        """Actually write to disk (called by timer or atexit).
+
+        Sprint 2 / Rec #8: clears the WAL only after the chain file has
+        been durably written. A crash before _flush() succeeds leaves
+        the WAL in place so _replay_wal() can recover on next boot.
+        """
         if not self._dirty:
             return
         try:
@@ -983,10 +1718,13 @@ class Infonet:
                 "network_id": NETWORK_ID,
                 "head_hash": self.head_hash,
                 "node_sequences": self.node_sequences,
+                "sequence_domains": self.sequence_domains,
                 "events": self.events,
             }
             _atomic_write_text(CHAIN_FILE, json.dumps(data, indent=2), encoding="utf-8")
             self._dirty = False
+            # Chain file is now durable — safe to retire the WAL entry.
+            self._clear_wal()
         except Exception as e:
             logger.error(f"Failed to save Infonet: {e}")
 
@@ -999,6 +1737,7 @@ class Infonet:
                 "network_id": NETWORK_ID,
                 "head_hash": self.head_hash,
                 "node_sequences": self.node_sequences,
+                "sequence_domains": self.sequence_domains,
                 "events": self.events,
             }
             _atomic_write_text(CHAIN_FILE, json.dumps(data, indent=2), encoding="utf-8")
@@ -1082,17 +1821,26 @@ class Infonet:
 
     # ─── Append ───────────────────────────────────────────────────────
 
-    def validate_and_set_sequence(self, node_id: str, sequence: int) -> tuple[bool, str]:
+    def validate_and_set_sequence(
+        self,
+        node_id: str,
+        sequence: int,
+        *,
+        domain: str = "",
+    ) -> tuple[bool, str]:
         """Validate monotonic sequence and update last-seen value if valid."""
         if sequence <= 0:
             return False, "Sequence must be a positive integer"
-        last = self.node_sequences.get(node_id, 0)
+        normalized_domain = str(domain or "").strip().lower()
+        table = self.sequence_domains if normalized_domain else self.node_sequences
+        key = f"{node_id}|{normalized_domain}" if normalized_domain else node_id
+        last = table.get(key, 0)
         if sequence <= last:
             from services.mesh.mesh_metrics import increment as metrics_inc
 
             metrics_inc("replay_attempts")
             return False, f"Replay detected: sequence {sequence} <= last {last}"
-        self.node_sequences[node_id] = sequence
+        table[key] = sequence
         self._save()
         return True, "ok"
 
@@ -1128,7 +1876,7 @@ class Infonet:
             verify_signature,
         )
 
-        if event_type not in ALLOWED_EVENT_TYPES:
+        if event_type not in ACTIVE_APPEND_EVENT_TYPES:
             raise ValueError(f"Unsupported event_type: {event_type}")
 
         if sequence <= 0:
@@ -1229,8 +1977,12 @@ class Infonet:
         if event_type == "key_revoke":
             self._apply_revocation(event_dict)
 
+        # Sprint 2 / Rec #8: do NOT clear the WAL here. _save() only
+        # schedules a coalesced flush; clearing now would open a crash
+        # window where the event is gone from the WAL but not yet in
+        # the chain file. _flush() clears the WAL only after a
+        # successful durable write.
         self._save()
-        self._clear_wal()
 
         try:
             from services.mesh.mesh_rns import rns_bridge
@@ -1310,6 +2062,31 @@ class Infonet:
             if sequence <= last:
                 rejected.append({"index": idx, "reason": "Replay detected"})
                 continue
+            # Hardening Rec #8: timestamp freshness bound. The sequence check
+            # above catches replays once a node has observed the author, but
+            # a fresh peer (node_sequences[node_id] == 0) accepts any
+            # sequence > 0 — so an attacker could replay an ancient signed
+            # event into a node that's never seen the author. Rejecting
+            # events whose timestamp is outside a bounded freshness window
+            # closes that hole without breaking catch-up sync for
+            # short-lived network partitions.
+            try:
+                from services.mesh.mesh_rollout_flags import ingest_event_max_age_s
+
+                max_age_s = int(ingest_event_max_age_s() or 0)
+            except Exception:
+                max_age_s = 0
+            if max_age_s > 0:
+                evt_ts = _safe_int(evt.get("timestamp", 0) or 0, 0)
+                if evt_ts > 0 and abs(int(time.time()) - evt_ts) > max_age_s:
+                    try:
+                        from services.mesh.mesh_metrics import increment as metrics_inc
+
+                        metrics_inc("ingest_timestamp_stale")
+                    except Exception:
+                        pass
+                    rejected.append({"index": idx, "reason": "Event timestamp outside freshness window"})
+                    continue
 
             payload = evt.get("payload", {})
             ok, reason = validate_event_payload(event_type, payload)

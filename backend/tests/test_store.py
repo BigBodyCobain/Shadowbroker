@@ -3,7 +3,14 @@
 import threading
 import time
 import pytest
-from services.fetchers._store import latest_data, source_timestamps, _mark_fresh, _data_lock
+from services.fetchers._store import (
+    latest_data,
+    source_timestamps,
+    _mark_fresh,
+    _data_lock,
+    get_data_version,
+    bump_data_version,
+)
 
 
 class TestLatestDataStructure:
@@ -88,6 +95,20 @@ class TestMarkFresh:
         _mark_fresh("update_test")
         ts2 = source_timestamps["update_test"]
         assert ts2 >= ts1
+
+    def test_mark_fresh_bumps_data_version(self):
+        version_before = get_data_version()
+        _mark_fresh("version_test")
+        assert get_data_version() == version_before + 1
+
+
+class TestDataVersion:
+    """Tests for the monotonic data version counter."""
+
+    def test_bump_data_version_increments_counter(self):
+        version_before = get_data_version()
+        bump_data_version()
+        assert get_data_version() == version_before + 1
 
 
 class TestDataLock:

@@ -3,6 +3,55 @@ import { API_BASE } from "@/lib/api";
 import { mergeData, setBackendStatus as setStoreBackendStatus } from "./useDataStore";
 
 export type BackendStatus = 'connecting' | 'connected' | 'disconnected';
+
+// ---------------------------------------------------------------------------
+// Polling pause/resume — used by Time Machine snapshot playback
+// ---------------------------------------------------------------------------
+let _pollingPaused = false;
+let _fastEtagRef: { current: string | null } | null = null;
+let _slowEtagRef: { current: string | null } | null = null;
+
+/** Pause live data polling (snapshot mode). */
+export function pausePolling() {
+  _pollingPaused = true;
+}
+
+/** Resume live data polling and invalidate ETags for a full refresh. */
+export function resumePolling() {
+  _pollingPaused = false;
+  // Invalidate ETags so the next poll gets fresh data (not 304)
+  if (_fastEtagRef) _fastEtagRef.current = null;
+  if (_slowEtagRef) _slowEtagRef.current = null;
+}
+
+/** Resume live mode and fetch both live tiers immediately instead of waiting for the next poll tick. */
+export async function forceRefreshLiveData(): Promise<void> {
+  _pollingPaused = false;
+  if (_fastEtagRef) _fastEtagRef.current = null;
+  if (_slowEtagRef) _slowEtagRef.current = null;
+
+  try {
+    const [fastRes, slowRes] = await Promise.all([
+      fetch(`${API_BASE}/api/live-data/fast`),
+      fetch(`${API_BASE}/api/live-data/slow`),
+    ]);
+
+    if (fastRes.ok) {
+      if (_fastEtagRef) _fastEtagRef.current = fastRes.headers.get('etag') || null;
+      mergeData(await fastRes.json());
+    }
+    if (slowRes.ok) {
+      if (_slowEtagRef) _slowEtagRef.current = slowRes.headers.get('etag') || null;
+      mergeData(await slowRes.json());
+    }
+    if (fastRes.ok || slowRes.ok) {
+      setStoreBackendStatus('connected');
+    }
+  } catch (e) {
+    console.error("Failed forcing live data refresh", e);
+    setStoreBackendStatus('disconnected');
+  }
+}
 type FastDataProbe = {
   commercial_flights?: unknown[];
   military_flights?: unknown[];
@@ -46,6 +95,10 @@ export function useDataPolling() {
   const slowEtag = useRef<string | null>(null);
 
   useEffect(() => {
+    // Expose refs so pausePolling/resumePolling can invalidate ETags
+    _fastEtagRef = fastEtag;
+    _slowEtagRef = slowEtag;
+
     let hasData = false;
     let fastTimerId: ReturnType<typeof setTimeout> | null = null;
     let slowTimerId: ReturnType<typeof setTimeout> | null = null;
@@ -57,6 +110,8 @@ export function useDataPolling() {
         clearTimeout(fastTimerId);
         fastTimerId = null;
       }
+      // Skip fetch when Time Machine snapshot mode is active
+      if (_pollingPaused) { scheduleNext('fast'); return; }
       if (fastAbortRef.current) return;
       const controller = new AbortController();
       fastAbortRef.current = controller;
@@ -98,6 +153,7 @@ export function useDataPolling() {
     };
 
     const fetchSlowData = async () => {
+      if (_pollingPaused) { scheduleNext('slow'); return; }
       if (slowAbortRef.current) return;
       const controller = new AbortController();
       slowAbortRef.current = controller;

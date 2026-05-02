@@ -148,7 +148,7 @@ function ScaleBar({
       {/* Unit toggle */}
       <button
         onClick={() => setUnit((u) => (u === 'mi' ? 'km' : 'mi'))}
-        className="text-[8px] font-mono tracking-widest px-1.5 py-0.5 rounded border border-[var(--border-primary)] hover:border-cyan-500/50 text-[var(--text-muted)] hover:text-cyan-400 transition-all hover:bg-cyan-950/20 uppercase"
+        className="text-[11px] font-mono tracking-widest px-1.5 py-0.5 rounded border border-[var(--border-primary)] hover:border-cyan-500/50 text-[var(--text-muted)] hover:text-cyan-400 transition-all hover:bg-cyan-950/20 uppercase"
         title={`Switch to ${unit === 'mi' ? 'Metric (km)' : 'Imperial (mi)'}`}
       >
         {unit === 'mi' ? 'MI' : 'KM'}
@@ -157,7 +157,7 @@ function ScaleBar({
       {/* Measure mode toggle */}
       <button
         onClick={onToggleMeasure}
-        className={`flex items-center gap-1 text-[8px] font-mono tracking-widest px-2 py-0.5 rounded border transition-all ${
+        className={`flex items-center gap-1 text-[11px] font-mono tracking-widest px-2 py-0.5 rounded border transition-all ${
           measureMode
             ? 'border-cyan-500/60 text-cyan-400 bg-cyan-950/30 shadow-[0_0_8px_rgba(0,255,255,0.2)]'
             : 'border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-950/20'
@@ -172,7 +172,7 @@ function ScaleBar({
       {measureMode && measurePoints && measurePoints.length > 0 && (
         <button
           onClick={onClearMeasure}
-          className="flex items-center gap-1 text-[8px] font-mono tracking-widest px-1.5 py-0.5 rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-red-400 hover:border-red-500/50 hover:bg-red-950/20 transition-all"
+          className="flex items-center gap-1 text-[11px] font-mono tracking-widest px-1.5 py-0.5 rounded border border-[var(--border-primary)] text-[var(--text-muted)] hover:text-red-400 hover:border-red-500/50 hover:bg-red-950/20 transition-all"
           title="Clear all waypoints"
         >
           <Trash2 size={10} />

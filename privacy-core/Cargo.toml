@@ -12,6 +12,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 mls-rs = { git = "https://github.com/awslabs/mls-rs", rev = "027d9051437f88b81f4214c5a0a3a8fd7bbb8501", package = "mls-rs", default-features = false, features = ["std", "private_message"] }
+mls-rs-core = { git = "https://github.com/awslabs/mls-rs", rev = "027d9051437f88b81f4214c5a0a3a8fd7bbb8501", package = "mls-rs-core", default-features = false, features = ["std"] }
 mls-rs-crypto-rustcrypto = { git = "https://github.com/awslabs/mls-rs", rev = "027d9051437f88b81f4214c5a0a3a8fd7bbb8501", package = "mls-rs-crypto-rustcrypto", default-features = false, features = ["std"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
+wasm-bindgen = "0.2.117"
+zeroize = "1"

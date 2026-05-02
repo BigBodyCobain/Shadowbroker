@@ -68,7 +68,16 @@ type BuildRequest = {
   payload: DynamicMapLayersBuildPayload;
 };
 
-type WorkerRequest = SyncRequest | BuildRequest;
+type SyncAndBuildRequest = {
+  id: string;
+  action: 'sync_and_build_dynamic_layers';
+  payload: {
+    data: DynamicMapLayersDataPayload;
+    build: DynamicMapLayersBuildPayload;
+  };
+};
+
+type WorkerRequest = SyncRequest | BuildRequest | SyncAndBuildRequest;
 
 type WorkerResponse = {
   id: string;
@@ -164,6 +173,34 @@ function inView(lat: number, lng: number, bounds: BoundsTuple): boolean {
   return lng >= bounds[0] && lng <= bounds[2] && lat >= bounds[1] && lat <= bounds[3];
 }
 
+function cleanLabel(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).trim();
+}
+
+function isRawIcaoLabel(label: string, icao24: unknown): boolean {
+  const icao = cleanLabel(icao24).toLowerCase();
+  return Boolean(icao && label.toLowerCase() === icao);
+}
+
+function flightDisplayLabel(f: Flight): string {
+  const candidates: unknown[] = [
+    'alert_operator' in f ? f.alert_operator : '',
+    'operator' in f ? f.operator : '',
+    'owner' in f ? f.owner : '',
+    'tracked_name' in f ? f.tracked_name : '',
+    'name' in f ? f.name : '',
+    f.callsign,
+    f.registration,
+    f.model,
+  ];
+  for (const candidate of candidates) {
+    const label = cleanLabel(candidate);
+    if (label && !isRawIcaoLabel(label, f.icao24)) return label;
+  }
+  return '';
+}
+
 function interpFlightPosition(f: Flight, dtSeconds: number): [number, number] {
   if (!f.speed_knots || f.speed_knots <= 0 || dtSeconds <= 0) return [f.lng, f.lat];
   if (f.alt != null && f.alt <= 100) return [f.lng, f.lat];
@@ -236,7 +273,7 @@ function buildFlightLayerGeoJSONWorker(
       properties: {
         id: f.icao24 || f.callsign || `${idPrefix}${i}`,
         type: typeLabel,
-        callsign: f.callsign || f.icao24,
+        callsign: flightDisplayLabel(f),
         rotation,
         iconId,
       },
@@ -274,14 +311,7 @@ function buildTrackedFlightsGeoJSONWorker(
         : TRACKED_ICON_MAP[acType]?.[alertColor] ||
           TRACKED_ICON_MAP.airliner[alertColor] ||
           'svgAirlinerWhite';
-    const displayName =
-      ('alert_operator' in f ? f.alert_operator : '') ||
-      ('operator' in f ? f.operator : '') ||
-      ('owner' in f ? f.owner : '') ||
-      ('name' in f ? f.name : '') ||
-      f.callsign ||
-      f.icao24 ||
-      'UNKNOWN';
+    const displayName = flightDisplayLabel(f);
 
     features.push({
       type: 'Feature',
@@ -568,6 +598,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     if (action === 'sync_dynamic_layers') {
       dynamicData = payload;
       postMessage({ id, ok: true, result: EMPTY_RESULT } satisfies WorkerResponse);
+      return;
+    }
+    if (action === 'sync_and_build_dynamic_layers') {
+      dynamicData = payload.data;
+      const result = buildDynamicLayers(payload.build);
+      postMessage({ id, ok: true, result } satisfies WorkerResponse);
       return;
     }
     if (action !== 'build_dynamic_layers') {
