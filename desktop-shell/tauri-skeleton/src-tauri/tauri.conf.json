@@ -38,7 +38,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMUU1NkRENjNCNTI5RjUKUldUMUtiVmozVlllTEd0STJlMGtORUxUWHlGQ2V0ZXM3Z1BOc3hwc0pUK1c3dlplcWc2OFpKd3oK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxODExMjQ4MkJBMThFNTgKUldSWWpxRXJTQktCNFF3ZXNQbndUK0pVWUEwNDNuajcrUGI3ZEI4TWtDUDlQdHhudmlHUkNjQUUK",
       "endpoints": [
         "https://github.com/BigBodyCobain/Shadowbroker/releases/latest/download/latest.json"
       ],
