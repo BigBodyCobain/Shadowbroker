@@ -26,7 +26,7 @@ dependencies = [
     "python-dotenv==1.2.2",
     "requests==2.31.0",
     "reverse-geocoder==1.5.1",
-    "sgp4==2.23",
+    "sgp4==2.25",
     "meshtastic>=2.5.0",
     "orjson>=3.10.0",
     "paho-mqtt>=1.6.0,<2.0.0",
