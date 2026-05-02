@@ -25,7 +25,7 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "framer-motion": "^12.38.0",
     "hls.js": "^1.6.15",
-    "lucide-react": "^0.575.0",
+    "lucide-react": "^1.14.0",
     "maplibre-gl": "^4.7.1",
     "next": "16.1.6",
     "qrcode": "^1.5.4",
