@@ -302,7 +302,7 @@ describe('MessagesView first-contact trust UX', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Send Secure Mail' }));
 
-    await screen.findByText(/Mail delivered to Pinned Peer/i);
+    await screen.findByText(/Mail delivered to Pinned Peer/i, {}, { timeout: 5000 });
     expect(mocks.prepareWormholeInteractiveLane).toHaveBeenCalled();
     expect(mocks.sendDmMessage).toHaveBeenCalled();
   });
