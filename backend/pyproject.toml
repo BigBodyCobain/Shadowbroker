@@ -20,7 +20,7 @@ dependencies = [
     "httpx==0.28.1",
     "playwright==1.50.0",
     "playwright-stealth==1.0.6",
-    "pydantic==2.11.1",
+    "pydantic==2.13.3",
     "pydantic-settings==2.8.1",
     "pystac-client==0.8.6",
     "python-dotenv==1.2.2",
