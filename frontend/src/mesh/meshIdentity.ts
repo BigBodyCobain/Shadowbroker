@@ -1086,7 +1086,7 @@ async function deriveSharedSecretWithPrivateKey(
   theirDHPubBase64: string,
   privateKey: CryptoKey,
 ): Promise<ArrayBuffer> {
-  const theirPubRaw = base64ToBuf(theirDHPubBase64);
+  const theirPubRaw = toCryptoBytes(base64ToBuf(theirDHPubBase64));
   if (privateKey.algorithm.name === 'X25519') {
     const theirPubKey = await crypto.subtle.importKey('raw', theirPubRaw, 'X25519', false, []);
     return crypto.subtle.deriveBits({ name: 'X25519', public: theirPubKey }, privateKey, 256);
@@ -1110,7 +1110,7 @@ export async function deriveSharedKey(theirDHPubBase64: string): Promise<CryptoK
   const dhAlgo = storageGet(KEY_DH_ALGO) || 'X25519';
   const privKey = await ensureDhPrivateKey();
   if (!privKey) throw new Error('Missing DH private key');
-  const theirPubRaw = base64ToBuf(theirDHPubBase64);
+  const theirPubRaw = toCryptoBytes(base64ToBuf(theirDHPubBase64));
   let theirPubKey: CryptoKey;
 
   if (dhAlgo === 'X25519') {
@@ -1148,7 +1148,7 @@ export async function deriveSharedSecret(theirDHPubBase64: string): Promise<Arra
   const dhAlgo = storageGet(KEY_DH_ALGO) || 'X25519';
   const privKey = await ensureDhPrivateKey();
   if (!privKey) throw new Error('Missing DH private key');
-  const theirPubRaw = base64ToBuf(theirDHPubBase64);
+  const theirPubRaw = toCryptoBytes(base64ToBuf(theirDHPubBase64));
 
   let theirPubKey: CryptoKey;
 
@@ -1177,7 +1177,9 @@ export async function deriveSenderSealKey(
 ): Promise<CryptoKey> {
   const secret = await deriveSharedSecret(theirDHPubBase64);
   const salt = await sha256Bytes(`SB-SEAL-SALT|${recipientId}|${msgId}|${PROTOCOL_VERSION}`);
-  const hkdfKey = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+  const hkdfKey = await crypto.subtle.importKey('raw', toCryptoBytes(secret), 'HKDF', false, [
+    'deriveKey',
+  ]);
   return crypto.subtle.deriveKey(
     {
       name: 'HKDF',
@@ -1201,7 +1203,9 @@ export async function deriveSenderSealKeyV3(
   const salt = await sha256Bytes(
     `SB-SEAL-SALT|${recipientId}|${msgId}|${PROTOCOL_VERSION}|${ephemeralPubBase64}`,
   );
-  const hkdfKey = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+  const hkdfKey = await crypto.subtle.importKey('raw', toCryptoBytes(secret), 'HKDF', false, [
+    'deriveKey',
+  ]);
   return crypto.subtle.deriveKey(
     {
       name: 'HKDF',
@@ -1229,7 +1233,9 @@ async function decryptSenderSealPayloadWithRetainedKeys(
       const salt = await sha256Bytes(
         `SB-SEAL-SALT|${recipientId}|${msgId}|${PROTOCOL_VERSION}|${ephemeralPubBase64}`,
       );
-      const hkdfKey = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
+      const hkdfKey = await crypto.subtle.importKey('raw', toCryptoBytes(secret), 'HKDF', false, [
+        'deriveKey',
+      ]);
       const sealKey = await crypto.subtle.deriveKey(
         {
           name: 'HKDF',
