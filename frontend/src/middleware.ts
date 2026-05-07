@@ -8,13 +8,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-function buildCsp(_nonce: string): string {
+function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== 'production';
   const directives = [
     "default-src 'self'",
     isDev
       ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:"
-      : "script-src 'self' 'unsafe-inline' blob:",
+      : `script-src 'self' 'nonce-${nonce}' blob:`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     isDev

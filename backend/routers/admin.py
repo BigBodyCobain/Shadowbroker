@@ -357,7 +357,7 @@ async def api_reset_all_agent_credentials(request: Request):
 
     return {
         "ok": True,
-        "new_hmac_secret": new_secret,
+        "hmac_regenerated": True,
         "detail": "All agent credentials have been reset. Reconfigure your agent with the new credentials.",
         **results,
     }
