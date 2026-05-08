@@ -3,7 +3,24 @@ name = "shadowbroker"
 version = "0.9.75"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "apscheduler>=3.10.3",
+    "bs4>=0.0.2",
+    "cachetools>=5.5.2",
+    "cloudscraper>=1.2.71",
+    "cryptography>=46.0.6",
+    "dotenv>=0.9.9",
+    "fastapi>=0.115.12",
+    "feedparser>=6.0.10",
+    "orjson>=3.11.7",
+    "pydantic>=2.13.3",
+    "pydantic-settings>=2.8.1",
+    "requests>=2.31.0",
+    "reverse-geocoder>=1.5.1",
+    "sgp4>=2.25",
+    "slowapi>=0.1.9",
+    "uvicorn>=0.34.0",
+]
 
 [dependency-groups]
 test = []
