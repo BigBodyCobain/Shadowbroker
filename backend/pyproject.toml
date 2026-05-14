@@ -10,7 +10,7 @@ name = "backend"
 version = "0.9.79"
 requires-python = ">=3.10"
 dependencies = [
-    "apscheduler==3.10.3",
+    "apscheduler==3.11.2",
     "beautifulsoup4>=4.9.0",
     "cachetools==5.5.2",
     "cloudscraper==1.2.71",
