@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Ruler, Trash2 } from 'lucide-react';
+import { useTranslation } from '@/i18n';
 
 /**
  * Dynamic Scale Bar with:
@@ -49,6 +50,7 @@ function ScaleBar({
   onToggleMeasure,
   onClearMeasure,
 }: ScaleBarProps) {
+  const { t } = useTranslation();
   const [unit, setUnit] = useState<'mi' | 'km'>('mi');
   const [barWidth, setBarWidth] = useState(120); // current bar width in px
   const dragging = useRef(false);
@@ -165,7 +167,7 @@ function ScaleBar({
         title={measureMode ? 'Exit measurement mode' : 'Measure distance (click up to 3 points)'}
       >
         <Ruler size={10} />
-        {measureMode ? 'MEASURING' : 'MEASURE'}
+        {measureMode ? 'MEASURING' : t('map.measure')}
       </button>
 
       {/* Clear measurements */}

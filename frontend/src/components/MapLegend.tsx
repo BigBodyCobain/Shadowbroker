@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import ExternalImage from '@/components/ExternalImage';
+import { useTranslation } from '@/i18n';
 
 // ─── Inline SVG legend icons (small, crisp, no external deps) ───
 const plane = (fill: string, size = 16) =>
@@ -309,6 +310,7 @@ const MapLegend = React.memo(function MapLegend({
   isOpen: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const toggle = (name: string) => {
@@ -362,7 +364,7 @@ const MapLegend = React.memo(function MapLegend({
                 </div>
                 <div>
                   <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-primary)] font-mono">
-                    MAP LEGEND
+                    {t('legend.title').toUpperCase()}
                   </h2>
                   <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">
                     ICON REFERENCE KEY

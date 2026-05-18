@@ -48,6 +48,7 @@ import { API_BASE } from '@/lib/api';
 import { onTileLoadingChange, resetTileLoading } from '@/lib/sentinelHub';
 import packageJson from '../../package.json';
 import { useTheme } from '@/lib/ThemeContext';
+import { useTranslation } from '@/i18n';
 import SarModeChooserModal from './SarModeChooserModal';
 import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
 
@@ -674,6 +675,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onOpenSarAoiEditor?: () => void;
 }) {
   const data = useDataSnapshot() as import('@/types/dashboard').DashboardData;
+  const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
   const setIsMinimized = (val: boolean | ((prev: boolean) => boolean)) => {
@@ -872,47 +874,47 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
 
   const sections = [
     {
-      label: 'AIRCRAFT',
+      label: t('layers.aircraft').toUpperCase(),
       icon: Plane,
       layers: [
         {
           id: 'flights',
-          name: 'Commercial Flights',
+          name: t('layers.commercialFlights'),
           source: 'adsb.lol',
           count: data?.commercial_flights?.length || 0,
           icon: Plane,
         },
         {
           id: 'private',
-          name: 'Private Flights',
+          name: t('layers.privateAircraft'),
           source: 'adsb.lol',
           count: data?.private_flights?.length || 0,
           icon: Plane,
         },
         {
           id: 'jets',
-          name: 'Private Jets',
+          name: t('layers.privateJets'),
           source: 'adsb.lol',
           count: data?.private_jets?.length || 0,
           icon: Plane,
         },
         {
           id: 'military',
-          name: 'Military Flights',
+          name: t('layers.militaryFlights'),
           source: 'adsb.lol',
           count: data?.military_flights?.length || 0,
           icon: AlertTriangle,
         },
         {
           id: 'tracked',
-          name: 'Tracked Aircraft',
+          name: t('layers.trackedAircraft'),
           source: 'Plane-Alert DB',
           count: data?.tracked_flights?.length || 0,
           icon: Eye,
         },
         {
           id: 'gps_jamming',
-          name: 'GPS Jamming',
+          name: t('layers.gpsJamming'),
           source: 'ADS-B NACp',
           count: data?.gps_jamming?.length || 0,
           icon: Radio,
@@ -920,47 +922,47 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'MARITIME',
+      label: t('layers.maritime').toUpperCase(),
       icon: Ship,
       layers: [
         {
           id: 'ships_military',
-          name: 'Military / Carriers',
+          name: t('layers.militaryVessels'),
           source: 'AIS Stream',
           count: militaryShipCount,
           icon: Ship,
         },
         {
           id: 'ships_cargo',
-          name: 'Cargo / Tankers',
+          name: t('layers.cargoShips'),
           source: 'AIS Stream',
           count: cargoShipCount,
           icon: Ship,
         },
         {
           id: 'ships_civilian',
-          name: 'Civilian Vessels',
+          name: t('layers.civilianShips'),
           source: 'AIS Stream',
           count: civilianShipCount,
           icon: Anchor,
         },
         {
           id: 'ships_passenger',
-          name: 'Cruise / Passenger',
+          name: t('layers.passengerShips'),
           source: 'AIS Stream',
           count: passengerShipCount,
           icon: Anchor,
         },
         {
           id: 'ships_tracked_yachts',
-          name: 'Tracked Yachts',
+          name: t('layers.trackedYachts'),
           source: 'Yacht-Alert DB',
           count: trackedYachtCount,
           icon: Eye,
         },
         {
           id: 'fishing_activity',
-          name: 'Fishing Activity',
+          name: t('layers.fishingActivity'),
           source: 'Global Fishing Watch',
           count: data?.fishing_activity?.length || 0,
           icon: Fish,
@@ -968,12 +970,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'SPACE',
+      label: t('layers.space').toUpperCase(),
       icon: Satellite,
       layers: [
         {
           id: 'satellites',
-          name: 'Satellites',
+          name: t('layers.satellites'),
           source:
             (data?.satellite_source === 'celestrak'
               ? 'CelesTrak SGP4'
@@ -993,28 +995,28 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
         },
         {
           id: 'gibs_imagery',
-          name: 'MODIS Terra (Daily)',
+          name: t('layers.gibsImagery'),
           source: 'NASA GIBS',
           count: null,
           icon: Globe,
         },
         {
           id: 'highres_satellite',
-          name: 'High-Res Satellite',
+          name: t('layers.highresSatellite'),
           source: 'Esri World Imagery',
           count: null,
           icon: Satellite,
         },
         {
           id: 'sentinel_hub',
-          name: 'Sentinel Hub',
+          name: t('layers.sentinelHub'),
           source: 'Copernicus CDSE',
           count: null,
           icon: Satellite,
         },
         {
           id: 'viirs_nightlights',
-          name: 'VIIRS Night Lights',
+          name: t('layers.viirsNightlights'),
           source: 'NASA GIBS',
           count: null,
           icon: Moon,
@@ -1022,54 +1024,54 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'HAZARDS',
+      label: t('layers.hazards').toUpperCase(),
       icon: AlertTriangle,
       layers: [
         {
           id: 'earthquakes',
-          name: 'Earthquakes (24h)',
+          name: t('layers.earthquakes'),
           source: 'USGS',
           count: data?.earthquakes?.length || 0,
           icon: Activity,
         },
         {
           id: 'firms',
-          name: 'Fire Hotspots (24h)',
+          name: t('layers.fires'),
           source: 'NASA FIRMS VIIRS',
           count: data?.firms_fires?.length || 0,
           icon: Flame,
         },
         {
           id: 'ukraine_alerts',
-          name: 'Ukraine Air Raids',
+          name: t('layers.ukraineAlerts'),
           source: 'alerts.in.ua',
           count: data?.ukraine_alerts?.length || 0,
           icon: AlertTriangle,
         },
         {
           id: 'weather_alerts',
-          name: 'Severe Weather',
+          name: t('layers.weatherAlerts'),
           source: 'NOAA/NWS',
           count: data?.weather_alerts?.length || 0,
           icon: CloudLightning,
         },
         {
           id: 'volcanoes',
-          name: 'Volcanoes',
+          name: t('layers.volcanoes'),
           source: 'Smithsonian GVP',
           count: data?.volcanoes?.length || 0,
           icon: Mountain,
         },
         {
           id: 'air_quality',
-          name: 'Air Quality',
+          name: t('layers.airQuality'),
           source: 'OpenAQ',
           count: data?.air_quality?.length || 0,
           icon: Wind,
         },
         {
           id: 'sar',
-          name: 'SAR Ground-Change',
+          name: t('layers.sar'),
           source:
             (data?.sar_anomalies?.length
               ? `OPERA/EGMS · ${data.sar_anomalies.length} alerts · ${data.sar_scenes?.length || 0} passes`
@@ -1082,12 +1084,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'UAP SIGHTINGS',
+      label: t('layers.uapSightings').toUpperCase(),
       icon: Eye,
       layers: [
         {
           id: 'uap_sightings',
-          name: 'UAP Reports',
+          name: t('layers.uapSightings'),
           source: 'NUFORC',
           count: data?.uap_sightings?.length || 0,
           icon: Eye,
@@ -1095,12 +1097,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'BIOSURVEILLANCE',
+      label: t('layers.biosurveillance').toUpperCase(),
       icon: Droplets,
       layers: [
         {
           id: 'wastewater',
-          name: 'Wastewater Pathogens',
+          name: t('layers.wastewater'),
           source: 'WastewaterSCAN',
           count: data?.wastewater?.length || 0,
           icon: Droplets,
@@ -1108,47 +1110,47 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'INFRASTRUCTURE',
+      label: t('layers.infrastructure').toUpperCase(),
       icon: Server,
       layers: [
         {
           id: 'cctv',
-          name: 'CCTV Mesh',
+          name: t('layers.cctv'),
           source: 'CCTV Mesh + Street View',
           count: cctvCount,
           icon: Cctv,
         },
         {
           id: 'datacenters',
-          name: 'Data Centers',
+          name: t('layers.datacenters'),
           source: 'DC Map (GitHub)',
           count: data?.datacenters?.length || 0,
           icon: Server,
         },
         {
           id: 'internet_outages',
-          name: 'Internet Outages',
+          name: t('layers.internetOutages'),
           source: 'IODA + RIPE Atlas',
           count: data?.internet_outages?.length || 0,
           icon: Wifi,
         },
         {
           id: 'power_plants',
-          name: 'Power Plants',
+          name: t('layers.powerPlants'),
           source: 'WRI (Static)',
           count: data?.power_plants?.length || 0,
           icon: Zap,
         },
         {
           id: 'military_bases',
-          name: 'Military Bases',
+          name: t('layers.militaryBases'),
           source: 'OSINT (Static)',
           count: data?.military_bases?.length || 0,
           icon: Shield,
         },
         {
           id: 'trains',
-          name: 'Live Trains',
+          name: t('layers.trains'),
           source: 'Amtraker + DigiTraffic',
           count: data?.trains?.length || 0,
           icon: TrainFront,
@@ -1156,12 +1158,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'SHODAN',
+      label: t('layers.shodanOverlay').toUpperCase(),
       icon: Search,
       layers: [
         {
           id: 'shodan_overlay',
-          name: 'Shodan Overlay',
+          name: t('layers.shodanOverlay'),
           source: 'Operator Search',
           count: shodanResultCount,
           icon: Search,
@@ -1169,54 +1171,54 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'SIGINT',
+      label: t('layers.sigint').toUpperCase(),
       icon: Radio,
       layers: [
         {
           id: 'kiwisdr',
-          name: 'SDR Receivers',
+          name: t('layers.kiwisdr'),
           source: 'KiwiSDR.com',
           count: data?.kiwisdr?.length || 0,
           icon: Radio,
         },
         {
           id: 'psk_reporter',
-          name: 'HF Digital Spots',
+          name: t('layers.pskReporter'),
           source: 'PSK Reporter',
           count: data?.psk_reporter?.length || 0,
           icon: Radio,
         },
         {
           id: 'satnogs',
-          name: 'Sat Ground Stations',
+          name: t('layers.satnogs'),
           source: 'SatNOGS',
           count: satnogsCount,
           icon: Satellite,
         },
         {
           id: 'tinygs',
-          name: 'LoRa Satellites',
+          name: t('layers.tinygs'),
           source: 'TinyGS',
           count: tinygsCount,
           icon: Satellite,
         },
         {
           id: 'scanners',
-          name: 'Police Scanners',
+          name: t('layers.scanners'),
           source: 'OpenMHZ',
           count: data?.scanners?.length || 0,
           icon: Radio,
         },
         {
           id: 'sigint_meshtastic',
-          name: 'Meshtastic',
+          name: t('layers.meshtastic'),
           source: 'LoRa MQTT',
           count: meshtasticCount,
           icon: Radio,
         },
         {
           id: 'sigint_aprs',
-          name: 'APRS / JS8Call',
+          name: t('layers.aprs'),
           source: 'APRS-IS / JS8',
           count: aprsCount,
           icon: Radio,
@@ -1224,54 +1226,54 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
-      label: 'OVERLAYS',
+      label: t('layers.overlays').toUpperCase(),
       icon: Globe,
       layers: [
         {
           id: 'ukraine_frontline',
-          name: 'Ukraine Frontline',
+          name: t('layers.ukraineFrontline'),
           source: 'DeepStateMap',
           count: data?.frontlines ? 1 : 0,
           icon: AlertTriangle,
         },
         {
           id: 'global_incidents',
-          name: 'Global Incidents',
+          name: t('layers.globalIncidents'),
           source: 'GDELT',
           count: data?.gdelt?.length || 0,
           icon: Activity,
         },
         {
           id: 'crowdthreat',
-          name: 'CrowdThreat',
+          name: t('layers.crowdThreat'),
           source: 'CrowdThreat',
           count: data?.crowdthreat?.length || 0,
           icon: Shield,
         },
         {
           id: 'correlations',
-          name: 'Correlations',
+          name: t('layers.correlations'),
           source: 'Cross-Layer Analysis',
           count: data?.correlations?.length || 0,
           icon: Zap,
         },
         {
           id: 'contradictions',
-          name: 'Possible Contradictions',
+          name: t('layers.contradictions'),
           source: 'Narrative Intelligence',
           count: data?.correlations?.filter((c: { type: string }) => c.type === 'contradiction').length || 0,
           icon: Zap,
         },
         {
           id: 'day_night',
-          name: 'Day / Night Cycle',
+          name: t('layers.dayNight'),
           source: 'Solar Calc',
           count: null,
           icon: Sun,
         },
         {
           id: 'ai_intel',
-          name: 'AI Intel',
+          name: t('layers.aiIntel'),
           source: 'OpenClaw AI',
           count: null,
           icon: Zap,
@@ -1552,7 +1554,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           <SectionIcon
                             size={12}
                             className={`${
-                              section.label === 'SHODAN'
+                              section.layers[0]?.id === 'shodan_overlay'
                                 ? anyOn
                                   ? 'text-green-400'
                                   : 'text-green-700/70'
@@ -1563,7 +1565,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           />
                           <span
                             className={`text-[13px] font-mono tracking-[0.2em] font-bold ${
-                              section.label === 'SHODAN' ? 'text-green-400' : 'text-[var(--text-muted)]'
+                              section.layers[0]?.id === 'shodan_overlay' ? 'text-green-400' : 'text-[var(--text-muted)]'
                             }`}
                           >
                             {section.label}
@@ -1571,7 +1573,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           {anyOn && totalCount > 0 && (
                             <span
                               className={`text-[12px] font-mono ${
-                                section.label === 'SHODAN' ? 'text-green-500/70' : 'text-cyan-500/50'
+                                section.layers[0]?.id === 'shodan_overlay' ? 'text-green-500/70' : 'text-cyan-500/50'
                               }`}
                             >
                               {totalCount.toLocaleString()}
@@ -1587,7 +1589,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           className="relative w-8 h-4 rounded-full transition-colors shrink-0"
                           style={{
                             backgroundColor: allOn
-                              ? section.label === 'SHODAN' ? 'rgb(34 197 94 / 0.5)' : 'rgb(6 182 212 / 0.5)'
+                              ? section.layers[0]?.id === 'shodan_overlay' ? 'rgb(34 197 94 / 0.5)' : 'rgb(6 182 212 / 0.5)'
                               : anyOn
                                 ? 'rgb(6 182 212 / 0.25)'
                                 : 'rgb(100 116 139 / 0.3)',
@@ -1610,7 +1612,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                             style={{
                               left: allOn ? '18px' : anyOn ? '10px' : '2px',
                               backgroundColor: allOn
-                                ? section.label === 'SHODAN' ? 'rgb(74 222 128)' : 'rgb(34 211 238)'
+                                ? section.layers[0]?.id === 'shodan_overlay' ? 'rgb(74 222 128)' : 'rgb(34 211 238)'
                                 : anyOn
                                   ? 'rgb(34 211 238 / 0.6)'
                                   : 'rgb(148 163 184 / 0.5)',

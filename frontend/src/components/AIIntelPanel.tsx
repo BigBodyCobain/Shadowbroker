@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 import type { AIIntelPin, AIIntelLayer, SatelliteScene } from '@/types/aiIntel';
+import { useTranslation } from '@/i18n';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   createLayer as apiCreateLayer,
@@ -1039,6 +1040,7 @@ export default function AIIntelPanel({
   pinPlacementMode,
   onPinPlacementModeChange,
 }: AIIntelPanelProps) {
+  const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
   const setIsMinimized = (val: boolean | ((prev: boolean) => boolean)) => {
@@ -1293,7 +1295,7 @@ export default function AIIntelPanel({
         <div className="flex items-center gap-2">
           <Brain size={16} className="text-violet-400" />
           <span className="text-[12px] text-violet-400 font-mono tracking-widest font-bold">
-            AI INTEL
+            {t('ai.title').toUpperCase()}
           </span>
           {totalPins > 0 && (
             <span className="text-[11px] font-mono px-1.5 py-0.5 bg-violet-500/20 border border-violet-500/40 text-violet-300">

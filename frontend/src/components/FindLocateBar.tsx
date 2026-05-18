@@ -5,6 +5,7 @@ import { Search, Crosshair, Plane, Shield, Star, Ship, X, Database } from 'lucid
 import { motion, AnimatePresence } from 'framer-motion';
 import { trackedOperators } from '../lib/trackedData';
 import { useDataKeys } from '@/hooks/useDataStore';
+import { useTranslation } from '@/i18n';
 
 interface FindLocateBarProps {
   onLocate: (lat: number, lng: number, entityId: string, entityType: string) => void;
@@ -24,6 +25,7 @@ interface SearchResult {
 }
 
 const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: FindLocateBarProps) {
+  const { t } = useTranslation();
   const data = useDataKeys(['commercial_flights', 'private_flights', 'private_jets', 'military_flights', 'tracked_flights', 'ships'] as const);
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -184,7 +186,7 @@ const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: 
           name="sb-locate-search"
           autoComplete="off"
           data-search-input
-          placeholder="Search aircraft, person or vessel..."
+          placeholder={t('map.searchPlaceholder')}
           className="flex-1 bg-transparent text-[12px] text-[var(--text-secondary)] font-mono tracking-wider outline-none placeholder:text-slate-500"
           onChange={(e) => {
             setQuery(e.target.value);

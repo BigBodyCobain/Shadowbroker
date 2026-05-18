@@ -27,6 +27,7 @@ import type {
   ShodanMarkerSize,
 } from '@/types/shodan';
 import { countShodan, fetchShodanStatus, lookupShodanHost, searchShodan } from '@/lib/shodanClient';
+import { useTranslation } from '@/i18n';
 
 type Mode = 'search' | 'count' | 'host';
 type ShodanPreset = {
@@ -177,6 +178,7 @@ export default function ShodanPanel({
   onMinimizedChange,
   settingsOpen,
 }: Props) {
+  const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
   const setIsMinimized = (val: boolean | ((prev: boolean) => boolean)) => {
@@ -506,7 +508,7 @@ export default function ShodanPanel({
         <div className="flex items-center gap-2">
           <Radar size={16} className="text-green-400" />
           <span className="text-[12px] font-mono font-bold tracking-widest text-green-400">
-            SHODAN
+            {t('shodan.title').toUpperCase()}
           </span>
           {currentResults.length > 0 && (
             <span className="text-[11px] font-mono px-1.5 py-0.5 bg-green-900/30 border border-green-700/30 text-green-300">
@@ -619,7 +621,7 @@ export default function ShodanPanel({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (mode === 'search' ? void handleSearch() : void handleCount())}
-                  placeholder='port:443 org:"Amazon"'
+                  placeholder={t('shodan.searchPlaceholder')}
                   className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-green-300 outline-none transition-colors focus:border-green-500/60"
                 />
               </div>

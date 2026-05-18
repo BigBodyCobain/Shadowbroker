@@ -15,6 +15,7 @@ import {
 import AdvancedFilterModal from './AdvancedFilterModal';
 import { useDataKeys } from '@/hooks/useDataStore';
 import { airlineNames } from '../lib/airlineCodes';
+import { useTranslation } from '@/i18n';
 import { trackedCategories, trackedOperators } from '../lib/trackedData';
 
 interface FilterPanelProps {
@@ -36,6 +37,7 @@ type ModalConfig = {
 };
 
 const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFilters }: FilterPanelProps) {
+  const { t } = useTranslation();
   const data = useDataKeys(['commercial_flights', 'private_flights', 'private_jets', 'military_flights', 'tracked_flights', 'ships'] as const);
   const [isMinimized, setIsMinimized] = useState(true);
   const [openModal, setOpenModal] = useState<string | null>(null);
@@ -310,7 +312,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-cyan-400" />
             <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
-              DATA FILTERS
+              {t('filters.title').toUpperCase()}
             </span>
             {activeCount > 0 && (
               <span className="text-[11px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 font-mono">
@@ -338,7 +340,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
                   onClick={clearAll}
                   className="text-[10px] text-red-400 hover:text-red-300 font-mono tracking-widest self-end mb-1"
                 >
-                  CLEAR ALL FILTERS
+                  {t('filters.clear').toUpperCase()}
                 </button>
               )}
 

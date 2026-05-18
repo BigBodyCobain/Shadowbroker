@@ -51,6 +51,7 @@ import {
   markSentinelInfoSeen,
   hasSentinelCredentials,
 } from '@/lib/sentinelHub';
+import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { SentinelInfoModal } from './SentinelInfoModal';
 import SarAoiEditorModal from '@/components/SarAoiEditorModal';
@@ -62,6 +63,7 @@ const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ss
 
 export default function Dashboard() {
   const viewBoundsRef = useRef<{ south: number; west: number; north: number; east: number } | null>(null);
+  const { t } = useTranslation();
   // Start the critical map data request before panel/control-plane effects.
   // Non-map widgets can warm up after this; first paint needs flights, ships, and intel first.
   useDataPolling();
@@ -88,10 +90,10 @@ export default function Dashboard() {
   useEffect(() => {
     const l = localStorage.getItem('sb_left_open');
     const r = localStorage.getItem('sb_right_open');
-    const t = localStorage.getItem('sb_ticker_open');
+    const tk = localStorage.getItem('sb_ticker_open');
     if (l !== null) setLeftOpen(l === 'true');
     if (r !== null) setRightOpen(r === 'true');
-    if (t !== null) setTickerOpen(t === 'true');
+    if (tk !== null) setTickerOpen(tk === 'true');
   }, []);
 
   useEffect(() => {
@@ -528,14 +530,14 @@ export default function Dashboard() {
                   S H A D O W <span className="text-cyan-400">B R O K E R</span>
                 </h1>
                 <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.3em] mt-1 ml-1">
-                  GLOBAL THREAT INTERCEPT
+                  {t('brand.subtitle')}
                 </span>
               </div>
             </motion.div>
 
             {/* SYSTEM METRICS TOP LEFT */}
             <div className="absolute top-2 left-6 text-[11px] font-mono tracking-widest text-cyan-500/50 z-[200] pointer-events-none hud-zone">
-              OPTIC VIS:113 SRC:180 DENS:1.42 0.8ms
+              {t('brand.systemMetrics')}
             </div>
 
             {/* SYSTEM METRICS TOP RIGHT — removed, label moved into TimelineScrubber */}
@@ -580,8 +582,8 @@ export default function Dashboard() {
                   </ErrorBoundary>
                 ) : (
                   <div className="bg-[#05090d]/95 border border-cyan-900/50 p-4 font-mono text-cyan-500/70">
-                    <div className="text-[11px] tracking-[0.2em] text-cyan-400 font-bold">DATA LAYERS</div>
-                    <div className="mt-3 text-[10px] tracking-wider">PRIORITIZING MAP FEEDS</div>
+                    <div className="text-[11px] tracking-[0.2em] text-cyan-400 font-bold">{t('nav.dataLayers')}</div>
+                    <div className="mt-3 text-[10px] tracking-wider">{t('nav.prioritizingMapFeeds')}</div>
                   </div>
                 )}
               </div>
@@ -647,7 +649,7 @@ export default function Dashboard() {
                   className="text-[7px] font-mono tracking-[0.2em] font-bold"
                   style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                 >
-                  LAYERS
+                  {t('nav.layers')}
                 </span>
               </button>
             </motion.div>
@@ -667,7 +669,7 @@ export default function Dashboard() {
                   className="text-[7px] font-mono tracking-[0.2em] font-bold"
                   style={{ writingMode: 'vertical-rl' }}
                 >
-                  INTEL
+                  {t('nav.intel')}
                 </span>
               </button>
             </motion.div>
@@ -768,7 +770,7 @@ export default function Dashboard() {
                   {/* Coordinates */}
                   <div className="flex flex-col items-center min-w-[140px]">
                     <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
-                      COORDINATES
+                      {t('controls.coordinates')}
                     </div>
                     <div className="text-[14px] text-cyan-400 font-mono font-bold tracking-wide">
                       {mouseCoords
@@ -783,10 +785,10 @@ export default function Dashboard() {
                   {/* Location name */}
                   <div className="flex flex-col items-center min-w-[180px] max-w-[320px]">
                     <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
-                      LOCATION
+                      {t('controls.location')}
                     </div>
                     <div className="text-[13px] text-[var(--text-secondary)] font-mono truncate max-w-[320px]">
-                      {locationLabel || 'Hover over map...'}
+                      {locationLabel || t('controls.hoverMap')}
                     </div>
                   </div>
 
@@ -796,7 +798,7 @@ export default function Dashboard() {
                   {/* Style preset (compact) */}
                   <div className="flex flex-col items-center">
                     <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
-                      STYLE
+                      {t('controls.style')}
                     </div>
                     <div className="text-[14px] text-cyan-400 font-mono font-bold">
                       {activeStyle}
@@ -815,7 +817,7 @@ export default function Dashboard() {
                         title={`Kp Index: ${sw?.kp_index ?? 'N/A'}`}
                       >
                         <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
-                          SOLAR
+                          {t('controls.solar')}
                         </div>
                         <div
                           className={`text-[14px] font-mono font-bold ${
@@ -826,7 +828,7 @@ export default function Dashboard() {
                                 : 'text-green-400'
                           }`}
                         >
-                          {sw?.kp_text || 'N/A'}
+                          {sw?.kp_text || t('controls.na')}
                         </div>
                       </div>
                     );
@@ -857,7 +859,7 @@ export default function Dashboard() {
             onClick={() => setUiVisible(true)}
             className="absolute bottom-9 right-6 z-[200] bg-[var(--bg-primary)]/80 border border-[var(--border-primary)] px-4 py-2 text-[10px] font-mono tracking-widest text-cyan-500 hover:text-cyan-300 hover:border-cyan-800 transition-colors pointer-events-auto"
           >
-            RESTORE UI
+            {t('nav.restoreUi')}
           </button>
         )}
 
@@ -984,8 +986,7 @@ export default function Dashboard() {
         {backendStatus === 'disconnected' && (
           <div className="absolute top-0 left-0 right-0 z-[9000] flex items-center justify-center py-2 bg-red-950/90 border-b border-red-500/40 backdrop-blur-sm">
             <span className="text-[10px] font-mono tracking-widest text-red-400">
-              BACKEND OFFLINE — Cannot reach backend server. Check that the backend container is
-              running and BACKEND_URL is correct.
+              {t('backend.offline')}
             </span>
           </div>
         )}
@@ -1000,7 +1001,7 @@ export default function Dashboard() {
             className="flex items-center gap-2 px-3 py-1 bg-cyan-950/40 border border-cyan-800/50 border-b-0 rounded-t text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
           >
             <div className="text-[7.5px] font-mono tracking-[0.25em] font-bold uppercase">
-              MARKETS
+              {t('nav.markets')}
             </div>
             {tickerOpen ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
           </button>

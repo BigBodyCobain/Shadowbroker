@@ -15,6 +15,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
+import { useTranslation } from '@/i18n';
 import { controlPlaneFetch } from '@/lib/controlPlane';
 import {
   checkDesktopUpdaterUpdate,
@@ -83,6 +84,7 @@ export default function TopRightControls({
   dmCount,
   onMeshChatNavigate,
 }: TopRightControlsProps = {}) {
+  const { t } = useTranslation();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [latestVersion, setLatestVersion] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -556,7 +558,7 @@ export default function TopRightControls({
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]">
           <span className="text-[10px] font-mono tracking-widest text-cyan-400">
-            UPDATE v{currentVersion} → v{latestVersion}
+            {t('update.autoUpdate').toUpperCase()} v{currentVersion} → v{latestVersion}
           </span>
           <button
             onClick={() => setUpdateStatus('available')}
@@ -577,10 +579,10 @@ export default function TopRightControls({
           >
             <Download size={12} />
             {updateAction === 'manual_download'
-              ? 'DOWNLOAD INSTALLER'
+              ? t('update.downloadInstaller')
               : updateAction === 'desktop_updater'
-                ? 'INSTALL UPDATE'
-                : 'AUTO UPDATE'}
+                ? t('update.installUpdate')
+                : t('update.autoUpdate')}
           </button>
 
           <a
@@ -590,14 +592,14 @@ export default function TopRightControls({
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
           >
             <ExternalLink size={12} />
-            {updateAction === 'manual_download' ? 'VIEW RELEASE' : 'MANUAL DOWNLOAD'}
+            {updateAction === 'manual_download' ? t('update.viewRelease') : t('update.manualDownload')}
           </a>
 
           <button
             onClick={() => setUpdateStatus('available')}
             className="w-full flex items-center justify-center px-3 py-1.5 text-[9px] text-[var(--text-muted)] font-mono tracking-widest hover:text-[var(--text-secondary)] transition-colors"
           >
-            CANCEL
+            {t('update.cancel')}
           </button>
         </div>
       </div>
@@ -609,7 +611,7 @@ export default function TopRightControls({
     <div className="absolute top-full right-0 mt-2 w-72 z-[9999]">
       <div className="bg-[var(--bg-primary)]/95 backdrop-blur-sm border border-red-800/60 shadow-[0_4px_30px_rgba(255,0,0,0.1)] overflow-hidden">
         <div className="px-3 py-2 border-b border-red-900/40">
-          <span className="text-[10px] font-mono tracking-widest text-red-400">UPDATE FAILED</span>
+          <span className="text-[10px] font-mono tracking-widest text-red-400">{t('update.updateFailed')}</span>
         </div>
         <div className="p-3 flex flex-col gap-2">
           <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed break-words">
@@ -620,7 +622,7 @@ export default function TopRightControls({
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-cyan-500/10 border border-cyan-500/40 hover:bg-cyan-500/20 transition-all text-[10px] text-cyan-400 font-mono tracking-widest"
           >
             <RefreshCw size={12} />
-            TRY AGAIN
+            {t('update.tryAgain')}
           </button>
           <a
             href={updateAction === 'manual_download' ? releasePageUrl : manualUpdateUrl}
@@ -629,7 +631,7 @@ export default function TopRightControls({
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
           >
             <ExternalLink size={12} />
-            {updateAction === 'manual_download' ? 'VIEW RELEASE' : 'MANUAL DOWNLOAD'}
+            {updateAction === 'manual_download' ? t('update.viewRelease') : t('update.manualDownload')}
           </a>
         </div>
       </div>
@@ -642,7 +644,7 @@ export default function TopRightControls({
       <div className="bg-[var(--bg-primary)]/95 backdrop-blur-sm border border-cyan-800/60 shadow-[0_4px_30px_rgba(0,255,255,0.15)] overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]">
           <span className="text-[10px] font-mono tracking-widest text-cyan-400">
-            DOCKER UPDATE — v{latestVersion}
+            {t('update.dockerUpdate')} — v{latestVersion}
           </span>
           <button
             onClick={() => setUpdateStatus('idle')}
@@ -653,8 +655,7 @@ export default function TopRightControls({
         </div>
         <div className="p-3 flex flex-col gap-2">
           <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
-            Docker containers must be updated by pulling new images.
-            Run this on your host machine:
+            {t('update.dockerUpdateDetail')}
           </p>
           <div className="relative bg-black/40 border border-[var(--border-primary)] p-2 group">
             <code className="text-[9px] font-mono text-green-400 break-all">{dockerCommands}</code>
@@ -673,7 +674,7 @@ export default function TopRightControls({
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] hover:border-[var(--text-muted)] transition-all text-[10px] text-[var(--text-muted)] font-mono tracking-widest"
           >
             <ExternalLink size={12} />
-            VIEW RELEASE
+            {t('update.viewRelease')}
           </a>
         </div>
       </div>
@@ -743,12 +744,12 @@ export default function TopRightControls({
                 <div>
                   <div className="text-[10px] font-mono tracking-[0.24em] text-cyan-300">
                     {nodeStep === 'disable'
-                      ? 'NODE ACTIVATED'
+                      ? t('node.nodeActivated')
                       : nodeStep === 'activating'
-                        ? 'ACTIVATING NODE'
+                        ? t('node.activatingNode')
                         : nodeStep === 'prompt'
-                          ? 'ACTIVATE NODE'
-                          : 'STIPULATIONS'}
+                          ? t('node.activateNode')
+                          : t('node.stipulations')}
                   </div>
                   <div className="mt-1 text-[9px] font-mono text-[var(--text-muted)]">
                     {nodeMode} • {syncOutcome} • participant-node sync does not require Wormhole
@@ -767,7 +768,7 @@ export default function TopRightControls({
                 {nodeStep === 'disable' ? (
                   <>
                     <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[10px] font-mono text-cyan-100 leading-[1.8]">
-                      Node activated.
+                      {t('node.nodeActivated')}.
                       {(() => { const id = getNodeIdentity(); return id?.nodeId ? (
                         <div className="mt-2 text-[9px] text-cyan-400 font-mono tracking-wide">
                           {id.nodeId}
@@ -775,11 +776,11 @@ export default function TopRightControls({
                       ) : null; })()}
                       <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal flex flex-wrap gap-x-3">
                         <span>{syncOutcome.toLowerCase()}</span>
-                        {(nodeStatus?.total_events ?? 0) > 0 && <span>{nodeStatus?.total_events} events</span>}
-                        {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && <span>{nodeStatus?.bootstrap?.sync_peer_count} peers</span>}
+                        {(nodeStatus?.total_events ?? 0) > 0 && <span>{nodeStatus?.total_events} {t('node.events')}</span>}
+                        {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && <span>{nodeStatus?.bootstrap?.sync_peer_count} {t('node.peers')}</span>}
                       </div>
                       <div className="mt-3 text-[11px] text-[var(--text-muted)] normal-case tracking-normal leading-[1.8]">
-                        Your node keeps syncing as long as the backend is running — you can close this browser tab. To run a headless node without the dashboard, use <span className="text-cyan-400">meshnode.bat</span> (Windows) or <span className="text-cyan-400">meshnode.sh</span> (macOS/Linux).
+                        {t('node.keepSyncing')}
                       </div>
                     </div>
                     {nodeToggleError && (
@@ -794,7 +795,7 @@ export default function TopRightControls({
                         disabled={nodeToggleBusy}
                         className="px-4 py-3 border border-rose-500/40 bg-rose-950/20 hover:bg-rose-950/35 disabled:opacity-50 text-[11px] font-mono text-rose-300 tracking-[0.18em]"
                       >
-                        {nodeToggleBusy ? 'TURNING OFF...' : 'TURN OFF'}
+                        {nodeToggleBusy ? t('node.turningOff') : t('node.turnOff')}
                       </button>
                       <button
                         type="button"
@@ -802,7 +803,7 @@ export default function TopRightControls({
                         disabled={nodeToggleBusy}
                         className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[11px] font-mono text-[var(--text-muted)] tracking-[0.18em]"
                       >
-                        KEEP ON
+                        {t('node.keepOn')}
                       </button>
                     </div>
                   </>
@@ -817,7 +818,7 @@ export default function TopRightControls({
                           <CheckCircle2 size={11} className="text-green-400 shrink-0" />
                         )}
                         <span className={activatingPhase === 'keys' ? 'text-cyan-300' : 'text-green-300'}>
-                          {activatingPhase === 'keys' ? 'Generating identity...' : 'Identity ready'}
+                          {activatingPhase === 'keys' ? t('node.generatingIdentity') : t('node.identityReady')}
                         </span>
                         {activatingPhase !== 'keys' && (() => { const id = getNodeIdentity(); return id?.nodeId ? (
                           <span className="text-[11px] text-cyan-400/70 ml-auto">{id.nodeId}</span>
@@ -837,9 +838,9 @@ export default function TopRightControls({
                           : activatingPhase === 'peers' ? 'text-cyan-300'
                           : 'text-green-300'
                         }>
-                          {activatingPhase === 'keys' ? 'Preparing onion transport...'
-                          : activatingPhase === 'peers' ? 'Finding bootstrap peers...'
-                          : 'Bootstrap peers ready'}
+                          {activatingPhase === 'keys' ? t('node.preparingTransport')
+                          : activatingPhase === 'peers' ? t('node.findingPeers')
+                          : t('node.peersReady')}
                         </span>
                       </div>
                       {/* Step: Sync chain */}
@@ -858,29 +859,28 @@ export default function TopRightControls({
                         }>
                           {activatingPhase === 'done'
                             ? (syncOutcomeRaw === 'solo'
-                              ? `Solo node ready — ${nodeStatus?.total_events ?? 0} events`
-                              : `Synced — ${nodeStatus?.total_events ?? 0} events`)
+                              ? `${t('node.soloReady')} — ${nodeStatus?.total_events ?? 0} ${t('node.events')}`
+                              : `${t('node.synced')} — ${nodeStatus?.total_events ?? 0} ${t('node.events')}`)
                             : activatingPhase === 'sync'
-                              ? `Syncing chain...${(nodeStatus?.total_events ?? 0) > 0 ? ` ${nodeStatus?.total_events} events` : ''}`
-                              : 'Syncing chain...'}
+                              ? `${t('node.syncingChain')}${(nodeStatus?.total_events ?? 0) > 0 ? ` ${nodeStatus?.total_events} ${t('node.events')}` : ''}`
+                              : t('node.syncingChain')}
                         </span>
                       </div>
                       {/* Done banner */}
                       {activatingPhase === 'done' && (
                         <>
                           <div className="mt-2 border border-green-500/30 bg-green-950/20 px-3 py-2 text-[10px] font-mono text-green-300 tracking-[0.15em] text-center">
-                            NODE ONLINE
+                            {t('node.nodeOnline')}
                           </div>
                           <div className="mt-1 text-[11px] font-mono text-[var(--text-muted)] leading-[1.8] normal-case tracking-normal">
-                            Your node keeps syncing as long as the backend is running — you can close this browser tab.
-                            To run a headless node without the dashboard, use <span className="text-cyan-400">meshnode.bat</span> (Windows) or <span className="text-cyan-400">meshnode.sh</span> (macOS/Linux).
+                            {t('node.keepSyncing')}
                           </div>
                         </>
                       )}
                     </div>
                     {activatingTimedOut && activatingPhase !== 'done' && (
                       <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
-                        Sync is taking longer than expected. Your node is active and will continue syncing in the background.
+                        {t('node.syncTakingLong')}
                       </div>
                     )}
                     {nodeToggleError && (
@@ -894,17 +894,14 @@ export default function TopRightControls({
                         onClick={closeLauncher}
                         className="w-full px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 text-[11px] font-mono text-cyan-300 tracking-[0.18em]"
                       >
-                        CLOSE
+                        {t('node.close')}
                       </button>
                     )}
                   </>
                 ) : nodeStep === 'prompt' ? (
                   <>
                     <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[10px] font-mono text-cyan-100 leading-[1.8]">
-                      Do you want to activate a node on this install?
-                      <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal">
-                        This turns on your local participant node and syncs Infonet only through available Wormhole onion/RNS peers. Clearnet bootstrap is disabled by default.
-                      </div>
+                      {t('node.activatePrompt')}
                     </div>
                     {(bootstrapFailed || nodeStatusError || nodeToggleError) && (
                       <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
@@ -917,27 +914,27 @@ export default function TopRightControls({
                         onClick={() => setNodeStep('terms')}
                         className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 text-[11px] font-mono text-cyan-300 tracking-[0.18em]"
                       >
-                        YES
+                        {t('node.yes')}
                       </button>
                       <button
                         type="button"
                         onClick={closeLauncher}
                         className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 text-[11px] font-mono text-[var(--text-muted)] tracking-[0.18em]"
                       >
-                        NO
+                        {t('node.no')}
                       </button>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[9px] font-mono text-slate-200 leading-[1.85]">
-                      <div className="text-cyan-300 tracking-[0.18em]">BY CONTINUING YOU AGREE:</div>
+                      <div className="text-cyan-300 tracking-[0.18em]">{t('node.termsTitle')}</div>
                       <ul className="mt-3 space-y-2 list-disc pl-5">
-                        <li>This install can keep a local copy of the public Infonet chain.</li>
-                        <li>Fresh installs do not use a clearnet Infonet seed.</li>
-                        <li>Participant-node sync requires an onion/RNS peer through Wormhole.</li>
-                        <li>Your backend may sync with configured private bootstrap peers in the background.</li>
-                        <li>Wormhole keeps Infonet, gates, Dead Drop, and DM traffic on the obfuscated lane.</li>
+                        <li>{t('node.term1')}</li>
+                        <li>{t('node.term2')}</li>
+                        <li>{t('node.term3')}</li>
+                        <li>{t('node.term4')}</li>
+                        <li>{t('node.term5')}</li>
                       </ul>
                     </div>
                     <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-cyan-300/80">
@@ -950,7 +947,7 @@ export default function TopRightControls({
                         disabled={nodeToggleBusy}
                         className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 disabled:opacity-50 text-[11px] font-mono text-cyan-300 tracking-[0.18em]"
                       >
-                        {nodeToggleBusy ? 'ACTIVATING...' : 'AGREE'}
+                        {nodeToggleBusy ? t('node.activating') : t('node.agree')}
                       </button>
                       <button
                         type="button"
@@ -958,7 +955,7 @@ export default function TopRightControls({
                         disabled={nodeToggleBusy}
                         className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[11px] font-mono text-[var(--text-muted)] tracking-[0.18em]"
                       >
-                        DISAGREE
+                        {t('node.disagree')}
                       </button>
                     </div>
                   </>
@@ -971,10 +968,10 @@ export default function TopRightControls({
       : null;
 
   const terminalStatusLabel = terminalPrivateReady
-    ? 'PRIVATE LANE READY'
+    ? t('terminal.privateLaneReady')
     : terminalPrivateEnabled
-      ? 'PRIVATE LANE STARTING'
-      : 'PRIVATE LANE OFFLINE';
+      ? t('terminal.privateLaneStarting')
+      : t('terminal.privateLaneOffline');
   const terminalStatusTone = terminalPrivateReady
     ? 'text-emerald-300'
     : terminalPrivateEnabled
@@ -994,7 +991,7 @@ export default function TopRightControls({
               <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/30">
                 <div>
                   <div className="text-[13px] font-mono tracking-[0.24em] text-cyan-300">
-                    INFONET TERMINAL
+                    {t('terminal.infonetTerminal')}
                   </div>
                   <div className={`mt-1 text-[11px] font-mono ${terminalStatusTone}`}>
                     {terminalStatusLabel} • {terminalTransportTier}
@@ -1012,12 +1009,12 @@ export default function TopRightControls({
               <div className="px-5 py-5 space-y-4">
                 <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[13px] font-mono text-cyan-100 leading-[1.8]">
                   {terminalPrivateReady
-                    ? 'Enter the Wormhole-facing terminal and sync with the obfuscated Infonet commons?'
-                    : 'The terminal runs through Wormhole for obfuscated gates, inbox, and experimental comms.'}
+                    ? t('terminal.enterTerminal')
+                    : t('terminal.terminalDetail')}
                   <div className="mt-2 text-[12px] text-cyan-200/70 normal-case tracking-normal">
                     {terminalPrivateReady
-                      ? 'Your obfuscated identity is already provisioned. Entering now keeps the obfuscated lane separate from the public node sync path.'
-                      : 'This turns Wormhole on and opens the obfuscated lane. If you already have a Wormhole identity, it reuses it. If you do not, it bootstraps one once and then keeps using it.'}
+                      ? t('terminal.enterTerminalDetail')
+                      : t('terminal.terminalDetailMore')}
                   </div>
                 </div>
                 {terminalLaunchError && (
@@ -1026,21 +1023,17 @@ export default function TopRightControls({
                   </div>
                 )}
                 <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[12px] font-mono text-slate-200 leading-[1.85]">
-                  <div className="text-cyan-300 tracking-[0.18em]">BEFORE YOU ENTER:</div>
+                  <div className="text-cyan-300 tracking-[0.18em]">{t('terminal.beforeYouEnter')}</div>
                   <ul className="mt-3 space-y-2 list-disc pl-5">
-                    <li>The terminal is for Wormhole gates (transitional private lane) and Dead Drop / DM (stronger private lane).</li>
-                    <li>Your participant node can stay active separately without changing this obfuscated identity lane.</li>
-                    <li>Mesh remains the public perimeter. Wormhole is the obfuscated commons.</li>
+                    <li>{t('terminal.term1')}</li>
+                    <li>{t('terminal.term2')}</li>
+                    <li>{t('terminal.term3')}</li>
                   </ul>
                 </div>
                 <div className="border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-[12px] font-mono text-amber-200/80 leading-[1.85]">
-                  <div className="text-amber-300 tracking-[0.18em]">WORMHOLE CLEANUP:</div>
+                  <div className="text-amber-300 tracking-[0.18em]">{t('terminal.wormholeCleanup')}</div>
                   <div className="mt-2">
-                    Closing the Infonet terminal will shut down Wormhole automatically. If you force-close
-                    the browser or the shutdown fails, Wormhole may keep running in the background.
-                    Run <span className="text-amber-100 font-bold">killwormhole.bat</span> (Windows) or{' '}
-                    <span className="text-amber-100 font-bold">killwormhole.sh</span> (macOS/Linux)
-                    from the project root to ensure it is fully stopped.
+                    {t('terminal.wormholeCleanupDetail')}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1051,10 +1044,10 @@ export default function TopRightControls({
                     className="px-4 py-3 border border-cyan-500/40 bg-cyan-950/20 hover:bg-cyan-950/35 disabled:opacity-50 text-[13px] font-mono text-cyan-300 tracking-[0.16em]"
                   >
                     {terminalLaunchBusy
-                      ? 'ENTERING...'
+                      ? t('terminal.entering')
                       : terminalPrivateReady
-                        ? 'ENTER WORMHOLE'
-                        : 'ACTIVATE WORMHOLE'}
+                        ? t('terminal.enterWormhole')
+                        : t('terminal.activateWormhole')}
                   </button>
                   <button
                     type="button"
@@ -1065,7 +1058,7 @@ export default function TopRightControls({
                     disabled={terminalLaunchBusy}
                     className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[13px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
                   >
-                    GO TO MESH
+                    {t('terminal.goToMesh')}
                   </button>
                   <button
                     type="button"
@@ -1073,7 +1066,7 @@ export default function TopRightControls({
                     disabled={terminalLaunchBusy}
                     className="px-4 py-3 border border-[var(--border-primary)] hover:border-cyan-500/40 disabled:opacity-50 text-[13px] font-mono text-[var(--text-muted)] tracking-[0.16em]"
                   >
-                    CANCEL
+                    {t('update.cancel')}
                   </button>
                 </div>
               </div>
@@ -1100,7 +1093,7 @@ export default function TopRightControls({
         title={nodeTitle}
       >
         <Server size={11} className="text-cyan-400" />
-        <span className="tracking-wider">NODE</span>
+        <span className="tracking-wider">{t('controls.node')}</span>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${nodeIndicatorClass}`} />
       </button>
 
@@ -1112,7 +1105,7 @@ export default function TopRightControls({
         title="Open Mesh Terminal"
       >
         <Terminal size={11} className="text-cyan-400" />
-        <span className="tracking-wider">TERMINAL</span>
+        <span className="tracking-wider">{t('controls.terminal')}</span>
         {(dmCount ?? 0) > 0 && (
           <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 shadow-[0_0_6px_rgba(239,68,68,0.5)]">
             {(dmCount ?? 0) > 9 ? '9+' : dmCount}
@@ -1146,7 +1139,7 @@ export default function TopRightControls({
       {updateStatus === 'updating' && (
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/50 text-[10px] text-cyan-400 font-mono">
           <RefreshCw size={12} className="w-3 h-3 animate-spin" />
-          <span className="tracking-widest">DOWNLOADING UPDATE...</span>
+          <span className="tracking-widest">{t('update.downloadingUpdate')}</span>
         </div>
       )}
 
@@ -1154,7 +1147,7 @@ export default function TopRightControls({
       {updateStatus === 'restarting' && (
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/50 text-[10px] text-cyan-400 font-mono shadow-[0_0_15px_rgba(0,255,255,0.2)]">
           <RefreshCw size={12} className="w-3 h-3 animate-spin" />
-          <span className="tracking-widest">RESTARTING...</span>
+          <span className="tracking-widest">{t('update.restarting')}</span>
         </div>
       )}
 
@@ -1166,7 +1159,7 @@ export default function TopRightControls({
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/10 backdrop-blur-sm border border-red-500/50 hover:bg-red-500/20 transition-all text-[10px] text-red-400 font-mono"
           >
             <AlertCircle size={12} className="w-3 h-3" />
-            <span className="tracking-widest">UPDATE FAILED</span>
+            <span className="tracking-widest">{t('update.updateFailed')}</span>
           </button>
           {renderErrorDialog()}
         </>
@@ -1180,7 +1173,7 @@ export default function TopRightControls({
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-500/10 backdrop-blur-sm border border-cyan-500/50 text-[10px] text-cyan-400 font-mono shadow-[0_0_15px_rgba(0,255,255,0.2)]"
           >
             <Terminal size={12} className="w-3 h-3" />
-            <span className="tracking-widest">DOCKER UPDATE</span>
+            <span className="tracking-widest">{t('update.dockerUpdate')}</span>
           </button>
           {renderDockerDialog()}
         </>
@@ -1204,12 +1197,12 @@ export default function TopRightControls({
 
           <span className="tracking-wider">
             {updateStatus === 'checking'
-              ? 'CHECKING...'
+              ? t('controls.checking')
               : updateStatus === 'uptodate'
-                ? 'UP TO DATE'
+                ? t('controls.upToDate')
                 : updateStatus === 'error'
-                  ? 'CHECK FAILED'
-                  : 'UPDATES'}
+                  ? t('controls.checkFailed')
+                  : t('controls.updates')}
           </span>
         </button>
       )}
