@@ -95,7 +95,7 @@ import {
   setPrivacyStrictPreference,
   setSessionModePreference,
 } from '@/lib/privacyBrowserStorage';
-import { useTranslation } from '@/i18n';
+import { useTranslation, LOCALES, type Locale } from '@/i18n';
 
 interface ApiEntry {
   id: string;
@@ -246,7 +246,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
   // settings are authenticated through Rust-side admin-key ownership. The
   // browser admin-session flow is unnecessary and unavailable in packaged mode.
   const nativeProtected = isNativeProtectedSettingsReady();
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
 
   // --- Admin Key (for protected endpoints) ---
   const [adminKey, setAdminKey] = useState('');
@@ -1136,12 +1136,40 @@ const SettingsPanel = React.memo(function SettingsPanel({
                   </span>
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
-              >
-                <X size={14} />
-              </button>
+              <div className="flex items-center gap-2">
+                {/*
+                  UI language toggle. Locale change is purely client-side
+                  (persists to localStorage('sb_locale')) — no network call,
+                  no telemetry. See frontend/src/i18n/index.ts for the list
+                  of available locales and CONTRIBUTING.md for the
+                  translation-neutrality policy.
+                */}
+                <label
+                  htmlFor="sb-locale-select"
+                  className="text-[11px] tracking-[0.18em] uppercase text-[var(--text-muted)] font-mono"
+                >
+                  LANG
+                </label>
+                <select
+                  id="sb-locale-select"
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value as Locale)}
+                  aria-label="UI language"
+                  className="h-8 px-2 border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[12px] font-mono text-[var(--text-secondary)] tracking-wider hover:border-cyan-500/50 focus:outline-none focus:border-cyan-500/80 transition-colors"
+                >
+                  {LOCALES.map((entry) => (
+                    <option key={entry.code} value={entry.code}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
 
             {/* Operator Tools */}

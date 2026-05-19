@@ -1,0 +1,32 @@
+# CODEOWNERS — assigns required reviewers for sensitive paths.
+# Format: <path glob>  <user-or-team> [<user-or-team> ...]
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Owners listed here are auto-requested for review when matching files
+# change in a PR. If branch protection requires CODEOWNERS approval, the
+# PR cannot be merged until an owner approves.
+
+# ── Internationalization / translations ──
+# Translation contributions are held to a stricter neutrality standard
+# than most code changes — see CONTRIBUTING.md "Translation contributions".
+# The i18n layer itself (no network calls, no telemetry, static JSON
+# bundled at build) is the structural guarantee that makes this safe;
+# changes to it need owner review.
+/frontend/src/i18n/                @BigBodyCobain
+
+# ── Security-sensitive code paths ──
+/backend/auth.py                   @BigBodyCobain
+/backend/routers/wormhole.py       @BigBodyCobain
+/backend/services/mesh/            @BigBodyCobain
+/backend/services/fetchers/        @BigBodyCobain
+
+# ── CI / build / deploy infra ──
+/.github/workflows/                @BigBodyCobain
+/.gitlab-ci.yml                    @BigBodyCobain
+/docker-compose.yml                @BigBodyCobain
+/docker-compose.gitlab.yml         @BigBodyCobain
+/helm/                             @BigBodyCobain
+
+# ── This file and policy docs ──
+/.github/CODEOWNERS                @BigBodyCobain
+/CONTRIBUTING.md                   @BigBodyCobain
