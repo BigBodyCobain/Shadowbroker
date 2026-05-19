@@ -126,7 +126,7 @@ docker compose up -d
 
 ### **☸️ Kubernetes / Helm (Advanced)**
 
-For high-availability deployments or home-lab clusters, ShadowBroker supports deployment via **Helm**. This chart is based on the `bjw-s-labs` template and provides a robust, modular setup for both the backend and frontend.
+For high-availability deployments or home-lab clusters, ShadowBroker supports deployment via **Helm**. This chart is based on the `bjw-s-labs` template and provides a robust, modular setup for both the backend and the frontend.
 
 **1. Add the Repository:**
 ```bash
