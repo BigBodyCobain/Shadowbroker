@@ -1,0 +1,121 @@
+# GitLab CI/CD for Shadowbroker
+#
+# Mirror of .github/workflows/docker-publish.yml — keeps the GitLab install
+# path (image registry + source) at parity with GitHub so users who prefer
+# GitLab get the same experience.
+#
+# What this does on every push to main:
+#   1. Builds multi-arch (amd64 + arm64) Docker images for the backend and
+#      frontend, pushes them to the project's GitLab Container Registry:
+#        registry.gitlab.com/bigbodycobain/shadowbroker/backend:latest
+#        registry.gitlab.com/bigbodycobain/shadowbroker/frontend:latest
+#      Both also get a :$CI_COMMIT_SHORT_SHA tag for traceability.
+#   2. Reverse-mirrors main back to GitHub (only if commits land directly
+#      on GitLab) so the two sources stay in sync.
+#
+# Auth notes:
+#   - The image build/push uses $CI_JOB_TOKEN, which GitLab provides
+#     automatically. No credentials need to be configured.
+#   - The reverse mirror requires a GitHub personal access token stored
+#     as the GitLab CI/CD variable GITHUB_MIRROR_TOKEN (Protected + Masked).
+#     Scope: public_repo (or repo for private). If the variable isn't
+#     set the mirror job is skipped — image builds still run.
+
+stages:
+  - build
+  - mirror
+
+variables:
+  # Use the dind service for buildx multi-arch builds.
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_DRIVER: overlay2
+  # QEMU is what lets a single x86 runner build arm64 images. dind doesn't
+  # install it by default; we install via tonistiigi/binfmt below.
+  BUILDX_VERSION: "v0.14.1"
+  # Repository-relative paths.
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
+  FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
+
+# Shared template: bootstraps buildx + QEMU on the dind service so a single
+# runner can produce both amd64 and arm64 manifests in one push.
+.buildx-setup: &buildx-setup
+  image: docker:24
+  services:
+    - name: docker:24-dind
+      command: ["--tls=true"]
+  before_script:
+    - docker info
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+    - docker run --privileged --rm tonistiigi/binfmt --install all
+    - docker buildx create --use --name multiarch --driver docker-container
+
+# ── Backend image ────────────────────────────────────────────────────────
+build-backend:
+  <<: *buildx-setup
+  stage: build
+  script:
+    - >
+      docker buildx build
+      --platform linux/amd64,linux/arm64
+      --file backend/Dockerfile
+      --tag $BACKEND_IMAGE:latest
+      --tag $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+      --push
+      .
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+
+# ── Frontend image ───────────────────────────────────────────────────────
+build-frontend:
+  <<: *buildx-setup
+  stage: build
+  script:
+    - cd frontend
+    - >
+      docker buildx build
+      --platform linux/amd64,linux/arm64
+      --tag $FRONTEND_IMAGE:latest
+      --tag $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+      --push
+      .
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - frontend/**/*
+        - .gitlab-ci.yml
+
+# ── Reverse mirror to GitHub ─────────────────────────────────────────────
+# Pushes refs/heads/main to github.com/BigBodyCobain/Shadowbroker.
+# Fast-forward-only — if GitLab main and GitHub main have diverged, this
+# fails loudly rather than silently overwriting either side.
+#
+# Only runs if GITHUB_MIRROR_TOKEN is set as a CI/CD variable. See the
+# header comment of this file for setup instructions.
+mirror-to-github:
+  stage: mirror
+  image: alpine:3.20
+  needs: []
+  before_script:
+    - apk add --no-cache git openssh-client ca-certificates
+  script:
+    - git config --global user.email "ci-mirror@gitlab.com"
+    - git config --global user.name "GitLab CI Mirror"
+    - >
+      git clone --depth=50 --branch main
+      "https://oauth2:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+      repo
+    - cd repo
+    - >
+      git push
+      "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/BigBodyCobain/Shadowbroker.git"
+      "${CI_COMMIT_SHA}:refs/heads/main"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $GITHUB_MIRROR_TOKEN

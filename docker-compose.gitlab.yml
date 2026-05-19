@@ -1,0 +1,18 @@
+# Compose override that points the backend and frontend at the GitLab
+# Container Registry instead of GHCR. Use this if you prefer pulling
+# images from gitlab.com.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gitlab.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.gitlab.yml up -d
+#
+# Both registries publish the same images on every push to main:
+#   - .github/workflows/docker-publish.yml  → ghcr.io  (default)
+#   - .gitlab-ci.yml                        → registry.gitlab.com  (this file)
+
+services:
+  backend:
+    image: registry.gitlab.com/bigbodycobain/shadowbroker/backend:latest
+
+  frontend:
+    image: registry.gitlab.com/bigbodycobain/shadowbroker/frontend:latest
