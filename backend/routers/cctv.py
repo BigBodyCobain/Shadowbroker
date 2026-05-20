@@ -191,11 +191,68 @@ def _cctv_response_headers(resp, cache_seconds: int, include_length: bool = True
     return headers
 
 
+# Maximum number of redirects we'll follow on the CCTV upstream. Each hop is
+# re-validated against _cctv_host_allowed() before continuing, so this caps
+# the redirect-chain SSRF blast radius.
+_CCTV_MAX_REDIRECTS = 5
+
+
 def _fetch_cctv_upstream_response(request: Request, target_url: str, profile: _CCTVProxyProfile):
+    """Fetch an upstream CCTV URL, following redirects manually with host re-validation.
+
+    Why manual redirect following:
+      The original code used ``allow_redirects=True``, which only validated
+      the initial caller-supplied URL host against the allowlist. An attacker
+      could submit an allowed host that 302-redirected to an internal address
+      (e.g. ``http://localhost:8000/api/...`` or a private RFC1918 range),
+      and the backend would dutifully follow and proxy the response — a
+      classic open-redirect-to-SSRF chain.
+
+      With this loop, we re-run ``_cctv_host_allowed()`` on every hop's
+      ``Location`` header. A redirect to a host that isn't on the allowlist
+      is rejected with 502 rather than silently followed.
+    """
     import requests as _req
+    from urllib.parse import urlparse, urljoin
+
     headers = _cctv_upstream_headers(request, profile)
+    current_url = target_url
+    hops = 0
     try:
-        resp = _req.get(target_url, timeout=profile.timeout, stream=True, allow_redirects=True, headers=headers)
+        while True:
+            resp = _req.get(
+                current_url,
+                timeout=profile.timeout,
+                stream=True,
+                allow_redirects=False,
+                headers=headers,
+            )
+            # Redirect handling — re-validate the next-hop host before following.
+            if resp.is_redirect or resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get("Location", "")
+                resp.close()
+                if hops >= _CCTV_MAX_REDIRECTS:
+                    logger.warning(
+                        "CCTV upstream redirect chain exceeded limit [%s] %s",
+                        profile.name, target_url,
+                    )
+                    raise HTTPException(status_code=502, detail="Upstream redirect chain too long")
+                if not location:
+                    raise HTTPException(status_code=502, detail="Upstream redirect missing Location")
+                next_url = urljoin(current_url, location)
+                next_parsed = urlparse(next_url)
+                if next_parsed.scheme not in ("http", "https"):
+                    raise HTTPException(status_code=502, detail="Upstream redirect to non-HTTP scheme")
+                if not _cctv_host_allowed(next_parsed.hostname):
+                    logger.warning(
+                        "CCTV upstream redirect to disallowed host [%s] %s -> %s",
+                        profile.name, current_url, next_url,
+                    )
+                    raise HTTPException(status_code=502, detail="Upstream redirect to disallowed host")
+                current_url = next_url
+                hops += 1
+                continue
+            break
     except _req.exceptions.Timeout as exc:
         logger.warning("CCTV upstream timeout [%s] %s", profile.name, target_url)
         raise HTTPException(status_code=504, detail="Upstream timeout") from exc

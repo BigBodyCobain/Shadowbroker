@@ -616,9 +616,12 @@ def fetch_global_military_incidents():
     try:
         logger.info("Fetching GDELT events via export CDN (multi-file)...")
 
-        # Get the latest export URL to determine current timestamp
+        # Get the latest export URL to determine current timestamp.
+        # HTTPS is used to prevent passive network observers from injecting
+        # poisoned export records into the global incident map via MITM.
+        # GDELT serves the same content over HTTPS as HTTP.
         index_res = fetch_with_curl(
-            "http://data.gdeltproject.org/gdeltv2/lastupdate.txt", timeout=10
+            "https://data.gdeltproject.org/gdeltv2/lastupdate.txt", timeout=10
         )
         if index_res.status_code != 200:
             logger.error(f"GDELT lastupdate failed: {index_res.status_code}")
@@ -636,7 +639,9 @@ def fetch_global_military_incidents():
             logger.error("Could not find GDELT export URL")
             return []
 
-        # Extract timestamp from URL like: http://data.gdeltproject.org/gdeltv2/20260301120000.export.CSV.zip
+        # Extract timestamp from URL like: https://data.gdeltproject.org/gdeltv2/20260301120000.export.CSV.zip
+        # (GDELT's lastupdate.txt may still list URLs with http:// — we ignore
+        # the scheme there and reconstruct each download URL as https:// below.)
         import re
 
         ts_match = re.search(r"(\d{14})\.export\.CSV\.zip", latest_url)
@@ -652,7 +657,7 @@ def fetch_global_military_incidents():
         for i in range(NUM_FILES):
             ts = latest_ts - timedelta(minutes=15 * i)
             fname = ts.strftime("%Y%m%d%H%M%S") + ".export.CSV.zip"
-            url = f"http://data.gdeltproject.org/gdeltv2/{fname}"
+            url = f"https://data.gdeltproject.org/gdeltv2/{fname}"
             urls.append(url)
 
         logger.info(f"Downloading {len(urls)} GDELT export files...")

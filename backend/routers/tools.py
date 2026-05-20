@@ -120,7 +120,36 @@ async def api_sentinel_token(request: Request):
         raise HTTPException(502, "Token request failed")
 
 
-_sh_token_cache: dict = {"token": None, "expiry": 0, "client_id": ""}
+# Cache key is an HMAC of (client_id, client_secret) — a caller cannot hit
+# this cache without knowing the same secret that originally populated it.
+# Without this binding, the lookup only checked client_id, so anyone who
+# knew a valid client_id could reuse another caller's cached token (and
+# burn their Copernicus quota / access tiles on their account).
+_sh_token_cache: dict = {"token": None, "expiry": 0, "credential_fp": ""}
+
+
+def _credential_fingerprint(client_id: str, client_secret: str) -> str:
+    """Return a stable, secret-binding fingerprint for the Sentinel cache key.
+
+    Uses HMAC-SHA256 so the raw secret is never stored in process memory as
+    a cache key. The HMAC key is a per-process random value, which means the
+    fingerprint cannot be precomputed across restarts (additional defense
+    against an attacker who learned a valid client_id but not the secret).
+    """
+    import hashlib
+    import hmac
+
+    return hmac.new(
+        _SH_TOKEN_CACHE_HMAC_KEY,
+        f"{client_id}\x00{client_secret}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+# Per-process random HMAC key. Regenerated on each backend startup so cached
+# fingerprints don't survive restarts.
+import os as _os
+_SH_TOKEN_CACHE_HMAC_KEY = _os.urandom(32)
 
 
 @router.post("/api/sentinel/tile")
@@ -146,7 +175,9 @@ async def api_sentinel_tile(request: Request):
         raise HTTPException(400, "client_id, client_secret, and date required")
 
     now = _time.time()
-    if (_sh_token_cache["token"] and _sh_token_cache["client_id"] == client_id
+    credential_fp = _credential_fingerprint(client_id, client_secret)
+    if (_sh_token_cache["token"]
+            and _sh_token_cache["credential_fp"] == credential_fp
             and now < _sh_token_cache["expiry"] - 30):
         token = _sh_token_cache["token"]
     else:
@@ -161,7 +192,7 @@ async def api_sentinel_tile(request: Request):
             token = tdata["access_token"]
             _sh_token_cache["token"] = token
             _sh_token_cache["expiry"] = now + tdata.get("expires_in", 300)
-            _sh_token_cache["client_id"] = client_id
+            _sh_token_cache["credential_fp"] = credential_fp
         except HTTPException:
             raise
         except Exception:

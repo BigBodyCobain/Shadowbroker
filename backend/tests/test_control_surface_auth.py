@@ -70,6 +70,13 @@ import pytest
                 "message": "test",
             },
         ),
+        # Issue #198 (tg12, May 17): three gate introspection GETs leak the
+        # operator's active persona, persona inventory, and key status for
+        # any gate_id an anonymous caller knows. Defeats the unlinkability
+        # property documented in the privacy threat model.
+        ("get", "/api/wormhole/gate/general-talk/identity", None),
+        ("get", "/api/wormhole/gate/general-talk/personas", None),
+        ("get", "/api/wormhole/gate/general-talk/key", None),
     ],
 )
 def test_remote_control_surface_rejects_without_local_operator_or_admin(
