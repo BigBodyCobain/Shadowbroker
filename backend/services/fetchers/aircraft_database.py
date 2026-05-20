@@ -16,9 +16,9 @@ import csv
 import logging
 import threading
 import time
-import xml.etree.ElementTree as ET
 from typing import Any
 
+import defusedxml.ElementTree as ET
 import requests
 
 logger = logging.getLogger(__name__)

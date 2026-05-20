@@ -6,8 +6,8 @@ Docs: https://pskreporter.info/pskdev.html
 """
 
 import logging
-import xml.etree.ElementTree as ET
 
+import defusedxml.ElementTree as ET
 import requests
 from cachetools import TTLCache, cached
 

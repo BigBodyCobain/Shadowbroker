@@ -701,7 +701,7 @@ async def _fetch_feed(feed: CustomFeed) -> list[dict]:
 
 def _parse_rss(xml_text: str, feed: CustomFeed) -> list[dict]:
     """Parse an RSS/Atom feed into normalized items."""
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     items = []
     try:

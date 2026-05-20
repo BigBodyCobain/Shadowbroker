@@ -987,7 +987,7 @@ _KML_NS = {"kml": "http://www.opengis.net/kml/2.2"}
 
 def _find_kml_element(element, tag):
     """Find first descendant matching tag, ignoring XML namespace prefix."""
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
     el = element.find(f".//{tag}")
     if el is not None:
         return el
@@ -1015,7 +1015,7 @@ class MadridCityIngestor(BaseCCTVIngestor):
     KML_URL = "http://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
 
     def fetch_data(self) -> List[Dict[str, Any]]:
-        import xml.etree.ElementTree as ET
+        import defusedxml.ElementTree as ET
 
         try:
             response = fetch_with_curl(self.KML_URL, timeout=20)

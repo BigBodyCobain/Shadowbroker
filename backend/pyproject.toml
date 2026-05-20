@@ -15,6 +15,7 @@ dependencies = [
     "cachetools==5.5.2",
     "cloudscraper==1.2.71",
     "cryptography>=41.0.0",
+    "defusedxml>=0.7.1",
     "fastapi==0.115.12",
     "feedparser==6.0.10",
     "httpx==0.28.1",
