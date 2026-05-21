@@ -21,7 +21,7 @@ async def oracle_region_intel(
     return get_region_oracle_intel(lat, lng, news_items)
 
 
-@router.get("/api/thermal/verify")
+@router.get("/api/thermal/verify", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def thermal_verify(
     request: Request,

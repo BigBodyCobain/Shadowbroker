@@ -131,27 +131,61 @@ def get_recent_openmhz_calls(sys_name: str):
         return []
 
 
+_OPENMHZ_MAX_REDIRECTS = 5
+
+
 def openmhz_audio_response(target_url: str):
-    """Fetch an OpenMHz audio object through the backend with browser-safe headers."""
+    """Fetch an OpenMHz audio object through the backend with browser-safe headers.
+
+    Redirects are followed manually so each hop's host can be re-validated
+    against ``_OPENMHZ_AUDIO_HOSTS``. Without this, the upstream could
+    302-redirect to an internal address (e.g. ``http://127.0.0.1:8000/...``
+    or an RFC1918 range), and the backend would dutifully fetch and stream
+    that response back to the browser — a classic open-redirect-to-SSRF
+    chain. Same-host redirects (CDN edge selection) still work normally.
+    """
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
+    from urllib.parse import urljoin
 
     parsed = urlparse(str(target_url or ""))
     host = (parsed.hostname or "").lower()
     if parsed.scheme != "https" or host not in _OPENMHZ_AUDIO_HOSTS:
         raise HTTPException(status_code=400, detail="Unsupported OpenMHz audio URL")
 
+    current_url = target_url
+    hops = 0
     try:
-        upstream = requests.get(
-            target_url,
-            stream=True,
-            timeout=(5, 20),
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "audio/mpeg,audio/*,*/*;q=0.8",
-                "Referer": "https://openmhz.com/",
-            },
-        )
+        while True:
+            upstream = requests.get(
+                current_url,
+                stream=True,
+                timeout=(5, 20),
+                allow_redirects=False,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "audio/mpeg,audio/*,*/*;q=0.8",
+                    "Referer": "https://openmhz.com/",
+                },
+            )
+            if upstream.is_redirect or upstream.status_code in (301, 302, 303, 307, 308):
+                location = upstream.headers.get("Location", "")
+                upstream.close()
+                if hops >= _OPENMHZ_MAX_REDIRECTS or not location:
+                    raise HTTPException(status_code=502, detail="OpenMHz redirect rejected")
+                next_url = urljoin(current_url, location)
+                next_parsed = urlparse(next_url)
+                next_host = (next_parsed.hostname or "").lower()
+                # Re-validate the next hop against the same allowlist used for
+                # the original URL. Cross-host redirects to disallowed hosts
+                # are rejected silently; the browser audio element handles
+                # the resulting 502 gracefully and moves on.
+                if next_parsed.scheme != "https" or next_host not in _OPENMHZ_AUDIO_HOSTS:
+                    raise HTTPException(status_code=502, detail="OpenMHz redirect rejected")
+                current_url = next_url
+                hops += 1
+                continue
+            break
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail="OpenMHz audio fetch failed") from exc
 

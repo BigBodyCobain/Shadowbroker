@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Pinned SHA-256 digests for the Tor Expert Bundle archives we know how to install.",
+    "Used as the LAST-RESORT verification source when the upstream .sha256sum file is",
+    "unreachable, MITM'd, or doesn't match what we downloaded. Issue #201.",
+    "",
+    "Each entry is keyed by the archive URL (so multiple platforms / versions",
+    "can share this one file) and contains the canonical SHA-256 we trust.",
+    "",
+    "When the project tests a new Tor release, add its digest here in the same",
+    "PR that bumps _TOR_EXPERT_BUNDLE_URLS. Old entries are kept indefinitely so",
+    "users on older versions keep working — we only ever ADD here, never remove."
+  ],
+  "https://dist.torproject.org/torbrowser/15.0.11/tor-expert-bundle-windows-x86_64-15.0.11.tar.gz": "PLACEHOLDER_REPLACE_BEFORE_RELEASE",
+  "https://dist.torproject.org/torbrowser/15.0.8/tor-expert-bundle-windows-x86_64-15.0.8.tar.gz": "PLACEHOLDER_REPLACE_BEFORE_RELEASE"
+}

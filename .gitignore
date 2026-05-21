@@ -91,6 +91,13 @@ backend/data/*
 !backend/data/power_plants.json
 !backend/data/tracked_names.json
 !backend/data/yacht_alert_db.json
+# Issue #206: bundled KiwiSDR receiver directory used as last-resort
+# fallback when rx.linkfanel.net (HTTP-only upstream) is unreachable
+# or returns content that fails our integrity validation.
+!backend/data/kiwisdr_directory.json
+# Issue #201: pinned SHA-256 digests for known Tor Expert Bundle URLs.
+# Used as a second verification source when upstream .sha256sum fails.
+!backend/data/tor_bundle_digests.json
 
 # OS generated files
 .DS_Store

@@ -611,6 +611,23 @@ class OverflightRequest(BaseModel):
     hours: int = 24
 
 
+# Issue #202: compute_overflights() is O(catalog_size × timesteps), where
+# timesteps grows linearly with `hours`. An unbounded `hours` value is a
+# trivial CPU-exhaustion vector. We clamp silently rather than raising 422 —
+# the response shape is unchanged, callers asking for too many hours just
+# get a shorter window, which is friendlier than a hostile error.
+#
+# Override via OVERFLIGHTS_MAX_HOURS env var if you legitimately need a
+# longer window (e.g. a planning use case that wants a full week).
+def _overflight_max_hours() -> int:
+    import os as _os
+    try:
+        raw = int(str(_os.environ.get("OVERFLIGHTS_MAX_HOURS", "72")).strip())
+    except (TypeError, ValueError):
+        raw = 72
+    return max(1, raw)
+
+
 @router.post("/api/satellites/overflights")
 @limiter.limit("10/minute")
 async def satellite_overflights(request: Request, body: OverflightRequest):
@@ -619,5 +636,15 @@ async def satellite_overflights(request: Request, body: OverflightRequest):
     if not gp_data:
         return JSONResponse({"total": 0, "by_mission": {}, "satellites": [], "error": "No GP data cached yet"})
     bbox = {"s": body.s, "w": body.w, "n": body.n, "e": body.e}
-    result = compute_overflights(gp_data, bbox, hours=body.hours)
+
+    # Silent clamp — see comment on _overflight_max_hours().
+    requested_hours = max(1, int(body.hours or 0))
+    effective_hours = min(requested_hours, _overflight_max_hours())
+
+    result = compute_overflights(gp_data, bbox, hours=effective_hours)
+    # If we clamped, surface the effective window in the response so the
+    # caller can detect it if they care, without it being an error.
+    if isinstance(result, dict) and effective_hours != requested_hours:
+        result.setdefault("requested_hours", requested_hours)
+        result.setdefault("effective_hours", effective_hours)
     return JSONResponse(result)

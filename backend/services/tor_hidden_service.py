@@ -64,6 +64,115 @@ def _find_tor_binary() -> str | None:
     return None
 
 
+# Baked-in expected digest list. Loaded lazily; populated by maintainers
+# when a new Tor Expert Bundle URL is added to _TOR_EXPERT_BUNDLE_URLS.
+# See issue #201 for rationale.
+_TOR_DIGEST_FILE = Path(__file__).resolve().parent.parent / "data" / "tor_bundle_digests.json"
+_DIGEST_PLACEHOLDER = "PLACEHOLDER_REPLACE_BEFORE_RELEASE"
+
+
+def _load_baked_in_digests() -> dict[str, str]:
+    """Return {url: expected_sha256_lower} for URLs we ship a known digest for.
+
+    Entries whose value is the placeholder sentinel are filtered out — they
+    represent versions the maintainer has not yet pinned, and we don't
+    want to trust them via this layer.
+    """
+    if not _TOR_DIGEST_FILE.exists():
+        return {}
+    try:
+        import json as _json
+        raw = _json.loads(_TOR_DIGEST_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Tor bundle digests file unreadable: %s", exc)
+        return {}
+    result: dict[str, str] = {}
+    for k, v in raw.items():
+        if not isinstance(k, str) or k.startswith("_"):
+            continue
+        if not isinstance(v, str) or v == _DIGEST_PLACEHOLDER:
+            continue
+        result[k] = v.strip().lower()
+    return result
+
+
+def _verify_tor_bundle(archive_path: Path, bundle_url: str) -> tuple[bool, str]:
+    """Verify the downloaded Tor bundle against any source we trust.
+
+    Returns (verified, reason). The bundle is considered verified if EITHER:
+
+      * The upstream ``.sha256sum`` file is reachable AND its digest matches
+        what we just downloaded, OR
+      * Our baked-in digest list (``backend/data/tor_bundle_digests.json``)
+        contains this URL AND that digest matches.
+
+    If both sources are unavailable (e.g. fresh checkout before the
+    maintainer has populated the digest file AND the upstream
+    ``.sha256sum`` is unreachable), we **fall back to HTTPS-only trust**
+    with a warning so first-run onboarding does not break. As soon as the
+    digest file is populated for a shipped Tor version, the secure path
+    activates automatically — no operator action required.
+
+    Issue #201.
+    """
+    import hashlib
+
+    actual_hash = hashlib.sha256(archive_path.read_bytes()).hexdigest().lower()
+
+    # Source 1: upstream .sha256sum
+    upstream_hash: str | None = None
+    sha256_url = bundle_url + ".sha256sum"
+    sha256_file = TOR_INSTALL_DIR / "sha256sum.txt"
+    try:
+        urlretrieve(sha256_url, str(sha256_file))
+        upstream_hash = sha256_file.read_text().strip().split()[0].lower()
+        sha256_file.unlink(missing_ok=True)
+    except Exception as hash_err:
+        logger.info("Tor bundle upstream .sha256sum unreachable: %s", hash_err)
+        sha256_file.unlink(missing_ok=True)
+
+    if upstream_hash and upstream_hash == actual_hash:
+        return True, f"verified via upstream .sha256sum ({actual_hash[:16]}...)"
+
+    # Source 2: baked-in digest list
+    baked = _load_baked_in_digests()
+    baked_hash = baked.get(bundle_url)
+    if baked_hash and baked_hash == actual_hash:
+        return True, f"verified via baked-in digest list ({actual_hash[:16]}...)"
+
+    # If we got an upstream digest AND a baked-in digest AND neither
+    # matched, the bundle is genuinely suspect — refuse it.
+    if upstream_hash and baked_hash:
+        return False, (
+            f"SHA-256 mismatch: archive={actual_hash[:16]}..., "
+            f"upstream={upstream_hash[:16]}..., baked={baked_hash[:16]}..."
+        )
+    if upstream_hash and upstream_hash != actual_hash:
+        return False, (
+            f"SHA-256 mismatch vs upstream: archive={actual_hash[:16]}..., "
+            f"upstream={upstream_hash[:16]}..."
+        )
+    if baked_hash and baked_hash != actual_hash:
+        return False, (
+            f"SHA-256 mismatch vs baked-in digest: archive={actual_hash[:16]}..., "
+            f"expected={baked_hash[:16]}..."
+        )
+
+    # Neither verification source available. This is the fallback path for
+    # the case where the upstream .sha256sum is temporarily unreachable
+    # AND the maintainer hasn't yet pinned this Tor version. Trust HTTPS
+    # only (current behavior pre-#201) with a clear warning. Onboarding
+    # works; once we populate the digest file, the secure path activates.
+    logger.warning(
+        "Tor bundle integrity check fell back to HTTPS-only trust "
+        "(upstream .sha256sum unreachable AND no baked-in digest for %s). "
+        "Add this URL's SHA-256 to backend/data/tor_bundle_digests.json "
+        "to enable the secure path.",
+        bundle_url,
+    )
+    return True, f"https-only (no digest source reachable, archive={actual_hash[:16]}...)"
+
+
 def _auto_install_tor() -> str | None:
     """Install or download Tor when it is safe to do so."""
     if os.name != "nt":
@@ -79,25 +188,17 @@ def _auto_install_tor() -> str | None:
             logger.info("Downloading Tor Expert Bundle over HTTPS from %s...", bundle_url)
             urlretrieve(bundle_url, str(archive_path))
 
-            sha256_url = bundle_url + ".sha256sum"
-            sha256_file = TOR_INSTALL_DIR / "sha256sum.txt"
-            try:
-                urlretrieve(sha256_url, str(sha256_file))
-                expected_hash = sha256_file.read_text().strip().split()[0].lower()
-                import hashlib
-
-                actual_hash = hashlib.sha256(archive_path.read_bytes()).hexdigest().lower()
-                sha256_file.unlink(missing_ok=True)
-                if actual_hash != expected_hash:
-                    logger.error("SHA-256 mismatch for Tor download. Expected %s, got %s", expected_hash, actual_hash)
-                    archive_path.unlink(missing_ok=True)
-                    continue
-                logger.info("SHA-256 verified: %s", actual_hash[:16] + "...")
-            except Exception as hash_err:
-                logger.warning(
-                    "Could not verify SHA-256 (hash file unavailable): %s; proceeding with HTTPS-only verification",
-                    hash_err,
-                )
+            # Issue #201: multi-source verification. If neither upstream
+            # .sha256sum nor a baked-in digest matches, we refuse this URL
+            # and try the next one in _TOR_EXPERT_BUNDLE_URLS. If neither
+            # source is reachable at all, we fall back to HTTPS-only trust
+            # (current behavior) rather than blocking onboarding.
+            verified, reason = _verify_tor_bundle(archive_path, bundle_url)
+            if not verified:
+                logger.error("Tor bundle verification failed for %s: %s", bundle_url, reason)
+                archive_path.unlink(missing_ok=True)
+                continue
+            logger.info("Tor bundle %s", reason)
 
             logger.info("Download complete, extracting...")
             import tarfile

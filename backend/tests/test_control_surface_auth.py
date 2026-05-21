@@ -77,6 +77,18 @@ import pytest
         ("get", "/api/wormhole/gate/general-talk/identity", None),
         ("get", "/api/wormhole/gate/general-talk/personas", None),
         ("get", "/api/wormhole/gate/general-talk/key", None),
+        # Issue #211 (tg12): /api/thermal/verify fans out into an expensive
+        # STAC search + remote SWIR raster reads. Unauthenticated abuse
+        # could burn Sentinel-Hub quota and outbound bandwidth.
+        ("get", "/api/thermal/verify?lat=0&lng=0&radius_km=10", None),
+        # Issue #213 (tg12): /api/radio/openmhz/calls/{sys_name} — rotating
+        # sys_name bypasses the 20s cache and hammers OpenMHZ. Risks an
+        # IP-ban for the project.
+        ("get", "/api/radio/openmhz/calls/abc", None),
+        # Issue #214 (tg12): /api/radio/openmhz/audio — anonymous bandwidth
+        # relay through the backend. 60/minute rate limit is not enough on
+        # a streaming endpoint.
+        ("get", "/api/radio/openmhz/audio?url=https%3A%2F%2Fmedia.openmhz.com%2Faudio%2Fabc.mp3", None),
     ],
 )
 def test_remote_control_surface_rejects_without_local_operator_or_admin(

@@ -21,14 +21,30 @@ async def api_get_openmhz_systems(request: Request):
     return get_openmhz_systems()
 
 
-@router.get("/api/radio/openmhz/calls/{sys_name}")
+# Issue #213: rotating sys_name bypasses the 20s TTL cache and lets an
+# anonymous caller hammer api.openmhz.com through this proxy, risking an
+# IP-ban for the project. require_local_operator scopes this to the local
+# UI (which goes through the Next.js proxy with admin-key injection) and
+# scoped agent tokens.
+@router.get(
+    "/api/radio/openmhz/calls/{sys_name}",
+    dependencies=[Depends(require_local_operator)],
+)
 @limiter.limit("60/minute")
 async def api_get_openmhz_calls(request: Request, sys_name: str):
     from services.radio_intercept import get_recent_openmhz_calls
     return get_recent_openmhz_calls(sys_name)
 
 
-@router.get("/api/radio/openmhz/audio")
+# Issue #214: this is a streaming bandwidth relay. An anonymous caller can
+# stream audio through the backend, saturating the operator's outbound
+# bandwidth. Scope to local operator; the legitimate browser UI still
+# works because relative /api/... paths go through the Next.js proxy
+# which injects the admin key automatically.
+@router.get(
+    "/api/radio/openmhz/audio",
+    dependencies=[Depends(require_local_operator)],
+)
 @limiter.limit("120/minute")
 async def api_get_openmhz_audio(request: Request, url: str = Query(..., min_length=10)):
     from services.radio_intercept import openmhz_audio_response

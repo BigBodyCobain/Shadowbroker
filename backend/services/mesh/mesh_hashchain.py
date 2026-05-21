@@ -1444,8 +1444,50 @@ class Infonet:
         self._save_lock = threading.Lock()
         self._save_timer: threading.Timer | None = None
         self._SAVE_INTERVAL = 5.0  # seconds — coalesce writes
+        # Issue #208: Merkle levels cache so get_merkle_proofs() doesn't
+        # rebuild O(n) levels on every public call. Invalidated whenever
+        # self.events mutates. Computed lazily on first read after an
+        # invalidation.
+        self._merkle_levels_cache: list[list[str]] | None = None
+        self._merkle_levels_for_event_count: int = -1
         atexit.register(self._flush)
         self._load()
+
+    def _invalidate_merkle_cache(self) -> None:
+        """Clear the precomputed Merkle levels.
+
+        Called whenever ``self.events`` may have mutated (append, rebuild,
+        cleanup, fork resolution). The next call to ``get_merkle_root()``
+        or ``get_merkle_proofs()`` will recompute and re-cache.
+        """
+        self._merkle_levels_cache = None
+        self._merkle_levels_for_event_count = -1
+
+    def _get_merkle_levels(self) -> list[list[str]]:
+        """Return Merkle levels for the current chain, recomputing if
+        the cache is invalid or out of date.
+
+        Issue #208: a public endpoint (``/api/mesh/infonet/sync?include_proofs=true``)
+        used to rebuild Merkle levels on every request, which is O(n) in
+        chain length and trivially abusable for CPU exhaustion. By caching
+        the levels and invalidating on mutation, repeated proof requests
+        become O(1) per proof; the rebuild only happens after a genuine
+        append/rebuild/cleanup.
+        """
+        from services.mesh.mesh_merkle import build_merkle_levels
+
+        current_count = len(self.events)
+        if (
+            self._merkle_levels_cache is not None
+            and self._merkle_levels_for_event_count == current_count
+        ):
+            return self._merkle_levels_cache
+
+        leaves = [e["event_id"] for e in self.events]
+        levels = build_merkle_levels(leaves)
+        self._merkle_levels_cache = levels
+        self._merkle_levels_for_event_count = current_count
+        return levels
 
     # ─── Persistence ──────────────────────────────────────────────────
 
@@ -1983,6 +2025,8 @@ class Infonet:
         self.head_hash = event.event_id
         self.node_sequences[node_id] = sequence
         self._replay_filter.add(event.event_id)
+        # Issue #208: chain advanced, cached Merkle levels are stale.
+        self._invalidate_merkle_cache()
         self._update_counters_for_event(event_dict)
 
         if event_type == "key_revoke":
@@ -2266,6 +2310,9 @@ class Infonet:
                 self._apply_revocation(evt)
 
         if accepted:
+            # Issue #208: any accepted event invalidates the cached Merkle
+            # levels. One invalidation per batch, not per event.
+            self._invalidate_merkle_cache()
             self._save()
         return {"accepted": accepted, "duplicates": duplicates, "rejected": rejected}
 
@@ -2566,6 +2613,8 @@ class Infonet:
         self._rebuild_state()
         self._rebuild_revocations()
         self._rebuild_counters()
+        # Issue #208: chain replaced, cached Merkle levels are stale.
+        self._invalidate_merkle_cache()
         self._save()
         try:
             from services.mesh.mesh_metrics import increment as metrics_inc
@@ -2735,6 +2784,8 @@ class Infonet:
             self._rebuild_state()
             self._rebuild_revocations()
             self._rebuild_counters()
+            # Issue #208: cleanup may have dropped expired events.
+            self._invalidate_merkle_cache()
             self._save()
             logger.info(f"Infonet cleanup: removed {before - len(new_events)} expired events")
 
@@ -2743,30 +2794,37 @@ class Infonet:
     def get_merkle_root(self) -> str:
         """Compute a Merkle root hash of the Infonet for sync comparison.
 
-        Two nodes with the same Merkle root have identical chains.
+        Two nodes with the same Merkle root have identical chains. Reads
+        from the cached Merkle levels (issue #208) — O(1) when the chain
+        hasn't changed since the last computation.
         """
         if not self.events:
             return GENESIS_HASH
 
-        from services.mesh.mesh_merkle import merkle_root
-
-        leaves = [e["event_id"] for e in self.events]
-        root = merkle_root(leaves)
-        return root or GENESIS_HASH
+        levels = self._get_merkle_levels()
+        if not levels or not levels[-1]:
+            return GENESIS_HASH
+        return levels[-1][0] or GENESIS_HASH
 
     def get_merkle_proofs(self, start_index: int, count: int) -> dict:
-        """Return merkle proofs for a contiguous range of events."""
-        leaves = [e["event_id"] for e in self.events]
-        total = len(leaves)
+        """Return merkle proofs for a contiguous range of events.
+
+        Issue #208: uses the cached Merkle levels so this is O(count *
+        log n) per request, not O(n + count * log n). Anonymous peers
+        hitting ``/api/mesh/infonet/sync?include_proofs=true`` no longer
+        force a rebuild on every call.
+        """
+        total = len(self.events)
         if total == 0:
             return {"root": GENESIS_HASH, "total": 0, "start": 0, "proofs": []}
 
-        from services.mesh.mesh_merkle import build_merkle_levels, merkle_proof_from_levels
+        from services.mesh.mesh_merkle import merkle_proof_from_levels
 
+        leaves = [e["event_id"] for e in self.events]
         start = max(0, start_index)
         end = min(total, start + max(0, count))
-        levels = build_merkle_levels(leaves)
-        root = levels[-1][0] if levels else GENESIS_HASH
+        levels = self._get_merkle_levels()
+        root = levels[-1][0] if levels and levels[-1] else GENESIS_HASH
 
         proofs = []
         for idx in range(start, end):

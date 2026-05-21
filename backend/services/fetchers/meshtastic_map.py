@@ -174,17 +174,29 @@ def fetch_meshtastic_nodes():
     except Exception as e:
         logger.debug(f"Meshtastic cache freshness check failed: {e}")
 
-    # Build a polite User-Agent. Include the operator callsign when set so
-    # the upstream service can correlate per-install traffic if needed.
+    # Build a polite User-Agent. Historically this included the operator
+    # callsign so meshtastic.org could rate-limit per-install; that's still
+    # the default behavior for backward compatibility. Operators who want
+    # stricter outbound privacy can suppress the callsign by setting
+    # MESHTASTIC_SEND_CALLSIGN_HEADER=false. Issue #203.
+    import os as _os
     try:
         from services.config import get_settings
 
         callsign = str(getattr(get_settings(), "MESHTASTIC_OPERATOR_CALLSIGN", "") or "").strip()
     except Exception:
         callsign = ""
+
+    send_callsign_header = str(
+        _os.environ.get("MESHTASTIC_SEND_CALLSIGN_HEADER", "true")
+    ).strip().lower() not in {"0", "false", "no", "off", ""}
+
     from services.network_utils import DEFAULT_USER_AGENT
     ua_base = f"{DEFAULT_USER_AGENT}; 24h polling"
-    user_agent = f"{ua_base}; node={callsign}" if callsign else ua_base
+    if callsign and send_callsign_header:
+        user_agent = f"{ua_base}; node={callsign}"
+    else:
+        user_agent = ua_base
 
     try:
         logger.info("Fetching Meshtastic map nodes from API...")

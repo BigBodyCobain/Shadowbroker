@@ -1467,25 +1467,37 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
 @router.get("/api/mesh/infonet/status")
 @limiter.limit("30/minute")
 async def infonet_status(request: Request, verify_signatures: bool = False):
-    """Get Infonet metadata — event counts, head hash, chain size."""
+    """Get Infonet metadata — event counts, head hash, chain size.
+
+    The ``verify_signatures`` query parameter is honored ONLY when the
+    caller has authenticated via scoped auth or local-operator credentials.
+    Verifying every signature in a long chain is O(n_events) work — letting
+    anonymous callers trigger it is a DoS surface (issue #207). For
+    anonymous callers we silently fall back to the cheap path; the response
+    structure is identical so legitimate frontends see no behavior change.
+    """
     from services.mesh.mesh_hashchain import infonet
     from services.wormhole_supervisor import get_wormhole_state
 
+    # Silently downgrade for unauthenticated callers — no error surfaced.
+    authenticated = _scoped_view_authenticated(request, "mesh.audit")
+    effective_verify_signatures = bool(verify_signatures) and authenticated
+
     info = infonet.get_info()
-    valid, reason = infonet.validate_chain(verify_signatures=verify_signatures)
+    valid, reason = infonet.validate_chain(verify_signatures=effective_verify_signatures)
     try:
         wormhole = get_wormhole_state()
     except Exception:
         wormhole = {"configured": False, "ready": False, "rns_ready": False}
     info["valid"] = valid
     info["validation"] = reason
-    info["verify_signatures"] = verify_signatures
+    info["verify_signatures"] = effective_verify_signatures
     info["private_lane_tier"] = _current_private_lane_tier(wormhole)
     info["private_lane_policy"] = _private_infonet_policy_snapshot()
     info.update(_node_runtime_snapshot())
     return _redact_private_lane_control_fields(
         info,
-        authenticated=_scoped_view_authenticated(request, "mesh.audit"),
+        authenticated=authenticated,
     )
 
 
