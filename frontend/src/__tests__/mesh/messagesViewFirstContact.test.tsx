@@ -859,10 +859,28 @@ describe('MessagesView first-contact trust UX', () => {
     renderMessagesView();
     fireEvent.click(screen.getByRole('button', { name: 'CONTACTS' }));
 
-    expect(await screen.findByText('Remove Me')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Remove Me', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
-    expect(await screen.findByText(/Removed contact: Remove Me\./i)).toBeInTheDocument();
+    // The Remove handler dispatches several React state updates in one
+    // event (removeContact + setContacts + setComposeStatus + setComposeError).
+    // Under CI load the resulting render-and-paint cycle has been observed
+    // to take >1s, which is the default findByText timeout — that race has
+    // produced flakes on PRs #226, #237, #261, and #262 in succession.
+    // The settle window is bounded by React's reconciliation, not by any
+    // network/animation cost, so a generous timeout is the right deflake
+    // here (the failure mode this masks would be "toast never renders",
+    // which would still fail at 5s).
+    await waitFor(
+      () => {
+        expect(
+          screen.getByText(/Removed contact: Remove Me\./i),
+        ).toBeInTheDocument();
+      },
+      { timeout: 5000, interval: 50 },
+    );
     expect(screen.queryByText('Remove Me')).not.toBeInTheDocument();
   });
 
