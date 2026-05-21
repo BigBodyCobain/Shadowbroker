@@ -344,8 +344,25 @@ _vessels_lock = threading.Lock()
 _ws_thread: threading.Thread | None = None
 _ws_running = False
 _proxy_process = None
+# Issue #258: latest status snapshot emitted by ais_proxy.js. Populated when
+# the proxy reports e.g. {"__ais_proxy_status": {"degraded_tls": true}} on
+# stdout, which it does when it falls back to the SPKI-pinned insecure-date
+# path during an upstream cert outage. Surfaced via ais_proxy_status() for
+# /api/health.
+_proxy_status: dict = {}
 _VESSEL_TRAIL_INTERVAL_S = 120
 _VESSEL_TRAIL_MAX_POINTS = 240
+
+
+def ais_proxy_status() -> dict:
+    """Return a copy of the latest ais_proxy.js status (issue #258).
+
+    Currently surfaces ``degraded_tls`` (bool) which is true when the
+    proxy is using SPKI-pinned fallback because AISStream's cert expired.
+    Returns an empty dict when no status has been received yet.
+    """
+    with _vessels_lock:
+        return dict(_proxy_status)
 
 import os
 
@@ -606,6 +623,18 @@ def _ais_stream_loop():
 
                 if "error" in data:
                     logger.error(f"AIS Stream error: {data['error']}")
+                    continue
+
+                # Issue #258: ais_proxy.js emits status markers (e.g.
+                # {"__ais_proxy_status": {"degraded_tls": true}}) when the
+                # SPKI-pinned fallback is in use. We snapshot the latest
+                # status so the backend can expose it on /api/health.
+                if isinstance(data, dict) and "__ais_proxy_status" in data:
+                    status = data.get("__ais_proxy_status") or {}
+                    if isinstance(status, dict):
+                        with _vessels_lock:
+                            _proxy_status.clear()
+                            _proxy_status.update(status)
                     continue
 
                 msg_type = data.get("MessageType", "")

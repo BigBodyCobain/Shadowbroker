@@ -14,6 +14,11 @@ class HealthResponse(BaseModel):
     # ({status, age_s, row_count, slo, stale, empty, description}).
     slo: Optional[Dict[str, Any]] = None
     slo_summary: Optional[Dict[str, int]] = None
+    # Issue #258: AIS proxy status — currently exposes ``degraded_tls``
+    # (bool), true when ais_proxy.js fell back to the SPKI-pinned
+    # insecure-date path because the upstream Let's Encrypt cert is
+    # expired. Empty dict / null means no status reported yet.
+    ais_proxy: Optional[Dict[str, Any]] = None
 
 
 class RefreshResponse(BaseModel):

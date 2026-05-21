@@ -54,6 +54,22 @@ async def health_check(request: Request):
         top_status = "error"
     elif slo_summary.get("yellow", 0) > 0:
         top_status = "degraded"
+
+    # Issue #258: surface AIS proxy degraded TLS state so operators can see
+    # when the SPKI-pinned fallback is in effect. The data plane keeps
+    # flowing (this is by design — see ais_proxy.js comments) but observers
+    # who care about MITM-protection posture deserve a visible signal.
+    ais_status: dict = {}
+    try:
+        from services.ais_stream import ais_proxy_status
+        ais_status = ais_proxy_status() or {}
+    except Exception:
+        ais_status = {}
+    if ais_status.get("degraded_tls") and top_status == "ok":
+        # Don't override a worse top-level status if SLOs already failed,
+        # but escalate ok -> degraded so the field surfaces in dashboards.
+        top_status = "degraded"
+
     return {
         "status": top_status,
         "version": _get_app_version(),
@@ -76,6 +92,7 @@ async def health_check(request: Request):
         "uptime_seconds": round(_time_mod.time() - _get_start_time()),
         "slo": slo_statuses,
         "slo_summary": slo_summary,
+        "ais_proxy": ais_status,
     }
 
 

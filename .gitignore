@@ -98,6 +98,9 @@ backend/data/*
 # Issue #201: pinned SHA-256 digests for known Tor Expert Bundle URLs.
 # Used as a second verification source when upstream .sha256sum fails.
 !backend/data/tor_bundle_digests.json
+# Issue #258: SPKI pins for stream.aisstream.io so we can survive upstream
+# Let's Encrypt renewal failures without disabling TLS validation entirely.
+!backend/data/aisstream_spki_pins.json
 
 # OS generated files
 .DS_Store

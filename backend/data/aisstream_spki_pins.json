@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "SPKI (Subject Public Key Info) pin list for stream.aisstream.io.",
+    "",
+    "Issue #258: AISStream's Let's Encrypt cert expired on 2026-05-20 due to an",
+    "upstream renewal-pipeline failure. Disabling TLS verification entirely",
+    "would let any network attacker MITM the AIS WebSocket and inject fake",
+    "ship positions onto the operator's map (same class as #199 GDELT MITM).",
+    "Instead we pin the leaf certificate's public-key SPKI hash: if normal",
+    "TLS validation fails specifically with CERT_HAS_EXPIRED, ais_proxy.js",
+    "re-checks the leaf cert's SPKI against this list. A match means the",
+    "key is still the genuine AISStream key (Let's Encrypt renewals keep the",
+    "same key unless rekey is requested), so we proceed in 'degraded TLS'",
+    "mode. A mismatch means a real MITM attempt and we refuse the connection.",
+    "",
+    "Format: each entry is a SHA-256 hash of the DER-encoded SPKI bytes,",
+    "encoded as standard base64 (matches the format produced by:",
+    "  openssl s_client -connect host:443 | \\",
+    "    openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER | \\",
+    "    openssl dgst -sha256 -binary | openssl base64",
+    ").",
+    "",
+    "When AISStream rotates their server key (rare — Let's Encrypt renewals",
+    "default to keeping the same key), capture the new SPKI and add it to",
+    "this list BEFORE removing the old one. That way operators on the old",
+    "code still validate against the previous key during the transition."
+  ],
+  "stream.aisstream.io": [
+    "GJ10H0UPgLrO+2d3ZXROR/TXSVFXKUfRC3QEI2ibEg4="
+  ]
+}
