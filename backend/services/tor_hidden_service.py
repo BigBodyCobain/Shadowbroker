@@ -173,6 +173,94 @@ def _verify_tor_bundle(archive_path: Path, bundle_url: str) -> tuple[bool, str]:
     return True, f"https-only (no digest source reachable, archive={actual_hash[:16]}...)"
 
 
+def _extract_tor_bundle_safely(archive_path: Path, install_dir: Path) -> bool:
+    """Extract a Tor Expert Bundle tar.gz safely.
+
+    Issue #251: the previous extractor checked tarinfo.name against path
+    traversal but never inspected tarinfo.linkname for symlink/hardlink
+    members. Python 3.11's tarfile honors symlinks during extractall(),
+    so a malicious archive could ship a member like::
+
+        name     = "innocent.txt"          # passes the path check
+        type     = SYMTYPE
+        linkname = "C:\\Windows\\System32\\config\\system"
+
+    and extractall() would then create that symlink. Subsequent reads
+    of innocent.txt deference to a sensitive system file; subsequent
+    writes corrupt one. Tor bundles never legitimately contain symlinks
+    or hardlinks, so we refuse all link members categorically rather
+    than trying to validate linkname targets (which has its own pitfalls
+    around relative path resolution).
+
+    Also refuses non-regular-non-directory members (devices, FIFOs,
+    character/block special files) for completeness — none of those
+    belong in a Tor Expert Bundle and accepting them is a category of
+    bug we don't need to debug later.
+
+    Returns True on success, False on rejection (and logs the reason).
+    The caller is responsible for cleaning up the archive file.
+    """
+    import tarfile
+
+    install_resolved = install_dir.resolve()
+
+    try:
+        with tarfile.open(str(archive_path), "r:gz") as tar:
+            for member in tar.getmembers():
+                # Reject anything that isn't a regular file or directory.
+                # Symlinks (SYMTYPE) and hardlinks (LNKTYPE) are the
+                # path-traversal vectors; the others (CHRTYPE, BLKTYPE,
+                # FIFOTYPE, CONTTYPE) have no legitimate use in a Tor
+                # Expert Bundle.
+                if member.issym() or member.islnk():
+                    logger.error(
+                        "Tor bundle extraction blocked: link member %s -> %s "
+                        "(symlinks/hardlinks are not allowed in Tor bundles; "
+                        "this archive is malformed or hostile)",
+                        member.name,
+                        member.linkname,
+                    )
+                    return False
+                if not (member.isfile() or member.isdir()):
+                    logger.error(
+                        "Tor bundle extraction blocked: unexpected member type "
+                        "for %s (only regular files and directories are allowed)",
+                        member.name,
+                    )
+                    return False
+
+                # Path traversal check (preserves the original guard).
+                try:
+                    member_path = (install_dir / member.name).resolve()
+                except OSError as exc:
+                    logger.error(
+                        "Tor bundle extraction blocked: cannot resolve member "
+                        "path %s: %s",
+                        member.name,
+                        exc,
+                    )
+                    return False
+                try:
+                    member_path.relative_to(install_resolved)
+                except ValueError:
+                    logger.error(
+                        "Tor bundle extraction blocked: path traversal on %s "
+                        "(resolves to %s, outside install dir %s)",
+                        member.name,
+                        member_path,
+                        install_resolved,
+                    )
+                    return False
+
+            # All members validated — extract.
+            tar.extractall(path=str(install_dir))
+    except tarfile.TarError as exc:
+        logger.error("Tor bundle extraction failed: malformed tar (%s)", exc)
+        return False
+
+    return True
+
+
 def _auto_install_tor() -> str | None:
     """Install or download Tor when it is safe to do so."""
     if os.name != "nt":
@@ -203,14 +291,9 @@ def _auto_install_tor() -> str | None:
             logger.info("Download complete, extracting...")
             import tarfile
 
-            with tarfile.open(str(archive_path), "r:gz") as tar:
-                for member in tar.getmembers():
-                    member_path = (TOR_INSTALL_DIR / member.name).resolve()
-                    if not str(member_path).startswith(str(TOR_INSTALL_DIR.resolve())):
-                        logger.error("Tar path traversal blocked: %s", member.name)
-                        archive_path.unlink(missing_ok=True)
-                        return None
-                tar.extractall(path=str(TOR_INSTALL_DIR))
+            if not _extract_tor_bundle_safely(archive_path, TOR_INSTALL_DIR):
+                archive_path.unlink(missing_ok=True)
+                return None
 
             archive_path.unlink(missing_ok=True)
 
