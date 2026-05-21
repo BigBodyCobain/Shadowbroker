@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Baked-in SHA-256 digests for known Shadowbroker release archives.",
+    "",
+    "Issue #231: the self-updater previously skipped integrity verification",
+    "entirely whenever the MESH_UPDATE_SHA256 env var was unset (which is the",
+    "default — nothing in the install docs tells operators to set it). That",
+    "made the auto-update a supply-chain RCE on any compromise of the GitHub",
+    "release pipeline.",
+    "",
+    "The fix uses a multi-source verification chain mirroring the Tor bundle",
+    "digest approach in #201:",
+    "",
+    "  1. MESH_UPDATE_SHA256 env var (operator override, preserved)",
+    "  2. SHA256SUMS.txt asset published alongside each release (primary —",
+    "     the maintainer's release process already publishes this)",
+    "  3. This baked-in digest list (second line of defense for releases",
+    "     missing a SHA256SUMS asset, or when the asset can't be fetched)",
+    "  4. HTTPS-only fallback with a loud warning (preserves auto-update",
+    "     flow during transient outages so users don't get stuck)",
+    "",
+    "Mismatch from a source that DID respond is fatal — the update is",
+    "refused and the existing install keeps running. Only the 'no source",
+    "reachable at all' case falls back to HTTPS-only.",
+    "",
+    "Format: each entry is keyed by release tag and maps asset filenames",
+    "to their canonical SHA-256 digest (hex, lowercase). The updater",
+    "compares the locally-computed digest of the downloaded asset against",
+    "the value here.",
+    "",
+    "When the maintainer ships a new release, add its digests here BEFORE",
+    "removing the old ones so operators on the old code still validate",
+    "against the previous entries during the transition."
+  ],
+  "v0.9.79": {
+    "ShadowBroker_v0.9.79.zip": "f6877c1d66614525315ea82636ce9f7b41178332c4dbf90d27431a1ea1d9cd47",
+    "ShadowBroker_0.9.79_x64-setup.exe": "f7b676ada45cac7da05868b0a353678c9ee700e3abcf456a7c0c038c36da446f",
+    "ShadowBroker_0.9.79_x64_en-US.msi": "e0713c3cdda184cfbea750bfac0d62a35678fec00847e6476f2cac8e7e42046e"
+  }
+}

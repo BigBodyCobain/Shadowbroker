@@ -101,6 +101,10 @@ backend/data/*
 # Issue #258: SPKI pins for stream.aisstream.io so we can survive upstream
 # Let's Encrypt renewal failures without disabling TLS validation entirely.
 !backend/data/aisstream_spki_pins.json
+# Issue #231: pinned SHA-256 digests for known release archives. Used by
+# the self-updater as a second-line integrity check when the release's
+# SHA256SUMS.txt asset can't be fetched.
+!backend/data/release_digests.json
 
 # OS generated files
 .DS_Store
