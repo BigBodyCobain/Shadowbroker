@@ -32,7 +32,7 @@
     "react": "19.2.4",
     "react-dom": "^19.2.4",
     "react-map-gl": "^8.1.0",
-    "satellite.js": "^6.0.2",
+    "satellite.js": "^7.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
