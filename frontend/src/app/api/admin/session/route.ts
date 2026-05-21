@@ -22,40 +22,41 @@ function cookieOptions() {
   };
 }
 
-async function verifyAdminKey(adminKey: string): Promise<{ ok: true } | { ok: false; detail: string }> {
-  const backendUrl = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000';
-  const verifyAgainstBackend = async (): Promise<
-    { ok: true } | { ok: false; detail: string }
-  > => {
-    try {
-      const res = await fetch(`${backendUrl}/api/settings/privacy-profile`, {
-        method: 'GET',
-        headers: { 'X-Admin-Key': adminKey },
-        cache: 'no-store',
-      });
-      if (res.ok) return { ok: true };
-      const data = await res.json().catch(() => ({}));
-      return {
-        ok: false,
-        detail: String(data?.detail || data?.message || 'Unable to verify admin key'),
-      };
-    } catch {
-      return {
-        ok: false,
-        detail: 'Unable to verify admin key against backend',
-      };
-    }
-  };
-
+/**
+ * Verify an operator-supplied admin key before minting a session cookie.
+ *
+ * Issue #255: the previous implementation, when ADMIN_KEY was unset on
+ * the server, fell through to verifying against the backend by GET-ing
+ * /api/settings/privacy-profile. That endpoint is public — it returns
+ * 200 for any X-Admin-Key value (or none at all) — so the fallback
+ * accepted *arbitrary* keys and minted full admin sessions for them.
+ *
+ * Fix: require ADMIN_KEY to be configured before any session can be
+ * minted, and do the validation locally instead of round-tripping to a
+ * potentially-public endpoint. If ADMIN_KEY is unset, the backend
+ * already auto-trusts loopback / docker-bridge callers via
+ * require_local_operator + SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR,
+ * so legitimate local users keep working — they just don't get (and
+ * don't need) a privileged session cookie.
+ */
+async function verifyAdminKey(
+  adminKey: string,
+): Promise<{ ok: true } | { ok: false; detail: string }> {
   const configuredAdmin = String(process.env.ADMIN_KEY || '').trim();
-  if (configuredAdmin) {
-    if (adminKey !== configuredAdmin) {
-      return { ok: false, detail: 'Invalid admin key' };
-    }
-    return verifyAgainstBackend();
+  if (!configuredAdmin) {
+    return {
+      ok: false,
+      detail:
+        'No admin key configured on the server. Local-host requests are '
+        + 'already auto-trusted by the backend — no session is needed. '
+        + 'To enable session-based admin auth, set ADMIN_KEY in the backend '
+        + 'environment and restart.',
+    };
   }
-
-  return verifyAgainstBackend();
+  if (adminKey !== configuredAdmin) {
+    return { ok: false, detail: 'Invalid admin key' };
+  }
+  return { ok: true };
 }
 
 export async function POST(req: NextRequest) {

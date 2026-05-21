@@ -77,6 +77,48 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   return false;
 }
 
+/**
+ * CSRF guard for the server-side admin-key injection (issues #249 / #254).
+ *
+ * The proxy injects ``process.env.ADMIN_KEY`` into the forwarded
+ * X-Admin-Key header for sensitive backend routes. Without an origin
+ * check, any cross-origin webpage the operator visits could fire
+ * ``fetch('http://localhost:3000/api/wormhole/identity/bootstrap')`` and
+ * have that request get the operator's admin key injected for free —
+ * full identity-takeover CSRF.
+ *
+ * We allow injection when ANY of these is true:
+ *   - The request carries a valid admin session cookie (already auth'd)
+ *   - The Origin header is absent (server-to-server fetch, Tauri/Electron
+ *     native shells, curl/cli — none of these are browser-CSRF surfaces)
+ *   - The Origin header host matches the request's own Host (genuine
+ *     same-origin browser fetch from our own dashboard)
+ *
+ * If Origin is present AND doesn't match Host, the caller is a hostile
+ * cross-origin webpage. We refuse to inject the admin key. The backend
+ * then sees the request without auth and rejects it via
+ * require_local_operator — exactly the desired outcome.
+ */
+function isSameOriginOrNonBrowser(req: NextRequest): boolean {
+  const origin = req.headers.get('origin');
+  if (!origin) {
+    // No Origin header = server-to-server / native shell / older browser
+    // doing a same-origin GET. CSRF requires the attacker to control a
+    // page running in a browser, which always sends Origin on the
+    // dangerous methods. Treat missing Origin as not-CSRF.
+    return true;
+  }
+  try {
+    const originUrl = new URL(origin);
+    const host = req.headers.get('host') || '';
+    if (!host) return false;
+    return originUrl.host.toLowerCase() === host.toLowerCase();
+  } catch {
+    // Malformed Origin header — be conservative.
+    return false;
+  }
+}
+
 async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   try {
     const isMesh = pathSegments[0] === 'mesh';
@@ -192,8 +234,23 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResp
       }
     });
     if (isSensitiveProxyPath(pathSegments)) {
+      // Issues #249 / #254: gate the server-side admin-key injection on
+      // either a valid admin session cookie OR a same-origin request.
+      // Cross-origin webpages must not silently inherit the operator's
+      // ADMIN_KEY just by being open in the same browser.
       const cookieToken = req.cookies.get(ADMIN_COOKIE)?.value || '';
-      const injectedAdmin = process.env.ADMIN_KEY || resolveAdminSessionToken(cookieToken) || '';
+      const sessionAdminKey = resolveAdminSessionToken(cookieToken) || '';
+      const allowEnvKeyInjection = isSameOriginOrNonBrowser(req);
+      let injectedAdmin = '';
+      if (sessionAdminKey) {
+        // Authenticated session always works — Origin doesn't matter
+        // because the cookie itself is same-site / strict.
+        injectedAdmin = sessionAdminKey;
+      } else if (allowEnvKeyInjection && process.env.ADMIN_KEY) {
+        // Fall back to the server-side ADMIN_KEY only for legitimate
+        // callers (same-origin dashboard, Tauri shell, server-to-server).
+        injectedAdmin = process.env.ADMIN_KEY;
+      }
       if (injectedAdmin) {
         forwardHeaders.set('X-Admin-Key', injectedAdmin);
       }

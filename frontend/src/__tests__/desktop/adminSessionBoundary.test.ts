@@ -45,12 +45,12 @@ describe('admin/session boundary hardening', () => {
   });
 
   it('accepts a verified admin key and reports the minted session as present', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    // Issue #255 fix: the route no longer round-trips to the backend
+    // to "verify" the key (the previous implementation called a public
+    // endpoint that always returned 200, so any key was accepted when
+    // ADMIN_KEY was unset). Local string comparison is the only
+    // validation, so we don't mock fetch and don't assert it was called.
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const req = new NextRequest('http://localhost/api/admin/session', {
@@ -65,7 +65,8 @@ describe('admin/session boundary hardening', () => {
     expect(res.status).toBe(200);
     expect(cookie).toContain('sb_admin_session=');
     expect(res.headers.get('cache-control')).toContain('no-store');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Validation is local-only — no backend round-trip should happen.
+    expect(fetchMock).not.toHaveBeenCalled();
 
     const getReq = new NextRequest('http://localhost/api/admin/session', {
       method: 'GET',
@@ -88,12 +89,8 @@ describe('admin/session boundary hardening', () => {
   });
 
   it('invalidates the previous admin session token when a new one is minted', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    // Issue #255 fix: no backend round-trip. Validation is local-only.
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const firstReq = new NextRequest('http://localhost/api/admin/session', {
@@ -135,21 +132,25 @@ describe('admin/session boundary hardening', () => {
     );
     const newBody = await newSessionCheck.json();
     expect(newBody.hasSession).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Local validation only — backend should not be called during minting.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('rejects session minting when frontend admin key is set but backend has no configured admin key', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ detail: 'Forbidden — admin key not configured' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+  it('refuses session minting when frontend ADMIN_KEY env var is unset (#255)', async () => {
+    // Issue #255 (tg12): previously, when ADMIN_KEY was unset the route
+    // fell through to a public backend endpoint that always returned
+    // 200, so any user-supplied key minted a full admin session. The
+    // fix is to refuse minting entirely when ADMIN_KEY is unconfigured
+    // and surface a clear message pointing the operator at the
+    // backend's auto-trust-loopback behavior.
+    process.env.ADMIN_KEY = '';
+
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const req = new NextRequest('http://localhost/api/admin/session', {
       method: 'POST',
-      body: JSON.stringify({ adminKey: 'top-secret' }),
+      body: JSON.stringify({ adminKey: 'any-key-an-attacker-supplies' }),
       headers: { 'Content-Type': 'application/json' },
     });
 
@@ -158,8 +159,11 @@ describe('admin/session boundary hardening', () => {
 
     expect(res.status).toBe(403);
     expect(body.ok).toBe(false);
-    expect(body.detail).toBe('Forbidden — admin key not configured');
+    expect(String(body.detail)).toMatch(/no admin key configured/i);
     expect(res.headers.get('set-cookie')).toBeNull();
+    // Crucially: no backend round-trip happens. The previous broken
+    // verifyAgainstBackend() call must NOT be re-introduced.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not forward raw x-admin-key headers through the sensitive proxy path', async () => {
