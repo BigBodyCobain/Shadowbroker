@@ -17,7 +17,7 @@ dependencies = [
     "cryptography>=41.0.0",
     "defusedxml>=0.7.1",
     "fastapi==0.115.12",
-    "feedparser==6.0.10",
+    "feedparser==6.0.12",
     "httpx==0.28.1",
     "playwright==1.59.0",
     "playwright-stealth==1.0.6",
