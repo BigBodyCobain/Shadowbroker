@@ -30,7 +30,7 @@
     "next": "16.1.6",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "^19.2.4",
+    "react-dom": "^19.2.6",
     "react-map-gl": "^8.1.0",
     "satellite.js": "^6.0.2",
     "zod": "^4.3.6"
