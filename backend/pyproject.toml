@@ -36,7 +36,7 @@ dependencies = [
     "starlette==1.0.1",
     "vaderSentiment>=3.3.0",
     "uvicorn==0.34.0",
-    "yfinance==1.3.0",
+    "yfinance==1.4.1",
 ]
 
 [dependency-groups]
