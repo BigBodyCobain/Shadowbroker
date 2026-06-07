@@ -10,6 +10,9 @@ from services.fetchers._store import (
     _data_lock,
     get_data_version,
     bump_data_version,
+    get_layer_version,
+    bump_active_layers_version,
+    get_active_layers_version,
 )
 
 
@@ -109,6 +112,22 @@ class TestDataVersion:
         version_before = get_data_version()
         bump_data_version()
         assert get_data_version() == version_before + 1
+
+
+class TestLayerVersion:
+    """Edge-case tests for per-layer version counters."""
+
+    def test_unknown_layer_returns_zero(self):
+        assert get_layer_version("nonexistent_layer_xyz") == 0
+
+
+class TestActiveLayersVersion:
+    """Tests for the active-layers version counter."""
+
+    def test_bump_increments_counter(self):
+        before = get_active_layers_version()
+        bump_active_layers_version()
+        assert get_active_layers_version() == before + 1
 
 
 class TestDataLock:
