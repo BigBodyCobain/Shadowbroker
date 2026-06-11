@@ -265,10 +265,27 @@ def get_latest_data_subset(*keys: str) -> DashboardData:
 
 
 def get_latest_data_deepcopy_snapshot() -> DashboardData:
-    """Deep-copy the full dashboard for legacy /api/live-data consumers."""
-    with _data_lock:
-        items = list(latest_data.items())
-    return {key: copy.deepcopy(value) for key, value in items}
+    """Deep-copy the full dashboard for /api/health and legacy /api/live-data.
+
+    The per-value deepcopy runs OUTSIDE ``_data_lock`` so a large clone cannot
+    block fetcher writers (#375). The store contract is replace-don't-mutate,
+    but a writer that mutates a nested object in place (e.g. a live bridge
+    updating an entry that is also published in this store) can race the
+    deepcopy and raise ``RuntimeError: dictionary changed size during
+    iteration`` — surfacing a 500 on the health/live-data path. The racing
+    mutation window is tiny, so retry a few times rather than fail; a fresh
+    attempt almost always lands on a quiescent moment. Defense-in-depth on top
+    of fixing the offending writers, not a substitute for it.
+    """
+    attempts = 4
+    for attempt in range(attempts):
+        with _data_lock:
+            items = list(latest_data.items())
+        try:
+            return {key: copy.deepcopy(value) for key, value in items}
+        except RuntimeError:
+            if attempt == attempts - 1:
+                raise
 
 
 def get_latest_data_subset_refs(*keys: str) -> DashboardData:

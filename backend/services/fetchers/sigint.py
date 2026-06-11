@@ -21,12 +21,21 @@ def _merge_sigint_snapshot(
     because they include fresher region/channel metadata.
     """
 
-    merged = list(live_signals)
+    # Shallow-copy every entry so the published list owns its own dicts. The
+    # inputs alias objects that other threads keep mutating in place: live
+    # signals are the SIGINT bridge's own dicts (updated as packets arrive),
+    # and api_nodes are the same objects published under latest_data
+    # ["meshtastic_map_nodes"]. Publishing those references into
+    # latest_data["sigint"] lets a concurrent mutation race the lock-free
+    # deepcopy in get_latest_data_deepcopy_snapshot() (/api/health, /api/live-
+    # data) and raise "dictionary changed size during iteration". Copying
+    # honors the replace-don't-mutate contract in fetchers/_store.py.
+    merged = [dict(s) for s in live_signals]
     live_callsigns = {s["callsign"] for s in merged if s.get("source") == "meshtastic"}
     for node in api_nodes:
         if node.get("callsign") in live_callsigns:
             continue
-        merged.append(node)
+        merged.append(dict(node))
     merged.sort(key=lambda item: str(item.get("timestamp", "") or ""), reverse=True)
     return merged
 
