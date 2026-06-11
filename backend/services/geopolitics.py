@@ -606,8 +606,19 @@ def _build_feature_html(features, fetched_titles=None):
 
 
 def _enrich_gdelt_titles_background(features, all_article_urls):
-    """Background thread: fetch real article titles then update features in-place."""
+    """Background thread: fetch real article titles, then publish enriched COPIES.
+
+    The ``features`` handed to us were already published into
+    ``latest_data["gdelt"]`` by ``fetch_gdelt()``. Per the store's thread-safety
+    contract (see ``get_latest_data_subset_refs`` in fetchers/_store.py), HTTP
+    readers hold live references to these nested ``properties`` dicts and
+    serialize them OUTSIDE the data lock. Mutating the published dicts in place
+    here races that serialization and raises
+    ``RuntimeError: dictionary changed size during iteration``. So we enrich
+    copies and atomically swap the top-level key under the lock instead.
+    """
     import html as html_mod
+    from services.fetchers._store import latest_data, _data_lock, _mark_fresh
 
     try:
         logger.info(f"[BG] Fetching real article titles for {len(all_article_urls)} URLs...")
@@ -615,28 +626,44 @@ def _enrich_gdelt_titles_background(features, all_article_urls):
         fetched_count = sum(1 for v in fetched_titles.values() if v)
         logger.info(f"[BG] Resolved {fetched_count}/{len(all_article_urls)} article titles")
 
-        # Update features in-place with real titles and snippets
+        # Build enriched copies — never touch the already-published objects.
+        enriched = []
         for f in features:
-            urls = f["properties"].get("_urls_list", [])
-            if not urls:
-                continue
-            headlines = []
-            snippets = []
-            for u in urls:
-                real_title = fetched_titles.get(u)
-                headlines.append(real_title if real_title else _url_to_headline(u))
-                snippets.append(_article_snippet_cache.get(u) or "")
-            f["properties"]["_headlines_list"] = headlines
-            f["properties"]["_snippets_list"] = snippets
-            links = []
-            for u, h in zip(urls, headlines):
-                safe_url = u if u.startswith(("http://", "https://")) else "about:blank"
-                safe_h = html_mod.escape(h)
-                links.append(
-                    f'<div style="margin-bottom:6px;"><a href="{safe_url}" target="_blank" rel="noopener noreferrer">{safe_h}</a></div>'
-                )
-            f["properties"]["html"] = "".join(links)
-        logger.info(f"[BG] GDELT title enrichment complete")
+            nf = dict(f)
+            props = dict(f.get("properties", {}))
+            urls = props.get("_urls_list", [])
+            if urls:
+                headlines = []
+                snippets = []
+                for u in urls:
+                    real_title = fetched_titles.get(u)
+                    headlines.append(real_title if real_title else _url_to_headline(u))
+                    snippets.append(_article_snippet_cache.get(u) or "")
+                props["_headlines_list"] = headlines
+                props["_snippets_list"] = snippets
+                links = []
+                for u, h in zip(urls, headlines):
+                    safe_url = u if u.startswith(("http://", "https://")) else "about:blank"
+                    safe_h = html_mod.escape(h)
+                    links.append(
+                        f'<div style="margin-bottom:6px;"><a href="{safe_url}" target="_blank" rel="noopener noreferrer">{safe_h}</a></div>'
+                    )
+                props["html"] = "".join(links)
+            nf["properties"] = props
+            enriched.append(nf)
+
+        # Atomically publish — but only if a newer fetch_gdelt() hasn't already
+        # replaced the layer while we were fetching titles (identity guard).
+        published = False
+        with _data_lock:
+            if latest_data.get("gdelt") is features:
+                latest_data["gdelt"] = enriched
+                published = True
+        if published:
+            _mark_fresh("gdelt")
+            logger.info(f"[BG] GDELT title enrichment complete ({len(enriched)} features)")
+        else:
+            logger.info("[BG] GDELT layer changed under us; skipping stale enrichment swap")
     except Exception as e:
         logger.error(f"[BG] GDELT title enrichment failed: {e}")
 
