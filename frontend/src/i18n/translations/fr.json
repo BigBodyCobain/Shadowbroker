@@ -273,6 +273,9 @@
     "loadMedia": "AFFICHER LE MÉDIA (TELEGRAM)",
     "openOriginal": "OUVRIR SUR TELEGRAM →",
     "embedTitle": "Intégration Telegram",
-    "postsAtLocation": "{count} posts à cet endroit — faites défiler"
+    "postsAtLocation": "{count} posts à cet endroit — faites défiler",
+    "translatedFrom": "Traduit depuis le {lang}",
+    "showOriginal": "AFFICHER L'ORIGINAL ({lang})",
+    "showTranslation": "AFFICHER LA TRADUCTION"
   }
 }

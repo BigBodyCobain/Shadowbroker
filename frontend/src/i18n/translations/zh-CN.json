@@ -273,6 +273,9 @@
     "loadMedia": "查看媒体（Telegram）",
     "openOriginal": "在 Telegram 打开 →",
     "embedTitle": "Telegram 帖子嵌入",
-    "postsAtLocation": "此位置 {count} 条帖子 — 向下滚动查看更多"
+    "postsAtLocation": "此位置 {count} 条帖子 — 向下滚动查看更多",
+    "translatedFrom": "译自{lang}",
+    "showOriginal": "显示原文（{lang}）",
+    "showTranslation": "显示译文"
   }
 }

@@ -273,6 +273,9 @@
     "loadMedia": "VIEW MEDIA (TELEGRAM)",
     "openOriginal": "OPEN ON TELEGRAM →",
     "embedTitle": "Telegram post embed",
-    "postsAtLocation": "{count} posts at this location — scroll for more"
+    "postsAtLocation": "{count} posts at this location — scroll for more",
+    "translatedFrom": "Translated from {lang}",
+    "showOriginal": "SHOW ORIGINAL ({lang})",
+    "showTranslation": "SHOW TRANSLATION"
   }
 }

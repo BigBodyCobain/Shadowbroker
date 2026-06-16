@@ -710,10 +710,10 @@ _UNIVERSAL_SEARCH_SPECS: dict[str, dict[str, Any]] = {
         "time_fields": ("updated_at", "timestamp"),
     },
     "telegram_osint": {
-        "fields": ("title", "description", "source", "channel", "link"),
-        "primary_fields": ("title", "description", "channel"),
-        "label_fields": ("title", "channel"),
-        "summary_fields": ("description", "source"),
+        "fields": ("title", "description", "title_translated", "description_translated", "source", "channel", "link"),
+        "primary_fields": ("title_translated", "title", "description_translated", "description", "channel"),
+        "label_fields": ("title_translated", "title", "channel"),
+        "summary_fields": ("description_translated", "description", "source"),
         "type_fields": ("channel", "source"),
         "id_fields": ("id", "link"),
         "time_fields": ("published", "timestamp"),
@@ -2089,30 +2089,27 @@ def search_news(
                 return {"results": out, "version": get_data_version(), "truncated": True}
 
     if include_telegram:
+        from services.telegram_osint_text import telegram_post_display_title, telegram_post_search_text
+
         for post in _unwrap_layer_items(snap.get("telegram_osint"), "telegram_osint"):
             if not isinstance(post, dict):
                 continue
-            text = " ".join(
-                (
-                    _norm_text(post.get("title")),
-                    _norm_text(post.get("description")),
-                    _norm_text(post.get("source")),
-                    _norm_text(post.get("channel")),
-                )
-            )
+            text = telegram_post_search_text(post)
             if not _text_matches_query(query_norm, text):
                 continue
             lat, lng = _extract_coords(post)
             out.append(
                 {
                     "source_layer": "telegram_osint",
-                    "title": post.get("title") or "",
-                    "summary": post.get("description") or "",
+                    "title": telegram_post_display_title(post),
+                    "summary": post.get("description_translated") or post.get("description") or "",
                     "source": post.get("source") or post.get("channel") or "Telegram",
                     "link": post.get("link") or "",
                     "lat": lat,
                     "lng": lng,
                     "risk_score": post.get("risk_score"),
+                    "source_lang": post.get("source_lang"),
+                    "source_lang_label": post.get("source_lang_label"),
                 }
             )
             if len(out) >= limit:

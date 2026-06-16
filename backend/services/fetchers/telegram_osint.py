@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import logging
 import os
 import re
@@ -11,6 +12,7 @@ from typing import Any
 from services.fetchers._store import _data_lock, _mark_fresh, is_any_active, latest_data
 from services.fetchers.news import resolve_coords_match
 from services.network_utils import fetch_with_curl, outbound_user_agent
+from services.telegram_translate import apply_post_translation, apply_posts_translations
 
 logger = logging.getLogger(__name__)
 
@@ -174,13 +176,7 @@ def _extract_media(block: str, link: str) -> dict[str, Any]:
 def _strip_html(text: str) -> str:
     cleaned = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
     cleaned = re.sub(r"<[^>]+>", "", cleaned)
-    return (
-        cleaned.replace("&quot;", '"')
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .strip()
-    )
+    return html.unescape(cleaned).strip()
 
 
 def _score_risk(text: str) -> int:
@@ -293,20 +289,19 @@ def parse_telegram_channel_html(html: str, channel: str) -> list[dict[str, Any]]
         post_id = hashlib.sha1(f"{link}|{published}".encode("utf-8")).hexdigest()[:16]
 
         media = _extract_media(block, link)
-        posts.append(
-            {
-                "id": post_id,
-                "title": title,
-                "description": text[:1200],
-                "link": link,
-                "published": published,
-                "source": f"t.me/{channel}",
-                "channel": channel,
-                "risk_score": risk_score,
-                "coords": [coords[0], coords[1]] if coords else None,
-                **media,
-            }
-        )
+        post = {
+            "id": post_id,
+            "title": title,
+            "description": text[:1200],
+            "link": link,
+            "published": published,
+            "source": f"t.me/{channel}",
+            "channel": channel,
+            "risk_score": risk_score,
+            "coords": [coords[0], coords[1]] if coords else None,
+            **media,
+        }
+        posts.append(apply_post_translation(post))
     return posts
 
 
@@ -358,6 +353,7 @@ def fetch_telegram_osint() -> dict[str, Any]:
 
     merged_posts, added = _merge_telegram_posts(existing_posts, incoming)
     merged_posts = [_refresh_post_coords(post) for post in merged_posts]
+    merged_posts = apply_posts_translations(merged_posts)
     geolocated = sum(1 for p in merged_posts if p.get("coords"))
 
     payload = {

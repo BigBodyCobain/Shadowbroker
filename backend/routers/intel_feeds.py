@@ -14,6 +14,7 @@ from services.fetchers._store import get_latest_data_subset_refs
 from services.fetchers.telegram_osint import telegram_media_host_allowed
 from services.intel_feeds.country_risk import build_country_risk_payload
 from services.network_utils import outbound_user_agent
+from services.telegram_translate import apply_posts_translations, normalize_translate_target
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,19 @@ async def country_risk(request: Request) -> dict:
 
 @router.get("/api/telegram-feed")
 @limiter.limit("30/minute")
-async def telegram_feed(request: Request) -> dict:
+async def telegram_feed(request: Request, lang: str | None = Query(default=None)) -> dict:
     snap = get_latest_data_subset_refs("telegram_osint")
     payload = snap.get("telegram_osint")
-    if isinstance(payload, dict) and payload.get("posts") is not None:
-        return payload
-    return {"posts": [], "total": 0, "geolocated": 0, "timestamp": None}
+    if not isinstance(payload, dict) or payload.get("posts") is None:
+        return {"posts": [], "total": 0, "geolocated": 0, "timestamp": None}
+
+    if lang:
+        target = normalize_translate_target(lang)
+        localized = dict(payload)
+        localized["posts"] = apply_posts_translations(list(payload.get("posts") or []), target)
+        localized["translate_locale"] = target
+        return localized
+    return payload
 
 
 def _infer_telegram_media_type(target_url: str, content_type: str) -> str:
