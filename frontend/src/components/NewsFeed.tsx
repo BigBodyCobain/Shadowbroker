@@ -321,7 +321,7 @@ function EmissionsEstimateBlock({ flight }: { flight: any }) {
     );
 }
 
-function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, onArticleClick, onExpandEntityGraph }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void, onExpandEntityGraph?: () => void }) {
+function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gtDossier, gtDossierLoading, onArticleClick, onExpandEntityGraph }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, gtDossier?: import('@/types/dashboard').GtDossier | null, gtDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void, onExpandEntityGraph?: () => void }) {
     const data = useDataKeys([
       'news', 'fimi', 'commercial_flights', 'private_flights', 'private_jets',
       'military_flights', 'tracked_flights', 'ships', 'gdelt', 'liveuamap',
@@ -535,6 +535,84 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         )}
 
                         {/* Sentinel-2 imagery now shown as map popup — see MaplibreViewer */}
+
+                        {(gtDossierLoading || gtDossier?.enabled) && (
+                            <>
+                                <div className="text-[11px] text-amber-500 tracking-widest font-bold border-b border-amber-900/50 pb-1 mt-2">
+                                    STRATEGIC RISK (GT)
+                                </div>
+                                {gtDossierLoading ? (
+                                    <div className="text-amber-400/80 text-[11px]">Running game-theoretic analysis...</div>
+                                ) : gtDossier ? (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--text-muted)]">POSTERIOR RISK</span>
+                                            <span className="text-amber-300 font-bold">
+                                                {((gtDossier.current_risk ?? 0) * 100).toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        {gtDossier.domain_risks && (
+                                            <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">FIN</div>
+                                                    <div className="text-cyan-300">
+                                                        {((gtDossier.domain_risks.financial ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">UNREST</div>
+                                                    <div className="text-orange-300">
+                                                        {((gtDossier.domain_risks.unrest ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">CONFLICT</div>
+                                                    <div className="text-red-300">
+                                                        {((gtDossier.domain_risks.conflict ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {gtDossier.interpretation && (
+                                            <div className="p-2 bg-black/60 border border-amber-800/50 text-[11px] text-amber-200/90 leading-relaxed">
+                                                <span className="text-amber-400 font-bold">&gt;_ GT: </span>
+                                                {gtDossier.interpretation}
+                                            </div>
+                                        )}
+                                        {gtDossier.recent_signals && gtDossier.recent_signals.length > 0 && (
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-[10px] text-[var(--text-muted)] tracking-widest">
+                                                    COSTLY SIGNALS
+                                                </div>
+                                                {gtDossier.recent_signals.slice(-3).map((entry, idx) => (
+                                                    <div
+                                                        key={`${entry.timestamp}-${idx}`}
+                                                        className="text-[10px] border-l-2 border-amber-700/60 pl-2 text-[var(--text-secondary)]"
+                                                    >
+                                                        <span className="text-amber-300 uppercase">
+                                                            {Object.keys(entry.signals || {}).join(', ') || entry.domain}
+                                                        </span>
+                                                        {' · '}
+                                                        <span className="text-[var(--text-muted)]">{entry.source}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {gtDossier.scenarios && gtDossier.scenarios.length > 0 && (
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-[10px] text-[var(--text-muted)] tracking-widest">SCENARIOS</div>
+                                                {gtDossier.scenarios.map((scenario) => (
+                                                    <div key={scenario.name} className="text-[10px] text-[var(--text-secondary)]">
+                                                        <span className="text-amber-400 font-bold">{scenario.name}: </span>
+                                                        {scenario.summary}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
                     </div>
                 ) : d?.error ? (
                     <div className="p-4 text-[var(--text-secondary)] text-[12px]">{d.error}</div>

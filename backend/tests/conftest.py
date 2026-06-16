@@ -1,7 +1,21 @@
+import os
+
 import asyncio
 
 import pytest
 from unittest.mock import patch, MagicMock
+
+
+@pytest.fixture(autouse=True)
+def _gt_analytics_standard_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests assume a standard (non-lean) runtime unless they override profile."""
+    monkeypatch.setenv("GT_ANALYTICS_PROFILE", os.environ.get("GT_ANALYTICS_PROFILE", "standard"))
+    try:
+        from analytics.integration import reset_gt_engine
+
+        reset_gt_engine()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)

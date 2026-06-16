@@ -499,6 +499,12 @@ def update_slow_data():
             latest_data["correlations"] = correlations
     except Exception as e:
         logger.error("Correlation engine failed: %s", e)
+    try:
+        from analytics.integration import maybe_refresh_gt_analytics
+
+        maybe_refresh_gt_analytics()
+    except Exception as e:
+        logger.error("GT analytics refresh failed: %s", e)
     from services.fetchers._store import bump_data_version
     bump_data_version()
     _save_intel_startup_cache()
@@ -807,8 +813,18 @@ def start_scheduler():
 
     # Telegram OSINT — hourly t.me/s channel scrape (kept off the 5-minute slow tier).
     _telegram_interval_m = max(15, int(os.environ.get("TELEGRAM_OSINT_INTERVAL_MINUTES", "60")))
+
+    def _fetch_telegram_osint_with_gt():
+        fetch_telegram_osint()
+        try:
+            from analytics.integration import maybe_refresh_gt_analytics
+
+            maybe_refresh_gt_analytics()
+        except Exception as exc:
+            logger.error("GT analytics refresh after telegram failed: %s", exc)
+
     _scheduler.add_job(
-        lambda: _run_task_with_health(fetch_telegram_osint, "fetch_telegram_osint"),
+        lambda: _run_task_with_health(_fetch_telegram_osint_with_gt, "fetch_telegram_osint"),
         "interval",
         minutes=_telegram_interval_m,
         next_run_time=datetime.utcnow() + timedelta(seconds=45),
@@ -934,14 +950,67 @@ def start_scheduler():
     )
 
     # GDELT — every 30 minutes (downloads 32 ZIP files per call, avoid rate limits)
+    def _fetch_gdelt_with_gt():
+        fetch_gdelt()
+        try:
+            from analytics.integration import maybe_refresh_gt_analytics
+
+            maybe_refresh_gt_analytics()
+        except Exception as exc:
+            logger.error("GT analytics refresh after gdelt failed: %s", exc)
+
     _scheduler.add_job(
-        lambda: _run_task_with_health_on_executor(_SLOW_EXECUTOR, fetch_gdelt, "fetch_gdelt"),
+        lambda: _run_task_with_health_on_executor(_SLOW_EXECUTOR, _fetch_gdelt_with_gt, "fetch_gdelt"),
         "interval",
         minutes=30,
         id="gdelt",
         max_instances=1,
         misfire_grace_time=120,
     )
+
+    # GT analytics — Louvain herding/coordination clusters (feature-flagged).
+    def _recompute_gt_clusters():
+        try:
+            from analytics.integration import recompute_gt_herding_clusters
+
+            recompute_gt_herding_clusters()
+        except Exception as exc:
+            logger.error("GT Louvain recompute failed: %s", exc)
+
+    def _freeze_gt_weekly_snapshot():
+        try:
+            from analytics.integration import maybe_freeze_gt_weekly_snapshot
+
+            maybe_freeze_gt_weekly_snapshot()
+        except Exception as exc:
+            logger.error("GT rolling weekly freeze failed: %s", exc)
+
+    try:
+        from analytics.settings import get_gt_settings, gt_engine_operational
+
+        _gt_settings = get_gt_settings()
+        if gt_engine_operational():
+            _scheduler.add_job(
+                _recompute_gt_clusters,
+                "interval",
+                minutes=_gt_settings.louvain_interval_minutes,
+                id="gt_analytics_louvain",
+                max_instances=1,
+                misfire_grace_time=300,
+                next_run_time=datetime.utcnow() + timedelta(minutes=3),
+            )
+            _scheduler.add_job(
+                _freeze_gt_weekly_snapshot,
+                "cron",
+                day_of_week="mon",
+                hour=0,
+                minute=5,
+                id="gt_rolling_weekly_freeze",
+                max_instances=1,
+                misfire_grace_time=3600,
+            )
+    except Exception as exc:
+        logger.warning("GT Louvain scheduler not registered: %s", exc)
     _scheduler.add_job(
         lambda: _run_task_with_health_on_executor(
             _SLOW_EXECUTOR, update_liveuamap, "update_liveuamap"

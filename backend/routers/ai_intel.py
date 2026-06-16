@@ -2051,7 +2051,7 @@ async def agent_tool_manifest(request: Request):
                 "description": "Set up a watchdog alert. When triggered, alerts push instantly via SSE stream. Debounced: same watch won't re-fire within 60 seconds.",
                 "parameters": {
                     "type": {"type": "string", "required": True, "description": "Watch type",
-                             "enum": ["track_aircraft", "track_callsign", "track_registration", "track_ship", "track_entity", "geofence", "keyword", "prediction_market"]},
+                             "enum": ["track_aircraft", "track_callsign", "track_registration", "track_ship", "track_entity", "geofence", "keyword", "telegram_rhetoric", "prediction_market"]},
                     "params": {"type": "object", "required": True, "description": "Type-specific parameters (see subtypes)"},
                 },
                 "subtypes": {
@@ -2061,7 +2061,8 @@ async def agent_tool_manifest(request: Request):
                     "track_ship": {"params": {"mmsi": "string (optional)", "imo": "string (optional)", "name": "string (optional)", "owner": "string (optional)", "callsign": "string (optional)"}, "description": "Alert when ship appears by MMSI, IMO, name, owner, or callsign"},
                     "track_entity": {"params": {"query": "string", "entity_type": "string (optional)", "layers": "list (optional)"}, "description": "Generic exact-first entity tracker when aircraft/ship fields are not known yet"},
                     "geofence": {"params": {"lat": "float", "lng": "float", "radius_km": "float (default 50)", "entity_types": "list (default ['flights','ships'])"}, "description": "Alert when any entity enters a geographic zone"},
-                    "keyword": {"params": {"keyword": "string"}, "description": "Alert when keyword appears in news/GDELT headlines"},
+                    "keyword": {"params": {"keyword": "string", "include_telegram": "boolean (default true)"}, "description": "Alert when keyword appears in news, GDELT, or Telegram OSINT (searches translated + original text)"},
+                    "telegram_rhetoric": {"params": {"min_risk_score": "int 1-10 (default 7)", "keywords": "list or comma-separated string (optional)", "channels": "list or comma-separated string (optional)"}, "description": "Alert on new high-risk Telegram OSINT posts — rhetoric/escalation monitor"},
                     "prediction_market": {"params": {"query": "string", "threshold": "float 0-1 (optional)"}, "description": "Alert on prediction market movements matching query"},
                 },
                 "example": {"cmd": "add_watch", "args": {"type": "track_registration", "params": {"registration": "N3880"}}},
@@ -2564,7 +2565,8 @@ async def api_capabilities(request: Request):
                         "track_ship": {"params": {"mmsi": "str (optional)", "imo": "str (optional)", "name": "str (optional)", "owner": "str (optional)", "callsign": "str (optional)"}, "description": "Alert when ship appears by MMSI, IMO, name, owner, or callsign"},
                         "track_entity": {"params": {"query": "str", "entity_type": "str (optional)", "layers": "list[str] (optional)"}, "description": "Generic exact-first entity watch"},
                         "geofence": {"params": {"lat": "float", "lng": "float", "radius_km": "float (default 50)", "entity_types": "list (default ['flights','ships'])"}, "description": "Alert when any entity enters a geographic zone"},
-                        "keyword": {"params": {"keyword": "str"}, "description": "Alert when keyword appears in news/GDELT"},
+                        "keyword": {"params": {"keyword": "str", "include_telegram": "bool (default true)"}, "description": "Alert when keyword appears in news, GDELT, or Telegram OSINT"},
+                        "telegram_rhetoric": {"params": {"min_risk_score": "int 1-10 (default 7)", "keywords": "list[str] or comma string (optional)", "channels": "list[str] or comma string (optional)"}, "description": "Alert on new high-risk Telegram OSINT posts"},
                         "prediction_market": {"params": {"query": "str", "threshold": "float 0-1 (optional)"}, "description": "Alert on prediction market movements"},
                     },
                 },

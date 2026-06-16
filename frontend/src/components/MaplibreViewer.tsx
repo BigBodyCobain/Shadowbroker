@@ -185,6 +185,7 @@ import { CorrelationPopup } from '@/components/MaplibreViewer/popups/Correlation
 import { WastewaterPopup } from '@/components/MaplibreViewer/popups/WastewaterPopup';
 import { MilitaryBasePopup } from '@/components/MaplibreViewer/popups/MilitaryBasePopup';
 import { RegionDossierPanel } from '@/components/MaplibreViewer/popups/RegionDossierPanel';
+import { GtRiskPopup } from '@/components/MaplibreViewer/popups/GtRiskPopup';
 import { TelegramOsintPopup } from '@/components/MaplibreViewer/popups/TelegramOsintPopup';
 import {
   buildSentinelTileUrl,
@@ -196,6 +197,7 @@ import {
   buildEarthquakesGeoJSON,
   buildJammingGeoJSON,
   buildCorrelationsGeoJSON,
+  buildGtRiskGeoJSON,
   buildTinygsGeoJSON,
   buildShodanGeoJSON,
   buildAIIntelGeoJSON,
@@ -306,6 +308,7 @@ const MAP_EXTRA_DATA_KEYS = [
   'crowdthreat',
   'malware_threats',
   'telegram_osint',
+  'gt_risk',
   'datacenters',
   'firms_fires',
   'fishing_activity',
@@ -776,6 +779,11 @@ const MaplibreViewer = ({
       return buildCorrelationsGeoJSON(alerts);
     },
     [activeLayers.correlations, activeLayers.contradictions, data?.correlations],
+  );
+
+  const gtRiskGeoJSON = useMemo(
+    () => (activeLayers.gt_risk ? buildGtRiskGeoJSON(data?.gt_risk) : null),
+    [activeLayers.gt_risk, data?.gt_risk],
   );
 
   const tinygsGeoJSON = useMemo(
@@ -1724,6 +1732,7 @@ const MaplibreViewer = ({
     correlationsGeoJSON && 'corr-infra-fill',
     correlationsGeoJSON && 'corr-contra-fill',
     correlationsGeoJSON && 'corr-analysis-fill',
+    gtRiskGeoJSON && 'gt-risk-heatmap',
   ].filter(Boolean) as string[];
 
   useEffect(() => {
@@ -1820,7 +1829,7 @@ const MaplibreViewer = ({
 
   return (
     <div
-      className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
+      className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint', 'gt_risk'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
       style={pinPlacementMode || sarAoiDropMode ? { cursor: 'crosshair' } : undefined}
     >
       <Map
@@ -2222,6 +2231,55 @@ const MaplibreViewer = ({
               'text-color': '#ff4060',
               'text-halo-color': '#000000',
               'text-halo-width': 1.5,
+            }}
+          />
+        </Source>
+
+        {/* Strategic Risk Heatmap — Bayesian posterior scores */}
+        <Source id="gt-risk-source" type="geojson" data={(gtRiskGeoJSON ?? EMPTY_FC)}>
+          <Layer
+            id="gt-risk-heatmap"
+            type="circle"
+            minzoom={2}
+            paint={{
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                2,
+                ['+', 6, ['*', 14, ['get', 'risk']]],
+                6,
+                ['+', 10, ['*', 28, ['get', 'risk']]],
+                10,
+                ['+', 14, ['*', 40, ['get', 'risk']]],
+              ],
+              'circle-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'risk'],
+                0.15,
+                '#22c55e',
+                0.35,
+                '#84cc16',
+                0.5,
+                '#eab308',
+                0.65,
+                '#f97316',
+                0.8,
+                '#ef4444',
+              ],
+              'circle-opacity': [
+                'interpolate',
+                ['linear'],
+                ['get', 'risk'],
+                0.15,
+                0.22,
+                0.8,
+                0.72,
+              ],
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#fbbf24',
+              'circle-stroke-opacity': 0.35,
             }}
           />
         </Source>
@@ -5711,6 +5769,28 @@ const MaplibreViewer = ({
             if (!dest || dest === 'UNKNOWN') return null;
             return <FishingDestinationRoute vesselLat={event.lat} vesselLng={event.lng} destination={dest} />;
           })()}
+
+        {(() => {
+          if (selectedEntity?.type !== 'gt_risk' || !selectedEntity.extra) return null;
+          const props = selectedEntity.extra as Record<string, unknown>;
+          const lat = Number(props.lat);
+          const lng = Number(props.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return (
+            <GtRiskPopup
+              region={String(props.region || props.name || selectedEntity.id)}
+              risk={Number(props.risk ?? 0)}
+              financial={Number(props.financial ?? 0)}
+              unrest={Number(props.unrest ?? 0)}
+              conflict={Number(props.conflict ?? 0)}
+              contagion={Number(props.contagion ?? 0)}
+              interpretation={String(props.interpretation || '')}
+              lat={lat}
+              lng={lng}
+              onClose={() => onEntityClick?.(null)}
+            />
+          );
+        })()}
 
         {(() => {
           if (selectedEntity?.type !== 'telegram_osint' || !data?.telegram_osint?.posts) return null;

@@ -55,6 +55,8 @@ import { useTheme } from '@/lib/ThemeContext';
 import { useTranslation } from '@/i18n';
 import SarModeChooserModal from './SarModeChooserModal';
 import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
+import { extractGtAlerts } from '@/lib/gtAlerts';
+import { gtLeanLayerWarning, useRuntimeProfile } from '@/hooks/useRuntimeProfile';
 
 function relativeTime(iso: string | undefined): string {
   if (!iso) return '';
@@ -115,6 +117,7 @@ const FRESHNESS_MAP: Record<string, string> = {
   scm_suppliers: 'scm_suppliers',
   cyber_threats: 'cyber_threats',
   telegram_osint: 'telegram_osint',
+  gt_risk: 'gt_risk',
 };
 
 // POTUS fleet ICAO hex codes for client-side filtering
@@ -726,7 +729,11 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
 
   const [liveuamapModalOpen, setLiveuamapModalOpen] = useState(false);
   const [liveuamapPendingEnable, setLiveuamapPendingEnable] = useState<(() => void) | null>(null);
+  const [gtLeanModalOpen, setGtLeanModalOpen] = useState(false);
+  const [gtLeanPendingEnable, setGtLeanPendingEnable] = useState<(() => void) | null>(null);
   const { needsConsentBeforeEnable, confirmOptIn } = useLiveUamapScraperOptIn();
+  const runtimeProfile = useRuntimeProfile();
+  const gtLeanWarning = gtLeanLayerWarning(runtimeProfile);
 
   const withGlobalIncidentsConsent = useCallback(
     (layerId: string, turningOn: boolean, apply: () => void) => {
@@ -738,6 +745,18 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       apply();
     },
     [needsConsentBeforeEnable],
+  );
+
+  const withGtRiskLeanWarning = useCallback(
+    (layerId: string, turningOn: boolean, apply: () => void) => {
+      if (layerId === 'gt_risk' && turningOn && gtLeanWarning) {
+        setGtLeanPendingEnable(() => apply);
+        setGtLeanModalOpen(true);
+        return;
+      }
+      apply();
+    },
+    [gtLeanWarning],
   );
 
   const isAllToggleableLayersOn = useMemo(
@@ -1372,6 +1391,16 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           icon: Zap,
         },
         {
+          id: 'gt_risk',
+          name: t('layers.derivedOsint'),
+          source: t('layers.derivedOsintSource'),
+          count:
+            extractGtAlerts(data?.gt_risk).plottedRegions ||
+            data?.gt_risk?.meta?.plotted_regions ||
+            0,
+          icon: Radar,
+        },
+        {
           id: 'day_night',
           name: t('layers.dayNight'),
           source: 'Solar Calc',
@@ -1394,7 +1423,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     sections.forEach((s) => {
       // Keep high-traffic intel overlays visible on first paint (GDELT, Telegram, etc.)
       initial[s.label] = s.layers.some((l) =>
-        ['global_incidents', 'telegram_osint', 'ukraine_frontline'].includes(l.id),
+        ['global_incidents', 'telegram_osint', 'ukraine_frontline', 'gt_risk'].includes(l.id),
       );
     });
     return initial;
@@ -1746,10 +1775,12 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       return;
                                     }
                                     withGlobalIncidentsConsent(layer.id, !active, () => {
-                                      setActiveLayers((prev: ActiveLayers) => ({
-                                        ...prev,
-                                        [layer.id]: !active,
-                                      }));
+                                      withGtRiskLeanWarning(layer.id, !active, () => {
+                                        setActiveLayers((prev: ActiveLayers) => ({
+                                          ...prev,
+                                          [layer.id]: !active,
+                                        }));
+                                      });
                                     });
                                   }}
                                 >
@@ -2079,6 +2110,23 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
             setLiveuamapPendingEnable(null);
           }
         })();
+      }}
+    />
+    <ConfirmDialog
+      open={gtLeanModalOpen}
+      title={t('gtLean.title')}
+      message={gtLeanWarning || t('gtLean.message')}
+      confirmLabel={t('gtLean.confirm')}
+      cancelLabel={t('gtLean.cancel')}
+      danger={false}
+      onCancel={() => {
+        setGtLeanModalOpen(false);
+        setGtLeanPendingEnable(null);
+      }}
+      onConfirm={() => {
+        gtLeanPendingEnable?.();
+        setGtLeanModalOpen(false);
+        setGtLeanPendingEnable(null);
       }}
     />
     </>

@@ -104,7 +104,7 @@ wheels = [
 
 [[package]]
 name = "backend"
-version = "0.9.82"
+version = "0.9.83"
 source = { editable = "backend" }
 dependencies = [
     { name = "apscheduler" },
@@ -116,6 +116,10 @@ dependencies = [
     { name = "feedparser" },
     { name = "httpx" },
     { name = "meshtastic" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "orjson" },
     { name = "paho-mqtt" },
     { name = "playwright" },
@@ -171,6 +175,8 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "imageio", marker = "extra == 'road-corridor'", specifier = ">=2.34.0" },
     { name = "meshtastic", specifier = ">=2.5.0" },
+    { name = "networkx", specifier = ">=3.4.0" },
+    { name = "numpy", specifier = ">=2.2.0" },
     { name = "orjson", specifier = ">=3.10.0" },
     { name = "osmnx", marker = "extra == 'road-corridor'", specifier = ">=2.0.0" },
     { name = "paho-mqtt", specifier = ">=1.6.0,<2.0.0" },
@@ -3052,7 +3058,7 @@ wheels = [
 
 [[package]]
 name = "shadowbroker"
-version = "0.9.82"
+version = "0.9.83"
 source = { virtual = "." }
 
 [package.metadata]

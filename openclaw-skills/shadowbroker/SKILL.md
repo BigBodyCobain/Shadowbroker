@@ -170,6 +170,36 @@ The channel operates over HMAC-authenticated HTTP with body-integrity binding:
 | `await sb.get_slow_telemetry()` | Slow-tier: GDELT, news, earthquakes, markets, correlations, Telegram OSINT, malware/cyber threats, SCM suppliers |
 | `await sb.get_report()` | Full structured intelligence report |
 
+### Strategic Risk Analytics (GT early warning)
+
+Requires `GT_ANALYTICS_ENABLED=true` on the ShadowBroker backend.
+
+| Method / command | What It Returns |
+|------------------|----------------|
+| `await sb.ask("Run GT analysis on UK/Europe feeds")` | Routes to `gt_analyze` |
+| `await sb.gt_analyze(region="ukraine")` | Refresh beliefs from Telegram/news/GDELT + dossier |
+| `await sb.gt_risk_heatmap()` | GeoJSON posterior risk overlay + Louvain clusters |
+| `await sb.gt_dossier("ukraine")` | Costly signals, domain risks, scenarios |
+| `await sb.gt_backtest()` | **Static benchmark** — labeled historical cases (regression test) |
+| `await sb.gt_backtest(tune=True)` | Grid-search alert threshold for target confidence |
+| `await sb.gt_rolling_backtest()` | **Macro operational** — week-over-week accuracy on frozen weekly alerts |
+| `await sb.gt_micro_rolling()` | **Micro 3-day rolling avg** — spot vs baseline, ignition detection |
+| `await sb.gt_rolling_freeze()` | Freeze this ISO week's GT scores before outcomes are known |
+| `await sb.gt_rolling_label(week_id, region=..., label=...)` | Label prior-week outcomes (`true_escalation`, `false_alarm`, `benign`) |
+| `await sb.gt_top_alerts()` | Ranked top GT regions with map coordinates |
+| `await sb.ask("Run GT historical backtest")` | Routes to `gt_backtest` (benchmark, not operational) |
+| `await sb.ask("GT rolling operational backtest trend")` | Routes to `gt_rolling_backtest` |
+| `python sb_gt_report.py` | Local helper — backtest + heatmap (+ optional `--region`) |
+| `await sb.send_command("gt_analyze", {"region": "europe"})` | Same as `gt_analyze()` |
+
+**Benchmark vs rolling:** Static `gt_backtest` checks the classifier on known textbook
+cases. `gt_rolling_backtest` scores **frozen weekly live predictions** against delayed
+operator labels — that week-over-week trend (e.g. 54% → 62% → 71%) is the macro
+real-world metric. `gt_micro_rolling` adds a **3-day rolling average** per region:
+spot risk vs the trailing baseline catches fast ignitions the weekly roll can miss.
+Threshold is fixed (`GT_ROLLING_ALERT_THRESHOLD`, default 0.26); ignition when
+spot − 3d avg ≥ `GT_MICRO_IGNITION_DELTA` (default 0.10).
+
 **When to use**: Use `get_summary()` first. Use `get_layer_slice()` for the layers
 you actually need. Reserve full `get_telemetry()` / `get_slow_telemetry()` for rare
 cases where you genuinely need every field across every layer.
@@ -691,6 +721,34 @@ When the user asks a question, follow this decision tree:
 8. **Should I send an alert?**
    - YES if the user has configured alert channels
    - Use the `AlertDispatcher` with the correct signature
+
+### Telegram rhetoric monitoring (watchdog)
+
+Use watchdog watches for push alerts over SSE — no polling required. Keyword
+watches now scan Telegram OSINT too (translated **and** original text).
+
+```python
+# Alert when "nuclear" appears in news, GDELT, or Telegram OSINT
+await sb.send_command("add_watch", {
+    "type": "keyword",
+    "params": {"keyword": "nuclear", "include_telegram": True},
+})
+
+# Alert on new high-risk Telegram posts (LVL >= 7) — rhetoric/escalation monitor
+await sb.send_command("add_watch", {
+    "type": "telegram_rhetoric",
+    "params": {"min_risk_score": 7, "channels": ["nexta_live", "war_monitor"]},
+})
+
+# Combine risk threshold + topic filter
+await sb.send_command("add_watch", {
+    "type": "telegram_rhetoric",
+    "params": {"min_risk_score": 8, "keywords": ["crimea", "escalation", "missile"]},
+})
+```
+
+When a watch fires, you receive an SSE `alert` event. Forward it with
+`sb_alerts.send_intel()` if the user has Discord/Telegram notification channels.
 
 ---
 

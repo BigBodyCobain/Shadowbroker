@@ -1956,3 +1956,64 @@ export function buildSarAoisGeoJSON(aois?: SarAoi[]): FC {
   if (features.length === 0) return null;
   return { type: 'FeatureCollection' as const, features };
 }
+
+// ─── Strategic Risk Analytics (GT early warning) ────────────────────────────
+
+export function buildGtRiskGeoJSON(
+  payload?: {
+    enabled?: boolean;
+    heatmap?: { features?: Array<GTRiskHeatmapFeatureLike> };
+  } | null,
+): FC {
+  const features = payload?.heatmap?.features;
+  if (!features?.length) return null;
+
+  const normalized = features
+    .map((feature, index) => {
+      const coords = feature.geometry?.coordinates;
+      if (!coords || coords.length < 2) return null;
+      const [lng, lat] = coords;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
+      const props = feature.properties || {};
+      const region = String(props.region || `region-${index}`);
+      return {
+        type: 'Feature' as const,
+        properties: {
+          ...props,
+          type: 'gt_risk',
+          id: region,
+          name: region,
+          lat,
+          lng,
+          risk: Number(props.risk ?? 0),
+          financial: Number(props.financial ?? 0),
+          unrest: Number(props.unrest ?? 0),
+          conflict: Number(props.conflict ?? 0),
+          contagion: Number(props.contagion ?? 0),
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [lng, lat] as [number, number],
+        },
+      };
+    })
+    .filter(Boolean) as GeoJSON.Feature[];
+
+  if (!normalized.length) return null;
+  return { type: 'FeatureCollection' as const, features: normalized };
+}
+
+type GTRiskHeatmapFeatureLike = {
+  properties?: {
+    region?: string;
+    risk?: number;
+    financial?: number;
+    unrest?: number;
+    conflict?: number;
+    contagion?: number;
+  };
+  geometry?: {
+    coordinates?: [number, number];
+  };
+};

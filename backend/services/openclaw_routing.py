@@ -36,6 +36,14 @@ LATENCY_TIER_MS: dict[str, int] = {
     "entity_expand": 40,
     "osint_lookup": 200,
     "run_playbook": 120,
+    "gt_risk_heatmap": 20,
+    "gt_dossier": 25,
+    "gt_analyze": 80,
+    "gt_backtest": 120,
+    "gt_rolling_freeze": 30,
+    "gt_rolling_label": 20,
+    "gt_rolling_backtest": 30,
+    "gt_micro_rolling": 20,
     "infonet_status": 20,
     "list_gates": 15,
     "read_gate_messages": 40,
@@ -255,6 +263,32 @@ def _news_query(text: str) -> str:
     return cleaned.strip(" ?.")
 
 
+def _gt_region_hint(text: str) -> str:
+    lowered = str(text or "").lower()
+    hints = (
+        "ukraine",
+        "middle east",
+        "eastern europe",
+        "baltics",
+        "israel",
+        "iran",
+        "russia",
+        "china",
+        "europe",
+        "united kingdom",
+        "uk",
+        "usa",
+        "united states",
+    )
+    for hint in hints:
+        if hint in lowered:
+            return "uk" if hint == "united kingdom" else hint
+    match = re.search(r"\bon\s+([a-z][a-z\s]{2,30})\b", lowered)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
 def route_query(
     text: str = "",
     *,
@@ -369,6 +403,146 @@ def route_query(
             "args": {"layers": ["telegram_osint", "news"], "limit_per_layer": 10, "compact": compact},
         })
         return _route_result("news_search", recommended, avoid, alternates)
+
+    if any(
+        k in lowered
+        for k in (
+            "gt backtest",
+            "backtest gt",
+            "historical backtest",
+            "wilson confidence",
+            "confidence rate",
+            "gt benchmark",
+            "validate gt",
+        )
+    ):
+        tune = any(k in lowered for k in ("tune", "grid search", "optimize threshold"))
+        expanded = "base" not in lowered
+        recommended = {
+            "cmd": "gt_backtest",
+            "args": _compact_args(
+                {
+                    "expanded": expanded,
+                    "tune": tune,
+                    "target_confidence": 0.95,
+                },
+                compact=compact,
+            ),
+        }
+        alternates.append({"cmd": "gt_risk_heatmap", "args": {}})
+        return _route_result("gt_backtest", recommended, avoid, alternates)
+
+    if any(
+        k in lowered
+        for k in (
+            "rolling backtest",
+            "rolling validation",
+            "weekly validation",
+            "operational validation",
+            "operational backtest",
+            "week over week",
+            "week-over-week",
+            "gt rolling",
+            "rolling gt",
+            "weekly gt",
+            "weekly gt score",
+            "gt weekly",
+            "gt snapshot",
+            "freeze weekly gt",
+        )
+    ):
+        micro = any(
+            k in lowered
+            for k in (
+                "3 day",
+                "3-day",
+                "three day",
+                "micro rolling",
+                "rolling average",
+                "ignition",
+                "micro gt",
+            )
+        )
+        freeze = any(
+            k in lowered
+            for k in ("freeze", "gt snapshot", "weekly snapshot", "capture week")
+        )
+        label = any(k in lowered for k in ("label", "outcome", "escalation"))
+        if micro and not freeze and not label:
+            recommended = {
+                "cmd": "gt_micro_rolling",
+                "args": _compact_args({"window_days": 3}, compact=compact),
+            }
+            intent = "gt_micro_rolling"
+        elif freeze:
+            recommended = {
+                "cmd": "gt_rolling_freeze",
+                "args": _compact_args({"force": "force" in lowered}, compact=compact),
+            }
+            intent = "gt_rolling_freeze"
+        elif label:
+            recommended = {
+                "cmd": "gt_rolling_label",
+                "args": _compact_args({}, compact=compact),
+            }
+            intent = "gt_rolling_label"
+        else:
+            recommended = {
+                "cmd": "gt_rolling_backtest",
+                "args": _compact_args({"weeks": 8, "target_confidence": 0.80}, compact=compact),
+            }
+            intent = "gt_rolling_backtest"
+        alternates.append({"cmd": "gt_micro_rolling", "args": {"window_days": 3}})
+        alternates.append({"cmd": "gt_backtest", "args": {"expanded": True, "compact": True}})
+        return _route_result(intent, recommended, avoid, alternates)
+
+    if any(
+        k in lowered
+        for k in (
+            "3 day average",
+            "3-day average",
+            "rolling 3 day",
+            "micro risk",
+            "risk ignition",
+        )
+    ):
+        recommended = {
+            "cmd": "gt_micro_rolling",
+            "args": _compact_args({"window_days": 3}, compact=compact),
+        }
+        alternates.append({"cmd": "gt_rolling_backtest", "args": {"weeks": 8}})
+        return _route_result("gt_micro_rolling", recommended, avoid, alternates)
+
+    if any(
+        k in lowered
+        for k in (
+            "gt analysis",
+            "game theoretic",
+            "game-theoretic",
+            "strategic risk",
+            "early warning",
+            "risk heatmap",
+            "costly signal",
+            "gt rationale",
+        )
+    ):
+        region_hint = _gt_region_hint(raw)
+        if region_hint and any(k in lowered for k in ("dossier", "rationale", "scenario")):
+            recommended = {
+                "cmd": "gt_dossier",
+                "args": _compact_args({"region": region_hint}, compact=compact),
+            }
+            alternates.append({"cmd": "gt_risk_heatmap", "args": {}})
+            return _route_result("gt_dossier", recommended, avoid, alternates)
+        recommended = {
+            "cmd": "gt_analyze",
+            "args": _compact_args(
+                {"refresh": True, "region": region_hint} if region_hint else {"refresh": True},
+                compact=compact,
+            ),
+        }
+        alternates.append({"cmd": "gt_risk_heatmap", "args": {}})
+        return _route_result("gt_analyze", recommended, avoid, alternates)
 
     if lat is not None and lng is not None and any(
         k in lowered for k in ("near", "around", "within", "radius", "brief", "aoi")

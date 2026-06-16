@@ -267,6 +267,17 @@ class ShadowBrokerClient:
         Returns:
             {ok, tier, reason, transport, pending_commands, pending_tasks, stats}
         """
+        # /api/ai/channel/status is local-operator only. HMAC-signed remote
+        # agents must probe via the command channel instead.
+        if self._hmac_secret:
+            resp = await self.send_command("get_summary", {"compact": True})
+            return {
+                "ok": bool(resp.get("ok")),
+                "tier": resp.get("tier"),
+                "status": resp.get("status"),
+                "transport": "http+hmac",
+                "reason": "remote_hmac_probe",
+            }
         r = await self._get("/api/ai/channel/status")
         return r.json()
 
@@ -550,6 +561,123 @@ class ShadowBrokerClient:
         })
         r.raise_for_status()
         return r.json()
+
+    # ── Strategic Risk Analytics (game-theoretic early warning) ───────
+
+    async def gt_risk_heatmap(self) -> dict:
+        """Cached Bayesian risk heatmap (GeoJSON features + Louvain clusters)."""
+        return self.unwrap_channel_result(await self.send_command("gt_risk_heatmap", {}))
+
+    async def gt_dossier(self, region: str) -> dict:
+        """GT rationale, costly signals, and scenarios for a region."""
+        return self.unwrap_channel_result(
+            await self.send_command("gt_dossier", {"region": region}),
+        )
+
+    async def gt_analyze(
+        self,
+        *,
+        region: str = "",
+        refresh: bool = True,
+        feeds: list[dict] | None = None,
+    ) -> dict:
+        """Refresh GT beliefs from intel feeds and return heatmap/dossier."""
+        args: dict[str, Any] = {"refresh": refresh}
+        if region:
+            args["region"] = region
+        if feeds:
+            args["feeds"] = feeds
+        return self.unwrap_channel_result(await self.send_command("gt_analyze", args))
+
+    async def gt_backtest(
+        self,
+        *,
+        expanded: bool = True,
+        tune: bool = False,
+        target_confidence: float = 0.95,
+        alert_threshold: float | None = None,
+        include_cases: bool = False,
+    ) -> dict:
+        """Run labeled historical backtest; returns accuracy + Wilson 95% CI."""
+        args: dict[str, Any] = {
+            "expanded": expanded,
+            "tune": tune,
+            "target_confidence": target_confidence,
+            "include_cases": include_cases,
+            "compact": True,
+        }
+        if alert_threshold is not None:
+            args["alert_threshold"] = alert_threshold
+        return self.unwrap_channel_result(await self.send_command("gt_backtest", args))
+
+    async def gt_rolling_freeze(
+        self,
+        *,
+        week_id: str | None = None,
+        force: bool = False,
+    ) -> dict:
+        """Freeze current GT scores for the ISO week (operational validation)."""
+        args: dict[str, Any] = {"compact": True, "force": force}
+        if week_id:
+            args["week_id"] = week_id
+        return self.unwrap_channel_result(await self.send_command("gt_rolling_freeze", args))
+
+    async def gt_rolling_label(
+        self,
+        week_id: str,
+        *,
+        region: str = "",
+        label: str = "",
+        notes: str = "",
+        labels: list[dict] | None = None,
+    ) -> dict:
+        """Apply delayed outcome labels to a frozen operational week."""
+        args: dict[str, Any] = {"week_id": week_id}
+        if labels:
+            args["labels"] = labels
+        else:
+            args["region"] = region
+            args["label"] = label
+            args["notes"] = notes
+        return self.unwrap_channel_result(await self.send_command("gt_rolling_label", args))
+
+    async def gt_rolling_backtest(
+        self,
+        *,
+        weeks: int = 8,
+        target_confidence: float = 0.80,
+    ) -> dict:
+        """Rolling weekly operational accuracy trend (delayed labels)."""
+        return self.unwrap_channel_result(
+            await self.send_command(
+                "gt_rolling_backtest",
+                {
+                    "weeks": weeks,
+                    "target_confidence": target_confidence,
+                    "compact": True,
+                },
+            )
+        )
+
+    async def gt_top_alerts(self, *, limit: int = 8) -> dict:
+        """Ranked top GT risk regions with map coordinates."""
+        return self.unwrap_channel_result(
+            await self.send_command("gt_top_alerts", {"limit": limit, "compact": True})
+        )
+
+    async def gt_micro_rolling(
+        self,
+        *,
+        window_days: int = 3,
+        limit: int = 15,
+    ) -> dict:
+        """3-day rolling micro average — spot vs baseline, ignition regions."""
+        return self.unwrap_channel_result(
+            await self.send_command(
+                "gt_micro_rolling",
+                {"window_days": window_days, "limit": limit, "compact": True},
+            )
+        )
 
     # ── Geocoding ─────────────────────────────────────────────────────
 

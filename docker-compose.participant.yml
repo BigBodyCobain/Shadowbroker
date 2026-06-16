@@ -15,6 +15,8 @@ services:
       MESH_DM_PENDING_PER_SENDER_LIMIT: "8"
       MESH_DM_PERSIST_SPOOL: "true"
       WORMHOLE_STARTUP_DEADLINE_S: "90"
+      GT_ANALYTICS_ENABLED: "false"
+      GT_ANALYTICS_PROFILE: "lean"
     deploy:
       resources:
         limits:

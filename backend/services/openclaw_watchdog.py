@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 _lock = threading.Lock()
 _watches: dict[str, dict[str, Any]] = {}  # watch_id -> watch definition
 _fired: dict[str, float] = {}  # watch_id -> last fire timestamp (debounce)
+_seen_posts: dict[str, set[str]] = {}  # watch_id -> seen Telegram post ids/links
 _running = False
 _stop_event = threading.Event()
+
+_TELEGRAM_SEEN_MAX = 500
 
 # Minimum seconds between re-firing the same watch
 DEBOUNCE_S = 60.0
@@ -73,6 +76,7 @@ def remove_watch(watch_id: str) -> dict[str, Any]:
     with _lock:
         removed = _watches.pop(watch_id, None)
         _fired.pop(watch_id, None)
+        _seen_posts.pop(watch_id, None)
     if removed:
         return {"ok": True, "removed": removed}
     return {"ok": False, "detail": f"watch '{watch_id}' not found"}
@@ -90,6 +94,7 @@ def clear_watches() -> dict[str, Any]:
         count = len(_watches)
         _watches.clear()
         _fired.clear()
+        _seen_posts.clear()
     return {"ok": True, "cleared": count}
 
 
@@ -157,7 +162,9 @@ def _check_watch(watch: dict, fast: dict, slow: dict) -> dict[str, Any] | None:
     if wtype == "geofence":
         return _check_geofence(params, fast)
     if wtype == "keyword":
-        return _check_keyword(params, fast, slow)
+        return _check_keyword(watch["id"], params, fast, slow)
+    if wtype == "telegram_rhetoric":
+        return _check_telegram_rhetoric(watch["id"], params, slow)
     if wtype == "prediction_market":
         return _check_prediction_market(params, slow)
 
@@ -390,15 +397,41 @@ def _check_geofence(params: dict, fast: dict) -> dict | None:
     return None
 
 
-def _check_keyword(params: dict, fast: dict, slow: dict) -> dict | None:
-    """Alert when a keyword appears in news/GDELT."""
+def _telegram_post_id(post: dict[str, Any]) -> str:
+    return str(post.get("id") or post.get("link") or "").strip()
+
+
+def _mark_seen_posts(watch_id: str, post_ids: list[str]) -> None:
+    clean = [pid for pid in post_ids if pid]
+    if not clean:
+        return
+    with _lock:
+        seen = _seen_posts.setdefault(watch_id, set())
+        seen.update(clean)
+        if len(seen) > _TELEGRAM_SEEN_MAX:
+            _seen_posts[watch_id] = set(list(seen)[-_TELEGRAM_SEEN_MAX:])
+
+
+def _is_seen_post(watch_id: str, post_id: str) -> bool:
+    if not post_id:
+        return False
+    with _lock:
+        return post_id in _seen_posts.get(watch_id, set())
+
+
+def _check_keyword(watch_id: str, params: dict, fast: dict, slow: dict) -> dict | None:
+    """Alert when a keyword appears in news, GDELT, or Telegram OSINT."""
     keyword = str(params.get("keyword", "")).lower().strip()
     if not keyword:
         return None
 
-    matches = []
+    include_telegram = params.get("include_telegram", True)
+    if isinstance(include_telegram, str):
+        include_telegram = include_telegram.strip().lower() not in {"0", "false", "no", "off"}
 
-    # Check news articles
+    matches = []
+    new_telegram_ids: list[str] = []
+
     for article in slow.get("news", []):
         title = str(article.get("title", "") or "").lower()
         desc = str(article.get("description", "") or article.get("summary", "") or "").lower()
@@ -409,7 +442,6 @@ def _check_keyword(params: dict, fast: dict, slow: dict) -> dict | None:
                 "url": article.get("url") or article.get("link"),
             })
 
-    # Check GDELT
     for event in slow.get("gdelt", []):
         text = str(event.get("title", "") or event.get("sourceurl", "") or "").lower()
         if keyword in text:
@@ -419,12 +451,101 @@ def _check_keyword(params: dict, fast: dict, slow: dict) -> dict | None:
                 "url": event.get("sourceurl"),
             })
 
+    if include_telegram:
+        from services.telegram_osint_text import (
+            iter_telegram_posts,
+            keyword_matches_telegram_post,
+            telegram_post_match_entry,
+        )
+
+        for post in iter_telegram_posts(slow.get("telegram_osint")):
+            if not keyword_matches_telegram_post(post, keyword):
+                continue
+            post_id = _telegram_post_id(post)
+            if _is_seen_post(watch_id, post_id):
+                continue
+            entry = telegram_post_match_entry(post)
+            matches.append(entry)
+            if post_id:
+                new_telegram_ids.append(post_id)
+
     if matches:
+        if new_telegram_ids:
+            _mark_seen_posts(watch_id, new_telegram_ids)
+        sources = sorted({str(match.get("source") or "unknown") for match in matches})
         return {
-            "alert": f"Keyword '{keyword}' found in {len(matches)} articles",
+            "alert": f"Keyword '{keyword}' found in {len(matches)} items ({', '.join(sources)})",
             "data": {"keyword": keyword, "matches": matches[:10]},
         }
     return None
+
+
+def _check_telegram_rhetoric(watch_id: str, params: dict, slow: dict) -> dict | None:
+    """Alert on new high-risk Telegram OSINT posts (optionally keyword/channel filtered)."""
+    min_risk = int(params.get("min_risk_score", 7) or 7)
+    min_risk = max(1, min(min_risk, 10))
+
+    raw_keywords = params.get("keywords") or params.get("keyword") or []
+    if isinstance(raw_keywords, str):
+        raw_keywords = [part.strip() for part in raw_keywords.split(",") if part.strip()]
+    keywords = [str(item).lower().strip() for item in raw_keywords if str(item).strip()]
+
+    raw_channels = params.get("channels") or params.get("channel") or []
+    if isinstance(raw_channels, str):
+        raw_channels = [part.strip() for part in raw_channels.split(",") if part.strip()]
+    channels = [str(item).lower().strip().lstrip("@") for item in raw_channels if str(item).strip()]
+
+    from services.telegram_osint_text import (
+        iter_telegram_posts,
+        keyword_matches_telegram_post,
+        telegram_post_match_entry,
+    )
+
+    matches = []
+    new_post_ids: list[str] = []
+
+    for post in iter_telegram_posts(slow.get("telegram_osint")):
+        try:
+            risk = int(post.get("risk_score") or 0)
+        except (TypeError, ValueError):
+            risk = 0
+        if risk < min_risk:
+            continue
+
+        channel = str(post.get("channel") or "").lower().strip()
+        source = str(post.get("source") or "").lower().strip()
+        if channels and channel not in channels and not any(ch in source for ch in channels):
+            continue
+
+        if keywords and not any(keyword_matches_telegram_post(post, kw) for kw in keywords):
+            continue
+
+        post_id = _telegram_post_id(post)
+        if _is_seen_post(watch_id, post_id):
+            continue
+
+        entry = telegram_post_match_entry(post)
+        matches.append(entry)
+        if post_id:
+            new_post_ids.append(post_id)
+
+    if not matches:
+        return None
+
+    _mark_seen_posts(watch_id, new_post_ids)
+    top = max(int(match.get("risk_score") or 0) for match in matches)
+    return {
+        "alert": (
+            f"Telegram rhetoric alert: {len(matches)} new post(s) at LVL {top}/10"
+            + (f" (min {min_risk})" if min_risk > 1 else "")
+        ),
+        "data": {
+            "min_risk_score": min_risk,
+            "keywords": keywords,
+            "channels": channels,
+            "matches": matches[:10],
+        },
+    }
 
 
 def _check_prediction_market(params: dict, slow: dict) -> dict | None:

@@ -85,6 +85,18 @@ async def health_check(request: Request):
     ):
         top_status = "degraded"
 
+    runtime: dict = {}
+    try:
+        from services.runtime_profile import get_runtime_profile
+        from analytics.settings import gt_analytics_status
+
+        runtime = {
+            **get_runtime_profile(),
+            "gt_analytics": gt_analytics_status(),
+        }
+    except Exception:
+        runtime = {}
+
     return {
         "status": top_status,
         "version": _get_app_version(),
@@ -108,6 +120,7 @@ async def health_check(request: Request):
         "slo": slo_statuses,
         "slo_summary": slo_summary,
         "ais_proxy": ais_status,
+        "runtime": runtime or None,
     }
 
 

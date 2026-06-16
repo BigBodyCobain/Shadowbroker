@@ -966,6 +966,182 @@ export interface DashboardData {
     timestamp?: string | null;
     channels?: string[];
   };
+  gt_risk?: GTRiskPayload;
+}
+
+export interface GTRiskHeatmapFeature {
+  type: 'Feature';
+  properties: {
+    region: string;
+    risk: number;
+    financial?: number;
+    unrest?: number;
+    conflict?: number;
+    contagion?: number;
+    updates?: number;
+    risk_spot?: number;
+    risk_3d_avg?: number;
+    risk_delta?: number;
+    micro_ignition?: boolean;
+  };
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+}
+
+export interface GTRiskPayload {
+  enabled?: boolean;
+  timestamp?: string | null;
+  processed?: number;
+  meta?: {
+    tracked_regions?: number;
+    engine_regions?: number;
+    plotted_regions?: number;
+    max_regions?: number;
+  };
+  heatmap?: {
+    type: 'FeatureCollection';
+    features: GTRiskHeatmapFeature[];
+  };
+  clusters?: Array<{
+    cluster_id: number;
+    size: number;
+    mean_risk: number;
+    regions?: string[];
+    members?: string[];
+  }>;
+}
+
+export interface GtDossierSignalEntry {
+  timestamp: string;
+  domain: string;
+  signals: Record<string, number>;
+  strength: number;
+  posterior: number;
+  source: string;
+  deviation_score?: number;
+}
+
+export interface GtBacktestCaseResult {
+  case_id: string;
+  name: string;
+  kind: string;
+  correct: boolean;
+  alerted: boolean;
+  peak_domain_risk: number;
+  peak_composite_risk: number;
+  costly_signals: string[];
+}
+
+export interface GtBacktestReport {
+  enabled?: boolean;
+  total_cases: number;
+  correct: number;
+  accuracy: number;
+  confidence_rate: number;
+  wilson_lower_95: number;
+  wilson_upper_95: number;
+  true_positives: number;
+  true_negatives: number;
+  false_positives: number;
+  false_negatives: number;
+  sensitivity: number;
+  specificity: number;
+  alert_threshold: number;
+  target_confidence: number;
+  meets_target: boolean;
+  expanded_suite?: boolean;
+  tuned?: boolean;
+  recommended_alert_threshold?: number;
+  cases?: GtBacktestCaseResult[];
+}
+
+export interface GtRollingWeekScore {
+  week_id: string;
+  frozen_at?: string;
+  alert_threshold: number;
+  total_regions: number;
+  labeled: number;
+  pending: number;
+  alerted: number;
+  correct: number;
+  accuracy: number;
+  confidence_rate: number;
+  wilson_lower_95: number;
+  wilson_upper_95: number;
+  true_positives: number;
+  true_negatives: number;
+  false_positives: number;
+  false_negatives: number;
+  sensitivity: number;
+  specificity: number;
+  scorable: boolean;
+}
+
+export interface GtMicroRegionView {
+  region: string;
+  spot_risk: number;
+  risk_3d_avg: number;
+  risk_delta: number;
+  days_in_window: number;
+  day_scores: number[];
+  alerted_spot: boolean;
+  alerted_3d: boolean;
+  ignition: boolean;
+  financial: number;
+  unrest: number;
+  conflict: number;
+}
+
+export interface GtMicroRollingReport {
+  enabled?: boolean;
+  mode?: string;
+  window_days: number;
+  alert_threshold: number;
+  ignition_delta: number;
+  as_of: string;
+  days_stored: number;
+  regions_tracked: number;
+  ignition_count: number;
+  alerted_3d_count: number;
+  ignitions: GtMicroRegionView[];
+  top_regions: GtMicroRegionView[];
+  note?: string;
+  message?: string;
+}
+
+export interface GtRollingReport {
+  enabled?: boolean;
+  mode?: string;
+  alert_threshold: number;
+  target_confidence: number;
+  weeks_requested: number;
+  weeks_stored: number;
+  weeks_scorable: number;
+  min_labeled_per_week: number;
+  latest: GtRollingWeekScore | null;
+  trend: GtRollingWeekScore[];
+  accuracy_series: { week_id: string; accuracy: number; labeled: number }[];
+  improving_vs_prior: boolean;
+  meets_target: boolean;
+  note?: string;
+  message?: string;
+}
+
+export interface GtDossier {
+  enabled?: boolean;
+  region: string;
+  current_risk: number;
+  domain_risks?: {
+    financial?: number;
+    unrest?: number;
+    conflict?: number;
+  };
+  recent_signals?: GtDossierSignalEntry[];
+  contagion_risk?: number;
+  interpretation?: string;
+  scenarios?: Array<{ name: string; summary: string }>;
 }
 
 export interface TelegramOsintPost {
@@ -1125,6 +1301,7 @@ export interface ActiveLayers {
   scm_suppliers: boolean;
   cyber_threats: boolean;
   telegram_osint: boolean;
+  gt_risk: boolean;
 }
 
 export interface SelectedEntity {

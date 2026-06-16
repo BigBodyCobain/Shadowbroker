@@ -97,6 +97,7 @@ _SLOW_KEYS = (
     "cyber_threats",
     "scm_suppliers",
     "telegram_osint",
+    "gt_risk",
 )
 
 
@@ -210,6 +211,9 @@ _LAYER_ALIASES = {
     "telegram": "telegram_osint",
     "telegram_osint": "telegram_osint",
     "osint_feed": "telegram_osint",
+    "gt_risk": "gt_risk",
+    "strategic_risk": "gt_risk",
+    "gt_analytics": "gt_risk",
     "malware": "malware_threats",
     "malware_threats": "malware_threats",
     "malware_c2": "malware_threats",
