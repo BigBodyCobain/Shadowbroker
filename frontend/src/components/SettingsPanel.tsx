@@ -1184,7 +1184,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -300 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 w-[480px] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border-r border-cyan-900/50 z-[9999] flex flex-col shadow-[4px_0_40px_rgba(0,0,0,0.3)]"
+            className="fixed left-0 top-0 bottom-0 w-[480px] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border-r border-cyan-900/50 z-[9999] flex flex-col overflow-hidden shadow-[4px_0_40px_rgba(0,0,0,0.3)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-primary)]/80">
@@ -1362,51 +1362,51 @@ const SettingsPanel = React.memo(function SettingsPanel({
               </div>
             )}
 
-            <div className="flex border-b border-[var(--border-primary)]/60">
+            <div className="grid grid-cols-5 min-w-0 shrink-0 border-b border-[var(--border-primary)]/60">
               <button
                 onClick={() => setActiveTab('api-keys')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Key size={10} />
-                {t('settings.general').toUpperCase()}
+                <Key size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.general').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('news-feeds')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Rss size={10} />
-                {t('settings.feeds').toUpperCase()}
+                <Rss size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.feeds').toUpperCase()}</span>
                 {feedsDirty && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                  <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-orange-400 animate-pulse" />
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('sentinel')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Satellite size={10} />
-                SENTINEL
+                <Satellite size={10} className="shrink-0" />
+                <span className="truncate">SENTINEL</span>
               </button>
               <button
                 onClick={() => setActiveTab('sar')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Radar size={10} />
-                {t('settings.sar').toUpperCase()}
+                <Radar size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.sar').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('protocol')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Shield size={10} />
-                {t('settings.infonet').toUpperCase()}
+                <Shield size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.infonet').toUpperCase()}</span>
               </button>
             </div>
 
             {/* ==================== API KEYS TAB ==================== */}
             {/* ==================== MESH PROTOCOL TAB ==================== */}
             {activeTab === 'protocol' && (
-              <div className="flex-1 flex flex-col overflow-y-auto styled-scrollbar">
+              <div className="flex-1 min-h-0 flex flex-col overflow-y-auto styled-scrollbar">
                 <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/12">
                   <div className="flex items-center justify-between gap-3">
                     <div>
