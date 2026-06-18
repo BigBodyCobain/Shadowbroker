@@ -12,7 +12,7 @@ import { FitAddon } from '@xterm/addon-fit';
 
 import '@xterm/xterm/css/xterm.css';
 
-import { resolveAgentShellWsUrl } from '@/lib/agentShellWs';
+import { mintAgentShellWsToken, resolveAgentShellWsUrl } from '@/lib/agentShellWs';
 
 
 
@@ -302,11 +302,12 @@ export default function AgentShellPanel({ active, expanded, onExpandedChange }: 
 
 
 
-    const ws = new WebSocket(resolveAgentShellWsUrl(storedCwd));
+    void (async () => {
+      const wsToken = await mintAgentShellWsToken();
+      const ws = new WebSocket(resolveAgentShellWsUrl(storedCwd, wsToken ?? undefined));
+      ws.binaryType = 'arraybuffer';
 
-    ws.binaryType = 'arraybuffer';
-
-    wsRef.current = ws;
+      wsRef.current = ws;
 
 
 
@@ -423,7 +424,7 @@ export default function AgentShellPanel({ active, expanded, onExpandedChange }: 
       }
 
     });
-
+    })();
   }, []);
 
 

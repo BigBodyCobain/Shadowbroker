@@ -29,6 +29,7 @@ from services.agent_shell_settings import (
     get_agent_shell_settings,
     set_agent_shell_working_directory,
 )
+from services.agent_shell_ws_token import consume_agent_shell_ws_token, mint_agent_shell_ws_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agent-shell"])
@@ -43,32 +44,15 @@ def _set_winsize(fd: int, rows: int, cols: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
-def _published_local_dashboard_ws(ws: WebSocket) -> bool:
-    """Browser → published Docker port appears as a bridge IP, not loopback.
-
-    For the operator shell only, also accept when the upgrade request clearly
-    targets the local dashboard (Host/Origin on localhost).
-    """
-    host_header = str(ws.headers.get("host") or "").strip().lower()
-    host_name = host_header.split(":", 1)[0]
-    if host_name in {"127.0.0.1", "localhost", "::1"}:
-        return True
-
-    origin = str(ws.headers.get("origin") or "").strip().lower()
-    if origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:"):
-        return True
-    if origin.startswith("https://127.0.0.1:") or origin.startswith("https://localhost:"):
-        return True
-    return False
-
-
-async def _authorize_agent_shell_ws(ws: WebSocket, admin_key_query: str = "") -> None:
+async def _authorize_agent_shell_ws(
+    ws: WebSocket,
+    admin_key_query: str = "",
+    ws_token_query: str = "",
+) -> None:
     host = (ws.client.host or "").lower() if ws.client else ""
-    if (
-        _is_trusted_local_runtime_host(host)
-        or _published_local_dashboard_ws(ws)
-        or (_debug_mode_enabled() and host == "test")
-    ):
+    if _is_trusted_local_runtime_host(host) or (_debug_mode_enabled() and host == "test"):
+        return
+    if consume_agent_shell_ws_token(ws_token_query):
         return
     admin_key = _current_admin_key()
     presented = str(admin_key_query or ws.headers.get("x-admin-key", "") or "").strip()
@@ -142,6 +126,12 @@ async def read_agent_shell_settings() -> dict[str, Any]:
     return get_agent_shell_settings()
 
 
+@router.post("/api/agent-shell/ws-token", dependencies=[Depends(require_local_operator)])
+async def mint_agent_shell_ws_token_route() -> dict[str, Any]:
+    token, expires_in = mint_agent_shell_ws_token()
+    return {"token": token, "expires_in": expires_in}
+
+
 @router.put("/api/agent-shell/settings", dependencies=[Depends(require_local_operator)])
 async def write_agent_shell_settings(body: AgentShellSettingsUpdate) -> dict[str, Any]:
     try:
@@ -160,10 +150,11 @@ async def agent_shell_websocket(
     cols: int = Query(default=80),
     rows: int = Query(default=24),
     admin_key: str = Query(default=""),
+    ws_token: str = Query(default=""),
 ) -> None:
     await ws.accept()
     try:
-        await _authorize_agent_shell_ws(ws, admin_key)
+        await _authorize_agent_shell_ws(ws, admin_key, ws_token)
     except WebSocketDisconnect:
         return
 
