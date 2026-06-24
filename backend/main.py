@@ -8140,6 +8140,7 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "tripcheck.com",  # Oregon DOT / TripCheck
     "www.tripcheck.com",
     "infocar.dgt.es",  # Spain DGT
+    "etraffic.dgt.es",  # Spain DGT (etrafficWEB cameras host, 2026)
     "informo.madrid.es",  # Madrid
     "webcams2.asfinag.at",  # Austria ASFINAG motorway cameras
     "odo.asfinag.at",  # ASFINAG catalog API host
@@ -8336,14 +8337,14 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
             cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"},
         )
-    if host == "infocar.dgt.es":
+    if host in {"infocar.dgt.es", "etraffic.dgt.es"}:
         return _CCTVProxyProfile(
             name="dgt-spain",
             timeout=(5.0, 8.0),
             cache_seconds=60,
             headers={
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                "Referer": "https://infocar.dgt.es/",
+                "Referer": "https://etraffic.dgt.es/",
             },
         )
     if host == "informo.madrid.es":

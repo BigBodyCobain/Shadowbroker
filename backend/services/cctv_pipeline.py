@@ -1031,7 +1031,8 @@ out body;
 # ---------------------------------------------------------------------------
 # DGT Spain — National Road Cameras
 # ---------------------------------------------------------------------------
-# Image URL pattern confirmed working: infocar.dgt.es/etraffic/data/camaras/{id}.jpg
+# Image URL pattern confirmed working: etraffic.dgt.es/camarasEtraffic/{id}.jpg
+# (DGT migrated 2026: old infocar.dgt.es/etraffic/data/camaras path now 302->etrafficWEB)
 # Source: DGT (Dirección General de Tráfico) — public open data (Ley 37/2007).
 # Author credit: Alborz Nazari (github.com/AlborzNazari) — PR #91
 
@@ -1065,10 +1066,10 @@ class DGTNationalIngestor(BaseCCTVIngestor):
         cameras = []
         probe_headers = {
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            "Referer": "https://infocar.dgt.es/",
+            "Referer": "https://etraffic.dgt.es/",
         }
         for cam_id, lat, lon, description in self.KNOWN_CAMERAS:
-            media_url = f"https://infocar.dgt.es/etraffic/data/camaras/{cam_id}.jpg"
+            media_url = f"https://etraffic.dgt.es/camarasEtraffic/{cam_id}.jpg"
             if not _media_url_reachable(media_url, timeout=6, headers=probe_headers):
                 continue
             cameras.append({
