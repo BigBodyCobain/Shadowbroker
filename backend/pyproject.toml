@@ -15,7 +15,7 @@ dependencies = [
     "cachetools==5.5.2",
     "cryptography>=46.0.7",
     "defusedxml>=0.7.1",
-    "fastapi==0.136.3",
+    "fastapi==0.138.0",
     "feedparser==6.0.10",
     "httpx==0.28.1",
     "playwright==1.59.0",
