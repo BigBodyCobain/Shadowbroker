@@ -5,6 +5,7 @@ import { Loader2, Minus, Network, Plus, X } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 import { isEntityGraphEligible, mapEntityToGraphType } from '@/lib/entityGraph';
 import type { SelectedEntity } from '@/types/dashboard';
+import BusinessIntelGraph from '@/components/BusinessIntelGraph';
 
 interface GraphNode {
   id: string;
@@ -23,17 +24,6 @@ interface Props {
   entity: SelectedEntity | null;
   onClose: () => void;
 }
-
-const TYPE_COLORS: Record<string, string> = {
-  aircraft: 'text-cyan-300',
-  vessel: 'text-cyan-400',
-  company: 'text-amber-300',
-  person: 'text-violet-300',
-  country: 'text-emerald-300',
-  sanction: 'text-red-300',
-  ip: 'text-orange-300',
-  event: 'text-yellow-300',
-};
 
 export default function EntityGraphPanel({ entity, onClose }: Props) {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -80,7 +70,7 @@ export default function EntityGraphPanel({ entity, onClose }: Props) {
   if (!entity || !isEntityGraphEligible(entity)) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[250] w-80 max-h-[50vh] pointer-events-auto flex flex-col border border-cyan-700/40 bg-black/85 backdrop-blur-sm shadow-[0_0_24px_rgba(34,211,238,0.12)]">
+    <div className="fixed bottom-4 right-4 z-[250] w-[520px] max-w-[calc(100vw-2rem)] max-h-[62vh] pointer-events-auto flex flex-col border border-cyan-700/40 bg-black/85 backdrop-blur-sm shadow-[0_0_24px_rgba(34,211,238,0.12)]">
       <div
         className="flex items-center justify-between border-b border-cyan-700/30 bg-cyan-950/25 px-3 py-2.5 cursor-pointer hover:bg-cyan-950/40 transition-colors"
         onClick={() => setIsMinimized((prev) => !prev)}
@@ -131,32 +121,11 @@ export default function EntityGraphPanel({ entity, onClose }: Props) {
           )}
 
           {!loading && !error && (
-            <>
-              <div className="space-y-1">
-                {nodes.map((n) => (
-                  <div
-                    key={n.id}
-                    className="border border-cyan-900/40 bg-black/50 px-2 py-1.5"
-                  >
-                    <div className={`text-[9px] font-mono tracking-[0.2em] uppercase opacity-70 ${TYPE_COLORS[n.type] || 'text-cyan-500'}`}>
-                      {n.type}
-                    </div>
-                    <div className="text-[11px] font-mono text-cyan-200 leading-snug">{n.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {links.length > 0 && (
-                <div className="border-t border-cyan-900/40 pt-2">
-                  <div className="text-[10px] font-mono tracking-[0.2em] text-cyan-600 mb-1">RELATIONSHIPS</div>
-                  {links.slice(0, 24).map((l, i) => (
-                    <div key={`${l.source}-${l.target}-${i}`} className="text-[10px] font-mono text-cyan-500/90 truncate leading-relaxed">
-                      {l.label}: {l.source.split(':').pop()} → {l.target.split(':').pop()}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <BusinessIntelGraph
+              nodes={nodes}
+              links={links.map((link) => ({ ...link, weight: 2 }))}
+              height={320}
+            />
           )}
         </div>
       )}

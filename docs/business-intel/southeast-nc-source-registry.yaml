@@ -1,0 +1,690 @@
+version: 1
+name: southeast-nc-local-intel
+updated: 2026-07-08
+
+default_policy:
+  visibility: private_tailnet_only
+  raw_retention_days: 30
+  normalized_retention_days: 1095
+  pii_minimization: true
+  require_terms_review: true
+  no_public_redistribution_without_review: true
+
+jurisdictions:
+  - id: nc-new-hanover-wilmington
+    name: New Hanover County / Wilmington
+    state: NC
+    priority: 1
+    service_area:
+      bbox: [-78.0366, 33.9261, -77.7106, 34.3902]
+      focus_places:
+        - Wilmington
+        - Ogden
+        - Porters Neck
+        - Wrightsboro
+        - Castle Hayne
+        - Carolina Beach
+        - Kure Beach
+        - Wrightsville Beach
+    notes:
+      - City of Wilmington building permits are issued by New Hanover County.
+      - New Hanover County open-data pages point to a public REST service directory and an open-data hub.
+      - The BuildingPermits FeatureServer is public, query-only, and described as refreshed monthly.
+    sources:
+      - id: nhc-building-permits-current-year
+        name: New Hanover County BuildingPermits
+        category: permits
+        access_method: arcgis_feature_server
+        url: https://gis.nhcgov.com/server/rest/services/Thematic/BuildingPermits/FeatureServer
+        item_url: https://opendata.nhcgov.com/maps/b84f1cf36cf440efb66ef14e8d93ea06
+        item_id: b84f1cf36cf440efb66ef14e8d93ea06
+        enabled: true
+        cadence: monthly
+        terms_url: https://www.nhcgov.com/1169/Find-Download-Data
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: New Hanover County building permitting and inspections records
+        raw_retention_days: 30
+        supported_export_formats:
+          - sqlite
+          - filegdb
+          - shapefile
+          - csv
+          - geojson
+        layers:
+          - id: 0
+            name: Building Permits
+            geometry: point
+          - id: 1
+            name: Building Plans
+            geometry: polygon
+          - id: 4
+            name: Parcels
+            geometry: polygon
+        normalized_objects:
+          - permit
+          - address
+          - parcel
+          - entity
+          - project_signal
+        lead_categories:
+          - pool
+          - fence
+          - new_build
+          - remodel
+          - addition
+          - roofing
+          - exterior_project
+        field_map:
+          permit_id: PMPERMITID
+          permit_number: PERMIT_NUMBER
+          permit_type: PERMIT_TYPE
+          work_class: WORK_CLASS
+          status: PERMIT_STATUS
+          applied_at: APPLICATION_DATE
+          issued_at: ISSUE_DATE
+          last_inspection_at: LAST_INSPECTION_DATE
+          finaled_at: FINALED_DATE
+          expires_at: EXPIRATION_DATE
+          description: DESCRIPTION
+          project: PROJECT
+          square_feet: SQUARE_FEET
+          valuation: VALUATION
+          contractor: GENERAL_CONTRACTOR
+          contact: PROJECT_CONTACT
+          city: CITY
+          state: STATE
+          zip: ZIPCODE
+          parcel_id: PID
+          latitude: Lat
+          longitude: Lon
+
+      - id: nhc-parcels
+        name: New Hanover County Parcels
+        category: parcels
+        access_method: arcgis_feature_server
+        url: https://gis.nhcgov.com/server/rest/services/Layers/Parcels/FeatureServer
+        item_url: https://opendata.nhcgov.com/datasets/aef2fe275af24317bc262628cbbd77ec
+        item_id: aef2fe275af24317bc262628cbbd77ec
+        enabled: true
+        cadence: weekly
+        terms_url: https://www.nhcgov.com/1169/Find-Download-Data
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: New Hanover County GIS
+        raw_retention_days: 14
+        notes:
+          - Open-data snippet says parcel polygons do not convey individual owner information.
+        normalized_objects:
+          - parcel
+        field_map:
+          parcel_id: PID
+          pin: PIN
+          map_id: MAPID
+          map_id_key: MAPIDKEY
+          acres: ACRES
+
+      - id: nhc-development-activity
+        name: New Hanover County DevelopmentActivity
+        category: planning_development
+        access_method: arcgis_feature_server
+        url: https://gis.nhcgov.com/server/rest/services/Thematic/DevelopmentActivity/FeatureServer
+        item_url: https://opendata.nhcgov.com/datasets/838ac3126f204997a96e8194ae71582a
+        item_id: 838ac3126f204997a96e8194ae71582a
+        enabled: true
+        cadence: weekly
+        terms_url: https://www.nhcgov.com/1169/Find-Download-Data
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: New Hanover County GIS
+        raw_retention_days: 30
+        normalized_objects:
+          - project_signal
+          - parcel
+          - jurisdiction
+
+      - id: wilmington-building-permit-routing
+        name: Wilmington Building Permit Routing
+        category: permit_reference
+        access_method: official_reference_page
+        url: https://www.wilmingtonnc.gov/Development-Business/Zoning/Building-Permits
+        enabled: true
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: reference_only
+        attribution: City of Wilmington / New Hanover County
+        notes:
+          - Wilmington states that New Hanover County issues all building permits within city limits.
+          - Use this source as routing/evidence, not as a data feed.
+
+  - id: nc-carolina-beach-wrightsville-beach
+    name: Carolina Beach / Wrightsville Beach
+    state: NC
+    priority: 0
+    service_area:
+      bbox: [-77.96, 34.02, -77.73, 34.26]
+      focus_places:
+        - Carolina Beach
+        - Kure Beach
+        - Wrightsville Beach
+        - Masonboro Island vicinity
+        - Snow's Cut
+        - Pleasure Island
+    homeoffice_context:
+      base_area: Carolina Beach
+      exact_address: local_private_only
+      private_note_path: .local-docs/business-intel/private-homeoffice.md
+    notes:
+      - Homeoffice computer and TV dashboard are based in Carolina Beach.
+      - Carolina Beach states that New Hanover County Building Safety issues residential/commercial building permits and trade permits in town.
+      - Carolina Beach town permits include residential fence, driveway/hardscaping, fill/grade/clear, small accessory structures, fire permits, business registration, sidewalk cafe, vending/beach services, and temporary signs.
+      - Carolina Beach publishes an active/under-construction Development Permits map backed by Cityworks FeatureServer layers.
+      - Wrightsville Beach says it maps active permits daily by calendar year and publishes a permit map through Google My Maps/KML.
+      - Coastal permits, CAMA, docks, bulkheads, flood requirements, stormwater, and elevation/renovation work are unusually important in these beach markets.
+    sources:
+      - id: carolina-beach-building-zoning-permits-page
+        name: Carolina Beach Building & Zoning Permits
+        category: permit_reference
+        access_method: official_reference_page
+        url: https://www.carolinabeach.gov/256/Building-Zoning-Permits
+        enabled: true
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: reference_only
+        attribution: Town of Carolina Beach / New Hanover County Building Safety
+        notes:
+          - Official page states NHC Building Safety issues residential/commercial building permits and trade permits for Carolina Beach.
+          - Official page lists town permits that can be submitted through the Carolina Beach online permitting portal.
+
+      - id: carolina-beach-apply-permit-page
+        name: Carolina Beach Apply for a Permit
+        category: permit_reference
+        access_method: official_reference_page
+        url: https://www.carolinabeach.gov/257/Apply-for-a-Permit
+        enabled: true
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: reference_only
+        attribution: Town of Carolina Beach
+        notes:
+          - Building permits route through New Hanover County COAST.
+          - Other town permits route through the Town of Carolina Beach online permitting portal.
+
+      - id: carolina-beach-online-permitting-portal
+        name: Carolina Beach Online Permitting Portal
+        category: permits_reference
+        access_method: official_portal
+        url: https://cw.carolinabeach.org/
+        reference_url: https://www.carolinabeach.gov/174/Online-Permitting-Portal
+        enabled: false
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Town of Carolina Beach
+        notes:
+          - Portal supports permit applications, document upload, status checks, and fee payments.
+          - Do not automate credentialed portal access until terms and authorization are reviewed.
+
+      - id: carolina-beach-development-permits-map
+        name: Carolina Beach Development Permits Map
+        category: permits
+        access_method: arcgis_webmap_cityworks_layers
+        app_url: https://arcg.is/1O4SPm2
+        webmap_id: 7c60f9b144844184a93d83c4cc0ef966
+        app_id: 7eae6835c07c483c87c294f7afd3d935
+        enabled: true
+        cadence: daily
+        terms_url: https://www.carolinabeach.gov/256/Building-Zoning-Permits
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Town of Carolina Beach Development Permits Map / Cityworks
+        raw_retention_days: 30
+        notes:
+          - Map splash text says it shows active/under-construction development permits for general informational purposes.
+          - Use public map layers for local internal lead scoring; review terms before external redistribution.
+        normalized_objects:
+          - permit
+          - address
+          - entity
+          - project_signal
+        common_field_map:
+          permit_object_id: CA_OBJECT_ID
+          contractor_business: BUSINESS_NAME
+          permit_number: CASE_NUMBER
+          permit_type: CASE_TYPE
+          permit_type_description: CASE_TYPE_DESC
+          subtype: SUB_TYPE
+          subtype_description: SUB_TYPE_DESC
+          permit_tag: CASE_NAME
+          address: Location
+          status: CASE_STATUS
+          accepted_at: DATE_ACCEPTED
+          entered_at: DATE_ENTERED
+          project_code: PROJECT_CODE
+          description: PROJECT_DESC
+          x: CX
+          y: CY
+        layers:
+          - id: cb-residential-fence-permits
+            title: Residential Fence Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1042/rest/services/cw/FeatureServer/5
+            lead_categories: [fence, pool_followup, exterior_project]
+          - id: cb-residential-swimming-pool-permits
+            title: Residential Swimming Pool Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1045/rest/services/cw/FeatureServer/5
+            lead_categories: [pool, fence, landscaping, drainage, lighting]
+          - id: cb-residential-driveway-hardscaping-permits
+            title: Residential Driveway/Hardscaping Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1044/rest/services/cw/FeatureServer/5
+            lead_categories: [hardscape, drainage, exterior_project]
+          - id: cb-residential-fill-grade-clear-permits
+            title: Residential Fill/Grade/Clear Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1053/rest/services/cw/FeatureServer/5
+            lead_categories: [sitework, drainage, new_home, exterior_project]
+          - id: cb-residential-accessory-structure-permits
+            title: Residential Accessory Structure Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1046/rest/services/cw/FeatureServer/5
+            lead_categories: [accessory_structure, fence, hardscape]
+          - id: cb-residential-new-construction-permits
+            title: Residential New Construction Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/627/rest/services/cw/featureserver/5
+            lead_categories: [new_home, move_in_services, fence, landscaping, security]
+          - id: cb-residential-addition-permits
+            title: Residential Addition Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/629/rest/services/cw/featureserver/5
+            lead_categories: [addition, exterior_project, drainage]
+          - id: cb-residential-renovation-repair-permits
+            title: Residential Renovation/Repair Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/628/rest/services/cw/featureserver/5
+            lead_categories: [remodel, storm_response, exterior_project]
+          - id: cb-commercial-fence-permits
+            title: Commercial Fence Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1047/rest/services/cw/FeatureServer/5
+            lead_categories: [commercial_fence, security, exterior_project]
+          - id: cb-commercial-pool-permits
+            title: Commercial Pool Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/1050/rest/services/cw/FeatureServer/5
+            lead_categories: [pool, commercial_services, fence]
+          - id: cb-commercial-new-construction-permits
+            title: Commercial New Construction Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/626/rest/services/cw/featureserver/5
+            lead_categories: [commercial_new_build, vendor_opportunity]
+          - id: cb-commercial-alteration-addition-permits
+            title: Commercial Alteration/Addition Permits
+            url: https://cw.carolinabeach.org/Cityworks/gis/1/631/rest/services/cw/featureserver/5
+            lead_categories: [commercial_remodel, vendor_opportunity]
+
+      - id: carolina-beach-parcels
+        name: Carolina Beach Parcels
+        category: parcels
+        access_method: arcgis_map_server_layer
+        url: https://cw.carolinabeach.org/arcgis/rest/services/GISViewer/CB_Parcels/MapServer/0
+        enabled: true
+        cadence: weekly
+        terms_url: https://www.carolinabeach.gov/256/Building-Zoning-Permits
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Town of Carolina Beach GIS
+        raw_retention_days: 14
+        normalized_objects:
+          - parcel
+          - address
+        notes:
+          - Use for local join/context around the town permit layers.
+
+      - id: wrightsville-beach-planning-inspections
+        name: Wrightsville Beach Planning & Inspections
+        category: permit_reference
+        access_method: official_reference_page
+        url: https://www.townofwrightsvillebeach.com/189/Planning-Inspections
+        enabled: true
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: reference_only
+        attribution: Town of Wrightsville Beach
+        notes:
+          - Page lists municipal planning/permitting, zoning permits, CAMA minor permits, building inspections, building permits, code enforcement, and conditional use permits.
+
+      - id: wrightsville-beach-permit-map-kml
+        name: Wrightsville Beach Permit Map
+        category: permits
+        access_method: google_my_maps_kml
+        url: https://www.google.com/maps/d/kml?mid=11_OxrBl-obbqGnHsWvSbVyoLBC8&forcekml=1
+        viewer_url: https://www.google.com/maps/d/viewer?mid=11_OxrBl-obbqGnHsWvSbVyoLBC8
+        reference_url: https://www.townofwrightsvillebeach.com/faq.aspx?TID=33
+        enabled: true
+        cadence: daily
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Town of Wrightsville Beach Permit Map / Google My Maps
+        raw_retention_days: 30
+        normalized_objects:
+          - permit
+          - address
+          - project_signal
+        field_map:
+          permit_number: Placemark.name
+          address: ExtendedData.Address
+          approved_at: ExtendedData.Approval_Date
+          status: ExtendedData.Status
+          permit_type: ExtendedData.Permit_Type
+          description: ExtendedData.Project_Description
+          final_inspection_at: ExtendedData.Final_Inspection_Date
+          longitude_latitude: Placemark.Point.coordinates
+        notes:
+          - Wrightsville Beach FAQ says the town maps all active permits daily and uses the map for permit-status checking.
+          - KML currently contains historical folders and permit placemarks; importer should filter current-year/active records first.
+
+      - id: wrightsville-beach-building-permit-form
+        name: Wrightsville Beach Building Permit Form
+        category: permit_reference
+        access_method: official_form_page
+        url: https://www.townofwrightsvillebeach.com/FormCenter/Planning-Inspections-Department-6/Apply-for-a-Building-Permit-55
+        enabled: true
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: reference_only
+        attribution: Town of Wrightsville Beach
+        notes:
+          - Form page says the building permit application covers building, demolition, plumbing, irrigation, piers/docks/bulkheads, and signs.
+          - Do not automate form submission or reCAPTCHA-protected workflows.
+
+  - id: nc-brunswick-leland
+    name: Brunswick County / Leland
+    state: NC
+    priority: 1
+    service_area:
+      bbox: [-78.6543, 33.8433, -77.9272, 34.3742]
+      focus_places:
+        - Leland
+        - Belville
+        - Navassa
+        - Southport
+        - Oak Island
+        - Shallotte
+        - Bolivia
+    notes:
+      - Brunswick County open-data portal exposes public permit and parcel GIS layers.
+      - Leland publishes useful GIS maps but states its data may not be copied, sold, or redistributed without prior written consent. Treat Leland town GIS as internal-reference only until terms are reviewed.
+    sources:
+      - id: brunswick-permit-locations
+        name: Brunswick County Permit Locations
+        category: permits
+        access_method: arcgis_feature_server
+        url: https://services1.arcgis.com/W6gamXPYQeLXrdAd/arcgis/rest/services/Permit_Locations/FeatureServer
+        item_url: https://data-brunsco.opendata.arcgis.com/datasets/ffa7fd8c10ae4616b9d87d6beb9bfe35
+        item_id: ffa7fd8c10ae4616b9d87d6beb9bfe35
+        enabled: true
+        cadence: daily
+        terms_url: https://www.brunswickcountync.gov/321/Data-Download
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Brunswick County GIS / Code Administration
+        raw_retention_days: 30
+        normalized_objects:
+          - permit
+          - address
+          - parcel
+          - entity
+          - project_signal
+        lead_categories:
+          - pool
+          - fence
+          - new_build
+          - remodel
+          - addition
+          - roofing
+          - exterior_project
+          - move_in_services
+        field_map:
+          project_number: ProjectNumber
+          permit_number: PermitNumber
+          project_type: ProjectType
+          project_category: ProjectCategory
+          project_status: PemitProjectStatus
+          permit_type: PermitType
+          permit_status: PermitStatus
+          description: Description
+          contractor: SubContractor
+          permit_amount: PermitAmount
+          jurisdiction: Jurisdiction
+          address: ParcelAddress
+          parcel_id: ParcelID
+          estimated_retail_value: EstimatedRetailValue
+          permit_month: PermitMonth
+          permit_year: PermitYear
+          issued_at: DateIssued
+
+      - id: brunswick-monthly-permit-locations
+        name: Brunswick County Monthly Permit Locations
+        category: permits_delta
+        access_method: arcgis_feature_server
+        url: https://services1.arcgis.com/W6gamXPYQeLXrdAd/arcgis/rest/services/Monthly_Permit_Locations/FeatureServer
+        item_url: https://data-brunsco.opendata.arcgis.com/datasets/0635c1c1a30b41b1b4c7790a76c03b85
+        item_id: 0635c1c1a30b41b1b4c7790a76c03b85
+        enabled: true
+        cadence: monthly
+        terms_url: https://www.brunswickcountync.gov/321/Data-Download
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Brunswick County GIS / Code Administration
+        raw_retention_days: 30
+        notes:
+          - Open-data snippet describes this as permit data reflecting changes effective in the previous month.
+        normalized_objects:
+          - permit
+          - project_signal
+        field_map:
+          project_number: ProjectNumber
+          permit_number: PermitNumber
+          project_type: ProjectType
+          project_category: ProjectCategory
+          project_status: PermitProjectStatus
+          permit_type: PermitType
+          permit_status: PermitStatus
+          description: Description
+          contractor: SubContractor
+          permit_amount: PermitAmount
+          jurisdiction: Jurisdiction
+          address: ParcelAddress
+          parcel_id: ParcelID
+          estimated_retail_value: EstimatedRetailValue
+          permit_month: PermitMonth
+          permit_year: PermitYear
+          issued_at: DateIssued
+
+      - id: brunswick-tax-parcels
+        name: Brunswick County Tax Parcels
+        category: parcels
+        access_method: arcgis_map_server_layer
+        url: https://bcgis.brunswickcountync.gov/arcgis/rest/services/Layers/TaxParcels/MapServer/0
+        item_url: https://data-brunsco.opendata.arcgis.com/datasets/4a04aa4d7323464bb539f87c61544264
+        item_id: 4a04aa4d7323464bb539f87c61544264
+        enabled: true
+        cadence: weekly
+        terms_url: https://www.brunswickcountync.gov/321/Data-Download
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Brunswick County GIS
+        raw_retention_days: 14
+        pii_minimization: strict
+        notes:
+          - Layer includes owner/mailing fields. Store only parcel geometry and non-sensitive scoring fields unless an active workflow requires owner data.
+        normalized_objects:
+          - parcel
+          - address
+        field_map:
+          parcel_number: ParcelNumber
+          pin: PIN
+          acreage_calc: CALCAC
+          deed_acreage: DeedAcreage
+          tax_year: TaxYear
+          legal_description: LegalDescription
+          owner_name_1: Name1
+          owner_name_2: Name2
+          mailing_address_1: Address1
+          city: City
+          state: State
+          zip: ZipCode
+          neighborhood: Neighborhood
+          site_house_number: HouseNumber
+          site_street_name: StreetName
+          site_street_type: StreetType
+          zoning: Zoning
+          use_code: UseCode
+          actual_year_built: ActualYearBuilt
+          deed_date: DeedDate
+
+      - id: brunswick-parcel-values-2024
+        name: Brunswick County Parcel Values 2024
+        category: parcel_values
+        access_method: arcgis_feature_server
+        url: https://services1.arcgis.com/W6gamXPYQeLXrdAd/arcgis/rest/services/Parcel_Values_2023/FeatureServer
+        item_url: https://data-brunsco.opendata.arcgis.com/datasets/11f7c05ca1414330bbfe49dd2a5f6687
+        item_id: 11f7c05ca1414330bbfe49dd2a5f6687
+        enabled: true
+        cadence: annual
+        terms_url: https://www.brunswickcountync.gov/321/Data-Download
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Brunswick County Tax Office
+        raw_retention_days: 14
+        notes:
+          - Source title is Parcel Values 2024; service name still contains Parcel_Values_2023.
+          - Open-data description says values are market values as of January 1, 2024 and may change.
+        normalized_objects:
+          - parcel
+          - project_signal
+
+      - id: leland-permit-portal
+        name: Town of Leland Permits & Inspections Portal
+        category: permits_reference
+        access_method: official_portal
+        url: https://evolve-public.infovisionsoftware.com/leland/
+        reference_url: https://www.townofleland.com/planning-inspections/permitting-inspections
+        enabled: false
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Town of Leland
+        notes:
+          - Portal requires an account. Do not automate credentialed access until terms and authorization are reviewed.
+          - Use as manual verification for Leland-specific permit details.
+
+      - id: leland-gis-maps
+        name: Town of Leland Online Maps and GIS
+        category: gis_reference
+        access_method: official_reference_page
+        url: https://www.townofleland.com/planning-inspections/online-maps-and-gis
+        enabled: false
+        cadence: manual_review
+        terms_reviewed: false
+        commercial_use: internal_reference_only
+        attribution: Town of Leland GIS
+        restrictions:
+          - The town page states the recipient may not copy, sell, or otherwise redistribute data without prior written consent.
+        useful_maps:
+          - Development Activity
+          - Zoning Map
+          - Land Characteristics
+          - Town Limits
+          - Active Stormwater Permits
+          - Future Land Use
+        notes:
+          - Do not ingest bulk Leland GIS layers until terms are reviewed or permission is obtained.
+
+source_priorities:
+  mvp:
+    - carolina-beach-development-permits-map
+    - carolina-beach-parcels
+    - wrightsville-beach-permit-map-kml
+    - nhc-building-permits-current-year
+    - nhc-parcels
+    - brunswick-permit-locations
+    - brunswick-tax-parcels
+  second_wave:
+    - carolina-beach-online-permitting-portal
+    - wrightsville-beach-planning-inspections
+    - nhc-development-activity
+    - brunswick-monthly-permit-locations
+    - brunswick-parcel-values-2024
+    - leland-permit-portal
+    - leland-gis-maps
+
+lead_taxonomy:
+  pool:
+    match_fields:
+      - permit_type
+      - work_class
+      - description
+      - project_type
+      - project_category
+    keywords:
+      - pool
+      - swimming
+      - spa
+      - barrier
+      - pool electrical
+      - pool plumbing
+    implied_followups:
+      - fence
+      - gate
+      - landscaping
+      - drainage
+      - lighting
+      - maintenance
+      - coastal_compliance
+  fence:
+    keywords:
+      - fence
+      - barrier
+      - gate
+      - wall
+      - pool
+      - new residential
+      - single family
+    implied_followups:
+      - quote
+      - measurement
+      - route_visit
+  new_home:
+    keywords:
+      - new residential
+      - single family
+      - certificate of occupancy
+      - building plans
+      - new construction
+    implied_followups:
+      - move_in_services
+      - fence
+      - landscaping
+      - security
+  remodel_addition:
+    keywords:
+      - addition
+      - remodel
+      - renovation
+      - deck
+      - patio
+      - porch
+      - accessory structure
+    implied_followups:
+      - exterior_project
+      - cleanup
+      - drainage
+      - flood_elevation_review
+  coastal_docks_bulkheads:
+    keywords:
+      - dock
+      - bulkhead
+      - pier
+      - boatlift
+      - cama
+      - waterfront
+      - piling
+      - seawall
+    implied_followups:
+      - marine_contractor
+      - drainage
+      - inspection_followup
+      - coastal_compliance

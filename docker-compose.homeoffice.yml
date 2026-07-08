@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    environment:
+      # Homeoffice dashboard mode: private/local by default.
+      MESH_ARTI_ENABLED: "false"
+      MESH_INFONET_FLEET_JOIN: "false"
+      MESH_INFONET_FLEET_JOIN_DISABLED: "true"
+      MESH_INFONET_ALLOW_CLEARNET_SYNC: "false"
+      MESH_INFONET_RELAY_AUTO_WORMHOLE: "false"
+      MESH_INFONET_RELAY_AUTO_WORMHOLE_DISABLED: "true"
+      MESH_BOOTSTRAP_DISABLED: "true"
+      MESH_BOOTSTRAP_SEED_PEERS: ""
+      MESH_DEFAULT_SYNC_PEERS: ""
+      MESH_RELAY_PEERS: ""
+      MESH_PUBLIC_PEER_URL: ""
+      MESH_MQTT_ENABLED: "false"
+      MESH_NODE_MODE: "perimeter"
+      MESH_SECURE_STORAGE_SECRET: "${MESH_SECURE_STORAGE_SECRET}"
+      MESH_DM_TOKEN_PEPPER: "${MESH_DM_TOKEN_PEPPER}"
+
+  frontend:
+    build:
+      context: ./frontend

@@ -10,6 +10,10 @@ import NewsFeed from '@/components/NewsFeed';
 import MarketsPanel from '@/components/MarketsPanel';
 import FilterPanel from '@/components/FilterPanel';
 import FindLocateBar from '@/components/FindLocateBar';
+import LocalIntelPanel from '@/components/LocalIntelPanel';
+import LocalPermitsPanel from '@/components/LocalPermitsPanel';
+import MarketIntelPanel from '@/components/MarketIntelPanel';
+import BusinessIntelPanel from '@/components/BusinessIntelPanel';
 import TopRightControls from '@/components/TopRightControls';
 import TimelinePanel from '@/components/TimelinePanel';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -759,6 +763,30 @@ export default function Dashboard() {
                   }}
                 />
               </div>
+
+              {secondaryBootReady && !rightFocusedPanel && (
+                <ErrorBoundary name="LocalIntelPanel">
+                  <LocalIntelPanel onFlyTo={handleFlyTo} />
+                </ErrorBoundary>
+              )}
+
+              {secondaryBootReady && !rightFocusedPanel && (
+                <ErrorBoundary name="LocalPermitsPanel">
+                  <LocalPermitsPanel onFlyTo={handleFlyTo} />
+                </ErrorBoundary>
+              )}
+
+              {secondaryBootReady && !rightFocusedPanel && (
+                <ErrorBoundary name="MarketIntelPanel">
+                  <MarketIntelPanel onFlyTo={handleFlyTo} />
+                </ErrorBoundary>
+              )}
+
+              {secondaryBootReady && !rightFocusedPanel && (
+                <ErrorBoundary name="BusinessIntelPanel">
+                  <BusinessIntelPanel onFlyTo={handleFlyTo} />
+                </ErrorBoundary>
+              )}
 
               {/* GLOBAL TICKER REPLACES MARKETS PANEL - RENDERED OUTSIDE THIS DIV */}
 

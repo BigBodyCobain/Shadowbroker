@@ -206,6 +206,10 @@ docs/*
 !docs/OUTBOUND_DATA.md
 !docs/production-hardening.md
 !docs/contributor-map.md
+!docs/business-intel/
+docs/business-intel/*
+!docs/business-intel/*.md
+!docs/business-intel/*.yaml
 !docs/mesh/
 docs/mesh/*
 !docs/mesh/threat-model.md

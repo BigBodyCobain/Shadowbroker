@@ -51,6 +51,7 @@ RUN cd /workspace/backend && uv sync --frozen --no-dev --extra road-corridor \
 
 # Copy backend source code
 COPY backend/ .
+COPY docs/business-intel/southeast-nc-source-registry.yaml /app/config/southeast-nc-source-registry.yaml
 
 # Preserve safe static data outside /app/data. The compose named volume mounted
 # at /app/data hides image-baked files on first run, so the entrypoint seeds

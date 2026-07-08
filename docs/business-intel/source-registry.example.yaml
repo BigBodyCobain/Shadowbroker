@@ -1,0 +1,115 @@
+# Starter registry for local business-intel sources.
+# Copy this to a local registry file when wiring a real jurisdiction.
+
+version: 1
+default_policy:
+  visibility: private_tailnet_only
+  raw_retention_days: 30
+  normalized_retention_days: 1095
+  pii_minimization: true
+  require_terms_review: true
+
+jurisdictions:
+  - id: example-county
+    name: Example County
+    state: ST
+    service_area:
+      bbox: [-84.75, 33.30, -84.00, 34.05]
+    sources:
+      - id: example-building-permits
+        name: Example County Building Permits
+        category: permits
+        access_method: arcgis_feature_server
+        url: https://example.gov/arcgis/rest/services/Permits/FeatureServer/0
+        enabled: false
+        cadence: daily
+        terms_url: https://example.gov/open-data-terms
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Example County public records
+        raw_retention_days: 30
+        normalized_objects:
+          - permit
+          - address
+          - parcel
+          - project_signal
+        lead_categories:
+          - pool
+          - fence
+          - remodel
+          - new_build
+        fields:
+          permit_number: PERMIT_NO
+          permit_type: PERMIT_TYPE
+          status: STATUS
+          applied_at: APPLIED_DATE
+          issued_at: ISSUED_DATE
+          address: SITE_ADDRESS
+          parcel_id: PARCEL_ID
+          valuation: VALUATION
+          contractor: CONTRACTOR_NAME
+          description: DESCRIPTION
+          latitude: LATITUDE
+          longitude: LONGITUDE
+
+      - id: example-parcels
+        name: Example County Parcels
+        category: parcels
+        access_method: arcgis_feature_server
+        url: https://example.gov/arcgis/rest/services/Parcels/FeatureServer/0
+        enabled: false
+        cadence: weekly
+        terms_url: https://example.gov/gis-disclaimer
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Example County GIS
+        raw_retention_days: 14
+        normalized_objects:
+          - parcel
+          - address
+        fields:
+          parcel_id: PARCEL_ID
+          site_address: SITE_ADDRESS
+          owner_city: OWNER_CITY
+          sale_date: SALE_DATE
+          sale_price: SALE_PRICE
+          land_use: LAND_USE
+          year_built: YEAR_BUILT
+          building_area: BUILDING_AREA
+          lot_area: LOT_AREA
+
+      - id: example-sales
+        name: Example County Recent Sales
+        category: property_sales
+        access_method: csv_export
+        url: https://example.gov/downloads/recent-sales.csv
+        enabled: false
+        cadence: weekly
+        terms_url: https://example.gov/open-data-terms
+        terms_reviewed: false
+        commercial_use: review_required
+        attribution: Example County assessor
+        raw_retention_days: 14
+        normalized_objects:
+          - sale
+          - parcel
+          - project_signal
+        lead_categories:
+          - new_owner
+          - move_in_services
+          - exterior_project
+
+first_party_sources:
+  - id: manual-field-observation
+    name: Manual Field Observation
+    category: field_observation
+    access_method: operator_upload
+    enabled: true
+    cadence: realtime
+    terms_reviewed: true
+    commercial_use: allowed
+    raw_retention_days: 90
+    consent_modes:
+      - public_observation
+      - first_party
+      - consented_recording

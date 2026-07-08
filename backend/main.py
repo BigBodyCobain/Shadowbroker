@@ -374,6 +374,8 @@ entity_graph_router = _load_optional_router("routers.entity_graph")
 intel_feeds_router = _load_optional_router("routers.intel_feeds")
 analytics_router = _load_optional_router("routers.analytics")
 agent_shell_router = _load_optional_router("routers.agent_shell")
+business_intel_router = _load_optional_router("routers.business_intel")
+local_permits_router = _load_optional_router("routers.local_permits")
 
 
 # ---------------------------------------------------------------------------
@@ -3804,6 +3806,8 @@ app.include_router(entity_graph_router)
 app.include_router(intel_feeds_router)
 app.include_router(analytics_router)
 app.include_router(agent_shell_router)
+app.include_router(business_intel_router)
+app.include_router(local_permits_router)
 
 from services.data_fetcher import update_all_data
 
@@ -8648,6 +8652,90 @@ async def health_check(request: Request):
         "freshness": get_source_timestamps_snapshot(),
         "uptime_seconds": round(time.time() - _start_time),
     }
+
+
+@app.get("/api/local-intel")
+@limiter.limit("60/minute")
+async def local_intel(
+    request: Request,
+    lat: float | None = Query(None, ge=-90, le=90),
+    lng: float | None = Query(None, ge=-180, le=180),
+    radius_km: float | None = Query(None, ge=5, le=1000),
+    limit: int = Query(48, ge=1, le=100),
+):
+    """Summarize nearby signals from already-cached ShadowBroker layers."""
+    from services.fetchers._store import get_latest_data_subset_refs, get_source_timestamps_snapshot
+    from services.local_intel import (
+        LOCAL_INTEL_KEYS,
+        build_local_intel,
+        configured_default_point,
+        configured_default_radius_km,
+    )
+
+    point = (lat, lng) if lat is not None and lng is not None else configured_default_point()
+    if point is None:
+        raise HTTPException(
+            status_code=400,
+            detail="lat/lng query parameters are required unless LOCAL_INTEL_LAT and LOCAL_INTEL_LNG are configured",
+        )
+    query_lat, query_lng = point
+    data = get_latest_data_subset_refs(*LOCAL_INTEL_KEYS)
+    return build_local_intel(
+        lat=float(query_lat),
+        lng=float(query_lng),
+        radius_km=float(radius_km) if radius_km is not None else configured_default_radius_km(),
+        data=data,
+        freshness=get_source_timestamps_snapshot(),
+        limit=limit,
+    )
+
+
+class MarketIntelRequest(BaseModel):
+    text: str = ""
+    events: list[dict[str, Any]] | None = None
+    market: str = "local_services"
+    objective: str = "demand"
+    source_label: str = "operator_input"
+    lat: float | None = None
+    lng: float | None = None
+    radius_km: float | None = None
+    fuse_local: bool = True
+    limit: int = 40
+
+
+@app.post("/api/market-intel")
+@limiter.limit("30/minute")
+async def market_intel(request: Request, body: MarketIntelRequest):
+    """Score authorized local market notes and optionally fuse cached local signals."""
+    from services.fetchers._store import get_latest_data_subset_refs, get_source_timestamps_snapshot
+    from services.local_intel import configured_default_point, configured_default_radius_km
+    from services.market_intel import MARKET_INTEL_KEYS, build_market_intel
+
+    point: tuple[float, float] | None = None
+    if body.lat is not None or body.lng is not None:
+        if body.lat is None or body.lng is None:
+            raise HTTPException(status_code=400, detail="lat and lng must be provided together")
+        if not (-90 <= float(body.lat) <= 90 and -180 <= float(body.lng) <= 180):
+            raise HTTPException(status_code=400, detail="lat/lng are out of range")
+        point = (float(body.lat), float(body.lng))
+    else:
+        point = configured_default_point()
+
+    data = get_latest_data_subset_refs(*MARKET_INTEL_KEYS) if body.fuse_local and point else {}
+    return build_market_intel(
+        text=body.text,
+        events=body.events,
+        market=body.market,
+        objective=body.objective,
+        source_label=body.source_label,
+        lat=point[0] if point else None,
+        lng=point[1] if point else None,
+        radius_km=float(body.radius_km) if body.radius_km is not None else configured_default_radius_km(),
+        fuse_local=bool(body.fuse_local),
+        data=data,
+        freshness=get_source_timestamps_snapshot(),
+        limit=body.limit,
+    )
 
 
 from services.radio_intercept import (

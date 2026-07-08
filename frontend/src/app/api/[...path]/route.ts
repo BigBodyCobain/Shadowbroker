@@ -77,6 +77,7 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   // need X-Admin-Key injected on the server-side proxy leg.
   if (pathSegments[0] === 'mesh' && pathSegments[1] === 'peers') return true;
   if (pathSegments[0] === 'tools') return true;
+  if (pathSegments[0] === 'local-permits') return true;
   return false;
 }
 
