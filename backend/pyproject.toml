@@ -27,7 +27,7 @@ dependencies = [
     "requests==2.33.0",
     "PySocks==1.7.1",
     "reverse-geocoder==1.5.1",
-    "sgp4==2.25",
+    "sgp4==2.27",
     "meshtastic>=2.5.0",
     "networkx>=3.4.0",
     "numpy>=2.2.0",
