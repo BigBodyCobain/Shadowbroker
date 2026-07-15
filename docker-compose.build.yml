@@ -1,11 +1,48 @@
 # Developer override — build images from source instead of pulling from GHCR.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.build.yml build
+# services:
+#   backend:
+#     build:
+#       context: .
+#       dockerfile: ./backend/Dockerfile
+
+#   frontend:
+#     build:
+#       context: ./frontend
+
+
+
+# Developer override — build images from source instead of pulling from GHCR.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.build.yml build
+
+
 services:
   backend:
     build:
       context: .
-      dockerfile: ./backend/Dockerfile
+      # dockerfile: ./backend/Dockerfile
+      dockerfile: ./backend/Dockerfile_develop
+    
+    # add for internet restriction
+      args:
+        HTTP_PROXY: "http://192.168.100.25:10808"
+        HTTPS_PROXY: "http://192.168.100.25:10808"
+        NO_PROXY: "localhost,127.0.0.1,::1"
+    environment:
+      HTTP_PROXY: "http://192.168.100.25:10808"
+      HTTPS_PROXY: "http://192.168.100.25:10808"
+      NO_PROXY: "localhost,127.0.0.1,::1"
 
   frontend:
     build:
       context: ./frontend
+      dockerfile: ./Dockerfile_develop
+
+      args:
+        HTTP_PROXY: "http://192.168.100.25:10808"
+        HTTPS_PROXY: "http://192.168.100.25:10808"
+        NO_PROXY: "localhost,127.0.0.1,::1"
+    environment:
+      HTTP_PROXY: "http://192.168.100.25:10808"
+      HTTPS_PROXY: "http://192.168.100.25:10808"
+      NO_PROXY: "localhost,127.0.0.1,::1"

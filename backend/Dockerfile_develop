@@ -1,0 +1,87 @@
+# ========================================
+# Stage 1: Rust Library Builder
+# ========================================
+FROM --platform=$BUILDPLATFORM rust:1.88-slim-bookworm AS rust-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git pkg-config libssl-dev build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+WORKDIR /build/privacy-core
+
+# Cache dependencies
+COPY privacy-core/Cargo.toml privacy-core/Cargo.lock* ./
+RUN mkdir -p src && echo "fn main() {}" > src/lib.rs
+RUN cargo build --release --lib
+
+# Real build
+COPY privacy-core/src ./src
+RUN cargo build --release --lib && ls -la target/release/libprivacy_core.so
+
+
+# ========================================
+# Stage 2: Final Runtime Image
+# ========================================
+FROM mcr.microsoft.com/playwright:v1.48.0-noble AS backend
+
+WORKDIR /app
+
+# === 1. System packages (cached very well - first layer after FROM) ===
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-venv \
+    python3-dev \
+    python3-pip \
+    tor \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python \
+    && ln -sf /usr/bin/python3 /usr/local/bin/python3
+
+# === 2. UV installation ===
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# === 3. Environment variables ===
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV TOR_SKIP_LAUNCH=1
+
+# === 4. Python dependencies (excellent cache hit) ===
+COPY pyproject.toml /workspace/pyproject.toml
+COPY uv.lock /workspace/uv.lock
+COPY backend/pyproject.toml /workspace/backend/pyproject.toml
+
+RUN cd /workspace/backend && uv sync --frozen --no-dev --extra road-corridor
+
+# === 5. Node.js dependencies ===
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
+
+# === 6. Application code (most frequent changes) ===
+COPY backend/ .
+
+# === Final setup ===
+RUN mkdir -p /app/image-data /app/data /ms-playwright \
+    && if [ -d /app/data ]; then cp -a /app/data/. /app/image-data/; fi \
+    && chmod +x /app/docker-entrypoint.sh \
+    && rm -rf /workspace
+
+# Copy Rust library
+COPY --from=rust-builder /build/privacy-core/target/release/libprivacy_core.so /app/libprivacy_core.so
+ENV PRIVACY_CORE_LIB=/app/libprivacy_core.so
+
+# Non-root user
+RUN adduser --system --uid 1002 --home /app backenduser \
+    && chown -R backenduser /app /ms-playwright \
+    && chmod -R u+w /app
+
+USER backenduser
+
+EXPOSE 8000
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "120"]
