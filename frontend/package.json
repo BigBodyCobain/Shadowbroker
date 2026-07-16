@@ -52,7 +52,7 @@
     "prettier": "^3.8.3",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vite": "^8.0.16",
+    "vite": "^8.1.5",
     "vitest": "^4.1.8"
   },
   "overrides": {
