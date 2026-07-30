@@ -294,6 +294,11 @@ class ShadowBrokerClient:
             return data if isinstance(data, dict) else {}
         return result
 
+    async def get_fetch_health(self) -> dict:
+        """Get sanitized process-local fetch task outcomes."""
+        response = await self.send_command("get_fetch_health")
+        return self.unwrap_channel_result(response)
+
     async def route_query(
         self,
         text: str,

@@ -130,6 +130,32 @@ class TestAuthenticatedRequestSucceeds:
         tool_names = {tool["name"] for tool in data["tools"]}
         assert set(data["available_commands"]).issubset(tool_names)
 
+    def test_fetch_health_read_command_dispatch_and_discovery(self, remote_client):
+        from services.openclaw_channel import READ_COMMANDS, _dispatch_command
+
+        snapshot = {
+            "scope": "process",
+            "persistent": False,
+            "observed_only": True,
+            "semantics": "latest_recorded_task_outcome",
+            "tasks": {},
+        }
+        with patch(
+            "services.fetch_health.get_agent_health_snapshot", return_value=snapshot
+        ):
+            result = _dispatch_command("get_fetch_health", {})
+
+        assert "get_fetch_health" in READ_COMMANDS
+        assert result == {"ok": True, "data": snapshot}
+
+        headers = _sign("GET", "/api/ai/tools")
+        r = remote_client.get("/api/ai/tools", headers=headers)
+        assert r.status_code == 200, r.text
+        tool = next(
+            tool for tool in r.json()["tools"] if tool["name"] == "get_fetch_health"
+        )
+        assert tool["parameters"] == {}
+
 
 # ---------------------------------------------------------------------------
 # 2. Tampered body rejected (P1A body-binding at route layer)
