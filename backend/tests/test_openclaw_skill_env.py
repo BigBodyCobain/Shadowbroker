@@ -1,5 +1,6 @@
 """Regression coverage for OpenClaw skill HMAC environment names."""
 
+import asyncio
 import importlib.util
 from pathlib import Path
 
@@ -36,3 +37,25 @@ def test_openclaw_skill_accepts_legacy_key_as_hmac_secret_alias(monkeypatch):
     assert "X-SB-Signature" in headers
     assert "Authorization" not in headers
     assert "X-Admin-Key" not in headers
+
+
+def test_openclaw_skill_get_fetch_health_unwraps_command_result(monkeypatch):
+    module = _load_sb_query(monkeypatch)
+    client = module.ShadowBrokerClient()
+    commands = []
+
+    async def send_command(cmd, args=None):
+        commands.append((cmd, args))
+        return {
+            "result": {
+                "ok": True,
+                "data": {"scope": "process", "tasks": {}},
+            }
+        }
+
+    monkeypatch.setattr(client, "send_command", send_command)
+
+    result = asyncio.run(client.get_fetch_health())
+
+    assert commands == [("get_fetch_health", None)]
+    assert result == {"scope": "process", "tasks": {}}
