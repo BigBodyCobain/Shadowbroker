@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { motion } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import WorldviewLeftPanel from '@/components/WorldviewLeftPanel';
 
@@ -12,12 +12,9 @@ import FilterPanel from '@/components/FilterPanel';
 import FindLocateBar from '@/components/FindLocateBar';
 import TopRightControls from '@/components/TopRightControls';
 import TimelinePanel from '@/components/TimelinePanel';
-import SettingsPanel from '@/components/SettingsPanel';
 import MapLegend from '@/components/MapLegend';
 import ScaleBar from '@/components/ScaleBar';
-import MeshTerminal from '@/components/MeshTerminal';
 import MeshChat from '@/components/MeshChat';
-import InfonetTerminal from '@/components/InfonetTerminal';
 import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import ShodanPanel from '@/components/ShodanPanel';
 import ReconPanel from '@/components/ReconPanel';
@@ -64,6 +61,10 @@ import SarAoiEditorModal from '@/components/SarAoiEditorModal';
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
+// Heavy panels — defer until opened so they stay out of the critical path
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), { ssr: false });
+const MeshTerminal = dynamic(() => import('@/components/MeshTerminal'), { ssr: false });
+const InfonetTerminal = dynamic(() => import('@/components/InfonetTerminal'), { ssr: false });
 
 // LocateBar and SentinelInfoModal extracted to page-local modules (Sprint 4B)
 
@@ -447,6 +448,24 @@ export default function Dashboard() {
     [],
   );
 
+  const handleExpandEntityGraph = useCallback(() => {
+    if (isEntityGraphEligible(selectedEntity)) setShowEntityGraph(true);
+  }, [selectedEntity]);
+
+  const handleArticleClick = useCallback(
+    (idx: number, lat?: number, lng?: number, title?: string) => {
+      if (lat !== undefined && lng !== undefined) {
+        setFlyToLocation({ lat, lng, ts: Date.now() });
+        // Also highlight the corresponding map alert
+        if (title) {
+          const alertKey = `${title}|${lat},${lng}`;
+          setSelectedEntity({ id: alertKey, type: 'news' });
+        }
+      }
+    },
+    [],
+  );
+
   const handleMeasureClick = useCallback(
     (pt: { lat: number; lng: number }) => {
       setMeasurePoints((prev) => (prev.length >= 3 ? prev : [...prev, pt]));
@@ -790,19 +809,8 @@ export default function Dashboard() {
                     regionDossierLoading={regionDossierLoading}
                     gtDossier={gtDossier}
                     gtDossierLoading={gtDossierLoading}
-                    onExpandEntityGraph={() => {
-                      if (isEntityGraphEligible(selectedEntity)) setShowEntityGraph(true);
-                    }}
-                    onArticleClick={(idx, lat, lng, title) => {
-                      if (lat !== undefined && lng !== undefined) {
-                        setFlyToLocation({ lat, lng, ts: Date.now() });
-                        // Also highlight the corresponding map alert
-                        if (title) {
-                          const alertKey = `${title}|${lat},${lng}`;
-                          setSelectedEntity({ id: alertKey, type: 'news' });
-                        }
-                      }
-                    }}
+                    onExpandEntityGraph={handleExpandEntityGraph}
+                    onArticleClick={handleArticleClick}
                   />
                 </ErrorBoundary>
               </div>

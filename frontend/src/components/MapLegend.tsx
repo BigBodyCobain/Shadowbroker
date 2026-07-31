@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import ExternalImage from '@/components/ExternalImage';
 import { useTranslation } from '@/i18n';

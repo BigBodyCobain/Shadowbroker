@@ -23,4 +23,13 @@ describe('viewport fast refetch wiring', () => {
     expect(handler).toHaveBeenCalledTimes(1);
     window.removeEventListener(VIEWPORT_COMMITTED_EVENT, handler);
   });
+
+  it('liveDataBoundsKey changes when the operator pans to a new region', async () => {
+    const { liveDataBoundsKey } = await import('@/lib/liveDataViewport');
+    const before = liveDataBoundsKey();
+    setLiveDataBounds({ south: 20, west: -130, north: 55, east: -60 });
+    const after = liveDataBoundsKey();
+    expect(before).not.toBe(after);
+    expect(after).toBe('20,-130,55,-60');
+  });
 });

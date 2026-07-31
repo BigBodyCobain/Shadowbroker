@@ -12,7 +12,7 @@ import {
   type MeshChatFlyoutRect,
 } from './meshChatFlyout';
 import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Antenna,
   Minus,

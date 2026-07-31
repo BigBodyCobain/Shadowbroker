@@ -202,14 +202,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.background import BackgroundTask
 from contextlib import asynccontextmanager
-from services.data_fetcher import (
-    start_scheduler,
-    stop_scheduler,
-    get_latest_data,
-    seed_startup_caches,
-)
-from services.ais_stream import start_ais_stream, stop_ais_stream
-from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
+if not _MESH_ONLY:
+    from services.data_fetcher import (
+        start_scheduler,
+        stop_scheduler,
+        get_latest_data,
+        seed_startup_caches,
+    )
+    from services.ais_stream import start_ais_stream, stop_ais_stream
+    from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
+else:
+    # Lean mesh/wormhole process — avoid importing the OSINT fetcher graph.
+    def start_scheduler(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_scheduler(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def get_latest_data():  # type: ignore[misc]
+        return {}
+
+    def seed_startup_caches(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def start_ais_stream(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_ais_stream(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def start_carrier_tracker(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_carrier_tracker(*_a, **_k):  # type: ignore[misc]
+        return None
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from services.schemas import HealthResponse, RefreshResponse
@@ -352,28 +378,47 @@ def _load_optional_router(module_name: str) -> APIRouter:
 
 
 health_router = _load_optional_router("routers.health")
-cctv_router = _load_optional_router("routers.cctv")
-radio_router = _load_optional_router("routers.radio")
-sigint_router = _load_optional_router("routers.sigint")
-tools_router = _load_optional_router("routers.tools")
-admin_router = _load_optional_router("routers.admin")
-data_router = _load_optional_router("routers.data")
 mesh_peer_sync_router = _load_optional_router("routers.mesh_peer_sync")
 mesh_operator_router = _load_optional_router("routers.mesh_operator")
 mesh_oracle_router = _load_optional_router("routers.mesh_oracle")
 mesh_dm_router = _load_optional_router("routers.mesh_dm")
 mesh_public_router = _load_optional_router("routers.mesh_public")
 wormhole_router = _load_optional_router("routers.wormhole")
-ai_intel_router = _load_optional_router("routers.ai_intel")
-sar_router = _load_optional_router("routers.sar")
 infonet_router = _load_optional_router("routers.infonet")
-road_corridors_router = _load_optional_router("routers.road_corridors")
-osint_router = _load_optional_router("routers.osint")
-scm_router = _load_optional_router("routers.scm")
-entity_graph_router = _load_optional_router("routers.entity_graph")
-intel_feeds_router = _load_optional_router("routers.intel_feeds")
-analytics_router = _load_optional_router("routers.analytics")
-agent_shell_router = _load_optional_router("routers.agent_shell")
+
+if _MESH_ONLY:
+    # Empty routers keep include_router() call sites unchanged without loading OSINT.
+    cctv_router = APIRouter()
+    radio_router = APIRouter()
+    sigint_router = APIRouter()
+    tools_router = APIRouter()
+    admin_router = APIRouter()
+    data_router = APIRouter()
+    ai_intel_router = APIRouter()
+    sar_router = APIRouter()
+    road_corridors_router = APIRouter()
+    osint_router = APIRouter()
+    scm_router = APIRouter()
+    entity_graph_router = APIRouter()
+    intel_feeds_router = APIRouter()
+    analytics_router = APIRouter()
+    agent_shell_router = APIRouter()
+else:
+    cctv_router = _load_optional_router("routers.cctv")
+    radio_router = _load_optional_router("routers.radio")
+    sigint_router = _load_optional_router("routers.sigint")
+    tools_router = _load_optional_router("routers.tools")
+    admin_router = _load_optional_router("routers.admin")
+    data_router = _load_optional_router("routers.data")
+    ai_intel_router = _load_optional_router("routers.ai_intel")
+    sar_router = _load_optional_router("routers.sar")
+    road_corridors_router = _load_optional_router("routers.road_corridors")
+    osint_router = _load_optional_router("routers.osint")
+    scm_router = _load_optional_router("routers.scm")
+    entity_graph_router = _load_optional_router("routers.entity_graph")
+    intel_feeds_router = _load_optional_router("routers.intel_feeds")
+    analytics_router = _load_optional_router("routers.analytics")
+    agent_shell_router = _load_optional_router("routers.agent_shell")
 
 
 # ---------------------------------------------------------------------------

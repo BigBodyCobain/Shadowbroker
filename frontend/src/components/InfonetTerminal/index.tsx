@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from '@/lib/motion';
 import { X } from 'lucide-react';
 import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import InfonetShell from './InfonetShell';

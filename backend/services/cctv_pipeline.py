@@ -1446,16 +1446,67 @@ def run_all_ingestors():
             logger.warning(f"Ingestor {ingestor.__class__.__name__} failed during seed: {e}")
 
 
-def get_all_cameras() -> List[Dict[str, Any]]:
+# Columns the map / live-data path actually needs — skip refresh_rate / timestamps.
+_CAMERA_SELECT_COLS = (
+    "id",
+    "source_agency",
+    "lat",
+    "lon",
+    "direction_facing",
+    "media_url",
+    "media_type",
+)
+
+
+def get_camera_count() -> int:
+    """Cheap total for UI badges without loading the full table."""
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        row = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()
+        return int(row[0] if row else 0)
+    finally:
+        conn.close()
+
+
+def get_all_cameras(
+    *,
+    south: float | None = None,
+    west: float | None = None,
+    north: float | None = None,
+    east: float | None = None,
+) -> List[Dict[str, Any]]:
+    """Load map-facing camera rows, optionally SQL-scoped to a viewport.
+
+    Without bounds, returns the full catalog (store still holds world list;
+    /api/live-data/fast applies #288 bbox + world-zoom sampling).
+    """
+    cols = ", ".join(_CAMERA_SELECT_COLS)
+    sql = f"SELECT {cols} FROM cameras"
+    params: list[Any] = []
+    if None not in (south, west, north, east):
+        # Inclusive bbox; antimeridian (west > east) uses OR on lon.
+        if west <= east:
+            sql += " WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?"
+            params.extend([south, north, west, east])
+        else:
+            sql += (
+                " WHERE lat BETWEEN ? AND ?"
+                " AND (lon >= ? OR lon <= ?)"
+            )
+            params.extend([south, north, west, east])
+
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM cameras")
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
     cameras = []
     for row in rows:
-        cam = dict(row)
-        cam["media_type"] = str(cam.get("media_type") or _detect_media_type(cam.get("media_url", "")) or "image")
+        cam = {k: row[k] for k in _CAMERA_SELECT_COLS}
+        cam["media_type"] = str(
+            cam.get("media_type") or _detect_media_type(cam.get("media_url", "")) or "image"
+        )
         cameras.append(cam)
     return cameras

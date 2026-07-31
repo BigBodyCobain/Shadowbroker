@@ -24,6 +24,12 @@ class TestFastBboxFiltering:
     def _seed_fast(self, monkeypatch):
         """Plant deterministic heavy + light fixtures across the globe."""
         from services.fetchers import _store
+        from routers import data as data_router
+
+        # Avoid cross-test ETag byte-cache pollution.
+        with data_router._LIVE_DATA_BYTES_CACHE_LOCK:
+            data_router._LIVE_DATA_BYTES_CACHE.clear()
+        _store.bump_data_version()
 
         # Heavy collections: dense across the world.
         commercial = [
@@ -35,7 +41,11 @@ class TestFastBboxFiltering:
             {"lat": -60.0, "lng": -120.0, "id": "s-sw"},
             {"lat": 35.0, "lng": -75.0, "id": "s-ne"},
         ]
-        cctv = [{"lat": 35.0, "lng": -75.0, "id": "c-1"}]
+        # Real CCTV rows use ``lon`` (not ``lng``) — bbox must honor that alias.
+        cctv = [
+            {"lat": 35.0, "lon": -75.0, "id": "c-1"},
+            {"lat": 35.0, "lon": 100.0, "id": "c-asia"},
+        ]
 
         # Sigint heavy collection.
         sigint = [
@@ -85,7 +95,7 @@ class TestFastBboxFiltering:
         # Heavy layers: only the eastern-US fixture survives.
         assert {f["id"] for f in data["commercial_flights"]} == {"f-ne"}
         assert {s["id"] for s in data["ships"]} == {"s-ne"}
-        assert {c["id"] for c in data["cctv"]} == {"c-1"}
+        assert {c["id"] for c in data["cctv"]} == {"c-1"}  # lon alias filtered
         assert {s["id"] for s in data["sigint"]} == {"sig-east"}
 
     def test_bbox_does_not_filter_light_layers(self, client, monkeypatch):

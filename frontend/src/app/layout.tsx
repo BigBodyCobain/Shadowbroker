@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { JetBrains_Mono } from 'next/font/google';
 import DesktopBridgeBootstrap from '@/components/DesktopBridgeBootstrap';
+import MotionRoot from '@/components/MotionRoot';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { I18nProvider } from '@/i18n';
 import './globals.css';
@@ -33,8 +34,10 @@ export default function RootLayout({
       <body className={`${jetBrainsMono.variable} antialiased bg-[var(--bg-primary)]`} suppressHydrationWarning>
         <I18nProvider>
           <ThemeProvider>
-            <DesktopBridgeBootstrap />
-            {children}
+            <MotionRoot>
+              <DesktopBridgeBootstrap />
+              {children}
+            </MotionRoot>
           </ThemeProvider>
         </I18nProvider>
       </body>

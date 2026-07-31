@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronUp } from 'lucide-react';
 import { useDataKeys } from '@/hooks/useDataStore';
 

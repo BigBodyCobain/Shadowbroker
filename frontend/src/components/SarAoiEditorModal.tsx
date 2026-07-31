@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { X, Radar, Plus, Trash2, MapPin, Crosshair } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 import type { SarAoi } from '@/types/dashboard';

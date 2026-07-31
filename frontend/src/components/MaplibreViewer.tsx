@@ -150,6 +150,7 @@ import { EMPTY_FC } from '@/components/map/mapConstants';
 import { useImperativeSource } from '@/components/map/hooks/useImperativeSource';
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
 import { useStaticMapLayersWorker } from '@/components/map/hooks/useStaticMapLayersWorker';
+import { applyDynamicLayerInterp } from '@/components/map/applyDynamicLayerInterp';
 import {
   ClusterCountLabels,
   TrackedFlightLabels,
@@ -303,7 +304,6 @@ function flightPayloadHasKnownRoute(entity: ReturnType<typeof findSelectedEntity
 const MAP_EXTRA_DATA_KEYS = [
   'air_quality',
   'cctv',
-  'commercial_flights',
   'correlations',
   'crowdthreat',
   'malware_threats',
@@ -317,10 +317,7 @@ const MAP_EXTRA_DATA_KEYS = [
   'internet_outages',
   'kiwisdr',
   'military_bases',
-  'military_flights',
   'power_plants',
-  'private_flights',
-  'private_jets',
   'psk_reporter',
   'sar_anomalies',
   'satellite_analysis',
@@ -411,6 +408,10 @@ const MaplibreViewer = ({
 }: Omit<MaplibreViewerProps, 'data'>) => {
   const coreData = useDataKeys([
     'tracked_flights',
+    'commercial_flights',
+    'military_flights',
+    'private_flights',
+    'private_jets',
     'news',
     'ships',
     'uavs',
@@ -1231,7 +1232,9 @@ const MaplibreViewer = ({
     {
       bounds: mapBounds,
       serverBboxScoped: getLiveDataBounds() !== null,
-      dtSeconds: dtSeconds.current,
+      // Worker stamps base positions; main-thread applyDynamicLayerInterp
+      // dead-reckons between polls without rebuilding FeatureCollections.
+      dtSeconds: 0,
       trackedIcaos: Array.from(trackedIcaoSet),
       activeLayers: {
         flights: activeLayers.flights,
@@ -1251,7 +1254,6 @@ const MaplibreViewer = ({
     },
     [
       mapBounds,
-      interpTick,
       trackedIcaoSet,
       activeLayers.flights,
       activeLayers.private,
@@ -1268,6 +1270,25 @@ const MaplibreViewer = ({
       activeFilters,
     ],
   );
+
+  const interpolatedDynamicMapLayers = useMemo(
+    () => {
+      void interpTick;
+      return applyDynamicLayerInterp(dynamicMapLayers, dtSeconds.current);
+    },
+    [dynamicMapLayers, interpTick, dtSeconds],
+  );
+
+  const {
+    commercialFlightsGeoJSON: commFlightsGeoJSON,
+    privateFlightsGeoJSON: privFlightsGeoJSON,
+    privateJetsGeoJSON: privJetsGeoJSON,
+    militaryFlightsGeoJSON: milFlightsGeoJSON,
+    trackedFlightsGeoJSON,
+    shipsGeoJSON,
+    meshtasticGeoJSON,
+    aprsGeoJSON,
+  } = interpolatedDynamicMapLayers;
 
   const staticMapLayers = useStaticMapLayersWorker(
     {
@@ -1372,17 +1393,6 @@ const MaplibreViewer = ({
       activeLayers.telegram_osint,
     ],
   );
-
-  const {
-    commercialFlightsGeoJSON: commFlightsGeoJSON,
-    privateFlightsGeoJSON: privFlightsGeoJSON,
-    privateJetsGeoJSON: privJetsGeoJSON,
-    militaryFlightsGeoJSON: milFlightsGeoJSON,
-    trackedFlightsGeoJSON,
-    shipsGeoJSON,
-    meshtasticGeoJSON,
-    aprsGeoJSON,
-  } = dynamicMapLayers;
 
   const {
     cctvGeoJSON,
@@ -1805,6 +1815,24 @@ const MaplibreViewer = ({
   useImperativeSource(mapForHook, 'trains', trainsGeoJSON, 60);
   useImperativeSource(mapForHook, 'sar-aois', sarAoisGeoJSON, 120);
   useImperativeSource(mapForHook, 'sar-anomalies', sarAnomaliesGeoJSON, 120);
+  // Remaining reactive sources → imperative (avoids React reconciling FeatureCollections)
+  useImperativeSource(mapForHook, 'night-overlay', nightGeoJSON, 250);
+  useImperativeSource(mapForHook, 'frontlines', frontlineGeoJSON, 200);
+  useImperativeSource(mapForHook, 'earthquakes', earthquakesGeoJSON, 100);
+  useImperativeSource(mapForHook, 'gps-jamming', jammingGeoJSON, 150);
+  useImperativeSource(mapForHook, 'gt-risk-source', gtRiskGeoJSON, 150);
+  useImperativeSource(mapForHook, 'correlations', correlationsGeoJSON, 100);
+  useImperativeSource(mapForHook, 'shodan-overlay', shodanGeoJSON, 100);
+  useImperativeSource(mapForHook, 'ai-intel-source', aiIntelGeoJSON, 80);
+  useImperativeSource(mapForHook, 'ukraine-alerts-source', ukraineAlertsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'ukraine-alert-labels-source', ukraineAlertLabelsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'weather-alerts-source', weatherAlertsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'weather-alert-labels-source', weatherAlertLabelsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'carriers', carriersGeoJSON, 75);
+  useImperativeSource(mapForHook, 'active-route', activeRouteGeoJSON, 50);
+  useImperativeSource(mapForHook, 'flight-trail', trailGeoJSON, 40);
+  useImperativeSource(mapForHook, 'predictive-path', predictiveGeoJSON, 40);
+  useImperativeSource(mapForHook, 'proximity-rings', proximityRingsGeoJSON, 60);
 
   const handleMouseMove = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -2133,8 +2161,8 @@ const MaplibreViewer = ({
         </Source>
 
         {/* SOLAR TERMINATOR — night overlay */}
-        {activeLayers.day_night && nightGeoJSON && (
-          <Source id="night-overlay" type="geojson" data={nightGeoJSON}>
+        {activeLayers.day_night && (
+          <Source id="night-overlay" type="geojson" data={EMPTY_FC}>
             <Layer
               id="night-overlay-layer"
               type="fill"
@@ -2148,7 +2176,7 @@ const MaplibreViewer = ({
 
         {/* ═══ GROUND OVERLAYS — rendered below ships, mesh, and flights ═══ */}
 
-        <Source id="frontlines" type="geojson" data={(frontlineGeoJSON ?? EMPTY_FC)}>
+        <Source id="frontlines" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-frontline-layer"
             type="fill"
@@ -2163,7 +2191,7 @@ const MaplibreViewer = ({
         <Source
           id="earthquakes"
           type="geojson"
-          data={(earthquakesGeoJSON ?? EMPTY_FC)}
+          data={EMPTY_FC}
           cluster={true}
           clusterMaxZoom={10}
           clusterRadius={60}
@@ -2195,7 +2223,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* GPS Jamming Zones — red translucent grid squares */}
-        <Source id="gps-jamming" type="geojson" data={(jammingGeoJSON ?? EMPTY_FC)}>
+        <Source id="gps-jamming" type="geojson" data={EMPTY_FC}>
           <Layer
             id="gps-jamming-fill"
             type="fill"
@@ -2236,7 +2264,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Strategic Risk Heatmap — Bayesian posterior scores */}
-        <Source id="gt-risk-source" type="geojson" data={(gtRiskGeoJSON ?? EMPTY_FC)}>
+        <Source id="gt-risk-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="gt-risk-heatmap"
             type="circle"
@@ -2285,7 +2313,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Correlation Alerts — Emergent Intelligence grid squares */}
-        <Source id="correlations" type="geojson" data={(correlationsGeoJSON ?? EMPTY_FC)}>
+        <Source id="correlations" type="geojson" data={EMPTY_FC}>
           {/* RF Anomaly — grey */}
           <Layer
             id="corr-rf-fill"
@@ -3204,7 +3232,7 @@ const MaplibreViewer = ({
             <Source
               id="shodan-overlay"
               type="geojson"
-              data={(shodanGeoJSON ?? EMPTY_FC)}
+              data={EMPTY_FC}
               cluster={true}
               clusterRadius={42}
               clusterMaxZoom={9}
@@ -3294,16 +3322,15 @@ const MaplibreViewer = ({
           );
         })()}
 
-        {/* AI Intel Layer — pins from OpenClaw / AI co-pilot */}
-        {aiIntelGeoJSON && (
-          <Source
-            id="ai-intel-source"
-            type="geojson"
-            data={aiIntelGeoJSON}
-            cluster={true}
-            clusterRadius={40}
-            clusterMaxZoom={10}
-          >
+        {/* AI Intel Layer — pins from OpenClaw / AI co-pilot (data via useImperativeSource) */}
+        <Source
+          id="ai-intel-source"
+          type="geojson"
+          data={EMPTY_FC}
+          cluster={true}
+          clusterRadius={40}
+          clusterMaxZoom={10}
+        >
             <Layer
               id="ai-intel-clusters"
               type="circle"
@@ -3351,7 +3378,6 @@ const MaplibreViewer = ({
               }}
             />
           </Source>
-        )}
 
         {/* Military Bases — per-country colors */}
         <Source id="military-bases" type="geojson" data={EMPTY_FC}>
@@ -3384,7 +3410,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Ukraine Air Raid Alerts — red/orange oblast polygons */}
-        <Source id="ukraine-alerts-source" type="geojson" data={(ukraineAlertsGeoJSON ?? EMPTY_FC)}>
+        <Source id="ukraine-alerts-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-alerts-fill"
             type="fill"
@@ -3404,7 +3430,7 @@ const MaplibreViewer = ({
             }}
           />
         </Source>
-        <Source id="ukraine-alert-labels-source" type="geojson" data={(ukraineAlertLabelsGeoJSON ?? EMPTY_FC)}>
+        <Source id="ukraine-alert-labels-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-alert-labels"
             type="symbol"
@@ -3424,7 +3450,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Weather Alerts — severity-colored polygons with icon + label overlay */}
-        <Source id="weather-alerts-source" type="geojson" data={(weatherAlertsGeoJSON ?? EMPTY_FC)}>
+        <Source id="weather-alerts-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="weather-alerts-fill"
             type="fill"
@@ -3444,7 +3470,7 @@ const MaplibreViewer = ({
             }}
           />
         </Source>
-        <Source id="weather-alert-labels-source" type="geojson" data={(weatherAlertLabelsGeoJSON ?? EMPTY_FC)}>
+        <Source id="weather-alert-labels-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="weather-alert-icons"
             type="symbol"
@@ -3933,7 +3959,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        <Source id="carriers" type="geojson" data={(carriersGeoJSON ?? EMPTY_FC)}>
+        <Source id="carriers" type="geojson" data={EMPTY_FC}>
           <Layer
             id="carriers-layer"
             type="symbol"
@@ -4179,7 +4205,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        <Source id="active-route" type="geojson" data={(activeRouteGeoJSON ?? EMPTY_FC)}>
+        <Source id="active-route" type="geojson" data={EMPTY_FC}>
           <Layer
             id="active-route-layer"
             type="line"
@@ -4250,7 +4276,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Flight trail history (where the aircraft has been) — altitude-colored gradient */}
-        <Source id="flight-trail" type="geojson" data={(trailGeoJSON ?? EMPTY_FC)}>
+        <Source id="flight-trail" type="geojson" data={EMPTY_FC}>
           <Layer
             id="flight-trail-layer"
             type="line"
@@ -4267,7 +4293,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Predictive vector (where entity is heading — 5 min forward projection) */}
-        <Source id="predictive-path" type="geojson" data={(predictiveGeoJSON ?? EMPTY_FC)}>
+        <Source id="predictive-path" type="geojson" data={EMPTY_FC}>
           <Layer
             id="predictive-path-layer"
             type="line"
@@ -4295,7 +4321,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Proximity range rings (10nm, 50nm, 100nm around selected entity) */}
-        <Source id="proximity-rings" type="geojson" data={(proximityRingsGeoJSON ?? EMPTY_FC)}>
+        <Source id="proximity-rings" type="geojson" data={EMPTY_FC}>
           <Layer
             id="proximity-rings-layer"
             type="line"

@@ -38,7 +38,8 @@ def test_refresh_skips_when_layer_stays_off():
     fetch_cctv.assert_not_called()
 
 
-def test_refresh_cctv_runs_inline():
+def test_refresh_cctv_runs_on_slow_executor():
+    """CCTV SELECT can be large — never block the API worker on enable."""
     before = {**snapshot_active_layers(), "cctv": False}
     active_layers["cctv"] = True
 
@@ -49,8 +50,9 @@ def test_refresh_cctv_runs_inline():
     ):
         refresh_newly_enabled_layers(before)
 
-    fetch_cctv.assert_called_once()
-    bump.assert_called_once()
-    slow_exec.submit.assert_not_called()
+    fetch_cctv.assert_not_called()
+    bump.assert_not_called()
+    slow_exec.submit.assert_called_once()
+    assert slow_exec.submit.call_args[0][1] == ("cctv",)
 
     active_layers["cctv"] = before.get("cctv", False)

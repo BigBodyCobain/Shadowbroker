@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { X, ExternalLink, Radar, Check, Zap, Globe } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 
