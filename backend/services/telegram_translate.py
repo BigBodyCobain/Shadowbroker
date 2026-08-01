@@ -48,6 +48,7 @@ _CACHE_MAX = 512
 _LOCALE_TO_GOOGLE = {
     "en": "en",
     "fr": "fr",
+    "de": "de",
     "zh-cn": "zh-CN",
     "zh": "zh-CN",
 }

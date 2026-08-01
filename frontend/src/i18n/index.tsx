@@ -4,8 +4,9 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import en from './translations/en.json';
 import zhCN from './translations/zh-CN.json';
 import fr from './translations/fr.json';
+import de from './translations/de.json';
 
-export type Locale = 'en' | 'zh-CN' | 'fr';
+export type Locale = 'en' | 'zh-CN' | 'fr' | 'de';
 
 /**
  * Registry of available locales for the UI language toggle.
@@ -29,9 +30,10 @@ export const LOCALES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'en', label: 'English' },
   { code: 'zh-CN', label: '中文 (简体)' },
   { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
 ];
 
-const translations: Record<Locale, Record<string, Record<string, string>>> = { en, 'zh-CN': zhCN, fr };
+const translations: Record<Locale, Record<string, Record<string, string>>> = { en, 'zh-CN': zhCN, fr, de };
 
 function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && LOCALES.some((entry) => entry.code === value);
