@@ -151,48 +151,17 @@ def _has_full_bbox(s, w, n, e) -> bool:
 
 
 def _bbox_etag_suffix(s, w, n, e) -> str:
-    """Quantize bbox to 1° before mixing into the ETag.
-
-    The 20% padding inside _bbox_filter already absorbs sub-degree pans;
-    quantizing here means small mouse drags don't blow the ETag cache
-    on the client. Full-world bounds collapse to a single suffix.
-    """
-    if not _has_full_bbox(s, w, n, e):
-        return ""
-    try:
-        ss = math.floor(float(s))
-        ww = math.floor(float(w))
-        nn = math.ceil(float(n))
-        ee = math.ceil(float(e))
-    except (TypeError, ValueError):
-        return ""
-    # If the requested window covers basically the whole world, treat it as
-    # "no bbox" for caching purposes so world-zoomed clients all hit the
-    # same ETag and benefit from the existing 304 path.
-    lat_span, lng_span = _bbox_spans(s, w, n, e)
-    if lng_span >= 300 or lat_span >= 120:
-        return ""
-    return f"|bbox={ss},{ww},{nn},{ee}"
+    """Bbox no longer scopes payloads — keep a single world ETag cache key."""
+    return ""
 
 
 def _apply_bbox_to_payload(payload: dict, heavy_keys: tuple[str, ...],
                             s: float, w: float, n: float, e: float) -> dict:
-    """In-place filter the heavy-key collections in *payload* to a viewport.
+    """No-op: live telemetry is never viewport-truncated.
 
-    Items without lat/lng are passed through (so e.g. summary blobs aren't
-    accidentally dropped). The existing _bbox_filter helper applies a 20%
-    pad and handles antimeridian crossings.
+    Bounds may still be accepted on the wire for client hints / future use,
+    but we do not drop ships, aircraft, or other dense layers by map window.
     """
-    lat_span, lng_span = _bbox_spans(s, w, n, e)
-    # World-scale request → skip filtering entirely. Spares the CPU and
-    # guarantees the response matches the no-params shape.
-    if lng_span >= 300 or lat_span >= 120:
-        return payload
-    for key in heavy_keys:
-        items = payload.get(key)
-        if not isinstance(items, list) or not items:
-            continue
-        payload[key] = _bbox_filter(items, s, w, n, e)
     return payload
 
 
@@ -345,49 +314,10 @@ def _sample_items(items: list | None, max_items: int) -> list:
 
 
 def _cap_fast_startup_payload(payload: dict) -> dict:
+    """Mark first-paint payloads. Do not defer or sample live telemetry."""
     capped = dict(payload)
-    capped["commercial_flights"] = _cap_startup_items(capped.get("commercial_flights"), 800)
-    capped["private_flights"] = _cap_startup_items(capped.get("private_flights"), 300)
-    capped["private_jets"] = _cap_startup_items(capped.get("private_jets"), 150)
-    capped["ships"] = _cap_startup_items(capped.get("ships"), 1500)
-    capped["cctv"] = []
-    capped["sigint"] = _cap_startup_items(capped.get("sigint"), 500)
-    capped["trains"] = _cap_startup_items(capped.get("trains"), 100)
     capped["startup_payload"] = True
     return capped
-
-
-# Dense layers only — never cap static infra (bases, plants, satellites, …).
-# World caps keep first paint / zoomed-out views from shipping millions of rows;
-# continental is looser; regional/city zoom skips capping (bbox already densifies).
-_WORLD_FAST_CAPS: dict[str, int] = {
-    "commercial_flights": 1200,
-    "military_flights": 400,
-    "private_flights": 400,
-    "private_jets": 200,
-    "tracked_flights": 200,
-    "ships": 2000,
-    "cctv": 600,
-    "uavs": 200,
-    "liveuamap": 400,
-    "gps_jamming": 300,
-    "sigint": 800,
-    "trains": 200,
-}
-_CONTINENTAL_FAST_CAPS: dict[str, int] = {
-    "commercial_flights": 2500,
-    "military_flights": 800,
-    "private_flights": 800,
-    "private_jets": 400,
-    "tracked_flights": 400,
-    "ships": 4000,
-    "cctv": 1500,
-    "uavs": 400,
-    "liveuamap": 800,
-    "gps_jamming": 600,
-    "sigint": 1500,
-    "trains": 400,
-}
 
 
 def _world_and_continental_scale(has_bbox: bool, s, w, n, e) -> tuple:
@@ -398,37 +328,20 @@ def _world_and_continental_scale(has_bbox: bool, s, w, n, e) -> tuple:
 
 
 def _cap_fast_dashboard_payload(payload: dict, *, s=None, w=None, n=None, e=None) -> dict:
-    """Sample dense layers at world/continental zoom only.
+    """Annotate zoom scale only — never sample/drop live telemetry rows.
 
-    Regional pans rely on #288 bbox filtering for density — do not strip those.
-    Totals for sampled keys are preserved so the UI can show "N of M".
+    Regional density comes from #288 bbox filtering (what's in view), not from
+    picking a random subset of the planet.
     """
     has_bbox = _has_full_bbox(s, w, n, e)
     world_scale, continental_scale = _world_and_continental_scale(has_bbox, s, w, n, e)
-    if not world_scale and not continental_scale:
+    if world_scale:
+        payload["payload_scale"] = "world"
+    elif continental_scale:
+        payload["payload_scale"] = "continental"
+    else:
         payload["payload_scale"] = "regional"
-        return payload
-
-    caps = _WORLD_FAST_CAPS if world_scale else _CONTINENTAL_FAST_CAPS
-    capped = dict(payload)
-    layer_totals = dict(capped.get("layer_totals") or {})
-    sampled = False
-    for key, limit in caps.items():
-        items = capped.get(key)
-        if not isinstance(items, list) or len(items) <= limit:
-            continue
-        layer_totals[key] = len(items)
-        capped[key] = _sample_items(items, limit)
-        sampled = True
-    # Keep cctv_total as the true DB/store count even when the array is sampled.
-    if "cctv" in layer_totals:
-        capped["cctv_total"] = layer_totals["cctv"]
-    if layer_totals:
-        capped["layer_totals"] = layer_totals
-    capped["payload_scale"] = "world" if world_scale else "continental"
-    if sampled:
-        capped["payload_sampled"] = True
-    return capped
+    return payload
 
 
 def _filter_sigint_by_layers(items: list, active_layers: dict) -> list:
@@ -774,62 +687,29 @@ async def bootstrap_critical(request: Request):
         sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
         return {
             "last_updated": d.get("last_updated"),
-            "commercial_flights": _cap_startup_items(
-                (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
-                800,
-            ),
-            "military_flights": _cap_startup_items(
-                (d.get("military_flights") or []) if active_layers.get("military", True) else [],
-                300,
-            ),
-            "private_flights": _cap_startup_items(
-                (d.get("private_flights") or []) if active_layers.get("private", True) else [],
-                300,
-            ),
-            "private_jets": _cap_startup_items(
-                (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
-                150,
-            ),
-            "tracked_flights": _cap_startup_items(
-                (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
-                250,
-            ),
-            "ships": _cap_startup_items((d.get("ships") or []) if ships_enabled else [], 1500),
-            "uavs": _cap_startup_items((d.get("uavs") or []) if active_layers.get("military", True) else [], 100),
-            "liveuamap": _cap_startup_items(
-                (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
-                300,
-            ),
-            "gps_jamming": _cap_startup_items(
-                (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
-                200,
-            ),
-            "satellites": _cap_startup_items(
-                (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
-                250,
-            ),
+            "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
+            "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
+            "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
+            "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
+            "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
+            "ships": (d.get("ships") or []) if ships_enabled else [],
+            "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
+            "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
+            "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
+            "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
             "satellite_source": d.get("satellite_source", "none"),
             "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
-            "sigint": _cap_startup_items(
-                sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
-                500,
-            ),
+            "sigint": sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
             "sigint_totals": _sigint_totals_for_items(sigint_items),
-            "trains": _cap_startup_items((d.get("trains") or []) if active_layers.get("trains", True) else [], 100),
-            "news": _cap_startup_items(d.get("news") or [], 30),
-            "gdelt": _cap_startup_items((d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [], 300),
-            "airports": _cap_startup_items(d.get("airports") or [], 500),
+            "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
+            "news": d.get("news") or [],
+            "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
+            "airports": d.get("airports") or [],
             "threat_level": d.get("threat_level"),
-            "trending_markets": _cap_startup_items(d.get("trending_markets") or [], 10),
-            "correlations": _cap_startup_items(
-                (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
-                50,
-            ),
+            "trending_markets": d.get("trending_markets") or [],
+            "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
             "fimi": d.get("fimi"),
-            "crowdthreat": _cap_startup_items(
-                (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
-                150,
-            ),
+            "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
             "freshness": freshness,
             "bootstrap_ready": True,
             "bootstrap_payload": True,
@@ -908,14 +788,8 @@ def _try_build_fast_delta(
         if patch is None:
             return None
         if not patch.get("unchanged"):
-            # Bbox-filter upserts when a regional viewport is active.
-            upserts = list(patch.get("upsert") or [])
-            if upserts and _has_full_bbox(s, w, n, e):
-                lat_span, lng_span = _bbox_spans(s, w, n, e)
-                if not (lng_span >= 300 or lat_span >= 120):
-                    upserts = _bbox_filter(upserts, s, w, n, e)
             deltas[key] = {
-                "upsert": upserts,
+                "upsert": list(patch.get("upsert") or []),
                 "delete": list(patch.get("delete") or []),
                 "version": patch.get("version", server_lv.get(key, 0)),
             }

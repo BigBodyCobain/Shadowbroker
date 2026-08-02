@@ -339,7 +339,7 @@ PRIVATE_JET_TYPES = {
 # Flight trails state
 flight_trails = {}  # {icao_hex: {points: [[lat, lng, alt, ts], ...], last_seen: ts}}
 _trails_lock = threading.Lock()
-_MAX_TRACKED_TRAILS = 20000
+_MAX_TRACKED_TRAILS = None  # do not LRU-evict flight trails
 
 
 def get_flight_trail(icao24: str) -> list:
@@ -820,7 +820,7 @@ def _classify_and_publish(all_adsb_flights):
         for k in stale_keys:
             del flight_trails[k]
 
-        if len(flight_trails) > _MAX_TRACKED_TRAILS:
+        if _MAX_TRACKED_TRAILS is not None and len(flight_trails) > _MAX_TRACKED_TRAILS:
             sorted_keys = sorted(flight_trails.keys(), key=lambda k: flight_trails[k]["last_seen"])
             evict_count = len(flight_trails) - _MAX_TRACKED_TRAILS
             for k in sorted_keys[:evict_count]:

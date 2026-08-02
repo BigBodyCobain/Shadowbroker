@@ -361,7 +361,7 @@ _proxy_status: dict = {}
 _last_msg_at: float = 0.0
 _proxy_spawn_count: int = 0
 _VESSEL_TRAIL_INTERVAL_S = 120
-_VESSEL_TRAIL_MAX_POINTS = 240
+_VESSEL_TRAIL_MAX_POINTS = None  # keep full vessel trail history
 
 
 # How stale "last vessel message" can be before we consider the stream
@@ -435,7 +435,7 @@ def _record_vessel_trail_locked(mmsi: int, lat, lng, sog=0, now_ts: float | None
         return
     trail_data["points"].append(point)
     trail_data["last_seen"] = now
-    if len(trail_data["points"]) > _VESSEL_TRAIL_MAX_POINTS:
+    if _VESSEL_TRAIL_MAX_POINTS is not None and len(trail_data["points"]) > _VESSEL_TRAIL_MAX_POINTS:
         trail_data["points"] = trail_data["points"][-_VESSEL_TRAIL_MAX_POINTS:]
 
 

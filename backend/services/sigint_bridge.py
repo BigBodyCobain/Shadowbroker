@@ -32,8 +32,8 @@ from services.mesh.meshtastic_topics import all_available_roots, build_subscript
 
 logger = logging.getLogger("services.sigint")
 
-# Maximum signals retained per bridge (prevents unbounded memory)
-_MAX_SIGNALS = 500
+# Unbounded live SIGINT retention (age prune still applies).
+_MAX_SIGNALS = None
 # Maximum age of signals before discard (seconds)
 _MAX_AGE_S = 600  # 10 minutes
 

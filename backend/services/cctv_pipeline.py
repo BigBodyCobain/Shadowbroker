@@ -1345,7 +1345,6 @@ class NetherlandsRWSIngestor(BaseCCTVIngestor):
     """
 
     URL = "https://opendata.ndw.nu/cameras.json"
-    MAX_CAMERAS = 1200
 
     def fetch_data(self) -> List[Dict[str, Any]]:
         resp = fetch_with_curl(self.URL, timeout=25, headers={"Accept": "application/json"})
@@ -1362,7 +1361,7 @@ class NetherlandsRWSIngestor(BaseCCTVIngestor):
             return []
 
         cameras: List[Dict[str, Any]] = []
-        for i, cam in enumerate(data[: self.MAX_CAMERAS]):
+        for i, cam in enumerate(data):
             if not isinstance(cam, dict):
                 continue
             lat = cam.get("lat") if cam.get("lat") is not None else cam.get("latitude")
@@ -1475,30 +1474,14 @@ def get_all_cameras(
     north: float | None = None,
     east: float | None = None,
 ) -> List[Dict[str, Any]]:
-    """Load map-facing camera rows, optionally SQL-scoped to a viewport.
-
-    Without bounds, returns the full catalog (store still holds world list;
-    /api/live-data/fast applies #288 bbox + world-zoom sampling).
-    """
+    """Load map-facing camera rows (full catalog; viewport args ignored)."""
     cols = ", ".join(_CAMERA_SELECT_COLS)
     sql = f"SELECT {cols} FROM cameras"
-    params: list[Any] = []
-    if None not in (south, west, north, east):
-        # Inclusive bbox; antimeridian (west > east) uses OR on lon.
-        if west <= east:
-            sql += " WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?"
-            params.extend([south, north, west, east])
-        else:
-            sql += (
-                " WHERE lat BETWEEN ? AND ?"
-                " AND (lon >= ? OR lon <= ?)"
-            )
-            params.extend([south, north, west, east])
 
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(sql, params).fetchall()
+        rows = conn.execute(sql).fetchall()
     finally:
         conn.close()
 

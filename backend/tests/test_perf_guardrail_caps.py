@@ -1,4 +1,4 @@
-"""P5 / P11 guardrail tests — zoom-aware caps + CCTV lon bbox + enable path."""
+"""Live-data payload helpers — no telemetry sampling; bbox densify only."""
 from __future__ import annotations
 
 
@@ -12,7 +12,7 @@ def test_sample_items_even_stride():
     assert sampled[-1]["id"] == 90
 
 
-def test_world_zoom_caps_dense_layers_and_keeps_totals():
+def test_world_zoom_does_not_sample_telemetry():
     from routers.data import _cap_fast_dashboard_payload
 
     flights = [{"lat": 0.0, "lng": float(i), "id": f"f-{i}"} for i in range(2000)]
@@ -22,19 +22,18 @@ def test_world_zoom_caps_dense_layers_and_keeps_totals():
         "ships": [{"lat": 1.0, "lng": 1.0, "id": "s1"}],
         "cctv": cctv,
         "cctv_total": 900,
-        "satellites": [{"lat": -10.0, "lng": 10.0, "id": "sat"}],  # never capped
+        "satellites": [{"lat": -10.0, "lng": 10.0, "id": "sat"}],
     }
     out = _cap_fast_dashboard_payload(payload)
     assert out["payload_scale"] == "world"
-    assert out["payload_sampled"] is True
-    assert len(out["commercial_flights"]) == 1200
-    assert out["layer_totals"]["commercial_flights"] == 2000
-    assert len(out["cctv"]) == 600
+    assert "payload_sampled" not in out
+    assert len(out["commercial_flights"]) == 2000
+    assert len(out["cctv"]) == 900
     assert out["cctv_total"] == 900
     assert len(out["satellites"]) == 1
 
 
-def test_regional_zoom_does_not_cap():
+def test_regional_zoom_annotates_scale_without_sampling():
     from routers.data import _cap_fast_dashboard_payload
 
     flights = [{"lat": 35.0, "lng": -75.0, "id": f"f-{i}"} for i in range(1500)]
@@ -101,12 +100,13 @@ def test_get_all_cameras_column_subset(tmp_path, monkeypatch):
     assert "secret_extra" not in all_cams[0]
     assert set(all_cams[0].keys()) <= set(cctv_pipeline._CAMERA_SELECT_COLS)
 
+    # Viewport args are ignored — full catalog always.
     boxed = cctv_pipeline.get_all_cameras(south=30, west=-80, north=40, east=-70)
-    assert [c["id"] for c in boxed] == ["cam-1"]
+    assert {c["id"] for c in boxed} == {"cam-1", "cam-2"}
     assert cctv_pipeline.get_camera_count() == 2
 
 
-def test_live_data_fast_world_samples_under_cap(client, monkeypatch):
+def test_live_data_fast_world_keeps_full_telemetry(client, monkeypatch):
     from services.fetchers import _store
     from routers import data as data_router
 
@@ -122,5 +122,5 @@ def test_live_data_fast_world_samples_under_cap(client, monkeypatch):
     assert r.status_code == 200
     data = r.json()
     assert data.get("payload_scale") == "world"
-    assert len(data["commercial_flights"]) == 1200
-    assert data["layer_totals"]["commercial_flights"] == 1500
+    assert "payload_sampled" not in data
+    assert len(data["commercial_flights"]) == 1500
