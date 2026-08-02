@@ -197,6 +197,7 @@ export default function Dashboard() {
     satellites: true,
     gibs_imagery: false,
     highres_satellite: false,
+    osm_basemap: false,
     sentinel_hub: false,
     viirs_nightlights: false,
     road_corridor_trends: false,
@@ -454,14 +455,18 @@ export default function Dashboard() {
     [],
   );
 
-  const stylesList = ['DEFAULT', 'SATELLITE'];
+  const stylesList = ['DEFAULT', 'SATELLITE', 'OSM'];
 
   const cycleStyle = () => {
     setActiveStyle((prev) => {
       const idx = stylesList.indexOf(prev);
       const next = stylesList[(idx + 1) % stylesList.length];
-      // Auto-toggle High-Res Satellite layer with SATELLITE style
-      setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
+      // Mutually-exclusive basemap overlays, synced to the STYLE cycle.
+      setActiveLayers((l) => ({
+        ...l,
+        highres_satellite: next === 'SATELLITE',
+        osm_basemap: next === 'OSM',
+      }));
       return next;
     });
   };
@@ -475,6 +480,7 @@ export default function Dashboard() {
       sar: false,
       gibs_imagery: false,
       highres_satellite: false,
+      osm_basemap: false,
       sentinel_hub: false,
       viirs_nightlights: false,
       road_corridor_trends: false,

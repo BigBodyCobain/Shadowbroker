@@ -165,6 +165,7 @@
     "satellites": "卫星",
     "gibsImagery": "GIBS 卫星图",
     "highresSatellite": "高分辨率卫星",
+    "osmBasemap": "OpenStreetMap",
     "sentinelHub": "Sentinel Hub",
     "viirsNightlights": "VIIRS 夜间灯光",
     "hazards": "灾害",
