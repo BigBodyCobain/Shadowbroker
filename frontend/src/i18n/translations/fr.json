@@ -165,6 +165,7 @@
     "satellites": "Satellites",
     "gibsImagery": "Imagerie GIBS",
     "highresSatellite": "Satellite haute résolution",
+    "osmBasemap": "OpenStreetMap",
     "sentinelHub": "Sentinel Hub",
     "viirsNightlights": "Éclairage nocturne VIIRS",
     "hazards": "Dangers",

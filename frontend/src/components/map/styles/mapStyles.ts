@@ -39,3 +39,14 @@ export const lightStyle = {
     { id: 'imagery-ceiling', type: 'background', paint: { 'background-opacity': 0 } },
   ],
 };
+
+/** Standard OpenStreetMap raster tiles — selectable basemap (no API key).
+ *  Proxied through backend to satisfy OSM tile usage policy (Referer header). */
+export const osmTiles = {
+  tiles: [
+    '/api/osm-tile/{z}/{x}/{y}.png',
+  ],
+  tileSize: 256,
+  maxzoom: 19,
+  attribution: '© OpenStreetMap contributors',
+};

@@ -77,11 +77,14 @@ class PrivateOutbox:
 
     def _load(self) -> None:
         with self._lock:
-            raw = read_domain_json(
-                OUTBOX_DOMAIN,
-                OUTBOX_FILENAME,
-                _default_outbox_state,
-            )
+            try:
+                raw = read_domain_json(
+                    OUTBOX_DOMAIN,
+                    OUTBOX_FILENAME,
+                    _default_outbox_state,
+                )
+            except Exception:
+                raw = _default_outbox_state()
             items = list((raw or {}).get("items") or [])
             self._items.clear()
             self._index.clear()

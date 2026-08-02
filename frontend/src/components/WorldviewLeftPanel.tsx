@@ -43,6 +43,7 @@ import {
   Droplets,
   Radar,
   MapPin,
+  Map,
   Truck,
   RefreshCw,
 } from 'lucide-react';
@@ -695,6 +696,7 @@ function SdrTracker({
 const TOGGLE_ALL_EXCLUDED_LAYERS = new Set<string>([
   'gibs_imagery',
   'highres_satellite',
+  'osm_basemap',
   'sentinel_hub',
   'viirs_nightlights',
   'road_corridor_trends',
@@ -1208,6 +1210,13 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           source: 'Esri World Imagery',
           count: null,
           icon: Satellite,
+        },
+        {
+          id: 'osm_basemap',
+          name: t('layers.osmBasemap'),
+          source: 'OpenStreetMap',
+          count: null,
+          icon: Map,
         },
         {
           id: 'sentinel_hub',

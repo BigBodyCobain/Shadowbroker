@@ -14,7 +14,7 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
-import { darkStyle, lightStyle } from '@/components/map/styles/mapStyles';
+import { darkStyle, lightStyle, osmTiles } from '@/components/map/styles/mapStyles';
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
@@ -1972,6 +1972,28 @@ const MaplibreViewer = ({
           >
             <Layer
               id="esri-world-imagery-layer"
+              type="raster"
+              beforeId="imagery-ceiling"
+              paint={{
+                'raster-opacity': 1,
+                'raster-fade-duration': 300,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* OpenStreetMap standard raster tiles — selectable basemap */}
+        {activeLayers.osm_basemap && (
+          <Source
+            id="osm-standard"
+            type="raster"
+            tiles={osmTiles.tiles}
+            tileSize={osmTiles.tileSize}
+            maxzoom={osmTiles.maxzoom}
+            attribution={osmTiles.attribution}
+          >
+            <Layer
+              id="osm-standard-layer"
               type="raster"
               beforeId="imagery-ceiling"
               paint={{

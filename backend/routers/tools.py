@@ -442,3 +442,36 @@ async def api_uw_flow(request: Request):
         return fetch_defense_quotes()
     except FinnhubConnectorError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+# ── OSM tile proxy (Referer header required by tile usage policy) ──────────
+_OSM_REFERER = "https://www.openstreetmap.org/"
+import httpx as _httpx
+_osm_client: _httpx.AsyncClient | None = None
+
+def _get_osm_client() -> _httpx.AsyncClient:
+    """Module-level httpx client for connection pooling across tile requests."""
+    global _osm_client
+    if _osm_client is None or _osm_client.is_closed:
+        _osm_client = _httpx.AsyncClient(timeout=10.0, follow_redirects=True)
+    return _osm_client
+
+@router.get("/api/osm-tile/{z}/{x}/{y}.png", dependencies=[Depends(require_local_operator)])
+@limiter.limit("300/minute")
+async def api_osm_tile(request: Request, z: int, x: int, y: int):
+    """Proxy OpenStreetMap tiles with required Referer header."""
+    if z < 0 or z > 19:
+        raise HTTPException(400, "zoom must be 0-19")
+    if x < 0 or y < 0 or x > (1 << z) - 1 or y > (1 << z) - 1:
+        raise HTTPException(400, "x/y out of range for zoom level")
+    tile_host = f"{chr(97 + (x % 3))}.tile.openstreetmap.org"  # a/b/c round-robin
+    url = f"https://{tile_host}/{z}/{x}/{y}.png"
+    try:
+        resp = await _get_osm_client().get(url, headers={"Referer": _OSM_REFERER, "User-Agent": "Shadowbroker/1.0"})
+    except Exception:
+        logger.exception("OSM tile fetch failed")
+        raise HTTPException(502, "Tile fetch failed")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Upstream tile error")
+    return Response(content=resp.content, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})

@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@types/node": "^26.1.2"
+  }
+}
