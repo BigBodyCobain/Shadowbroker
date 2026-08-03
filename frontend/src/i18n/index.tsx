@@ -1,11 +1,15 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import en from './translations/en.json';
 import zhCN from './translations/zh-CN.json';
 import fr from './translations/fr.json';
+import fa from './translations/fa.json';
 
-export type Locale = 'en' | 'zh-CN' | 'fr';
+export type Locale = 'en' | 'zh-CN' | 'fr' | 'fa';
+
+/** Locales that read right-to-left. Used to set <html dir> and lang. */
+const RTL_LOCALES: ReadonlySet<Locale> = new Set(['fa']);
 
 /**
  * Registry of available locales for the UI language toggle.
@@ -29,9 +33,15 @@ export const LOCALES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'en', label: 'English' },
   { code: 'zh-CN', label: '中文 (简体)' },
   { code: 'fr', label: 'Français' },
+  { code: 'fa', label: 'فارسی' },
 ];
 
-const translations: Record<Locale, Record<string, Record<string, string>>> = { en, 'zh-CN': zhCN, fr };
+const translations: Record<Locale, Record<string, Record<string, string>>> = {
+  en,
+  'zh-CN': zhCN,
+  fr,
+  fa,
+};
 
 function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && LOCALES.some((entry) => entry.code === value);
@@ -97,6 +107,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('sb_locale', newLocale);
     }
   }, []);
+
+  // Keep <html dir>/<html lang> in sync with the active locale.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const t = useCallback(
     (key: string): string => {
