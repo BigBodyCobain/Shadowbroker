@@ -28,6 +28,17 @@ import OnboardingModal, { useOnboarding } from '@/components/OnboardingModal';
 import ChangelogModal, { useChangelog } from '@/components/ChangelogModal';
 import StartupWarmupModal, { useStartupWarmupNotice } from '@/components/StartupWarmupModal';
 import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
+import {
+  getDefaultActiveLayers,
+  getDefaultMapStyle,
+  loadActiveFilters,
+  loadActiveLayers,
+  loadMapStyle,
+  saveActiveFilters,
+  saveActiveLayers,
+  saveMapStyle,
+  type MapStyle,
+} from '@/lib/layerPreferences';
 import type { ShodanSearchMatch } from '@/types/shodan';
 import { API_BASE } from '@/lib/api';
 import { useDataPolling, LAYER_TOGGLE_EVENT } from '@/hooks/useDataPolling';
@@ -179,74 +190,37 @@ export default function Dashboard() {
     });
   }, []);
 
-  const [activeLayers, setActiveLayers] = useState<ActiveLayers>({
-    // Aircraft — all ON
-    flights: true,
-    private: true,
-    jets: true,
-    military: true,
-    tracked: true,
-    gps_jamming: true,
-    // Maritime — all ON
-    ships_military: true,
-    ships_cargo: true,
-    ships_civilian: true,
-    ships_passenger: true,
-    ships_tracked_yachts: true,
-    fishing_activity: true,
-    // Space — only satellites
-    satellites: true,
-    gibs_imagery: false,
-    highres_satellite: false,
-    sentinel_hub: false,
-    viirs_nightlights: false,
-    road_corridor_trends: false,
-    malware_c2: false,
-    submarine_cables: false,
-    scm_suppliers: false,
-    cyber_threats: false,
-    telegram_osint: true,
-    // Hazards — no fire, rest ON
-    earthquakes: true,
-    firms: false,
-    ukraine_alerts: true,
-    weather_alerts: true,
-    volcanoes: true,
-    air_quality: true,
-    // Infrastructure — military bases + internet outages only
-    cctv: false,
-    datacenters: false,
-    internet_outages: true,
-    power_plants: false,
-    military_bases: true,
-    trains: false,
-    // SIGINT — all ON except HF digital spots
-    kiwisdr: true,
-    psk_reporter: false,
-    satnogs: true,
-    tinygs: true,
-    scanners: true,
-    sigint_meshtastic: true,
-    sigint_aprs: true,
-    // Overlays
-    ukraine_frontline: true,
-    global_incidents: true,
-    day_night: true,
-    correlations: true,
-    contradictions: true,
-    uap_sightings: true,
-    // Biosurveillance
-    wastewater: true,
-    // CrowdThreat is operator opt-in only.
-    crowdthreat: false,
-    gt_risk: false,
-    // Shodan
-    shodan_overlay: false,
-    // AI Intel
-    ai_intel: true,
-    // SAR (Synthetic Aperture Radar)
-    sar: true,
-  });
+  const [activeLayers, setActiveLayers] = useState<ActiveLayers>(getDefaultActiveLayers);
+  const [activeStyle, setActiveStyle] = useState<MapStyle>(getDefaultMapStyle);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  const [layerPrefsHydrated, setLayerPrefsHydrated] = useState(false);
+
+  // SSR/hydration cannot read localStorage in useState — load saved UI prefs after mount.
+  useEffect(() => {
+    setActiveLayers(loadActiveLayers());
+    setActiveStyle(loadMapStyle());
+    setActiveFilters(loadActiveFilters());
+    setLayerPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveActiveLayers(activeLayers);
+  }, [activeLayers, layerPrefsHydrated]);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveMapStyle(activeStyle);
+  }, [activeStyle, layerPrefsHydrated]);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveActiveFilters(activeFilters);
+  }, [activeFilters, layerPrefsHydrated]);
+
+  const resetActiveLayers = useCallback(() => {
+    setActiveLayers(getDefaultActiveLayers());
+  }, []);
   const regionLat =
     selectedEntity?.type === 'region_dossier' ? selectedEntity.extra?.lat : undefined;
   const regionLng =
@@ -323,7 +297,7 @@ export default function Dashboard() {
   const layersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLayerSyncRef = useRef(false);
   useEffect(() => {
-    if (!secondaryBootReady) return;
+    if (!secondaryBootReady || !layerPrefsHydrated) return;
     const syncLayers = (triggerRefetch: boolean) =>
       fetch(`${API_BASE}/api/layers`, {
         method: 'POST',
@@ -347,7 +321,7 @@ export default function Dashboard() {
     return () => {
       if (layersTimerRef.current) clearTimeout(layersTimerRef.current);
     };
-  }, [activeLayers, secondaryBootReady]);
+  }, [activeLayers, secondaryBootReady, layerPrefsHydrated]);
 
   // Left panel accordion state
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
@@ -430,8 +404,6 @@ export default function Dashboard() {
     bloom: true,
   });
 
-  const [activeStyle, setActiveStyle] = useState('DEFAULT');
-
   const memoizedEffects = useMemo(
     () => ({ ...effects, bloom: effects.bloom && activeStyle !== 'DEFAULT', style: activeStyle }),
     [effects, activeStyle],
@@ -478,14 +450,13 @@ export default function Dashboard() {
   const cycleStyle = () => {
     setActiveStyle((prev) => {
       const idx = stylesList.indexOf(prev);
-      const next = stylesList[(idx + 1) % stylesList.length];
+      const next = stylesList[(idx + 1) % stylesList.length] as MapStyle;
       // Auto-toggle High-Res Satellite layer with SATELLITE style
       setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
       return next;
     });
   };
 
-  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const firstPaintActiveLayers = useMemo<ActiveLayers>(() => {
     if (secondaryBootReady) return activeLayers;
     return {
@@ -618,6 +589,7 @@ export default function Dashboard() {
                     <WorldviewLeftPanel
                       activeLayers={activeLayers}
                       setActiveLayers={setActiveLayers}
+                      onResetLayers={resetActiveLayers}
                       shodanResultCount={shodanResults.length}
                       onSettingsClick={() => setSettingsOpen(true)}
                       onLegendClick={() => setLegendOpen(true)}

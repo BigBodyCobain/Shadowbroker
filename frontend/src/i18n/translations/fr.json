@@ -147,6 +147,7 @@
     "clearMeasure": "Effacer la mesure"
   },
   "layers": {
+    "resetToDefaults": "Réinitialiser les couches par défaut",
     "aircraft": "Aéronefs",
     "commercialFlights": "Vols commerciaux",
     "privateAircraft": "Aéronefs privés",

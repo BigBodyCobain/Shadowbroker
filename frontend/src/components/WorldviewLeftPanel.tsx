@@ -57,6 +57,11 @@ import { useTranslation } from '@/i18n';
 import SarModeChooserModal from './SarModeChooserModal';
 import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
 import { extractGtAlerts } from '@/lib/gtAlerts';
+import {
+  getDefaultLayerSectionExpanded,
+  loadLayerSectionExpanded,
+  saveLayerSectionExpanded,
+} from '@/lib/layerPreferences';
 import { gtLeanLayerWarning, useRuntimeProfile } from '@/hooks/useRuntimeProfile';
 
 function relativeTime(iso: string | undefined): string {
@@ -703,6 +708,7 @@ const TOGGLE_ALL_EXCLUDED_LAYERS = new Set<string>([
 const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   activeLayers,
   setActiveLayers,
+  onResetLayers,
   onSettingsClick,
   onLegendClick,
   gibsDate,
@@ -729,6 +735,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
 }: {
   activeLayers: ActiveLayers;
   setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>;
+  onResetLayers?: () => void;
   onSettingsClick?: () => void;
   onLegendClick?: () => void;
   gibsDate?: string;
@@ -1076,6 +1083,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
 
   const sections = [
     {
+      id: 'aircraft',
       label: t('layers.aircraft').toUpperCase(),
       icon: Plane,
       layers: [
@@ -1124,6 +1132,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'maritime',
       label: t('layers.maritime').toUpperCase(),
       icon: Ship,
       layers: [
@@ -1172,6 +1181,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'space',
       label: t('layers.space').toUpperCase(),
       icon: Satellite,
       layers: [
@@ -1235,6 +1245,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'hazards',
       label: t('layers.hazards').toUpperCase(),
       icon: AlertTriangle,
       layers: [
@@ -1295,6 +1306,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'uap',
       label: t('layers.uapSightings').toUpperCase(),
       icon: Eye,
       layers: [
@@ -1308,6 +1320,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'biosurveillance',
       label: t('layers.biosurveillance').toUpperCase(),
       icon: Droplets,
       layers: [
@@ -1321,6 +1334,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'infrastructure',
       label: t('layers.infrastructure').toUpperCase(),
       icon: Server,
       layers: [
@@ -1397,6 +1411,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'shodan',
       label: t('layers.shodanOverlay').toUpperCase(),
       icon: Search,
       layers: [
@@ -1410,6 +1425,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'sigint',
       label: t('layers.sigint').toUpperCase(),
       icon: Radio,
       layers: [
@@ -1465,6 +1481,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       ],
     },
     {
+      id: 'overlays',
       label: t('layers.overlays').toUpperCase(),
       icon: Globe,
       layers: [
@@ -1538,16 +1555,20 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     },
   ];
 
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    sections.forEach((s) => {
-      // Keep high-traffic intel overlays visible on first paint (GDELT, Telegram, etc.)
-      initial[s.label] = s.layers.some((l) =>
-        ['global_incidents', 'telegram_osint', 'ukraine_frontline', 'gt_risk'].includes(l.id),
-      );
-    });
-    return initial;
-  });
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
+    getDefaultLayerSectionExpanded,
+  );
+  const [sectionPrefsHydrated, setSectionPrefsHydrated] = useState(false);
+
+  useEffect(() => {
+    setExpandedSections(loadLayerSectionExpanded());
+    setSectionPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sectionPrefsHydrated) return;
+    saveLayerSectionExpanded(expandedSections);
+  }, [expandedSections, sectionPrefsHydrated]);
 
   const shipIcon = (
     <svg
@@ -1639,6 +1660,20 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {onResetLayers ? (
+              <button
+                type="button"
+                title={t('layers.resetToDefaults')}
+                aria-label={t('layers.resetToDefaults')}
+                className="text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onResetLayers();
+                }}
+              >
+                <RefreshCw size={16} />
+              </button>
+            ) : null}
             <button
               title={isAllToggleableLayersOn ? 'Disable all layers' : 'Enable all layers'}
               className={`${
@@ -1772,20 +1807,21 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                   const anyOn = sectionLayerIds.some(
                     (id) => activeLayers[id as keyof typeof activeLayers],
                   );
-                  const expanded = expandedSections[section.label] ?? true;
+                  const expanded =
+                    expandedSections[section.id] ?? getDefaultLayerSectionExpanded()[section.id] ?? false;
                   const totalCount = section.layers.reduce(
                     (sum, l) => sum + ((l.count as number) || 0),
                     0,
                   );
 
                   return (
-                    <div key={section.label} className="flex flex-col">
+                    <div key={section.id} className="flex flex-col">
                       {/* Section header */}
                       <div className="flex items-center justify-between mb-1">
                         <div
                           className="flex items-center gap-2 cursor-pointer flex-1"
                           onClick={() =>
-                            setExpandedSections((prev) => ({ ...prev, [section.label]: !expanded }))
+                            setExpandedSections((prev) => ({ ...prev, [section.id]: !expanded }))
                           }
                         >
                           <SectionIcon

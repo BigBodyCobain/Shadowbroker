@@ -147,6 +147,7 @@
     "clearMeasure": "پاک کردن اندازه‌گیری"
   },
   "layers": {
+    "resetToDefaults": "بازنشانی لایه‌ها به پیش‌فرض",
     "aircraft": "هواپیما",
     "commercialFlights": "پروازهای تجاری",
     "privateAircraft": "هواپیماهای خصوصی",
