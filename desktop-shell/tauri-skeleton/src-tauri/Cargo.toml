@@ -1,6 +1,6 @@
 [package]
 name = "shadowbroker-tauri-shell"
-version = "0.9.83"
+version = "0.9.84"
 edition = "2021"
 
 [build-dependencies]
