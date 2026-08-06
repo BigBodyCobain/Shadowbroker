@@ -18,7 +18,7 @@ dependencies = [
     "fastapi==0.136.3",
     "feedparser==6.0.11",
     "httpx==0.28.1",
-    "playwright==1.59.0",
+    "playwright==1.62.0",
     "playwright-stealth==1.0.6",
     "pydantic==2.13.3",
     "pydantic-settings==2.8.1",
