@@ -33,7 +33,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-map-gl": "^8.1.0",
+    "react-map-gl": "^8.1.2",
     "satellite.js": "^6.0.2",
     "zod": "^4.3.6"
   },
