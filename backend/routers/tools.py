@@ -447,6 +447,7 @@ async def api_uw_flow(request: Request):
 # ── OSM tile proxy (Referer header required by tile usage policy) ──────────
 _OSM_REFERER = "https://www.openstreetmap.org/"
 import httpx as _httpx
+from services.network_utils import outbound_user_agent as _osm_ua
 _osm_client: _httpx.AsyncClient | None = None
 
 def _get_osm_client() -> _httpx.AsyncClient:
@@ -467,7 +468,7 @@ async def api_osm_tile(request: Request, z: int, x: int, y: int):
     tile_host = f"{chr(97 + (x % 3))}.tile.openstreetmap.org"  # a/b/c round-robin
     url = f"https://{tile_host}/{z}/{x}/{y}.png"
     try:
-        resp = await _get_osm_client().get(url, headers={"Referer": _OSM_REFERER, "User-Agent": "Shadowbroker/1.0"})
+        resp = await _get_osm_client().get(url, headers={"Referer": _OSM_REFERER, "User-Agent": _osm_ua("osm-tiles")})
     except Exception:
         logger.exception("OSM tile fetch failed")
         raise HTTPException(502, "Tile fetch failed")

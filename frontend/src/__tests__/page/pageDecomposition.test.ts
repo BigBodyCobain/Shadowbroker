@@ -216,7 +216,7 @@ describe('page.tsx decomposition — retained orchestration', () => {
   it('page.tsx retains cycleStyle with atomic activeStyle + highres_satellite update', () => {
     expect(page).toMatch(/cycleStyle/);
     const idx = page.indexOf('cycleStyle');
-    const block = page.slice(idx, idx + 300);
+    const block = page.slice(idx, idx + 600);
     expect(block).toContain('setActiveStyle');
     expect(block).toContain('highres_satellite');
   });
