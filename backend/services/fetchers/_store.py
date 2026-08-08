@@ -7,6 +7,7 @@ Every fetcher imports from here instead of maintaining its own copy.
 import copy
 import threading
 import logging
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -505,6 +506,69 @@ active_layers: dict[str, bool] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Layer overrides — additive, agent-driven, never persisted.
+# An automation (e.g. a hotspot daemon) can switch an overlay on for a while
+# without touching the operator's own toggles. Overrides merge ON TOP of
+# active_layers for reads; active_layers itself is only ever written by the
+# operator via POST /api/layers. The whole map shares one expiry, evaluated
+# lazily on read so no background task is needed. When it lapses the operator's
+# own view returns with no save/restore bookkeeping.
+# ---------------------------------------------------------------------------
+_MAX_OVERRIDE_TTL_S = 3600.0
+
+layer_overrides: dict[str, bool] = {}
+_layer_overrides_expires_at: float = 0.0
+
+
+def get_layer_overrides() -> dict[str, bool]:
+    """Return the live overrides, or {} once the TTL has lapsed."""
+    global _layer_overrides_expires_at
+    if not layer_overrides:
+        return {}
+    if time.monotonic() >= _layer_overrides_expires_at:
+        layer_overrides.clear()
+        _layer_overrides_expires_at = 0.0
+        bump_active_layers_version()
+        return {}
+    return dict(layer_overrides)
+
+
+def set_layer_overrides(overrides: dict[str, bool], ttl_seconds: float) -> dict[str, bool]:
+    """Replace the override map, returning the entries that were accepted.
+
+    Keys that are not real layers are dropped so a typo cannot silently do
+    nothing — the caller compares the return value against what it sent.
+    """
+    global _layer_overrides_expires_at
+    ttl = max(0.0, min(float(ttl_seconds), _MAX_OVERRIDE_TTL_S))
+    accepted = {k: bool(v) for k, v in overrides.items() if k in active_layers}
+    layer_overrides.clear()
+    layer_overrides.update(accepted)
+    _layer_overrides_expires_at = time.monotonic() + ttl if accepted else 0.0
+    bump_active_layers_version()
+    return accepted
+
+
+def clear_layer_overrides() -> None:
+    """Drop all overrides, restoring the operator's own layer state."""
+    global _layer_overrides_expires_at
+    if layer_overrides:
+        layer_overrides.clear()
+        _layer_overrides_expires_at = 0.0
+        bump_active_layers_version()
+
+
+def effective_layers() -> dict[str, bool]:
+    """Operator layer state merged with any live overrides."""
+    overrides = get_layer_overrides()
+    return {**active_layers, **overrides} if overrides else dict(active_layers)
+
+
 def is_any_active(*layer_names: str) -> bool:
     """Return True if any of the given layer names is currently active."""
-    return any(active_layers.get(name, True) for name in layer_names)
+    overrides = get_layer_overrides()
+    return any(
+        overrides.get(name, active_layers.get(name, True))
+        for name in layer_names
+    )

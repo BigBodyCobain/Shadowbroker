@@ -566,6 +566,18 @@ def _run_prediction_markets_disable() -> None:
         logger.warning("Prediction markets disable cleanup failed: %s", e)
 
 
+@router.get("/api/layers", dependencies=[Depends(require_local_operator)])
+async def get_layers(request: Request):
+    """Report operator layer state plus any live overrides.
+
+    The UI polls this so the DATA LAYERS toggles can show an overlay that an
+    agent switched on. ``layers`` is the operator's own state and is what the
+    browser persists; ``overrides`` is transient and must not be saved.
+    """
+    from services.fetchers._store import active_layers, get_layer_overrides
+    return {"layers": dict(active_layers), "overrides": get_layer_overrides()}
+
+
 @router.post("/api/layers", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def update_layers(update: LayerUpdate, request: Request):
@@ -668,10 +680,14 @@ async def bootstrap_critical(request: Request):
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (
-        active_layers,
+        effective_layers,
         get_latest_data_subset_refs,
         get_source_timestamps_snapshot,
     )
+
+    # Rebind the local name to the override-merged map. Every layer filter
+    # below reads this name, so one merge here covers all of them.
+    active_layers = effective_layers()
 
     def _build() -> dict:
         d = get_latest_data_subset_refs(
@@ -769,13 +785,16 @@ def _try_build_fast_delta(
 ) -> dict | None:
     """Return a delta payload, or None to fall back to a full snapshot."""
     from services.fetchers._store import (
-        active_layers,
         compute_layer_row_delta,
+        effective_layers,
         get_data_version,
         get_layer_versions,
         get_latest_data_subset_refs,
         get_source_timestamps_snapshot,
     )
+
+    # Rebind the local name to the override-merged map (see bootstrap_critical).
+    active_layers = effective_layers()
 
     server_lv = get_layer_versions()
     deltas: dict[str, Any] = {}
@@ -894,7 +913,10 @@ async def live_data_fast(
     etag = _current_etag(prefix=("fast|initial|" if initial else "fast|full|") + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    from services.fetchers._store import (active_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
+    from services.fetchers._store import (effective_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
+
+    # Rebind the local name to the override-merged map (see bootstrap_critical).
+    active_layers = effective_layers()
 
     def _build() -> dict:
         d = get_latest_data_subset_refs(
@@ -959,7 +981,10 @@ async def live_data_slow(
     etag = _current_etag(prefix="slow|full|" + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    from services.fetchers._store import (active_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
+    from services.fetchers._store import (effective_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
+
+    # Rebind the local name to the override-merged map (see bootstrap_critical).
+    active_layers = effective_layers()
 
     def _build() -> dict:
         d = get_latest_data_subset_refs(
