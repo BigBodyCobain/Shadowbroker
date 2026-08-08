@@ -191,6 +191,9 @@ export default function Dashboard() {
   }, []);
 
   const [activeLayers, setActiveLayers] = useState<ActiveLayers>(getDefaultActiveLayers);
+  // Backend-driven layer overrides. Additive on top of activeLayers, never
+  // persisted and never pushed back — the operator's own toggles stay theirs.
+  const [layerOverrides, setLayerOverrides] = useState<Partial<ActiveLayers>>({});
   const [activeStyle, setActiveStyle] = useState<MapStyle>(getDefaultMapStyle);
   const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
   const [layerPrefsHydrated, setLayerPrefsHydrated] = useState(false);
@@ -322,6 +325,27 @@ export default function Dashboard() {
       if (layersTimerRef.current) clearTimeout(layersTimerRef.current);
     };
   }, [activeLayers, secondaryBootReady, layerPrefsHydrated]);
+
+  // Poll for backend layer overrides so an agent can switch an overlay on
+  // without the operator reloading. Overrides carry a TTL server-side, so a
+  // missed poll self-corrects and a dropped backend just lets them lapse.
+  useEffect(() => {
+    if (!secondaryBootReady) return;
+    let cancelled = false;
+    const pollOverrides = () =>
+      fetch(`${API_BASE}/api/layers`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (!cancelled) setLayerOverrides(d?.overrides ?? {});
+        })
+        .catch(() => {});
+    void pollOverrides();
+    const id = setInterval(pollOverrides, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [secondaryBootReady]);
 
   // Left panel accordion state
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
@@ -457,8 +481,10 @@ export default function Dashboard() {
     });
   };
 
+  // Overrides merge last so they win over both the operator's toggles and the
+  // first-paint suppressions below.
   const firstPaintActiveLayers = useMemo<ActiveLayers>(() => {
-    if (secondaryBootReady) return activeLayers;
+    if (secondaryBootReady) return { ...activeLayers, ...layerOverrides };
     return {
       ...activeLayers,
       cctv: false,
@@ -472,8 +498,9 @@ export default function Dashboard() {
       tinygs: false,
       datacenters: false,
       power_plants: false,
+      ...layerOverrides,
     };
-  }, [activeLayers, secondaryBootReady]);
+  }, [activeLayers, layerOverrides, secondaryBootReady]);
   // Agent fly_to handler (sar_focus_aoi etc.) — wired here now that
   // setFlyToLocation is in scope.  show_image is routed through
   // useAgentActions at the top of Dashboard.
@@ -587,7 +614,7 @@ export default function Dashboard() {
                 {secondaryBootReady ? (
                   <ErrorBoundary name="WorldviewLeftPanel">
                     <WorldviewLeftPanel
-                      activeLayers={activeLayers}
+                      activeLayers={firstPaintActiveLayers}
                       setActiveLayers={setActiveLayers}
                       onResetLayers={resetActiveLayers}
                       shodanResultCount={shodanResults.length}

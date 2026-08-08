@@ -382,6 +382,50 @@ async def api_refresh_layer_feed(request: Request, layer_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Native map layer overrides — additive, transient, agent-driven.
+#
+# These are the DATA LAYERS toggles, not the pin layers above. An override
+# switches an overlay on without touching the operator's own toggle state, and
+# lapses on its own after the TTL. Agents holding an overlay open should re-PUT
+# on their refresh tick rather than sending a long TTL.
+# ---------------------------------------------------------------------------
+
+class LayerOverrideUpdate(BaseModel):
+    layers: dict[str, bool]
+    ttl_seconds: float = 300.0
+
+
+@router.put("/api/ai/layer-overrides", dependencies=[Depends(require_openclaw_or_local)])
+@limiter.limit("30/minute")
+async def put_layer_overrides(request: Request, body: LayerOverrideUpdate):
+    """Replace the override map. Returns which keys were accepted and ignored."""
+    from services.fetchers._store import set_layer_overrides
+
+    accepted = set_layer_overrides(body.layers, body.ttl_seconds)
+    ignored = sorted(set(body.layers) - set(accepted))
+    return {"ok": True, "overrides": accepted, "ignored": ignored}
+
+
+@router.get("/api/ai/layer-overrides", dependencies=[Depends(require_openclaw_or_local)])
+@limiter.limit("60/minute")
+async def read_layer_overrides(request: Request):
+    """Return the overrides that are currently live."""
+    from services.fetchers._store import get_layer_overrides
+
+    return {"ok": True, "overrides": get_layer_overrides()}
+
+
+@router.delete("/api/ai/layer-overrides", dependencies=[Depends(require_openclaw_or_local)])
+@limiter.limit("30/minute")
+async def delete_layer_overrides(request: Request):
+    """Drop all overrides, restoring the operator's own layer state."""
+    from services.fetchers._store import clear_layer_overrides
+
+    clear_layer_overrides()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Agent Actions endpoint — frontend polls this for UI commands from the agent
 # ---------------------------------------------------------------------------
 
