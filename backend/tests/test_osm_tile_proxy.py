@@ -104,7 +104,7 @@ class TestOsmTileValid:
         assert r.status_code == 200
         headers = captured_kw.get("headers", {})
         assert headers.get("Referer") == "https://www.openstreetmap.org/"
-        assert headers.get("User-Agent") == "Shadowbroker/1.0"
+        assert headers.get("User-Agent") and "purpose: osm-tiles" in headers.get("User-Agent")
 
     @patch("routers.tools._get_osm_client")
     def test_response_has_cache_control(self, mock_get_client, client):
