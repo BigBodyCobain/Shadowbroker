@@ -169,6 +169,7 @@ The channel operates over HMAC-authenticated HTTP with body-integrity binding:
 | `sb.stream_updates()` | SSE push: `layer_changed`, alerts, tasks | **Open first, keep open** — tells you exactly which layers updated |
 | `await sb.get_layer_slice(["ships", "gdelt"])` | Only the requested layers, with per-layer incremental | **Primary fetch method** — automatically skips layers you already have |
 | `await sb.send_command("get_summary")` | Lightweight counts-only summary | Discover what data exists before pulling anything |
+| `await sb.get_fetch_health()` | Sanitized process-local outcomes for instrumented fetch and maintenance tasks | Results reset on backend restart; condition is the latest recorded task completion, not data freshness |
 | `await sb.ask("...")` | **Route + execute** | **Default** for natural-language reads |
 | `await sb.send_command("get_entity_profile", {...})` | **Preferred aircraft/vessel dossier** — identity, VIP tags, trail, route, ACARS, jamming/correlations, news | Tail, owner, callsign, MMSI |
 | `await sb.send_command("get_entity_trail", {...})` | Observed path + route + ACARS hints only | When you don't need full dossier |

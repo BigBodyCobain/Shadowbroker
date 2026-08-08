@@ -25,17 +25,97 @@ const store: Record<string, unknown> = {};
 let backendStatus: BackendStatus = "connecting";
 const statusListeners = new Set<Listener>();
 
+// ── Content-aware equality (stable merge) ────────────────────────────────
+
+/** Cheap O(n) fingerprint for dashboard arrays — id + rounded lat/lng. */
+export function arrayFingerprint(arr: unknown[]): string {
+  let h = String(arr.length);
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i] as Record<string, unknown> | null | undefined;
+    if (item == null || typeof item !== "object") {
+      h += `|${item}`;
+      continue;
+    }
+    const id =
+      item.icao ?? item.id ?? item.mmsi ?? item.hex ?? item.callsign ?? item.name ?? i;
+    const lat = item.lat != null ? Math.round(Number(item.lat) * 100) : "";
+    const lng = item.lng != null ? Math.round(Number(item.lng) * 100) : "";
+    h += `|${id}:${lat}:${lng}`;
+  }
+  return h;
+}
+
+/**
+ * Content-aware equality for mergeData: keep the previous reference when
+ * values are equivalent enough that subscribers need not re-render.
+ */
+export function valuesEquivalent(prev: unknown, next: unknown): boolean {
+  if (prev === next) return true;
+  if (prev == null || next == null) return prev === next;
+  if (typeof prev !== typeof next) return false;
+  if (Array.isArray(prev) && Array.isArray(next)) {
+    if (prev.length !== next.length) return false;
+    if (prev.length === 0) return true;
+    // Geo / track layers: cheap id+position fingerprint. Other arrays
+    // (news, etc.) fall through as not-equivalent so new refs still notify.
+    const sample = prev[0];
+    const isGeoish =
+      sample != null &&
+      typeof sample === "object" &&
+      ("lat" in (sample as object) ||
+        "lng" in (sample as object) ||
+        "icao" in (sample as object) ||
+        "icao24" in (sample as object) ||
+        "mmsi" in (sample as object));
+    if (!isGeoish) return false;
+    return arrayFingerprint(prev) === arrayFingerprint(next);
+  }
+  if (typeof prev === "object" && typeof next === "object") {
+    // Shallow: same keys and === values
+    const pk = Object.keys(prev as object);
+    const nk = Object.keys(next as object);
+    if (pk.length !== nk.length) return false;
+    for (const k of pk) {
+      if ((prev as Record<string, unknown>)[k] !== (next as Record<string, unknown>)[k]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return prev === next;
+}
+
 // ── Write API (called from useDataPolling) ───────────────────────────────
 
 /** Merge a partial payload into the store, notifying only affected keys. */
 export function mergeData(patch: Record<string, unknown>) {
   const changedKeys: string[] = [];
   for (const key of Object.keys(patch)) {
-    const next = patch[key];
-    if (store[key] !== next) {
-      store[key] = next;
-      changedKeys.push(key);
+    // Protocol / meta fields from live-data — never materialize as layers.
+    if (
+      key === "mode" ||
+      key === "deltas" ||
+      key === "layers" ||
+      key === "store_version" ||
+      key === "layer_versions" ||
+      key === "payload_scale" ||
+      key === "payload_sampled" ||
+      key === "layer_totals" ||
+      key === "startup_payload" ||
+      key === "bootstrap_payload" ||
+      key === "bootstrap_ready"
+    ) {
+      continue;
     }
+    const next = patch[key];
+    const prev = store[key];
+    if (valuesEquivalent(prev, next)) {
+      // Keep previous reference so subscribers do not fire
+      store[key] = prev;
+      continue;
+    }
+    store[key] = next;
+    changedKeys.push(key);
   }
   // Notify per-key subscribers
   for (const key of changedKeys) {
@@ -46,6 +126,56 @@ export function mergeData(patch: Record<string, unknown>) {
   if (changedKeys.length > 0) {
     for (const fn of globalListeners) fn();
   }
+}
+
+function entityIdForLayer(layer: string, item: Record<string, unknown>): string {
+  if (layer === "ships") {
+    return String(item.mmsi ?? item.id ?? "").trim();
+  }
+  return String(item.icao24 ?? item.icao ?? item.id ?? item.hex ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Apply row-level upsert/delete patches from `/api/live-data/fast` delta mode.
+ * Returns false if a layer patch cannot be applied safely (caller should full-resync).
+ */
+export function applyLayerDeltas(
+  deltas: Record<string, { upsert?: unknown[]; delete?: string[]; version?: number }>,
+): boolean {
+  const changedKeys: string[] = [];
+  for (const [key, patch] of Object.entries(deltas || {})) {
+    if (!patch || typeof patch !== "object") return false;
+    const prev = store[key];
+    const base = Array.isArray(prev) ? (prev as Record<string, unknown>[]) : [];
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const item of base) {
+      if (!item || typeof item !== "object") continue;
+      const id = entityIdForLayer(key, item);
+      if (id) byId.set(id, item);
+    }
+    for (const id of patch.delete || []) {
+      byId.delete(String(id));
+    }
+    for (const raw of patch.upsert || []) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const id = entityIdForLayer(key, item);
+      if (!id) continue;
+      byId.set(id, item);
+    }
+    store[key] = Array.from(byId.values());
+    changedKeys.push(key);
+  }
+  for (const key of changedKeys) {
+    const set = keyListeners.get(key);
+    if (set) for (const fn of set) fn();
+  }
+  if (changedKeys.length > 0) {
+    for (const fn of globalListeners) fn();
+  }
+  return true;
 }
 
 export function setBackendStatus(next: BackendStatus) {

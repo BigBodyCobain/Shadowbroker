@@ -34,6 +34,7 @@ _SOURCE_LANG_LABELS = {
     "ru": "Russian",
     "en": "English",
     "ar": "Arabic",
+    "fa": "Persian",
     "he": "Hebrew",
     "zh-cn": "Chinese",
     "fr": "French",
@@ -48,6 +49,7 @@ _CACHE_MAX = 512
 _LOCALE_TO_GOOGLE = {
     "en": "en",
     "fr": "fr",
+    "fa": "fa",
     "zh-cn": "zh-CN",
     "zh": "zh-CN",
 }

@@ -825,6 +825,10 @@ export interface DashboardData {
   satellite_source?: string;
   financial_source?: string;
   cctv_total?: number;
+  /** World/continental sampling metadata from /api/live-data/fast (P5). */
+  payload_scale?: 'world' | 'continental' | 'regional';
+  payload_sampled?: boolean;
+  layer_totals?: Record<string, number>;
   satnogs_total?: number;
   tinygs_total?: number;
   bootstrap_ready?: boolean;

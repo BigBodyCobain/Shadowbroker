@@ -12,8 +12,9 @@ const UNBOUNDED_INTERP_SECONDS = Number.POSITIVE_INFINITY;
  * to smoothly animate entity positions between API updates.
  *
  * The interp functions read dtSeconds from a ref so their references stay stable.
- * This prevents 7 GeoJSON useMemos from re-firing every tick — GeoJSON only rebuilds
- * when source data actually changes (new API fetch), not on every interpolation tick.
+ * Dynamic flight/ship GeoJSON is rebuilt by the worker only when source data /
+ * filters / bounds change; applyDynamicLayerInterp then dead-reckons coordinates
+ * on each interpTick without another full worker rebuild.
  */
 export function useInterpolation() {
   const dataTimestamp = useRef(Date.now());
@@ -21,7 +22,7 @@ export function useInterpolation() {
   const [interpTick, setInterpTick] = useState(0);
 
   // Update dtSeconds on each tick and bump a lightweight counter so moving
-  // layers actually rebuild between backend refreshes.
+  // markers can advance between backend refreshes.
   useEffect(() => {
     const iv = setInterval(() => {
       dtRef.current = (Date.now() - dataTimestamp.current) / 1000;

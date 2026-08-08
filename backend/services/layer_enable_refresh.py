@@ -10,13 +10,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Inline — local DB / static files only.
+# Inline — tiny local/static loads (ms).
 _INSTANT_LAYER_KEYS: frozenset[str] = frozenset(
-    {"cctv", "power_plants", "datacenters"}
+    {"power_plants", "datacenters"}
 )
-# Background — network-bound; may take seconds.
+# Background — network-bound OR large local scans (full CCTV SELECT can stall
+# the single uvicorn worker if run inline on enable).
 _SLOW_LAYER_KEYS: frozenset[str] = frozenset(
-    {"firms", "psk_reporter", "fishing_activity"}
+    {"cctv", "firms", "psk_reporter", "fishing_activity"}
 )
 
 
@@ -33,12 +34,6 @@ def _was_off_now_on(before: dict[str, bool], key: str) -> bool:
 
 
 def _instant_fetch(key: str) -> None:
-    if key == "cctv":
-        from services.fetchers.infrastructure import fetch_cctv
-
-        fetch_cctv()
-        logger.info("CCTV loaded (layer enabled)")
-        return
     if key == "power_plants":
         from services.fetchers.infrastructure import fetch_power_plants
 
@@ -55,6 +50,12 @@ def _instant_fetch(key: str) -> None:
 
 
 def _slow_fetch(key: str) -> None:
+    if key == "cctv":
+        from services.fetchers.infrastructure import fetch_cctv
+
+        fetch_cctv()
+        logger.info("CCTV loaded (layer enabled)")
+        return
     if key == "firms":
         from services.fetchers.earth_observation import (
             fetch_firms_country_fires,

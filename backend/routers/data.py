@@ -3,6 +3,8 @@ import logging
 import math
 import os
 import threading
+from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 from fastapi import APIRouter, Request, Response, Query, Depends
 from fastapi.responses import JSONResponse
@@ -18,6 +20,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _refresh_lock = threading.Lock()
+
+# ETag → serialized live-data body. Natural invalidation via etag change.
+_LIVE_DATA_BYTES_CACHE_MAX = 32
+_LIVE_DATA_BYTES_CACHE: OrderedDict[str, bytes] = OrderedDict()
+_LIVE_DATA_BYTES_CACHE_LOCK = threading.Lock()
 
 
 class ViewportUpdate(BaseModel):
@@ -144,48 +151,17 @@ def _has_full_bbox(s, w, n, e) -> bool:
 
 
 def _bbox_etag_suffix(s, w, n, e) -> str:
-    """Quantize bbox to 1° before mixing into the ETag.
-
-    The 20% padding inside _bbox_filter already absorbs sub-degree pans;
-    quantizing here means small mouse drags don't blow the ETag cache
-    on the client. Full-world bounds collapse to a single suffix.
-    """
-    if not _has_full_bbox(s, w, n, e):
-        return ""
-    try:
-        ss = math.floor(float(s))
-        ww = math.floor(float(w))
-        nn = math.ceil(float(n))
-        ee = math.ceil(float(e))
-    except (TypeError, ValueError):
-        return ""
-    # If the requested window covers basically the whole world, treat it as
-    # "no bbox" for caching purposes so world-zoomed clients all hit the
-    # same ETag and benefit from the existing 304 path.
-    lat_span, lng_span = _bbox_spans(s, w, n, e)
-    if lng_span >= 300 or lat_span >= 120:
-        return ""
-    return f"|bbox={ss},{ww},{nn},{ee}"
+    """Bbox no longer scopes payloads — keep a single world ETag cache key."""
+    return ""
 
 
 def _apply_bbox_to_payload(payload: dict, heavy_keys: tuple[str, ...],
                             s: float, w: float, n: float, e: float) -> dict:
-    """In-place filter the heavy-key collections in *payload* to a viewport.
+    """No-op: live telemetry is never viewport-truncated.
 
-    Items without lat/lng are passed through (so e.g. summary blobs aren't
-    accidentally dropped). The existing _bbox_filter helper applies a 20%
-    pad and handles antimeridian crossings.
+    Bounds may still be accepted on the wire for client hints / future use,
+    but we do not drop ships, aircraft, or other dense layers by map window.
     """
-    lat_span, lng_span = _bbox_spans(s, w, n, e)
-    # World-scale request → skip filtering entirely. Spares the CPU and
-    # guarantees the response matches the no-params shape.
-    if lng_span >= 300 or lat_span >= 120:
-        return payload
-    for key in heavy_keys:
-        items = payload.get(key)
-        if not isinstance(items, list) or not items:
-            continue
-        payload[key] = _bbox_filter(items, s, w, n, e)
     return payload
 
 
@@ -220,6 +196,38 @@ def _live_data_json_bytes(payload: dict) -> bytes:
     )
 
 
+def _cached_live_data_bytes(etag: str, build_payload_fn: Callable[[], dict]) -> bytes:
+    """Return orjson bytes for etag, building+serializing only on cache miss.
+
+    Cache key is the full ETag string (includes version/bbox/prefix), so a
+    store version bump naturally misses without explicit invalidation.
+    """
+    with _LIVE_DATA_BYTES_CACHE_LOCK:
+        cached = _LIVE_DATA_BYTES_CACHE.get(etag)
+        if cached is not None:
+            _LIVE_DATA_BYTES_CACHE.move_to_end(etag)
+            return cached
+
+    body = _live_data_json_bytes(build_payload_fn())
+
+    with _LIVE_DATA_BYTES_CACHE_LOCK:
+        _LIVE_DATA_BYTES_CACHE[etag] = body
+        _LIVE_DATA_BYTES_CACHE.move_to_end(etag)
+        while len(_LIVE_DATA_BYTES_CACHE) > _LIVE_DATA_BYTES_CACHE_MAX:
+            _LIVE_DATA_BYTES_CACHE.popitem(last=False)
+    return body
+
+
+def _item_lng(item: dict, lng_key: str = "lng"):
+    """Prefer ``lng``; fall back to ``lon`` (CCTV / KiwiSDR / PSK use lon)."""
+    lng = item.get(lng_key)
+    if lng is not None:
+        return lng
+    if lng_key != "lon":
+        return item.get("lon")
+    return item.get("lng")
+
+
 def _bbox_filter(items: list, s: float, w: float, n: float, e: float,
                  lat_key: str = "lat", lng_key: str = "lng") -> list:
     pad_lat = (n - s) * 0.2
@@ -230,7 +238,7 @@ def _bbox_filter(items: list, s: float, w: float, n: float, e: float,
     out = []
     for item in items:
         lat = item.get(lat_key)
-        lng = item.get(lng_key)
+        lng = _item_lng(item, lng_key)
         if lat is None or lng is None:
             out.append(item)
             continue
@@ -293,21 +301,23 @@ def _cap_startup_items(items: list | None, max_items: int) -> list:
     return items[:max_items]
 
 
+def _sample_items(items: list | None, max_items: int) -> list:
+    """Evenly spaced sample — stable across polls for the same store order."""
+    if not items:
+        return []
+    n = len(items)
+    if n <= max_items:
+        return items
+    # Deterministic stride so ETag byte cache stays coherent for a given version.
+    step = n / max_items
+    return [items[int(i * step)] for i in range(max_items)]
+
+
 def _cap_fast_startup_payload(payload: dict) -> dict:
+    """Mark first-paint payloads. Do not defer or sample live telemetry."""
     capped = dict(payload)
-    capped["commercial_flights"] = _cap_startup_items(capped.get("commercial_flights"), 800)
-    capped["private_flights"] = _cap_startup_items(capped.get("private_flights"), 300)
-    capped["private_jets"] = _cap_startup_items(capped.get("private_jets"), 150)
-    capped["ships"] = _cap_startup_items(capped.get("ships"), 1500)
-    capped["cctv"] = []
-    capped["sigint"] = _cap_startup_items(capped.get("sigint"), 500)
-    capped["trains"] = _cap_startup_items(capped.get("trains"), 100)
     capped["startup_payload"] = True
     return capped
-
-
-def _cap_fast_dashboard_payload(payload: dict) -> dict:
-    return payload
 
 
 def _world_and_continental_scale(has_bbox: bool, s, w, n, e) -> tuple:
@@ -315,6 +325,23 @@ def _world_and_continental_scale(has_bbox: bool, s, w, n, e) -> tuple:
     world_scale = (not has_bbox) or lng_span >= 300 or lat_span >= 120
     continental_scale = has_bbox and not world_scale and (lng_span >= 120 or lat_span >= 55)
     return world_scale, continental_scale
+
+
+def _cap_fast_dashboard_payload(payload: dict, *, s=None, w=None, n=None, e=None) -> dict:
+    """Annotate zoom scale only — never sample/drop live telemetry rows.
+
+    Regional density comes from #288 bbox filtering (what's in view), not from
+    picking a random subset of the planet.
+    """
+    has_bbox = _has_full_bbox(s, w, n, e)
+    world_scale, continental_scale = _world_and_continental_scale(has_bbox, s, w, n, e)
+    if world_scale:
+        payload["payload_scale"] = "world"
+    elif continental_scale:
+        payload["payload_scale"] = "continental"
+    else:
+        payload["payload_scale"] = "regional"
+    return payload
 
 
 def _filter_sigint_by_layers(items: list, active_layers: dict) -> list:
@@ -616,11 +643,13 @@ async def live_data(request: Request):
     etag = _current_etag(prefix="live|full|")
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    from services.fetchers._store import get_latest_data_deepcopy_snapshot
+    from services.fetchers._store import get_latest_data_refs_snapshot
 
-    payload = get_latest_data_deepcopy_snapshot()
+    def _build() -> dict:
+        return get_latest_data_refs_snapshot()
+
     return Response(
-        content=_live_data_json_bytes(payload),
+        content=_cached_live_data_bytes(etag, _build),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -644,84 +673,182 @@ async def bootstrap_critical(request: Request):
         get_source_timestamps_snapshot,
     )
 
-    d = get_latest_data_subset_refs(
-        "last_updated", "commercial_flights", "military_flights", "private_flights",
-        "private_jets", "tracked_flights", "ships", "uavs", "liveuamap", "gps_jamming",
-        "satellites", "satellite_source", "satellite_analysis", "sigint", "sigint_totals",
-        "trains", "news", "gdelt", "airports", "threat_level", "trending_markets",
-        "correlations", "fimi", "crowdthreat",
-    )
-    freshness = get_source_timestamps_snapshot()
-    ships_enabled = any(active_layers.get(key, True) for key in (
-        "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
-    sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
-    payload = {
-        "last_updated": d.get("last_updated"),
-        "commercial_flights": _cap_startup_items(
-            (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
-            800,
-        ),
-        "military_flights": _cap_startup_items(
-            (d.get("military_flights") or []) if active_layers.get("military", True) else [],
-            300,
-        ),
-        "private_flights": _cap_startup_items(
-            (d.get("private_flights") or []) if active_layers.get("private", True) else [],
-            300,
-        ),
-        "private_jets": _cap_startup_items(
-            (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
-            150,
-        ),
-        "tracked_flights": _cap_startup_items(
-            (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
-            250,
-        ),
-        "ships": _cap_startup_items((d.get("ships") or []) if ships_enabled else [], 1500),
-        "uavs": _cap_startup_items((d.get("uavs") or []) if active_layers.get("military", True) else [], 100),
-        "liveuamap": _cap_startup_items(
-            (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
-            300,
-        ),
-        "gps_jamming": _cap_startup_items(
-            (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
-            200,
-        ),
-        "satellites": _cap_startup_items(
-            (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
-            250,
-        ),
-        "satellite_source": d.get("satellite_source", "none"),
-        "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
-        "sigint": _cap_startup_items(
-            sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
-            500,
-        ),
-        "sigint_totals": _sigint_totals_for_items(sigint_items),
-        "trains": _cap_startup_items((d.get("trains") or []) if active_layers.get("trains", True) else [], 100),
-        "news": _cap_startup_items(d.get("news") or [], 30),
-        "gdelt": _cap_startup_items((d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [], 300),
-        "airports": _cap_startup_items(d.get("airports") or [], 500),
-        "threat_level": d.get("threat_level"),
-        "trending_markets": _cap_startup_items(d.get("trending_markets") or [], 10),
-        "correlations": _cap_startup_items(
-            (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
-            50,
-        ),
-        "fimi": d.get("fimi"),
-        "crowdthreat": _cap_startup_items(
-            (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
-            150,
-        ),
-        "freshness": freshness,
-        "bootstrap_ready": True,
-        "bootstrap_payload": True,
-    }
+    def _build() -> dict:
+        d = get_latest_data_subset_refs(
+            "last_updated", "commercial_flights", "military_flights", "private_flights",
+            "private_jets", "tracked_flights", "ships", "uavs", "liveuamap", "gps_jamming",
+            "satellites", "satellite_source", "satellite_analysis", "sigint", "sigint_totals",
+            "trains", "news", "gdelt", "airports", "threat_level", "trending_markets",
+            "correlations", "fimi", "crowdthreat",
+        )
+        freshness = get_source_timestamps_snapshot()
+        ships_enabled = any(active_layers.get(key, True) for key in (
+            "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
+        sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
+        return {
+            "last_updated": d.get("last_updated"),
+            "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
+            "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
+            "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
+            "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
+            "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
+            "ships": (d.get("ships") or []) if ships_enabled else [],
+            "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
+            "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
+            "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
+            "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
+            "satellite_source": d.get("satellite_source", "none"),
+            "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
+            "sigint": sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
+            "sigint_totals": _sigint_totals_for_items(sigint_items),
+            "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
+            "news": d.get("news") or [],
+            "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
+            "airports": d.get("airports") or [],
+            "threat_level": d.get("threat_level"),
+            "trending_markets": d.get("trending_markets") or [],
+            "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
+            "fimi": d.get("fimi"),
+            "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
+            "freshness": freshness,
+            "bootstrap_ready": True,
+            "bootstrap_payload": True,
+        }
+
     return Response(
-        content=_live_data_json_bytes(payload),
+        content=_cached_live_data_bytes(etag, _build),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
+
+
+_DELTA_FAST_KEYS: tuple[str, ...] = (
+    "ships",
+    "commercial_flights",
+    "military_flights",
+    "tracked_flights",
+    "private_flights",
+    "private_jets",
+)
+
+
+def _parse_layer_versions(raw: str | None) -> dict[str, int] | None:
+    """Parse ``ships:3,commercial_flights:5`` into a dict. Empty/invalid → None."""
+    if not raw or not str(raw).strip():
+        return None
+    out: dict[str, int] = {}
+    for part in str(raw).split(","):
+        part = part.strip()
+        if not part or ":" not in part:
+            continue
+        key, _, ver = part.partition(":")
+        key = key.strip()
+        try:
+            out[key] = int(ver.strip())
+        except (TypeError, ValueError):
+            continue
+    return out or None
+
+
+def _attach_version_meta(payload: dict) -> dict:
+    from services.fetchers._store import get_data_version, get_layer_versions
+
+    payload["mode"] = payload.get("mode") or "snapshot"
+    payload["store_version"] = get_data_version()
+    payload["layer_versions"] = get_layer_versions()
+    return payload
+
+
+def _try_build_fast_delta(
+    client_lv: dict[str, int],
+    *,
+    s=None,
+    w=None,
+    n=None,
+    e=None,
+) -> dict | None:
+    """Return a delta payload, or None to fall back to a full snapshot."""
+    from services.fetchers._store import (
+        active_layers,
+        compute_layer_row_delta,
+        get_data_version,
+        get_layer_versions,
+        get_latest_data_subset_refs,
+        get_source_timestamps_snapshot,
+    )
+
+    server_lv = get_layer_versions()
+    deltas: dict[str, Any] = {}
+    for key in _DELTA_FAST_KEYS:
+        since = client_lv.get(key)
+        if since is None:
+            # Client never saw this layer — force full snapshot recovery.
+            return None
+        patch = compute_layer_row_delta(key, since)
+        if patch is None:
+            return None
+        if not patch.get("unchanged"):
+            deltas[key] = {
+                "upsert": list(patch.get("upsert") or []),
+                "delete": list(patch.get("delete") or []),
+                "version": patch.get("version", server_lv.get(key, 0)),
+            }
+
+    # Non-delta fast keys: include full array only when the layer version advanced.
+    non_delta_keys = (
+        "cctv",
+        "uavs",
+        "liveuamap",
+        "gps_jamming",
+        "satellites",
+        "satellite_analysis",
+        "sigint",
+        "trains",
+    )
+    d = get_latest_data_subset_refs(*non_delta_keys, "satellite_source", "sigint_totals")
+    full_layers: dict[str, Any] = {}
+    for key in non_delta_keys:
+        client_ver = client_lv.get(key)
+        server_ver = int(server_lv.get(key, 0) or 0)
+        if client_ver is not None and int(client_ver) >= server_ver:
+            continue
+        if key == "cctv":
+            full_layers[key] = (d.get("cctv") or []) if active_layers.get("cctv", True) else []
+        elif key == "uavs":
+            full_layers[key] = (d.get("uavs") or []) if active_layers.get("military", True) else []
+        elif key == "liveuamap":
+            full_layers[key] = (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else []
+        elif key == "gps_jamming":
+            full_layers[key] = (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else []
+        elif key == "satellites":
+            full_layers[key] = (d.get("satellites") or []) if active_layers.get("satellites", True) else []
+            full_layers["satellite_source"] = d.get("satellite_source", "none")
+            full_layers["satellite_analysis"] = (
+                (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {}
+            )
+        elif key == "sigint":
+            items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
+            full_layers[key] = (
+                items
+                if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True))
+                else []
+            )
+            full_layers["sigint_totals"] = _sigint_totals_for_items(items)
+        elif key == "trains":
+            full_layers[key] = (d.get("trains") or []) if active_layers.get("trains", True) else []
+
+    if full_layers and _has_full_bbox(s, w, n, e):
+        _apply_bbox_to_payload(full_layers, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
+
+    return {
+        "mode": "delta",
+        "store_version": get_data_version(),
+        "layer_versions": server_lv,
+        "deltas": deltas,
+        "layers": full_layers,
+        "freshness": get_source_timestamps_snapshot(),
+        "cctv_total": len((d.get("cctv") or [])),
+    }
 
 
 @router.get("/api/live-data/fast")
@@ -733,57 +860,89 @@ async def live_data_fast(
     n: float = Query(None, description="North bound (see s)", ge=-90, le=90),
     e: float = Query(None, description="East bound (see s)", ge=-180, le=180),
     initial: bool = Query(False, description="Return a capped startup payload for first paint"),
+    lv: str = Query(
+        None,
+        description="Optional per-layer versions for delta mode, e.g. ships:3,commercial_flights:5. "
+        "When provided and recoverable, response is mode=delta (upsert/delete). "
+        "On skew/miss, falls back to a full snapshot.",
+    ),
 ):
     bbox_suffix = _bbox_etag_suffix(s, w, n, e)
+    client_lv = None if initial else _parse_layer_versions(lv)
+    want_delta = client_lv is not None
+
+    if want_delta:
+        delta_payload = _try_build_fast_delta(client_lv, s=s, w=w, n=n, e=e)
+        if delta_payload is not None:
+            # Tiny unchanged delta → 304 when ETag matches store version alone.
+            etag = _current_etag(
+                prefix="fast|delta|" + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else "")
+            )
+            if (
+                not delta_payload.get("deltas")
+                and not delta_payload.get("layers")
+                and request.headers.get("if-none-match") == etag
+            ):
+                return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+            body = _live_data_json_bytes(delta_payload)
+            return Response(
+                content=body,
+                media_type="application/json",
+                headers={"ETag": etag, "Cache-Control": "no-cache", "X-SB-Mode": "delta"},
+            )
+
     etag = _current_etag(prefix=("fast|initial|" if initial else "fast|full|") + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (active_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
-    d = get_latest_data_subset_refs(
-        "last_updated", "commercial_flights", "military_flights", "private_flights",
-        "private_jets", "tracked_flights", "ships", "cctv", "uavs", "liveuamap",
-        "gps_jamming", "satellites", "satellite_source", "satellite_analysis",
-        "sigint", "sigint_totals", "trains",
-    )
-    freshness = get_source_timestamps_snapshot()
-    ships_enabled = any(active_layers.get(key, True) for key in (
-        "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
-    cctv_total = len(d.get("cctv") or [])
-    sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
-    sigint_totals = _sigint_totals_for_items(sigint_items)
-    payload = {
-        "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
-        "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
-        "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
-        "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
-        "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
-        "ships": (d.get("ships") or []) if ships_enabled else [],
-        "cctv": (d.get("cctv") or []) if active_layers.get("cctv", True) else [],
-        "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
-        "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
-        "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
-        "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
-        "satellite_source": d.get("satellite_source", "none"),
-        "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
-        "sigint": sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
-        "sigint_totals": sigint_totals,
-        "cctv_total": cctv_total,
-        "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
-        "freshness": freshness,
-    }
-    if initial:
-        payload = _cap_fast_startup_payload(payload)
-    else:
-        payload = _cap_fast_dashboard_payload(payload)
-    # Issue #288: bbox filter heavy/dense layers only when all four bounds
-    # are supplied. Without bounds, behaviour is byte-for-byte identical
-    # to the pre-#288 implementation.
-    if _has_full_bbox(s, w, n, e):
-        payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
+
+    def _build() -> dict:
+        d = get_latest_data_subset_refs(
+            "last_updated", "commercial_flights", "military_flights", "private_flights",
+            "private_jets", "tracked_flights", "ships", "cctv", "uavs", "liveuamap",
+            "gps_jamming", "satellites", "satellite_source", "satellite_analysis",
+            "sigint", "sigint_totals", "trains",
+        )
+        freshness = get_source_timestamps_snapshot()
+        ships_enabled = any(active_layers.get(key, True) for key in (
+            "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
+        cctv_total = len(d.get("cctv") or [])
+        sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
+        sigint_totals = _sigint_totals_for_items(sigint_items)
+        payload = {
+            "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
+            "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
+            "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
+            "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
+            "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
+            "ships": (d.get("ships") or []) if ships_enabled else [],
+            "cctv": (d.get("cctv") or []) if active_layers.get("cctv", True) else [],
+            "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
+            "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
+            "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
+            "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
+            "satellite_source": d.get("satellite_source", "none"),
+            "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
+            "sigint": sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
+            "sigint_totals": sigint_totals,
+            "cctv_total": cctv_total,
+            "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
+            "freshness": freshness,
+        }
+        if initial:
+            payload = _cap_fast_startup_payload(payload)
+        else:
+            # Issue #288: bbox densify first so world/continental caps sample
+            # the *visible* set, not a random world subset then clip.
+            if _has_full_bbox(s, w, n, e):
+                payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
+            payload = _cap_fast_dashboard_payload(payload, s=s, w=w, n=n, e=e)
+        return _attach_version_meta(payload)
+
     return Response(
-        content=_live_data_json_bytes(payload),
+        content=_cached_live_data_bytes(etag, _build),
         media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"},
+        headers={"ETag": etag, "Cache-Control": "no-cache", "X-SB-Mode": "snapshot"},
     )
 
 
@@ -801,96 +960,100 @@ async def live_data_slow(
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (active_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
-    d = get_latest_data_subset_refs(
-        "last_updated", "news", "stocks", "financial_source", "oil", "weather", "traffic",
-        "earthquakes", "frontlines", "gdelt", "airports", "kiwisdr", "satnogs_stations",
-        "satnogs_observations", "tinygs_satellites", "space_weather", "internet_outages",
-        "firms_fires", "datacenters", "military_bases", "power_plants", "viirs_change_nodes",
-        "scanners", "weather_alerts", "ukraine_alerts", "air_quality", "volcanoes",
-        "fishing_activity", "psk_reporter", "correlations", "uap_sightings", "wastewater",
-        "crowdthreat", "threat_level", "trending_markets", "road_corridor_trends",
-        "malware_threats", "cyber_threats", "scm_suppliers", "telegram_osint", "gt_risk",
-    )
-    freshness = get_source_timestamps_snapshot()
-    payload = {
-        "last_updated": d.get("last_updated"),
-        "threat_level": d.get("threat_level"),
-        "trending_markets": d.get("trending_markets", []),
-        "news": d.get("news", []),
-        "stocks": d.get("stocks", {}),
-        "financial_source": d.get("financial_source", ""),
-        "oil": d.get("oil", {}),
-        "weather": d.get("weather"),
-        "traffic": d.get("traffic", []),
-        "earthquakes": (d.get("earthquakes") or []) if active_layers.get("earthquakes", True) else [],
-        "frontlines": d.get("frontlines") if active_layers.get("ukraine_frontline", True) else None,
-        "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
-        "airports": d.get("airports") or [],
-        "kiwisdr": (d.get("kiwisdr") or []) if active_layers.get("kiwisdr", True) else [],
-        "satnogs_stations": (d.get("satnogs_stations") or []) if active_layers.get("satnogs", True) else [],
-        "satnogs_total": len(d.get("satnogs_stations") or []),
-        "satnogs_observations": (d.get("satnogs_observations") or []) if active_layers.get("satnogs", True) else [],
-        "tinygs_satellites": (d.get("tinygs_satellites") or []) if active_layers.get("tinygs", True) else [],
-        "tinygs_total": len(d.get("tinygs_satellites") or []),
-        "psk_reporter": (d.get("psk_reporter") or []) if active_layers.get("psk_reporter", True) else [],
-        "space_weather": d.get("space_weather"),
-        "internet_outages": (d.get("internet_outages") or []) if active_layers.get("internet_outages", True) else [],
-        "firms_fires": (d.get("firms_fires") or []) if active_layers.get("firms", True) else [],
-        "datacenters": (d.get("datacenters") or []) if active_layers.get("datacenters", True) else [],
-        "military_bases": (d.get("military_bases") or []) if active_layers.get("military_bases", True) else [],
-        "power_plants": (d.get("power_plants") or []) if active_layers.get("power_plants", True) else [],
-        "viirs_change_nodes": (d.get("viirs_change_nodes") or []) if active_layers.get("viirs_nightlights", True) else [],
-        "scanners": (d.get("scanners") or []) if active_layers.get("scanners", True) else [],
-        "weather_alerts": d.get("weather_alerts", []) if active_layers.get("weather_alerts", True) else [],
-        "ukraine_alerts": d.get("ukraine_alerts", []) if active_layers.get("ukraine_alerts", True) else [],
-        "air_quality": (d.get("air_quality") or []) if active_layers.get("air_quality", True) else [],
-        "volcanoes": (d.get("volcanoes") or []) if active_layers.get("volcanoes", True) else [],
-        "fishing_activity": (d.get("fishing_activity") or []) if active_layers.get("fishing_activity", True) else [],
-        "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
-        "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
-        "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
-        "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
-        "road_corridor_trends": (
-            d.get("road_corridor_trends") or {"updated_at": None, "corridors": []}
+
+    def _build() -> dict:
+        d = get_latest_data_subset_refs(
+            "last_updated", "news", "stocks", "financial_source", "oil", "weather", "traffic",
+            "earthquakes", "frontlines", "gdelt", "airports", "kiwisdr", "satnogs_stations",
+            "satnogs_observations", "tinygs_satellites", "space_weather", "internet_outages",
+            "firms_fires", "datacenters", "military_bases", "power_plants", "viirs_change_nodes",
+            "scanners", "weather_alerts", "ukraine_alerts", "air_quality", "volcanoes",
+            "fishing_activity", "psk_reporter", "correlations", "uap_sightings", "wastewater",
+            "crowdthreat", "threat_level", "trending_markets", "road_corridor_trends",
+            "malware_threats", "cyber_threats", "scm_suppliers", "telegram_osint", "gt_risk",
         )
-        if active_layers.get("road_corridor_trends", False)
-        else {"updated_at": None, "corridors": []},
-        "malware_threats": (
-            d.get("malware_threats") or {"threats": [], "total": 0}
-        )
-        if active_layers.get("malware_c2", False)
-        else {"threats": [], "total": 0},
-        "cyber_threats": (
-            d.get("cyber_threats") or {"threats": [], "stats": {}}
-        )
-        if active_layers.get("cyber_threats", False)
-        else {"threats": [], "stats": {}},
-        "scm_suppliers": (
-            d.get("scm_suppliers") or {"suppliers": [], "total": 0, "critical_count": 0}
-        )
-        if active_layers.get("scm_suppliers", False)
-        else {"suppliers": [], "total": 0, "critical_count": 0},
-        "telegram_osint": (
-            d.get("telegram_osint") or {"posts": [], "total": 0, "geolocated": 0}
-        )
-        if active_layers.get("telegram_osint", True)
-        else {"posts": [], "total": 0, "geolocated": 0},
-        "gt_risk": (
-            d.get("gt_risk")
-            or {"enabled": False, "heatmap": {"type": "FeatureCollection", "features": []}, "clusters": []}
-        )
-        if active_layers.get("gt_risk", False)
-        else {"enabled": False, "heatmap": {"type": "FeatureCollection", "features": []}, "clusters": []},
-        "freshness": freshness,
-    }
-    # Issue #288: bbox filter heavy/dense layers only when all four bounds
-    # are supplied. Static reference layers (datacenters, military bases,
-    # power_plants, etc.) deliberately stay world-scale so panning never
-    # hides the infrastructure overlay the operator already has on screen.
-    if _has_full_bbox(s, w, n, e):
-        payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
+        freshness = get_source_timestamps_snapshot()
+        payload = {
+            "last_updated": d.get("last_updated"),
+            "threat_level": d.get("threat_level"),
+            "trending_markets": d.get("trending_markets", []),
+            "news": d.get("news", []),
+            "stocks": d.get("stocks", {}),
+            "financial_source": d.get("financial_source", ""),
+            "oil": d.get("oil", {}),
+            "weather": d.get("weather"),
+            "traffic": d.get("traffic", []),
+            "earthquakes": (d.get("earthquakes") or []) if active_layers.get("earthquakes", True) else [],
+            "frontlines": d.get("frontlines") if active_layers.get("ukraine_frontline", True) else None,
+            "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
+            "airports": d.get("airports") or [],
+            "kiwisdr": (d.get("kiwisdr") or []) if active_layers.get("kiwisdr", True) else [],
+            "satnogs_stations": (d.get("satnogs_stations") or []) if active_layers.get("satnogs", True) else [],
+            "satnogs_total": len(d.get("satnogs_stations") or []),
+            "satnogs_observations": (d.get("satnogs_observations") or []) if active_layers.get("satnogs", True) else [],
+            "tinygs_satellites": (d.get("tinygs_satellites") or []) if active_layers.get("tinygs", True) else [],
+            "tinygs_total": len(d.get("tinygs_satellites") or []),
+            "psk_reporter": (d.get("psk_reporter") or []) if active_layers.get("psk_reporter", True) else [],
+            "space_weather": d.get("space_weather"),
+            "internet_outages": (d.get("internet_outages") or []) if active_layers.get("internet_outages", True) else [],
+            "firms_fires": (d.get("firms_fires") or []) if active_layers.get("firms", True) else [],
+            "datacenters": (d.get("datacenters") or []) if active_layers.get("datacenters", True) else [],
+            "military_bases": (d.get("military_bases") or []) if active_layers.get("military_bases", True) else [],
+            "power_plants": (d.get("power_plants") or []) if active_layers.get("power_plants", True) else [],
+            "viirs_change_nodes": (d.get("viirs_change_nodes") or []) if active_layers.get("viirs_nightlights", True) else [],
+            "scanners": (d.get("scanners") or []) if active_layers.get("scanners", True) else [],
+            "weather_alerts": d.get("weather_alerts", []) if active_layers.get("weather_alerts", True) else [],
+            "ukraine_alerts": d.get("ukraine_alerts", []) if active_layers.get("ukraine_alerts", True) else [],
+            "air_quality": (d.get("air_quality") or []) if active_layers.get("air_quality", True) else [],
+            "volcanoes": (d.get("volcanoes") or []) if active_layers.get("volcanoes", True) else [],
+            "fishing_activity": (d.get("fishing_activity") or []) if active_layers.get("fishing_activity", True) else [],
+            "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
+            "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
+            "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
+            "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
+            "road_corridor_trends": (
+                d.get("road_corridor_trends") or {"updated_at": None, "corridors": []}
+            )
+            if active_layers.get("road_corridor_trends", False)
+            else {"updated_at": None, "corridors": []},
+            "malware_threats": (
+                d.get("malware_threats") or {"threats": [], "total": 0}
+            )
+            if active_layers.get("malware_c2", False)
+            else {"threats": [], "total": 0},
+            "cyber_threats": (
+                d.get("cyber_threats") or {"threats": [], "stats": {}}
+            )
+            if active_layers.get("cyber_threats", False)
+            else {"threats": [], "stats": {}},
+            "scm_suppliers": (
+                d.get("scm_suppliers") or {"suppliers": [], "total": 0, "critical_count": 0}
+            )
+            if active_layers.get("scm_suppliers", False)
+            else {"suppliers": [], "total": 0, "critical_count": 0},
+            "telegram_osint": (
+                d.get("telegram_osint") or {"posts": [], "total": 0, "geolocated": 0}
+            )
+            if active_layers.get("telegram_osint", True)
+            else {"posts": [], "total": 0, "geolocated": 0},
+            "gt_risk": (
+                d.get("gt_risk")
+                or {"enabled": False, "heatmap": {"type": "FeatureCollection", "features": []}, "clusters": []}
+            )
+            if active_layers.get("gt_risk", False)
+            else {"enabled": False, "heatmap": {"type": "FeatureCollection", "features": []}, "clusters": []},
+            "freshness": freshness,
+        }
+        # Issue #288: bbox filter heavy/dense layers only when all four bounds
+        # are supplied. Static reference layers (datacenters, military bases,
+        # power_plants, etc.) deliberately stay world-scale so panning never
+        # hides the infrastructure overlay the operator already has on screen.
+        if _has_full_bbox(s, w, n, e):
+            payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
+        return payload
+
     return Response(
-        content=_live_data_json_bytes(payload),
+        content=_cached_live_data_bytes(etag, _build),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2, TrendingUp } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { usePredictionMarketsOptIn } from '@/hooks/usePredictionMarketsOptIn';

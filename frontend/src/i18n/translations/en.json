@@ -147,6 +147,7 @@
     "clearMeasure": "Clear measurement"
   },
   "layers": {
+    "resetToDefaults": "Reset layers to defaults",
     "aircraft": "Aircraft",
     "commercialFlights": "Commercial Flights",
     "privateAircraft": "Private Aircraft",

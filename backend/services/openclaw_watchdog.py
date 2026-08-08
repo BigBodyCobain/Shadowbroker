@@ -112,9 +112,9 @@ def _evaluate_watches() -> list[dict[str, Any]]:
 
     # Load telemetry once for all watches
     try:
-        from services.telemetry import get_cached_telemetry, get_cached_slow_telemetry
-        fast = get_cached_telemetry() or {}
-        slow = get_cached_slow_telemetry() or {}
+        from services.telemetry import get_cached_telemetry_refs, get_cached_slow_telemetry_refs
+        fast = get_cached_telemetry_refs() or {}
+        slow = get_cached_slow_telemetry_refs() or {}
     except Exception:
         return []
 

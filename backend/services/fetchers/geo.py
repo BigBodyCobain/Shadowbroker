@@ -311,12 +311,12 @@ def fetch_fishing_activity():
         import datetime as _dt
 
         # GFW publishes with ~5 day lag; windows shorter than ~7 days often return 0 events.
-        lookback_days = _gfw_int_env("GFW_EVENTS_LOOKBACK_DAYS", 7, minimum=1, maximum=14)
-        max_pages = _gfw_int_env("GFW_EVENTS_MAX_PAGES", 10, minimum=1, maximum=100)
-        timeout_s = _gfw_int_env("GFW_EVENTS_TIMEOUT_S", 90, minimum=30, maximum=180)
+        lookback_days = _gfw_int_env("GFW_EVENTS_LOOKBACK_DAYS", 7, minimum=1, maximum=365)
+        max_pages = _gfw_int_env("GFW_EVENTS_MAX_PAGES", 10_000, minimum=1, maximum=None)
+        timeout_s = _gfw_int_env("GFW_EVENTS_TIMEOUT_S", 90, minimum=30, maximum=600)
         _end = _dt.date.today().isoformat()
         _start = (_dt.date.today() - _dt.timedelta(days=lookback_days)).isoformat()
-        page_size = _gfw_int_env("GFW_EVENTS_PAGE_SIZE", 500, minimum=1, maximum=1000)
+        page_size = _gfw_int_env("GFW_EVENTS_PAGE_SIZE", 1000, minimum=1, maximum=1000)
         offset = 0
         pages_fetched = 0
         total_available: int | None = None

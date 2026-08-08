@@ -147,6 +147,7 @@
     "clearMeasure": "清除测量"
   },
   "layers": {
+    "resetToDefaults": "将图层重置为默认",
     "aircraft": "航空器",
     "commercialFlights": "商业航班",
     "privateAircraft": "私人飞机",

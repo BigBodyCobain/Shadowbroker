@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   X,
   Network,
@@ -10,86 +10,100 @@ import {
   Bug,
   Heart,
   MessageSquare,
-  Lock,
-  Users,
   Radio,
+  Radar,
+  Plane,
+  Languages,
+  Layers,
+  Bot,
 } from 'lucide-react';
 
-const CURRENT_VERSION = '0.9.83';
+const CURRENT_VERSION = '0.9.84';
 const STORAGE_KEY = `shadowbroker_changelog_v${CURRENT_VERSION}`;
-const RELEASE_TITLE = 'Infonet Gate Messaging + DM Protocols Live';
+const RELEASE_TITLE = 'GT Analytics + Telegram Translate + Full Telemetry + Saved Layout';
 
 const HEADLINE_FEATURES = [
   {
-    icon: <Lock size={20} className="text-purple-400" />,
+    icon: <Radar size={20} className="text-purple-400" />,
     accent: 'purple' as const,
-    title: 'Gate Messaging — End-to-End on the Hashchain',
+    title: 'GT Analytics & Strategic Risk Layer',
     subtitle:
-      'Encrypted MLS gate rooms now carry live chat over your private Infonet hashchain. Messages replicate across participant nodes via swarm push/pull — only gate members can decrypt.',
+      'OpenClaw-driven geopolitical analytics now power a Strategic Risk map layer — risk scoring, signal triage, and overlays wired into the dashboard (#392).',
     details: [
-      'Gate messages append as signed `gate_message` events on each participant\'s private chain; peers sync ciphertext through the mesh without exposing room keys to outsiders.',
-      'Swarm replication keeps late joiners and offline nodes convergent — pull missing blocks, push new envelopes to known gate peers.',
-      'MLS group crypto (privacy-core) handles forward secrecy and membership changes; the UI surfaces delivery, key rotation, and compat approval when room epochs advance.',
+      'GT analytics pipeline feeds live risk indicators onto the worldview map so operators can correlate OSINT feeds with strategic posture.',
+      'OpenClaw integration exposes entity profile and trail views for agent-assisted analysis without leaving the command surface.',
+      'Layer toggles, scoring thresholds, and panel state persist across refreshes via the new dashboard preferences store.',
     ],
-    callToAction: 'MESH CHAT → GATES → CREATE OR JOIN A ROOM',
+    callToAction: 'LEFT PANEL → LAYERS → STRATEGIC RISK',
   },
   {
     icon: <MessageSquare size={20} className="text-cyan-400" />,
     accent: 'cyan' as const,
-    title: 'Direct Messages — Short Address, Request, Encrypt',
+    title: 'Telegram OSINT Auto-Translate',
     subtitle:
-      'DMs are fully operational over the wormhole/Tor lane: share your short wormhole address out-of-band, accept a contact request, then exchange ratchet-encrypted messages.',
+      'Telegram posts in map popups now auto-translate with source-language labels — Persian (fa) joins English, French, and Chinese.',
     details: [
-      'Contact flow: outbound request → peer approve/deny → mutual DM session with double-ratchet bundles and mailbox claim keys.',
-      'No public phonebook — addresses are intentionally short and meant to be exchanged like a phone number or email, not discovered from a directory.',
-      'Fleet-tested across multiple onion participants: request, accept, decrypt, and reply paths verified on live Tor hidden services.',
+      'Backend translate service detects source language and returns localized text for popup rendering without manual copy-paste.',
+      'Persian locale pack (#472) ships full RTL layout support across the dashboard, not just Telegram labels.',
+      'Source badges in popups show the detected language so analysts know when a machine translation is in play.',
     ],
-    callToAction: 'MESH CHAT → DIRECT → SHARE SHORT ADDRESS',
+    callToAction: 'MAP → TELEGRAM MARKER → VIEW TRANSLATED POST',
   },
   {
-    icon: <Network size={20} className="text-amber-400" />,
+    icon: <Plane size={20} className="text-amber-400" />,
     accent: 'cyan' as const,
-    title: 'Infonet Transport Hardening',
+    title: 'ACARS Datalink + Full-World Telemetry',
     subtitle:
-      'Tor/Arti warmup, SOCKS readiness, and terminal session lifecycle fixes so sovereign nodes actually join the mesh instead of sitting on NODE ARTI WARMING.',
+      'Plane dossiers now surface Airframes ACARS datalink with summarizer support, and world telemetry caps are removed so dense regions render completely.',
     details: [
-      'Tor hidden service config always exposes SOCKS; readiness probes cache and recover wedged transports instead of blocking wormhole sync indefinitely.',
-      'Leaving the Infonet terminal now tears down wormhole prep, leaves the session, and stops Tor when the UI enabled it — no ghost connections after close.',
-      'Network stats distinguish real transport warmup from stale sync backoff so operators see actionable status instead of a permanent warming spinner.',
+      'ACARS messages attach to aircraft profiles with optional LLM summarization for long datalink bursts.',
+      'Telemetry truncation limits lifted — high-density air and surface tracks no longer silently drop contacts at the map edge.',
+      'Incremental live-data deltas and map render tuning reduce flicker when feeds update at high frequency.',
     ],
-    callToAction: 'TOP RIGHT → ENTER INFONET → CHECK NODE STATUS',
+    callToAction: 'MAP → AIRCRAFT → OPEN DOSSIER → ACARS TAB',
   },
 ];
 
 const NEW_FEATURES = [
   {
-    icon: <Users size={18} className="text-purple-400" />,
-    title: 'Gate Swarm Replication',
-    desc: 'Participant nodes push and pull gate hashchain segments so encrypted room history converges across the fleet without a central relay.',
+    icon: <Languages size={18} className="text-purple-400" />,
+    title: 'Persian (fa) Locale + RTL',
+    desc: 'Full Persian translation pack with right-to-left layout across the dashboard (#472).',
   },
   {
-    icon: <KeyRound size={18} className="text-cyan-400" />,
-    title: 'DM Contact Requests',
-    desc: 'Pending inbound/outbound access requests with approve, deny, and scoped per-node DM state — no cross-identity leakage in local storage.',
+    icon: <Layers size={18} className="text-cyan-400" />,
+    title: 'Saved Dashboard Layout',
+    desc: 'Layer toggles, filter panel, map style, and section expand/collapse persist in localStorage across refreshes.',
   },
   {
-    icon: <Radio size={18} className="text-green-400" />,
-    title: 'Wormhole Session Teardown',
-    desc: 'Closing the Infonet terminal aborts in-flight wormhole prep, leaves the lane, and resets launcher busy state for clean re-entry.',
+    icon: <Bot size={18} className="text-green-400" />,
+    title: 'OpenClaw Agent Hardening',
+    desc: 'Fetch-health endpoint (#470), Docker HMAC bootstrap, entity profile/trail, and agent-shell WebSocket token auth (#409).',
   },
   {
-    icon: <Shield size={18} className="text-amber-400" />,
-    title: 'Fail-Closed Tor Proof',
-    desc: 'Onion sync waits for a working SOCKS handshake before declaring transport ready — prevents silent half-open mesh joins.',
+    icon: <Radio size={18} className="text-amber-400" />,
+    title: 'SAR UI + Mesh Bootstrap',
+    desc: 'SAR layer polish, mesh private outbox bootstrap, and live-data delta streaming for smoother map updates.',
+  },
+  {
+    icon: <Network size={18} className="text-cyan-400" />,
+    title: 'Infonet Tab Fix',
+    desc: 'Infonet routing regression resolved (#404); README collapsible sections (#393) and contributor map docs (#435).',
+  },
+  {
+    icon: <Shield size={18} className="text-green-400" />,
+    title: 'Security & Stability',
+    desc: 'Agent-shell WS tokens, GDELT thread safety (#388), and store/SIGINT snapshot hardening (#389).',
   },
 ];
 
 const BUG_FIXES = [
-  'Arti/Tor transport no longer omits SocksPort when MESH_ARTI_ENABLED — SOCKS probes succeed and wormhole sync can start.',
-  'Concurrent Arti readiness checks no longer wedge Tor under load; single-flight probes with auto-recycle when SOCKS stalls.',
-  'Infonet terminal exit no longer leaves background wormhole prep or terminalLaunchBusy stuck after close.',
-  'Stale onion sync backoff clears when transport recovers so NODE ARTI WARMING does not persist after Tor is healthy.',
-  'DM decrypt timeouts on multi-participant fleets addressed via improved peer push timing and mailbox claim sequencing.',
+  'GDELT mutation race under concurrent fetches (#388).',
+  'Store/SIGINT snapshot consistency under load (#389).',
+  'Spain DGT CCTV endpoint routing (#413).',
+  'Python 3.13 feedparser compatibility for RSS ingestion.',
+  'Layer preference hydration overwriting saved state on page load.',
+  'Infonet tab routing regression (#404).',
 ];
 
 type ChangelogContributor = {
@@ -100,8 +114,29 @@ type ChangelogContributor = {
 
 const CONTRIBUTORS: ChangelogContributor[] = [
   {
-    name: 'privacy-core (MLS)',
-    desc: 'Rust MLS gate crypto — WASM/FFI path for browser and Tauri sovereign shells',
+    name: 'esmaeelE',
+    desc: 'Persian (fa) locale + RTL, README collapsible sections',
+    pr: '#472, #393',
+  },
+  {
+    name: 'nzinci',
+    desc: 'Agent fetch health endpoint for OpenClaw monitoring',
+    pr: '#470',
+  },
+  {
+    name: 'Javier Andreo Zapata',
+    desc: 'Spain DGT CCTV endpoint fix',
+    pr: '#413',
+  },
+  {
+    name: 'TheYellowBeanieGuy',
+    desc: 'GDELT thread safety and store/SIGINT snapshot hardening',
+    pr: '#388, #389',
+  },
+  {
+    name: 'anntr1k3',
+    desc: 'Contributor map and frontend README documentation',
+    pr: '#435',
   },
 ];
 
@@ -219,17 +254,17 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
               );
             })}
 
-            {/* Auto-update note for v0.9.82+ installs */}
+            {/* Auto-update note for v0.9.83+ installs */}
             <div className="border border-green-500/30 bg-green-950/15 p-3 flex items-start gap-3">
               <KeyRound size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-1">
                 <div className="text-xs font-mono text-green-300 font-bold tracking-wide uppercase">
-                  One-click update from v0.9.82
+                  One-click update from v0.9.83
                 </div>
                 <div className="text-xs font-mono text-green-200/80 leading-relaxed">
-                  If you installed v0.9.82, the in-app Update button verifies this release via the
-                  signed Tauri updater (`latest.json` + minisign). Desktop installs on v0.9.82 or
-                  later should auto-apply v0.9.83 without a manual MSI hop once the release is
+                  If you installed v0.9.83, the in-app Update button verifies this release via the
+                  signed Tauri updater (`latest.json` + minisign). Desktop installs on v0.9.83 or
+                  later should auto-apply v0.9.84 without a manual MSI hop once the release is
                   published.
                 </div>
               </div>

@@ -7,7 +7,7 @@ py-modules = []
 
 [project]
 name = "backend"
-version = "0.9.83"
+version = "0.9.84"
 requires-python = ">=3.10"
 dependencies = [
     "apscheduler==3.10.3",
@@ -57,7 +57,7 @@ dev = ["pytest>=9.0.3", "pytest-asyncio>=1.4.0", "ruff>=0.9.0", "black>=24.0.0"]
 
 [tool.ruff.lint]
 # The current backend carries historical style debt in large legacy modules.
-# Keep CI focused on actionable correctness checks for the v0.9.83 release.
+# Keep CI focused on actionable correctness checks for the v0.9.84 release.
 ignore = ["E401", "E402", "E701", "E731", "E741", "F401", "F402", "F541", "F811", "F841"]
 
 [tool.black]

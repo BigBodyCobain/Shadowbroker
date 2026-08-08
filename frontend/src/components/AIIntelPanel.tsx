@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { getBackendEndpoint } from '@/lib/backendEndpoint';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Brain,
   MapPin,

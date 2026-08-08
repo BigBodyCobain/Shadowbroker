@@ -33,6 +33,25 @@ def test_health_uses_subset_refs_not_full_deepcopy():
     assert "deepcopy" not in snap_source
 
 
+def test_legacy_live_data_uses_refs_snapshot_not_deepcopy():
+    from routers import data as data_router
+
+    source = inspect.getsource(data_router.live_data)
+    assert "get_latest_data_refs_snapshot" in source
+    assert "get_latest_data_deepcopy_snapshot" not in source
+    assert "deepcopy" not in source
+
+
+def test_openclaw_watchdog_uses_telemetry_refs():
+    from services import openclaw_watchdog
+
+    source = inspect.getsource(openclaw_watchdog._evaluate_watches)
+    assert "get_cached_telemetry_refs" in source
+    assert "get_cached_slow_telemetry_refs" in source
+    assert "get_cached_telemetry()" not in source
+    assert "get_cached_slow_telemetry()" not in source
+
+
 def test_active_layers_defaults_match_dashboard_first_paint():
     """Backend must not prefetch layers the dashboard starts with disabled."""
     from services.fetchers import _store

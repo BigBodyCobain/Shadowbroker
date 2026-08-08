@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "0.9.83",
+  "version": "0.9.84",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-all.cjs",

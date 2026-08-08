@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 
-import { interpolatePosition } from '@/utils/positioning';
 import { classifyAircraft } from '@/utils/aircraftClassification';
 import type { Flight, Ship, SigintSignal } from '@/types/dashboard';
 import type { FlightLayerConfig } from '@/components/map/geoJSONBuilders';
@@ -98,8 +97,6 @@ const EMPTY_RESULT: DynamicMapLayersResult = {
   meshtasticGeoJSON: null,
   aprsGeoJSON: null,
 };
-
-const UNBOUNDED_INTERP_SECONDS = Number.POSITIVE_INFINITY;
 
 const TRACKED_GROUNDED_ICON_MAP: Record<string, string> = {
   airliner: 'svgAirlinerGrey',
@@ -213,38 +210,6 @@ function flightDisplayLabel(f: Flight): string {
   return '';
 }
 
-function interpFlightPosition(f: Flight, dtSeconds: number): [number, number] {
-  if (!f.speed_knots || f.speed_knots <= 0 || dtSeconds <= 0) return [f.lng, f.lat];
-  if (f.alt != null && f.alt <= 100) return [f.lng, f.lat];
-  if (dtSeconds < 1) return [f.lng, f.lat];
-  const heading = f.true_track || f.heading || 0;
-  const [newLat, newLng] = interpolatePosition(
-    f.lat,
-    f.lng,
-    heading,
-    f.speed_knots,
-    dtSeconds,
-    0,
-    UNBOUNDED_INTERP_SECONDS,
-  );
-  return [newLng, newLat];
-}
-
-function interpShipPosition(s: Ship, dtSeconds: number): [number, number] {
-  if (typeof s.sog !== 'number' || !s.sog || s.sog <= 0 || dtSeconds <= 0) return [s.lng, s.lat];
-  const heading = (typeof s.cog === 'number' ? s.cog : 0) || s.heading || 0;
-  const [newLat, newLng] = interpolatePosition(
-    s.lat,
-    s.lng,
-    heading,
-    s.sog,
-    dtSeconds,
-    0,
-    UNBOUNDED_INTERP_SECONDS,
-  );
-  return [newLng, newLat];
-}
-
 function buildFlightLayerGeoJSONWorker(
   flights: Flight[] | undefined,
   config: FlightLayerConfig,
@@ -257,11 +222,14 @@ function buildFlightLayerGeoJSONWorker(
   const { colorMap, groundedMap, typeLabel, idPrefix, milSpecialMap, useTrackHeading } = config;
   const features: GeoJSON.Feature[] = [];
 
+  // Geometry is stamped at the reported position (dt=0). Main-thread
+  // applyDynamicLayerInterp dead-reckons between polls using baseLat/spd/hdg
+  // so we do not rebuild this FeatureCollection every interp tick.
+  void dtSeconds;
   for (let i = 0; i < flights.length; i += 1) {
     const f = flights[i];
     if (f.lat == null || f.lng == null) continue;
-    const [iLng, iLat] = interpFlightPosition(f, dtSeconds);
-    if (!passesViewFilter(iLat, iLng, bounds, serverBboxScoped)) continue;
+    if (!passesViewFilter(f.lat, f.lng, bounds, serverBboxScoped)) continue;
     if (f.icao24 && trackedIcaos.has(f.icao24.toLowerCase())) continue;
 
     const acType = classifyAircraft(f.model, f.aircraft_category);
@@ -289,8 +257,14 @@ function buildFlightLayerGeoJSONWorker(
         callsign: flightDisplayLabel(f),
         rotation,
         iconId,
+        kind: 'flight',
+        baseLat: f.lat,
+        baseLng: f.lng,
+        spd: f.speed_knots ?? null,
+        hdg: rotation,
+        alt: f.alt ?? null,
       },
-      geometry: { type: 'Point', coordinates: [iLng, iLat] },
+      geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
     });
   }
 
@@ -306,11 +280,11 @@ function buildTrackedFlightsGeoJSONWorker(
   if (!flights?.length) return null;
   const features: GeoJSON.Feature[] = [];
 
+  void dtSeconds;
   for (let i = 0; i < flights.length; i += 1) {
     const f = flights[i];
     if (f.lat == null || f.lng == null) continue;
-    const [lng, lat] = interpFlightPosition(f, dtSeconds);
-    if (!passesViewFilter(lat, lng, bounds, serverBboxScoped)) continue;
+    if (!passesViewFilter(f.lat, f.lng, bounds, serverBboxScoped)) continue;
 
     const alertColor = ('alert_color' in f ? f.alert_color : '') || 'white';
     const acType = classifyAircraft(f.model, f.aircraft_category);
@@ -326,6 +300,7 @@ function buildTrackedFlightsGeoJSONWorker(
           TRACKED_ICON_MAP.airliner[alertColor] ||
           'svgAirlinerWhite';
     const displayName = flightDisplayLabel(f);
+    const rotation = f.heading || 0;
 
     features.push({
       type: 'Feature',
@@ -333,10 +308,16 @@ function buildTrackedFlightsGeoJSONWorker(
         id: f.icao24 || i,
         type: 'tracked_flight',
         callsign: String(displayName),
-        rotation: f.heading || 0,
+        rotation,
         iconId,
+        kind: 'flight',
+        baseLat: f.lat,
+        baseLng: f.lng,
+        spd: f.speed_knots ?? null,
+        hdg: rotation,
+        alt: f.alt ?? null,
       },
-      geometry: { type: 'Point', coordinates: [lng, lat] },
+      geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
     });
   }
 
@@ -363,12 +344,12 @@ function buildShipsGeoJSONWorker(
     return null;
   }
 
+  void dtSeconds;
   const features: GeoJSON.Feature[] = [];
   for (let i = 0; i < ships.length; i += 1) {
     const s = ships[i];
     if (s.lat == null || s.lng == null) continue;
-    const [iLng, iLat] = interpShipPosition(s, dtSeconds);
-    if (!passesViewFilter(iLat, iLng, bounds, serverBboxScoped)) continue;
+    if (!passesViewFilter(s.lat, s.lng, bounds, serverBboxScoped)) continue;
     if (s.type === 'carrier') continue;
 
     const isTrackedYacht = Boolean(s.yacht_alert);
@@ -389,16 +370,22 @@ function buildShipsGeoJSONWorker(
     else if (s.type === 'yacht' || isPassenger) iconId = 'svgShipWhite';
     else if (isMilitary) iconId = 'svgShipAmber';
 
+    const rotation = s.heading || (typeof s.cog === 'number' ? s.cog : 0) || 0;
     features.push({
       type: 'Feature',
       properties: {
         id: s.mmsi || s.name || `ship-${i}`,
         type: 'ship',
         name: s.name,
-        rotation: s.heading || 0,
+        rotation,
         iconId,
+        kind: 'ship',
+        baseLat: s.lat,
+        baseLng: s.lng,
+        spd: typeof s.sog === 'number' ? s.sog : null,
+        hdg: rotation,
       },
-      geometry: { type: 'Point', coordinates: [iLng, iLat] },
+      geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
     });
   }
 

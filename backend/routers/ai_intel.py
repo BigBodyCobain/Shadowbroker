@@ -1609,6 +1609,13 @@ async def agent_tool_manifest(request: Request):
                 "returns": "{counts: {...}, available_layers: [...], non_empty_layers: [...], layer_aliases: {...}, last_updated, version}",
             },
             {
+                "name": "get_fetch_health",
+                "type": "read",
+                "description": "Get process-local outcomes for instrumented fetch and maintenance tasks. Reports counters, timestamps, latest condition, and duration without raw error text. This is not a data-freshness or upstream-availability check.",
+                "parameters": {},
+                "returns": "{scope: 'process', persistent: false, observed_only: true, semantics: 'latest_recorded_task_outcome', tasks: {...}}",
+            },
+            {
                 "name": "get_layer_slice",
                 "type": "read",
                 "description": "Get only specific top-level telemetry layers, with optional version gating so unchanged reads return empty. Accepts friendly aliases like gfw/global_fishing_watch → fishing_activity and uap/ufo → uap_sightings. Layer slices are uncapped unless you pass a positive limit_per_layer.",
@@ -2431,6 +2438,7 @@ async def api_capabilities(request: Request):
                 "get_telemetry": {"args": {}, "description": "All live fast-refresh data (flights, ships, sigint, earthquakes, weather, CCTV, etc)"},
                 "get_slow_telemetry": {"args": {}, "description": "Slow-refresh data (prediction markets, news, military bases, power plants, volcanoes, etc)"},
                 "get_summary": {"args": {}, "description": "Counts and discovery metadata for all live telemetry layers, including available layer names and common aliases."},
+                "get_fetch_health": {"args": {}, "description": "Process-local outcomes for instrumented fetch and maintenance tasks, without raw error text. Condition reflects the latest recorded task outcome, not data freshness or upstream availability."},
                 "get_layer_slice": {
                     "args": {"layers": "list[str]", "limit_per_layer": "int (optional, omit or <=0 for full layer)", "since_version": "int (optional)"},
                     "description": "Fetch only selected top-level layers. Accepts aliases such as gfw/global_fishing_watch → fishing_activity. If since_version matches current version, returns changed=false and no layer payload.",

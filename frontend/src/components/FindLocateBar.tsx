@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Crosshair, Plane, Shield, Star, Ship, X, Database } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { trackedOperators } from '../lib/trackedData';
 import { useDataKeys } from '@/hooks/useDataStore';
 import { useTranslation } from '@/i18n';

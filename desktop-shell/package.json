@@ -1,6 +1,6 @@
 {
   "name": "@shadowbroker/desktop-shell",
-  "version": "0.9.83",
+  "version": "0.9.84",
   "private": true,
   "description": "ShadowBroker desktop shell packaging, runtime bridge, and release tooling",
   "scripts": {

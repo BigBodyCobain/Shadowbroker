@@ -76,6 +76,7 @@ class TestLiveDataFullEndpoint:
             _store.latest_data["sigint"] = [
                 {"source": "aprs", "observed": datetime(2026, 1, 1, tzinfo=timezone.utc)},
             ]
+        _store.bump_data_version()
         try:
             r = client.get("/api/live-data/fast")
             assert r.status_code == 200
@@ -83,6 +84,7 @@ class TestLiveDataFullEndpoint:
         finally:
             with _store._data_lock:
                 _store.latest_data["sigint"] = prior
+            _store.bump_data_version()
 
     def test_live_data_serializes_non_json_native_values(self, client):
         from datetime import datetime, timezone
@@ -94,6 +96,7 @@ class TestLiveDataFullEndpoint:
             _store.latest_data["gdelt"] = [
                 {"observed": datetime(2026, 1, 1, tzinfo=timezone.utc)},
             ]
+        _store.bump_data_version()
         try:
             r = client.get("/api/live-data")
             assert r.status_code == 200
@@ -101,6 +104,7 @@ class TestLiveDataFullEndpoint:
         finally:
             with _store._data_lock:
                 _store.latest_data["gdelt"] = prior
+            _store.bump_data_version()
 
 
 class TestSlowTaskConcurrency:

@@ -41,11 +41,13 @@ def test_apply_post_translation_adds_fields(monkeypatch):
 def test_normalize_translate_target_maps_ui_locales():
     assert telegram_translate.normalize_translate_target("zh-CN") == "zh-CN"
     assert telegram_translate.normalize_translate_target("fr") == "fr"
+    assert telegram_translate.normalize_translate_target("fa") == "fa"
 
 
 def test_source_lang_label_avoids_uk_country_confusion():
     assert telegram_translate.source_lang_label("uk") == "Ukrainian"
     assert telegram_translate.source_lang_label("ru") == "Russian"
+    assert telegram_translate.source_lang_label("fa") == "Persian"
 
 
 def test_polish_translation_expands_bpla_shorthand():
