@@ -436,6 +436,7 @@ export default function Dashboard() {
   const [flyToLocation, setFlyToLocation] = useState<{
     lat: number;
     lng: number;
+    zoom?: number;
     ts: number;
   } | null>(null);
 
@@ -504,8 +505,8 @@ export default function Dashboard() {
   // Agent fly_to handler (sar_focus_aoi etc.) — wired here now that
   // setFlyToLocation is in scope.  show_image is routed through
   // useAgentActions at the top of Dashboard.
-  useAgentActions(handleMapRightClick, ({ lat, lng }) => {
-    setFlyToLocation({ lat, lng, ts: Date.now() });
+  useAgentActions(handleMapRightClick, ({ lat, lng, zoom }) => {
+    setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
   }, secondaryBootReady);
 
   // Eavesdrop Mode State
