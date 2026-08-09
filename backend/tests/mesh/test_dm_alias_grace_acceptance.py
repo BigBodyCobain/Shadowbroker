@@ -76,10 +76,12 @@ def test_contact_alias_acceptance_rejects_old_alias_after_grace(tmp_path, monkey
     monkeypatch.setattr(contacts.time, "time", lambda: future)
     promoted = contacts.list_wormhole_dm_contacts()["peer_promoted"]
 
-    assert promoted["sharedAlias"] == initial["shared_alias"]
-    assert promoted["pendingSharedAlias"] == rotated["pending_alias"]
-    assert contacts.contact_shared_alias_accepted(promoted, rotated["pending_alias"], now_ms=int(future * 1000)) is False
-    assert contacts.contact_shared_alias_accepted(promoted, initial["shared_alias"], now_ms=int(future * 1000)) is True
+    # After grace expires, pending alias is promoted to current
+    assert promoted["sharedAlias"] == rotated["pending_alias"]
+    assert promoted["pendingSharedAlias"] == ""
+    # The initial (pre-rotation) alias is now in history and rejected
+    assert contacts.contact_shared_alias_accepted(promoted, initial["shared_alias"], now_ms=int(future * 1000)) is False
+    assert contacts.contact_shared_alias_accepted(promoted, rotated["pending_alias"], now_ms=int(future * 1000)) is True
 
 
 def test_mailbox_refs_keep_current_alias_first_during_grace(tmp_path, monkeypatch):

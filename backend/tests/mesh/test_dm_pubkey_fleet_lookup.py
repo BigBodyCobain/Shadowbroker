@@ -16,6 +16,7 @@ async def test_dm_get_pubkey_falls_back_to_fleet_prekey_lookup():
             "type": "http",
             "method": "GET",
             "path": "/api/mesh/dm/pubkey",
+            "query_string": b"exposure=diagnostic",
             "headers": [],
             "client": ("127.0.0.1", 12345),
         }
@@ -36,7 +37,7 @@ async def test_dm_get_pubkey_falls_back_to_fleet_prekey_lookup():
     with patch("services.mesh.mesh_dm_relay.dm_relay") as relay, patch(
         "services.mesh.mesh_wormhole_prekey.fetch_dm_prekey_bundle",
         return_value=remote_bundle,
-    ):
+    ), patch.object(main, "_check_scoped_auth", return_value=(True, "ok")):
         relay.get_dh_key_by_lookup.return_value = (None, "")
         result = await main.dm_get_pubkey(request, lookup_token="fleet-handle-token")
 

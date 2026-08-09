@@ -125,8 +125,9 @@ def dm_lookup_response_view(
             view.pop("lookup_mode", None)
             view.pop("removal_target", None)
             return view
-        # Successful invite lookups keep agent_id: the handle is the capability and
-        # first-contact messaging needs a delivery target. Failures stay generic.
+        # Successful invite lookups: strip agent_id for non-diagnostic exposure
+        # to avoid leaking internal identifiers. lookup_mode stays for debugging.
+        view.pop("agent_id", None)
     return view
 
 

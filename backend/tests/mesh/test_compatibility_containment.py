@@ -46,6 +46,13 @@ def _json_request(path: str, payload: dict):
 
 
 def _pin_contact_with_lookup_handle(tmp_path, monkeypatch, peer_id: str, handle: str):
+    from services.mesh import mesh_secure_storage, mesh_wormhole_persona
+
+    monkeypatch.setattr(mesh_secure_storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_secure_storage, "MASTER_KEY_FILE", tmp_path / "wormhole_secure_store.key")
+    monkeypatch.setattr(mesh_wormhole_persona, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_wormhole_persona, "PERSONA_FILE", tmp_path / "wormhole_persona.json")
+    monkeypatch.setattr(mesh_wormhole_persona, "LEGACY_DM_IDENTITY_FILE", tmp_path / "wormhole_identity.json")
     monkeypatch.setattr(mesh_wormhole_contacts, "DATA_DIR", tmp_path)
     monkeypatch.setattr(
         mesh_wormhole_contacts,
@@ -132,7 +139,7 @@ def test_prekey_bundle_route_prefers_invite_lookup_when_local_contact_allows_it(
 
     result = asyncio.run(main.dm_get_prekey_bundle(_request("/api/mesh/dm/prekey-bundle"), agent_id="peer-125"))
 
-    assert captured == {"agent_id": "peer-125", "lookup_token": "invite-handle-125"}
+    assert captured == {"agent_id": "peer-125", "lookup_token": "invite-handle-125", "lookup_peer_urls": None}
     assert result["ok"] is True
     assert result["lookup_mode"] == "invite_lookup_handle"
     assert "agent_id" not in result
@@ -361,6 +368,13 @@ def test_diagnostic_status_can_expose_full_legacy_compatibility_snapshot(tmp_pat
 
 
 def test_persisted_contact_with_pinned_invite_handle_upgrades_locally_to_invite_scoped_use(tmp_path, monkeypatch):
+    from services.mesh import mesh_secure_storage, mesh_wormhole_persona
+
+    monkeypatch.setattr(mesh_secure_storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_secure_storage, "MASTER_KEY_FILE", tmp_path / "wormhole_secure_store.key")
+    monkeypatch.setattr(mesh_wormhole_persona, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_wormhole_persona, "PERSONA_FILE", tmp_path / "wormhole_persona.json")
+    monkeypatch.setattr(mesh_wormhole_persona, "LEGACY_DM_IDENTITY_FILE", tmp_path / "wormhole_identity.json")
     monkeypatch.setattr(mesh_wormhole_contacts, "DATA_DIR", tmp_path)
     monkeypatch.setattr(
         mesh_wormhole_contacts,
@@ -447,6 +461,10 @@ def test_secure_private_dm_count_with_mailbox_claims_avoids_legacy_get_path(monk
     )
     monkeypatch.setattr(main, "_anonymous_dm_hidden_transport_enforced", lambda: True)
     monkeypatch.setattr(
+        "services.mesh.mesh_signed_events._apply_signed_context_policy",
+        lambda *_a, **_kw: None,
+    )
+    monkeypatch.setattr(
         main,
         "record_legacy_dm_get",
         lambda **_kwargs: (_ for _ in ()).throw(AssertionError("legacy GET path should not record usage")),
@@ -464,6 +482,13 @@ def test_secure_private_dm_count_with_mailbox_claims_avoids_legacy_get_path(monk
 
 
 def test_ordinary_wormhole_status_reports_identifier_free_compatibility_readiness(tmp_path, monkeypatch):
+    from services.mesh import mesh_secure_storage, mesh_wormhole_persona
+
+    monkeypatch.setattr(mesh_secure_storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_secure_storage, "MASTER_KEY_FILE", tmp_path / "wormhole_secure_store.key")
+    monkeypatch.setattr(mesh_wormhole_persona, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(mesh_wormhole_persona, "PERSONA_FILE", tmp_path / "wormhole_persona.json")
+    monkeypatch.setattr(mesh_wormhole_persona, "LEGACY_DM_IDENTITY_FILE", tmp_path / "wormhole_identity.json")
     monkeypatch.setattr(mesh_wormhole_contacts, "DATA_DIR", tmp_path)
     monkeypatch.setattr(
         mesh_wormhole_contacts,

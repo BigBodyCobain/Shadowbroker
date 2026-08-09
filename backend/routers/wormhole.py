@@ -1348,7 +1348,7 @@ async def api_wormhole_dm_contact_sever(request: Request, peer_id: str):
         return {"ok": False, "detail": str(exc)}
 
 
-_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready", "arti_ready"}
+_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready"}
 
 
 def _redact_wormhole_status(state: dict[str, Any], authenticated: bool) -> dict[str, Any]:

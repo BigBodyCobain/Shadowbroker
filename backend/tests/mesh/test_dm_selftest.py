@@ -4,11 +4,13 @@ def _fresh_selftest_state(tmp_path, monkeypatch):
         mesh_dm_mls,
         mesh_dm_relay,
         mesh_secure_storage,
+        mesh_wormhole_root_manifest,
         mesh_wormhole_persona,
     )
 
     monkeypatch.setattr(mesh_secure_storage, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mesh_secure_storage, "MASTER_KEY_FILE", tmp_path / "wormhole_secure_store.key")
+    monkeypatch.setattr(mesh_wormhole_root_manifest, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mesh_wormhole_persona, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mesh_wormhole_persona, "PERSONA_FILE", tmp_path / "wormhole_persona.json")
     monkeypatch.setattr(

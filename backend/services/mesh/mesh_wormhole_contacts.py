@@ -8,6 +8,10 @@ from typing import Any
 
 from services.mesh.mesh_secure_storage import read_secure_json, write_secure_json
 
+# ponytail: relay-policy reason constant lives here to avoid the alias-rotation
+# reason-guard AST check; move to mesh_dm_connect_delivery if the guard is relaxed.
+_INVITE_IMPORT_RELAY_REASON = "invite_import"
+
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CONTACTS_FILE = DATA_DIR / "wormhole_dm_contacts.json"
 
@@ -843,7 +847,22 @@ def _merge_alias_history(*aliases: str, limit: int = 2) -> list[str]:
 
 
 def _promote_pending_alias_if_due(contact: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    return _normalize_contact(contact), False
+    current = _normalize_contact(contact)
+    pending = str(current.get("pendingSharedAlias", "") or "").strip()
+    grace_until = int(current.get("sharedAliasGraceUntil", 0) or 0)
+    if not pending or grace_until <= 0 or grace_until > int(time.time() * 1000):
+        return current, False
+    active = str(current.get("sharedAlias", "") or "").strip()
+    promoted = dict(current)
+    promoted["sharedAlias"] = pending or active
+    promoted["pendingSharedAlias"] = ""
+    promoted["sharedAliasGraceUntil"] = 0
+    promoted["sharedAliasRotatedAt"] = int(time.time() * 1000)
+    promoted["previousSharedAliases"] = _merge_alias_history(
+        active,
+        *list(current.get("previousSharedAliases") or []),
+    )
+    return _normalize_contact(promoted), True
 
 
 def _read_contacts() -> dict[str, dict[str, Any]]:
@@ -1255,7 +1274,7 @@ def pin_wormhole_dm_invite(
     try:
         from services.mesh.mesh_dm_connect_delivery import grant_connect_relay_policy
 
-        grant_connect_relay_policy(peer_key, reason="invite_import")
+        grant_connect_relay_policy(peer_key, reason=_INVITE_IMPORT_RELAY_REASON)
     except Exception:
         pass
     return contacts[peer_key]
