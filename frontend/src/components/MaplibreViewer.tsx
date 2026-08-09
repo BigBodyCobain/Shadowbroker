@@ -752,9 +752,12 @@ const MaplibreViewer = ({
 
   useEffect(() => {
     if (flyToLocation && mapRef.current) {
+      // Agent moves (sar_focus_aoi) carry their own zoom: a world-view revert
+      // asks for ~2, a tight AOI for ~9.  Ignoring it pinned every move at 8,
+      // which turned "show the whole world" into a patch of empty ocean.
       mapRef.current.flyTo({
         center: [flyToLocation.lng, flyToLocation.lat],
-        zoom: 8,
+        zoom: flyToLocation.zoom ?? 8,
         duration: 1500,
       });
     }
