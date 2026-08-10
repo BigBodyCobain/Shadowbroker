@@ -1,4 +1,4 @@
-"""Typed configuration via pydantic-settings."""
+﻿"""Typed configuration via pydantic-settings."""
 
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Data sources
     AIS_API_KEY: str = ""
+    AISHUB_USERNAME: str = ""  # Optional AISHub REST backup when AISStream is silent
     OPENSKY_CLIENT_ID: str = ""
     OPENSKY_CLIENT_SECRET: str = ""
     LTA_ACCOUNT_KEY: str = ""
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     MESH_RNS_ENABLED: bool = False
     MESH_ARTI_ENABLED: bool = False
     # When true, trust wormhole_status.json ready bit if the child process is
-    # alive — avoids transport-tier flapping when /api/health probes time out
+    # alive ΓÇö avoids transport-tier flapping when /api/health probes time out
     # under Tor load (common during live DM E2E).
     MESH_WORMHOLE_TRUST_FILE_READY: bool = False
     MESH_ARTI_SOCKS_PORT: int = 9050
@@ -80,7 +81,7 @@ class Settings(BaseSettings):
     MESH_PEER_PUSH_SECRET: str = ""
     # Issue #256 (tg12): optional per-peer HMAC secret map. Comma-separated
     # `url=secret` pairs. When a peer URL appears here, only that per-peer
-    # secret is accepted for it — the global MESH_PEER_PUSH_SECRET above is
+    # secret is accepted for it ΓÇö the global MESH_PEER_PUSH_SECRET above is
     # ignored for that specific URL. Single-peer installs and unmigrated
     # multi-peer installs leave this empty and behavior is unchanged.
     MESH_PEER_SECRETS: str = ""
@@ -122,7 +123,7 @@ class Settings(BaseSettings):
     MESH_RNS_IBF_FAIL_THRESHOLD: int = 3
     MESH_RNS_IBF_COOLDOWN_S: int = 120
     MESH_VERIFY_INTERVAL_S: int = 600
-    # MESH_VERIFY_SIGNATURES is intentionally removed — the audit loop in main.py
+    # MESH_VERIFY_SIGNATURES is intentionally removed ΓÇö the audit loop in main.py
     # always calls validate_chain_incremental(verify_signatures=True). Any value
     # set in the environment is ignored.
     MESH_DM_SECURE_MODE: bool = True
@@ -144,14 +145,14 @@ class Settings(BaseSettings):
     # Anti-spam: cap on distinct UNACKED messages a single sender can have
     # parked in a single recipient's mailbox at any one time. Once the
     # recipient pulls (acks) a message, the sender's quota for that pair
-    # frees up. Default 2 — a sender who wants to deliver more must wait
+    # frees up. Default 2 ΓÇö a sender who wants to deliver more must wait
     # for the recipient to actually read the prior messages.
     #
     # This cap is enforced TWICE: once on the local deposit path (the
     # sender's own node refuses to spool the 3rd message) AND once on
     # the replication-acceptance path (honest peer relays refuse to
     # accept inbound replicas that would put them over the cap). The
-    # double enforcement makes the rule a NETWORK rule — patching out
+    # double enforcement makes the rule a NETWORK rule ΓÇö patching out
     # the local check on a hostile sender's relay doesn't let extras
     # propagate, because every honest peer enforces the same cap on
     # inbound replication.
@@ -168,7 +169,7 @@ class Settings(BaseSettings):
     MESH_VOTER_BLIND_SALT_GRACE_DAYS: int = 30
     MESH_DM_MAX_MSG_BYTES: int = 8192
     MESH_DM_ALLOW_SENDER_SEAL: bool = False
-    # TTL for DH key and prekey bundle registrations — stale entries are pruned.
+    # TTL for DH key and prekey bundle registrations ΓÇö stale entries are pruned.
     MESH_DM_KEY_TTL_DAYS: int = 30
     # TTL for invite-scoped prekey lookup aliases; shorter windows reduce
     # long-lived relay linkage between opaque lookup handles and agent IDs.
@@ -176,7 +177,7 @@ class Settings(BaseSettings):
     # TTL for relay witness history; keep continuity metadata bounded instead
     # of relying on a hidden hardcoded retention window.
     MESH_DM_WITNESS_TTL_DAYS: int = 14
-    # TTL for mailbox binding metadata — shorter = smaller metadata footprint on disk.
+    # TTL for mailbox binding metadata ΓÇö shorter = smaller metadata footprint on disk.
     MESH_DM_BINDING_TTL_DAYS: int = 3
     # When False, mailbox bindings are memory-only (agents re-register on restart).
     # Enable explicitly only if restart continuity is worth persisting DM graph metadata.
@@ -319,7 +320,7 @@ class Settings(BaseSettings):
     # Second explicit opt-in for private-tier clearnet fallback. Without this
     # acknowledgement, "allow" remains requested but not effective.
     MESH_PRIVATE_CLEARNET_FALLBACK_ACKNOWLEDGE: bool = False
-    # Meshtastic MQTT bridge — disabled by default to avoid hammering the
+    # Meshtastic MQTT bridge ΓÇö disabled by default to avoid hammering the
     # public broker.  Users opt in explicitly.
     MESH_MQTT_ENABLED: bool = False
     # Meshtastic MQTT broker credentials (defaults match public firmware).
@@ -327,7 +328,7 @@ class Settings(BaseSettings):
     MESH_MQTT_PORT: int = 1883
     MESH_MQTT_USER: str = "meshdev"
     MESH_MQTT_PASS: str = "large4cats"
-    # Hex-encoded PSK — empty string means use the default LongFast key.
+    # Hex-encoded PSK ΓÇö empty string means use the default LongFast key.
     # Must decode to exactly 16 or 32 bytes when set.
     MESH_MQTT_PSK: str = ""
     # Optional operator-provided Meshtastic node ID (e.g. "!abcd1234") included
@@ -350,16 +351,16 @@ class Settings(BaseSettings):
     OPERATOR_HANDLE: str = ""
 
     # SAR (Synthetic Aperture Radar) data layer
-    # Mode A — free catalog metadata, no account, default-on
+    # Mode A ΓÇö free catalog metadata, no account, default-on
     MESH_SAR_CATALOG_ENABLED: bool = True
-    # Mode B — free pre-processed anomalies (OPERA / EGMS / GFM / EMS / UNOSAT)
+    # Mode B ΓÇö free pre-processed anomalies (OPERA / EGMS / GFM / EMS / UNOSAT)
     # Two-step opt-in: must be "allow" AND _ACKNOWLEDGE must be true
     MESH_SAR_PRODUCTS_FETCH: str = "block"
     MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE: bool = False
-    # NASA Earthdata Login (free) — required for OPERA products
+    # NASA Earthdata Login (free) ΓÇö required for OPERA products
     MESH_SAR_EARTHDATA_USER: str = ""
     MESH_SAR_EARTHDATA_TOKEN: str = ""
-    # Copernicus Data Space (free) — required for EGMS / EMS products
+    # Copernicus Data Space (free) ΓÇö required for EGMS / EMS products
     MESH_SAR_COPERNICUS_USER: str = ""
     MESH_SAR_COPERNICUS_TOKEN: str = ""
     # Whether OpenClaw agents may read/act on the SAR layer

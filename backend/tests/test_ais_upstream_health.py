@@ -130,6 +130,7 @@ class TestHealthEndpointEscalation:
         body = res.json()
         assert body["ais_proxy"]["connected"] is False
         assert body["ais_proxy"]["proxy_spawn_count"] == 5
+        assert "aishub_configured" in body["ais_proxy"]
         # Without API_KEY this would stay "ok"; with it set + connected=false,
         # we expect at least "degraded" (could be "error" if an SLO is also
         # red, but never "ok").
@@ -137,6 +138,18 @@ class TestHealthEndpointEscalation:
             f"with AIS_API_KEY set + connected=false, status must NOT be 'ok'; "
             f"got {body['status']!r}"
         )
+
+    def test_health_reports_aishub_configured_flag(self, client, monkeypatch):
+        _reset_ais_module()
+        monkeypatch.setenv("AISHUB_USERNAME", "shadowbroker-test")
+        res = client.get("/api/health")
+        assert res.status_code == 200
+        assert res.json()["ais_proxy"]["aishub_configured"] is True
+
+        monkeypatch.delenv("AISHUB_USERNAME", raising=False)
+        res = client.get("/api/health")
+        assert res.status_code == 200
+        assert res.json()["ais_proxy"]["aishub_configured"] is False
 
     def test_no_api_key_does_not_escalate(self, client, monkeypatch):
         """When AIS_API_KEY isn't set, the operator hasn't opted in. Don't

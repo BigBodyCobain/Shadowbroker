@@ -1,4 +1,4 @@
-import os
+﻿import os
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -139,8 +139,8 @@ def _check_explicit_scoped_auth_local(
     if not admin_key and not scoped_tokens:
         if _allow_insecure_admin() or (_debug_mode_enabled() and host == "test"):
             return True, "ok", "debug_override"
-        return False, "Forbidden — admin key not configured", ""
-    return False, "Forbidden — invalid or missing admin key", ""
+        return False, "Forbidden ΓÇö admin key not configured", ""
+    return False, "Forbidden ΓÇö invalid or missing admin key", ""
 
 
 def _gate_privileged_access_status_snapshot_local() -> dict[str, Any]:
@@ -164,10 +164,11 @@ def _gate_privileged_access_status_snapshot_local() -> dict[str, Any]:
 # Docker Swarm Secrets support
 # For each VAR below, if VAR_FILE is set (e.g. AIS_API_KEY_FILE=/run/secrets/AIS_API_KEY),
 # the file is read and its trimmed content is placed into VAR.
-# This MUST run before service imports â€” modules read os.environ at import time.
+# This MUST run before service imports ├óΓé¼ΓÇ¥ modules read os.environ at import time.
 # ---------------------------------------------------------------------------
 _SECRET_VARS = [
     "AIS_API_KEY",
+    "AISHUB_USERNAME",
     "OPENSKY_CLIENT_ID",
     "OPENSKY_CLIENT_SECRET",
     "LTA_ACCOUNT_KEY",
@@ -212,7 +213,7 @@ if not _MESH_ONLY:
     from services.ais_stream import start_ais_stream, stop_ais_stream
     from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
 else:
-    # Lean mesh/wormhole process — avoid importing the OSINT fetcher graph.
+    # Lean mesh/wormhole process ΓÇö avoid importing the OSINT fetcher graph.
     def start_scheduler(*_a, **_k):  # type: ignore[misc]
         return None
 
@@ -1642,7 +1643,7 @@ def _peer_sync_response(peer_url: str, body: dict[str, Any]) -> dict[str, Any]:
     # HTTP 429 must be surfaced as a typed exception carrying the
     # Retry-After value, so finish_sync can honor it and stop hammering
     # the upstream. Pre-fix this path just stringified the status into
-    # a ValueError, which finish_sync then ignored — keeping the
+    # a ValueError, which finish_sync then ignored ΓÇö keeping the
     # upstream's rate-limit bucket full indefinitely.
     if response.status_code == 429:
         from services.mesh.mesh_infonet_sync_support import (
@@ -1679,8 +1680,8 @@ def _hydrate_gate_store_from_chain(events: list[dict]) -> int:
     """Copy any gate_message chain events into the local gate_store for read/decrypt.
 
     Only events that are resident in the local infonet (accepted or already
-    present) are hydrated.  The canonical infonet-resident event is used â€”
-    never the raw batch event â€” so a forged batch entry carrying a valid
+    present) are hydrated.  The canonical infonet-resident event is used ├óΓé¼ΓÇ¥
+    never the raw batch event ├óΓé¼ΓÇ¥ so a forged batch entry carrying a valid
     event_id but attacker-chosen payload cannot pollute gate_store.
     """
     import copy
@@ -1765,7 +1766,7 @@ def _sync_from_peer(
 
     Returns ``(ok, error, forked, retry_after_s)``. The fourth tuple
     element is non-zero only when the peer responded with HTTP 429
-    and supplied a parseable ``Retry-After`` header — see the typed
+    and supplied a parseable ``Retry-After`` header ΓÇö see the typed
     ``PeerSyncRateLimited`` exception in mesh_infonet_sync_support.py.
     Callers should pass that value to ``finish_sync(retry_after_s=...)``
     so the next attempt actually waits.
@@ -1908,7 +1909,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
         except PeerSyncHTTPError as exc:
             # _sync_from_peer catches PeerSyncRateLimited internally (4-tuple
             # path for 429 with Retry-After). Other non-200 statuses surface
-            # here as PeerSyncHTTPError — pull retry_after_s + status off it
+            # here as PeerSyncHTTPError ΓÇö pull retry_after_s + status off it
             # so the cooldown calculation below can honor server hints even
             # for non-429 throttling responses.
             ok = False
@@ -1973,7 +1974,7 @@ def _run_public_sync_cycle() -> SyncWorkerState:
             failure_backoff_s=failure_backoff_s,
             # 429 retry-storm fix: when the peer returned HTTP 429 with
             # a Retry-After header, finish_sync uses max(exponential,
-            # retry_after) for next_sync_due_at — so we actually wait
+            # retry_after) for next_sync_due_at ΓÇö so we actually wait
             # the time the upstream asked for instead of hammering
             # every 60s and keeping its rate-limit bucket full forever.
             retry_after_s=retry_after_s,
@@ -2147,13 +2148,13 @@ def _start_infonet_node_runtime(reason: str = "startup") -> None:
         logger.warning(f"Node bootstrap runtime failed to initialize: {e}")
 
 
-# â”€â”€â”€ Background HTTP Peer Push Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Background HTTP Peer Push Worker ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 # Runs alongside the sync loop.  Every PUSH_INTERVAL seconds, batches new
 # Infonet events and sends them via HMAC-authenticated POST to push peers.
 
 _PEER_PUSH_INTERVAL_S = 10
 _PEER_PUSH_BATCH_SIZE = 50
-_peer_push_last_index: dict[str, int] = {}  # peer_url â†’ last pushed event index
+_peer_push_last_index: dict[str, int] = {}  # peer_url ├óΓÇáΓÇÖ last pushed event index
 _INFONET_SYNC_RATE_LIMIT = "600/minute"
 
 
@@ -2173,7 +2174,7 @@ def _http_peer_push_loop() -> None:
             # legacy global MESH_PEER_PUSH_SECRET path and the per-peer
             # MESH_PEER_SECRETS map. The per-peer skip happens below
             # ("if not peer_key: continue"), so we don't gate the whole
-            # loop on the global secret being set — an install that only
+            # loop on the global secret being set ΓÇö an install that only
             # configures per-peer secrets is now valid.
 
             peers = _filter_infonet_peer_urls(authenticated_push_peer_urls())
@@ -2233,7 +2234,7 @@ def _http_peer_push_loop() -> None:
                         _peer_push_last_index[normalized] = last_idx + len(batch)
                         logger.info(
                             f"Pushed {len(batch)} event(s) to {normalized[:40]} "
-                            f"(idx {last_idx}â†’{last_idx + len(batch)})"
+                            f"(idx {last_idx}├óΓÇáΓÇÖ{last_idx + len(batch)})"
                         )
                     else:
                         logger.warning(f"Peer push to {normalized[:40]} returned {resp.status_code}")
@@ -2261,13 +2262,13 @@ def _swarm_manifest_pull_loop() -> None:
         _NODE_SYNC_STOP.wait(max(30, interval_s))
 
 
-# â”€â”€â”€ Background Gate Message Pull Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Background Gate Message Pull Worker ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 # Periodically pulls gate events from relay peers that this node is missing.
 # Complements the push loop: push sends OUR events to peers, pull fetches
 # THEIR events from peers (needed when this node is behind NAT).
 
 _GATE_PULL_INTERVAL_S = 10
-_gate_pull_last_count: dict[str, dict[str, int]] = {}  # peer â†’ {gate_id â†’ known count}
+_gate_pull_last_count: dict[str, dict[str, int]] = {}  # peer ├óΓÇáΓÇÖ {gate_id ├óΓÇáΓÇÖ known count}
 
 
 def _http_gate_pull_loop() -> None:
@@ -2404,9 +2405,9 @@ def _http_gate_pull_loop() -> None:
 
 
 
-# â”€â”€â”€ Background Gate Message Push Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Background Gate Message Push Worker ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
-_gate_push_last_count: dict[str, dict[str, int]] = {}  # peer â†’ {gate_id â†’ count}
+_gate_push_last_count: dict[str, dict[str, int]] = {}  # peer ├óΓÇáΓÇÖ {gate_id ├óΓÇáΓÇÖ count}
 
 
 def _http_gate_push_loop() -> None:
@@ -2749,9 +2750,9 @@ async def lifespan(app: FastAPI):
     validate_env(strict=not _MESH_ONLY)
 
     if _MESH_ONLY:
-        logger.info("MESH_ONLY enabled â€” skipping global data fetchers/schedulers.")
+        logger.info("MESH_ONLY enabled ├óΓé¼ΓÇ¥ skipping global data fetchers/schedulers.")
     else:
-        # Start AIS stream first â€” it loads the disk cache (instant ships) then
+        # Start AIS stream first ├óΓé¼ΓÇ¥ it loads the disk cache (instant ships) then
         # begins accumulating live vessel data via WebSocket in the background.
         start_ais_stream()
 
@@ -2759,7 +2760,7 @@ async def lifespan(app: FastAPI):
         # in _scheduler_loop, so we do NOT call it again in the preload thread.
         start_carrier_tracker()
 
-        # Start SIGINT grid eagerly â€” APRS-IS TCP + Meshtastic MQTT connections
+        # Start SIGINT grid eagerly ├óΓé¼ΓÇ¥ APRS-IS TCP + Meshtastic MQTT connections
         # take a few seconds to handshake and start receiving packets. By starting
         # now, the bridges are already accumulating signals by the time the first
         # fetch_sigint() reads them during the preload cycle.
@@ -2868,7 +2869,7 @@ async def lifespan(app: FastAPI):
             delay_s = float(os.environ.get("SHADOWBROKER_STARTUP_PRELOAD_DELAY_S", "2.0") or 0)
             if delay_s > 0:
                 time.sleep(delay_s)
-            logger.info("=== PRELOADING DATA (background â€” server already accepting requests) ===")
+            logger.info("=== PRELOADING DATA (background ├óΓé¼ΓÇ¥ server already accepting requests) ===")
             try:
                 update_all_data(startup_mode=True)
                 logger.info("=== PRELOAD COMPLETE ===")
@@ -2882,7 +2883,7 @@ async def lifespan(app: FastAPI):
     try:
         from services.tor_hidden_service import tor_service, HOSTNAME_PATH
         if HOSTNAME_PATH.exists():
-            logger.info("Previous Tor hidden service detected â€” auto-restarting...")
+            logger.info("Previous Tor hidden service detected ├óΓé¼ΓÇ¥ auto-restarting...")
             threading.Thread(
                 target=tor_service.start, daemon=True
             ).start()
@@ -3195,9 +3196,9 @@ def _trusted_gate_reply_to(event: dict) -> str:
 def _derive_anon_handle(node_id: str, gate_id: str) -> str:
     """Derive a stable per-session, per-gate anonymous display handle.
 
-    Same node_id + same gate → same handle for every message that session
+    Same node_id + same gate ΓåÆ same handle for every message that session
     posts (lets other members follow a conversation thread). Different
-    session (anon re-enters → new node_id) → new handle. Different gate →
+    session (anon re-enters ΓåÆ new node_id) ΓåÆ new handle. Different gate ΓåÆ
     different handle for the same session (prevents cross-gate linking).
     Not reversible: the handle is HMAC-SHA256(node_id, gate_id) truncated
     to 4 hex chars (~16 bits), which is enough to tell sessions apart in
@@ -3238,7 +3239,7 @@ def _strip_gate_identity_member(event: dict, *, envelope_policy: str = "envelope
         "transport_lock": str(payload.get("transport_lock", "") or ""),
         # gate_envelope is AES-256-GCM ciphertext encrypted under the gate's
         # domain key (gate_secret). Only members who hold the gate_secret
-        # can decrypt it — so exposing the ciphertext itself to members is
+        # can decrypt it ΓÇö so exposing the ciphertext itself to members is
         # safe, and it's REQUIRED for the envelope_always decrypt path that
         # gives members durable re-readable history. envelope_hash is the
         # cryptographic binding (SHA-256 of gate_envelope) the decrypt path
@@ -3301,7 +3302,7 @@ def _strip_gate_identity_privileged(event: dict) -> dict:
 
 
 def _strip_gate_identity(event: dict) -> dict:
-    """Legacy alias â€” defaults to member (narrowed) view."""
+    """Legacy alias ├óΓé¼ΓÇ¥ defaults to member (narrowed) view."""
     return _strip_gate_identity_member(event)
 
 
@@ -3483,7 +3484,7 @@ def _verify_gate_access(request: Request, gate_id: str) -> str:
     return ""
 
 
-# â”€â”€ Non-hostile transport auto-upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Non-hostile transport auto-upgrade ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 #
 # The mesh/wormhole middleware can try to bring the wormhole supervisor
 # up in the background when a user hits a tier-gated route on a weak
@@ -3750,8 +3751,8 @@ async def enforce_high_privacy_mesh(request: Request, call_next):
                     # background and return an ok:True "preparing" response
                     # (202 Accepted) so the client shows a spinner rather
                     # than an approval dialog. The request itself is NOT
-                    # forwarded to the handler — the tier is too low for the
-                    # route's required privacy — but the client can poll and
+                    # forwarded to the handler ΓÇö the tier is too low for the
+                    # route's required privacy ΓÇö but the client can poll and
                     # retry transparently once the lane warms up.
                     try:
                         upgraded = await _try_transparent_transport_upgrade()
@@ -3784,7 +3785,7 @@ async def enforce_high_privacy_mesh(request: Request, call_next):
             data = read_wormhole_settings()
             # Tor-style: if the user selected high privacy but Wormhole
             # isn't enabled yet, just turn it on and kick off warmup.
-            # Don't block the request on the upgrade — the transport
+            # Don't block the request on the upgrade ΓÇö the transport
             # manager will converge in the background.
             if (
                 private_mesh_path
@@ -3807,7 +3808,7 @@ async def enforce_high_privacy_mesh(request: Request, call_next):
             or _is_anonymous_dm_action_path(path, request.method)
             or _is_anonymous_wormhole_gate_admin_path(path, request.method)
         ):
-            # Tor-style: anonymous mode is on → do whatever is required for
+            # Tor-style: anonymous mode is on ΓåÆ do whatever is required for
             # it to function. Auto-enable Wormhole if off, and schedule
             # hidden-transport warmup WITHOUT blocking this request. The
             # transport manager converges in the background; the user sees
@@ -3971,7 +3972,7 @@ def _queue_viirs_change_refresh() -> None:
 @limiter.limit("60/minute")
 async def update_viewport(vp: ViewportUpdate, request: Request):  # noqa: ARG001
     """Receive frontend map bounds. AIS stream stays global so open-ocean
-    vessels are never dropped â€” the frontend worker handles viewport culling."""
+    vessels are never dropped ├óΓé¼ΓÇ¥ the frontend worker handles viewport culling."""
     return {"status": "ok"}
 
 
@@ -4139,7 +4140,7 @@ async def nearest_sdr(
     return find_nearest_kiwisdr(lat, lng, kiwisdr_data)
 
 
-# â”€â”€â”€ Per-Identity Throttle State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Per-Identity Throttle State ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 # In-memory: {node_id: {"last_send": timestamp, "daily_count": int, "daily_reset": timestamp}}
 # Bounded to 10000 entries with 24hr TTL to prevent unbounded memory growth
 _node_throttle: TTLCache = TTLCache(maxsize=10000, ttl=86400)
@@ -4223,7 +4224,7 @@ def _check_throttle(
 
 
 def _check_gate_post_cooldown(sender_id: str, gate_id: str) -> tuple[bool, str]:
-    """Check cooldown â€” does NOT record it.  Call _record_gate_post_cooldown() after success."""
+    """Check cooldown ├óΓé¼ΓÇ¥ does NOT record it.  Call _record_gate_post_cooldown() after success."""
     gate_key = str(gate_id or "").strip().lower()
     sender_key = str(sender_id or "").strip()
     if not gate_key or not sender_key:
@@ -4425,7 +4426,7 @@ def _prepared_signed_write(request: Request):
 @limiter.limit("10/minute")
 @requires_signed_write(kind=SignedWriteKind.MESH_SEND)
 async def mesh_send(request: Request):
-    """Unified mesh message endpoint â€” auto-routes via optimal transport.
+    """Unified mesh message endpoint ├óΓé¼ΓÇ¥ auto-routes via optimal transport.
 
     Body: { destination, message, priority?, channel?, node_id?, credentials? }
     The router picks APRS, Meshtastic, or Internet based on gate logic.
@@ -4437,7 +4438,7 @@ async def mesh_send(request: Request):
     if not destination or not message:
         return {"ok": False, "detail": "Missing required fields: destination, message"}
 
-    # â”€â”€â”€ Byte limit enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Byte limit enforcement ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     payload_bytes = len(message.encode("utf-8"))
     payload_type = body.get("payload_type", "text")
     max_bytes = _BYTE_LIMITS.get(payload_type, 200)
@@ -4447,7 +4448,7 @@ async def mesh_send(request: Request):
             "detail": f"Message too long ({payload_bytes} bytes). Maximum: {max_bytes} bytes for {payload_type} messages.",
         }
 
-    # â”€â”€â”€ Signature verification & node registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Signature verification & node registration ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     node_id = body.get("node_id", body.get("sender_id", "anonymous"))
     public_key = body.get("public_key", "")
     public_key_algo = body.get("public_key_algo", "")
@@ -4470,9 +4471,9 @@ async def mesh_send(request: Request):
 
             reputation_ledger.register_node(node_id, public_key, public_key_algo)
         except Exception:
-            pass  # Non-critical â€” don't block sends if reputation module fails
+            pass  # Non-critical ├óΓé¼ΓÇ¥ don't block sends if reputation module fails
 
-    # â”€â”€â”€ Per-identity throttle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Per-identity throttle ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     priority_str = signed_payload["priority"]
     transport_lock = str(body.get("transport_lock", "") or "").lower()
     throttle_ok, throttle_reason = _check_throttle(node_id, priority_str, transport_lock)
@@ -4495,7 +4496,7 @@ async def mesh_send(request: Request):
     }
     priority = priority_map.get(priority_str, Priority.NORMAL)
 
-    # â”€â”€â”€ C-1 fix: compute trust_tier from Wormhole state â”€â”€â”€â”€â”€â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ C-1 fix: compute trust_tier from Wormhole state ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     from services.wormhole_supervisor import get_transport_tier
 
     computed_tier = get_transport_tier()
@@ -4511,7 +4512,7 @@ async def mesh_send(request: Request):
     )
 
     credentials = body.get("credentials", {})
-    # â”€â”€â”€ C-2 fix: enforce tier before transport_lock dispatch â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ C-2 fix: enforce tier before transport_lock dispatch ├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     private_tier = str(envelope.trust_tier or "").startswith("private_")
     if transport_lock == "meshtastic":
         if private_tier:
@@ -4547,7 +4548,7 @@ async def mesh_send(request: Request):
         results = mesh_router.route(envelope, credentials)
     any_ok = any(r.ok for r in results)
 
-    # â”€â”€â”€ Mirror to Meshtastic bridge feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Mirror to Meshtastic bridge feed ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
     # The MQTT broker won't echo our own publishes back to our subscriber, so
     # inject successfully-sent channel broadcasts into the bridge directly.
     # Node-targeted packets must not appear in the public channel feed.
@@ -4719,14 +4720,14 @@ async def mesh_messages(
 @app.get("/api/mesh/channels")
 @limiter.limit("30/minute")
 async def mesh_channels(request: Request):
-    """Get Meshtastic channel population stats â€” nodes per region/channel."""
+    """Get Meshtastic channel population stats ├óΓé¼ΓÇ¥ nodes per region/channel."""
     stats = get_latest_data().get("mesh_channel_stats", {})
     return stats
 
 
-# â”€â”€â”€ Reputation Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Reputation Endpoints ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
-# Cached root node_id â€” avoids 5 encrypted disk reads per vote.
+# Cached root node_id ├óΓé¼ΓÇ¥ avoids 5 encrypted disk reads per vote.
 _root_node_id_cache: dict[str, object] = {"value": None, "ts": 0.0}
 _ROOT_NODE_ID_TTL = 30.0  # seconds
 
@@ -4783,7 +4784,7 @@ async def mesh_vote(request: Request):
     vote_payload = {"target_id": target_id, "vote": vote, "gate": gate}
 
     # Resolve stable local operator ID for duplicate-vote prevention.
-    # Personas generate unique keypairs, so voter_id alone is insufficient â€”
+    # Personas generate unique keypairs, so voter_id alone is insufficient ├óΓé¼ΓÇ¥
     # use the root identity's node_id as a stable anchor so switching personas
     # doesn't let the same operator vote multiple times on the same post.
     stable_voter_id = voter_id
@@ -5072,7 +5073,7 @@ async def mesh_identity_revoke(request: Request):
     return {"ok": True, "detail": "Identity revoked"}
 
 
-# â”€â”€â”€ Gate Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Gate Endpoints ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
 
 @app.post("/api/mesh/gate/create")
@@ -5143,7 +5144,7 @@ async def gate_create(request: Request):
 @app.get("/api/mesh/gate/list")
 @limiter.limit("30/minute")
 async def gate_list(request: Request):
-    """List all known gates (public catalog â€” secrets are never included)."""
+    """List all known gates (public catalog ├óΓé¼ΓÇ¥ secrets are never included)."""
     from services.mesh.mesh_reputation import gate_manager
 
     return {"gates": gate_manager.list_gates()}
@@ -5246,7 +5247,7 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
     payload_ok, payload_reason = validate_event_payload("gate_message", gate_payload)
     if not payload_ok:
         return {"ok": False, "detail": payload_reason}
-    # gate_envelope is not part of the signed payload â€” envelope_hash binds it.
+    # gate_envelope is not part of the signed payload ├óΓé¼ΓÇ¥ envelope_hash binds it.
     # reply_to is signed for new compose flows; if only the legacy no-reply_to
     # signature verifies, strip it rather than accepting unauthenticated
     # threading metadata.
@@ -5396,13 +5397,13 @@ def _submit_gate_message_envelope(request: Request, gate_id: str, body: dict[str
     )
 
 
-# â”€â”€â”€ Infonet Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Infonet Endpoints ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
 
 @app.get("/api/mesh/infonet/status")
 @limiter.limit("30/minute")
 async def infonet_status(request: Request, verify_signatures: bool = False):
-    """Get Infonet metadata â€” event counts, head hash, chain size."""
+    """Get Infonet metadata ├óΓé¼ΓÇ¥ event counts, head hash, chain size."""
     from services.mesh.mesh_hashchain import infonet
     from services.wormhole_supervisor import get_wormhole_state
 
@@ -5581,7 +5582,7 @@ async def mesh_metrics(request: Request):
     ok, detail = _check_scoped_auth(request, "mesh.audit")
     if not ok:
         if detail == "insufficient scope":
-            raise HTTPException(status_code=403, detail="Forbidden â€” insufficient scope")
+            raise HTTPException(status_code=403, detail="Forbidden ├óΓé¼ΓÇ¥ insufficient scope")
         raise HTTPException(status_code=403, detail=detail)
     return snapshot()
 
@@ -5981,7 +5982,7 @@ async def gate_peer_pull(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Peer Management API â€” operator endpoints for adding / removing / listing
+# Peer Management API ├óΓé¼ΓÇ¥ operator endpoints for adding / removing / listing
 # peers without editing peer_store.json by hand.
 # ---------------------------------------------------------------------------
 
@@ -6038,7 +6039,7 @@ async def add_peer(request: Request):
     if not transport:
         transport = peer_transport_kind(peer_url)
     if not transport:
-        return {"ok": False, "detail": "Cannot determine transport for peer_url â€” provide transport explicitly"}
+        return {"ok": False, "detail": "Cannot determine transport for peer_url ├óΓé¼ΓÇ¥ provide transport explicitly"}
 
     label = str(body.get("label", "") or "").strip()
     role = str(body.get("role", "") or "").strip().lower() or "relay"
@@ -6415,7 +6416,7 @@ async def infonet_events_by_type(
     }
 
 
-# â”€â”€â”€ Oracle Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Oracle Endpoints ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
 
 @app.post("/api/mesh/oracle/predict")
@@ -6425,8 +6426,8 @@ async def oracle_predict(request: Request):
     """Place a prediction on a market outcome. FINAL decision.
 
     Body: {node_id, market_title, side, stake_amount?: number}
-    - stake_amount = 0 or omitted â†’ FREE PICK (earn rep if correct)
-    - stake_amount > 0 â†’ STAKE REP (risk rep, split loser pool if correct)
+    - stake_amount = 0 or omitted ├óΓÇáΓÇÖ FREE PICK (earn rep if correct)
+    - stake_amount > 0 ├óΓÇáΓÇÖ STAKE REP (risk rep, split loser pool if correct)
     - side can be "yes"/"no" or an outcome name for multi-outcome markets
     """
     from services.mesh.mesh_oracle import oracle_ledger
@@ -6465,7 +6466,7 @@ async def oracle_predict(request: Request):
         if m.get("title", "").lower() == market_title.lower():
             matched = m
             break
-    # Fuzzy fallback â€” partial match
+    # Fuzzy fallback ├óΓé¼ΓÇ¥ partial match
     if not matched:
         for m in markets:
             if market_title.lower() in m.get("title", "").lower():
@@ -6496,13 +6497,13 @@ async def oracle_predict(request: Request):
             probability = 100.0 - probability
 
     if stake_amount > 0:
-        # STAKED prediction â€” risk rep for bigger reward
+        # STAKED prediction ├óΓé¼ΓÇ¥ risk rep for bigger reward
         ok, detail = oracle_ledger.place_market_stake(
             node_id, matched["title"], side, stake_amount, probability
         )
         mode = "staked"
     else:
-        # FREE prediction â€” no rep risked
+        # FREE prediction ├óΓé¼ΓÇ¥ no rep risked
         ok, detail = oracle_ledger.place_prediction(node_id, matched["title"], side, probability)
         mode = "free"
 
@@ -6725,7 +6726,7 @@ async def oracle_resolve(request: Request):
 @app.get("/api/mesh/oracle/consensus")
 @limiter.limit("30/minute")
 async def oracle_consensus(request: Request, market_title: str = ""):
-    """Get network consensus for a market â€” picks + staked rep per side."""
+    """Get network consensus for a market ├óΓé¼ΓÇ¥ picks + staked rep per side."""
     from services.mesh.mesh_oracle import oracle_ledger
 
     if not market_title:
@@ -6814,7 +6815,7 @@ async def oracle_stakes_for_message(request: Request, message_id: str):
 @app.get("/api/mesh/oracle/profile")
 @limiter.limit("30/minute")
 async def oracle_profile(request: Request, node_id: str = ""):
-    """Get full oracle profile â€” rep, prediction history, win rate, farming score."""
+    """Get full oracle profile ├óΓé¼ΓÇ¥ rep, prediction history, win rate, farming score."""
     from services.mesh.mesh_oracle import oracle_ledger
 
     if not node_id:
@@ -6852,7 +6853,7 @@ async def oracle_resolve_stakes(request: Request):
     return {"ok": True, "resolutions": resolutions, "count": len(resolutions)}
 
 
-# â”€â”€â”€ Encrypted DM Relay (Dead Drop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼ Encrypted DM Relay (Dead Drop) ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 
 
 def _secure_dm_enabled() -> bool:
@@ -6886,7 +6887,7 @@ def _anonymous_dm_hidden_transport_requested() -> bool:
     is *ready* yet.
 
     Use this (not the ``_enforced`` variant) for *protective* logic that must
-    keep stated privacy intent honored during warmup — e.g., skipping direct
+    keep stated privacy intent honored during warmup ΓÇö e.g., skipping direct
     RNS metadata lookups. ``_enforced`` is for claim/telemetry paths that
     report what is currently being honored.
     """
@@ -7164,7 +7165,7 @@ async def _dm_send_from_signed_request(request: Request):
         return {"ok": False, "detail": "DM timestamp is too far from current time"}
     if delivery_class not in ("request", "shared"):
         return {"ok": False, "detail": "delivery_class must be request or shared"}
-    # Contact requests are the first-contact handshake — do not require prior verification.
+    # Contact requests are the first-contact handshake ΓÇö do not require prior verification.
     if delivery_class == "shared":
         try:
             from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
@@ -7492,7 +7493,7 @@ async def _dm_count_secure_from_signed_request(request: Request):
     mailbox_keys = dm_relay.claim_mailbox_keys(agent_id, claims)
     relay_ids = dm_relay.claim_message_ids(agent_id, claims)
     direct_ids = set()
-    # Rec #9: requested (not merely enforced) — skip direct-lane count probe
+    # Rec #9: requested (not merely enforced) ΓÇö skip direct-lane count probe
     # as soon as anonymous mode is requested, even before ready converges.
     if not _anonymous_dm_hidden_transport_requested():
         try:
@@ -7593,7 +7594,7 @@ async def dm_get_pubkey(
         if key_bundle is None:
             # Invite handles are minted on the owner's node. When a remote peer
             # pastes a short address, resolve it across the private fleet before
-            # failing — same path as prekey-bundle import.
+            # failing ΓÇö same path as prekey-bundle import.
             from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
 
             preferred_lookup_peer = str(lookup_peer_url or "").strip().rstrip("/")
@@ -8160,7 +8161,7 @@ async def debug_latest_data(request: Request):
     return list(get_latest_data().keys())
 
 
-# â”€â”€ CCTV media proxy (bypass CORS for cross-origin video/image streams) â”€â”€â”€
+# ├óΓÇ¥Γé¼├óΓÇ¥Γé¼ CCTV media proxy (bypass CORS for cross-origin video/image streams) ├óΓÇ¥Γé¼├óΓÇ¥Γé¼├óΓÇ¥Γé¼
 _CCTV_PROXY_ALLOWED_HOSTS = {
     "s3-eu-west-1.amazonaws.com",  # TfL JamCams
     "jamcams.tfl.gov.uk",
@@ -8809,12 +8810,12 @@ def api_region_dossier(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
 ):
-    """Sync def so FastAPI runs it in a threadpool â€” prevents blocking the event loop."""
+    """Sync def so FastAPI runs it in a threadpool ├óΓé¼ΓÇ¥ prevents blocking the event loop."""
     return get_region_dossier(lat, lng)
 
 
 # ---------------------------------------------------------------------------
-# Geocoding â€” proxy to Nominatim with caching and proper headers
+# Geocoding ├óΓé¼ΓÇ¥ proxy to Nominatim with caching and proper headers
 # ---------------------------------------------------------------------------
 from services.geocode import search_geocode, reverse_geocode
 
@@ -8987,7 +8988,7 @@ async def api_sentinel_tile(request: Request):
     evalscript = evalscripts.get(preset, evalscripts["TRUE-COLOR"])
 
     # Adaptive time range: wider window at lower zoom for better coverage.
-    # Sentinel-2 has 5-day revisit â€” a single day often has gaps.
+    # Sentinel-2 has 5-day revisit ├óΓé¼ΓÇ¥ a single day often has gaps.
     # At low zoom we mosaic over more days to fill gaps.
     from datetime import datetime as _dt, timedelta as _td
 
@@ -9057,7 +9058,7 @@ async def api_sentinel_tile(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# API Settings â€” key registry & management
+# API Settings ├óΓé¼ΓÇ¥ key registry & management
 # ---------------------------------------------------------------------------
 from services.api_settings import get_api_keys, get_env_path_info
 from services.shodan_connector import (
@@ -9132,7 +9133,7 @@ async def api_shodan_host(request: Request, body: ShodanHostRequest):
 
 
 # ---------------------------------------------------------------------------
-# Finnhub â€” free market intelligence (quotes, congress trades, insider txns)
+# Finnhub ├óΓé¼ΓÇ¥ free market intelligence (quotes, congress trades, insider txns)
 # ---------------------------------------------------------------------------
 from services.unusual_whales_connector import (
     FinnhubConnectorError,
@@ -9222,7 +9223,7 @@ async def api_reset_news_feeds(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Wormhole Settings â€” local agent toggle
+# Wormhole Settings ├óΓé¼ΓÇ¥ local agent toggle
 # ---------------------------------------------------------------------------
 from services.wormhole_settings import read_wormhole_settings, write_wormhole_settings
 from services.wormhole_status import read_wormhole_status
@@ -9393,7 +9394,7 @@ class NodeSettingsUpdate(BaseModel):
 @limiter.limit("30/minute")
 async def api_get_node_settings(request: Request):
     """Issue #243 (tg12): node mode and participant state are
-    operational posture. Anonymous callers receive an empty stub —
+    operational posture. Anonymous callers receive an empty stub ΓÇö
     enough for the UI to know the endpoint exists but nothing
     fingerprintable. Authenticated callers see the full state.
 
@@ -10097,7 +10098,7 @@ def decrypt_wormhole_dm_envelope(
     if str(current_tier or "").startswith("private_"):
         return {
             "ok": False,
-            "detail": "MLS format required in private transport mode â€” legacy DM decrypt blocked",
+            "detail": "MLS format required in private transport mode ├óΓé¼ΓÇ¥ legacy DM decrypt blocked",
         }
     if not _legacy_dm1_allowed():
         return {
@@ -10251,7 +10252,7 @@ async def api_wormhole_join(request: Request):
     )
 
     # Enable node participation so the sync/push workers connect to peers.
-    # This is the voluntary opt-in â€” the node only joins the network when
+    # This is the voluntary opt-in ├óΓé¼ΓÇ¥ the node only joins the network when
     # the user explicitly opens the Wormhole.
     from services.node_settings import write_node_settings
 
@@ -12100,7 +12101,7 @@ async def api_set_privacy_profile(request: Request, body: PrivacyProfileUpdate):
 
 
 # ---------------------------------------------------------------------------
-# System â€” self-update
+# System ├óΓé¼ΓÇ¥ self-update
 # ---------------------------------------------------------------------------
 from pathlib import Path
 from services.updater import perform_update, schedule_restart
@@ -12125,7 +12126,7 @@ async def system_update(request: Request):
             status_code=500,
             media_type="application/json",
         )
-    # Docker: skip restart â€” user must pull new images manually
+    # Docker: skip restart ├óΓé¼ΓÇ¥ user must pull new images manually
     if result.get("status") == "docker":
         return result
     # Schedule restart AFTER response flushes (2s delay)

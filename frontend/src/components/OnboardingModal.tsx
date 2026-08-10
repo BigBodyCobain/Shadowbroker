@@ -39,6 +39,20 @@ const API_GUIDES = [
     color: 'blue',
   },
   {
+    name: 'AISHub (backup)',
+    icon: <Ship size={14} className="text-blue-300" />,
+    required: false,
+    description:
+      'Slow REST backup for the ships layer when AISStream is silent or offline. Uses the same map layer on a ~20 minute cadence.',
+    steps: [
+      'Create a free account at aishub.net',
+      'Open the API page and note your username',
+      'Paste the username into Quick Local Setup above or Settings → API Keys → Maritime',
+    ],
+    url: 'https://www.aishub.net/api',
+    color: 'blue',
+  },
+  {
     name: 'Global Fishing Watch',
     icon: <Ship size={14} className="text-teal-400" />,
     required: false,
@@ -79,6 +93,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
     OPENSKY_CLIENT_ID: '',
     OPENSKY_CLIENT_SECRET: '',
     AIS_API_KEY: '',
+    AISHUB_USERNAME: '',
     GFW_API_TOKEN: '',
   });
   const [setupSaving, setSetupSaving] = useState(false);
@@ -129,6 +144,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
         OPENSKY_CLIENT_ID: '',
         OPENSKY_CLIENT_SECRET: '',
         AIS_API_KEY: '',
+        AISHUB_USERNAME: '',
         GFW_API_TOKEN: '',
       });
       setSetupMsg({ type: 'ok', text: 'Keys saved locally. Restart or refresh feeds to use them.' });
@@ -577,9 +593,10 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       </p>
                       <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
                         OpenSky Network and AIS Stream are the free keys that make ShadowBroker
-                        useful immediately: live aircraft and vessel tracking. Global Fishing Watch
-                        unlocks the fishing-activity layer. Paste them below or use Settings later;
-                        secrets stay on the local backend.
+                        useful immediately: live aircraft and vessel tracking. Optionally add an
+                        AISHub username as a slow ships-layer backup when AISStream is silent.
+                        Global Fishing Watch unlocks the fishing-activity layer. Paste them below
+                        or use Settings later; secrets stay on the local backend.
                       </p>
                     </div>
                   </div>
@@ -599,6 +616,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                     ['OPENSKY_CLIENT_ID', 'OpenSky Client ID'],
                     ['OPENSKY_CLIENT_SECRET', 'OpenSky Client Secret'],
                     ['AIS_API_KEY', 'AIS Stream API Key'],
+                    ['AISHUB_USERNAME', 'AISHub Username (optional backup)'],
                     ['GFW_API_TOKEN', 'Global Fishing Watch API Token (optional)'],
                   ].map(([key, label]) => (
                     <input

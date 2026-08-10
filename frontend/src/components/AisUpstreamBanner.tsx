@@ -1,15 +1,18 @@
 /**
- * AisUpstreamBanner — visible notice that AIS ship data is unavailable
- * because the upstream provider (AISStream) is offline.
+ * AisUpstreamBanner — visible notice that AISStream ship data is unavailable.
  *
  * Renders nothing when AIS is healthy or when AIS isn't configured at all.
- * Mounted at the app shell level so users see it before they wonder why
- * the ocean looks empty.
+ * When AISStream is silent, nudge operators toward the existing AISHub REST
+ * backup (Settings → API Keys) or confirm that backup is already active.
  */
 import { useState } from 'react';
 import { useAisUpstreamHealth } from '@/hooks/useAisUpstreamHealth';
 
-export function AisUpstreamBanner() {
+type AisUpstreamBannerProps = {
+  onOpenApiKeys?: () => void;
+};
+
+export function AisUpstreamBanner({ onOpenApiKeys }: AisUpstreamBannerProps = {}) {
   const health = useAisUpstreamHealth();
   const [dismissed, setDismissed] = useState(false);
 
@@ -29,6 +32,10 @@ export function AisUpstreamBanner() {
     }
   }
 
+  const detail = health.aishubConfigured
+    ? `AISStream is silent (${stalenessLabel}). AISHub backup polling stays active on a slower cadence (~20 min) — live WebSocket traffic will resume when AISStream recovers.`
+    : `AISStream is silent (${stalenessLabel}). Add a free AISHub username under Settings → API Keys → Maritime for slow backup ship coverage while AISStream is down.`;
+
   return (
     <div
       role="status"
@@ -38,12 +45,21 @@ export function AisUpstreamBanner() {
       <div className="flex items-start gap-3">
         <span aria-hidden className="mt-0.5 text-amber-300">⚠</span>
         <div className="flex-1">
-          <div className="font-semibold">Ship data temporarily unavailable</div>
-          <div className="text-xs opacity-90">
-            AISStream upstream is offline ({stalenessLabel}). The map will
-            refill once their service comes back online — nothing is wrong
-            with your install.
+          <div className="font-semibold">
+            {health.aishubConfigured
+              ? 'Live AIS offline — AISHub backup active'
+              : 'Ship data temporarily unavailable'}
           </div>
+          <div className="text-xs opacity-90">{detail}</div>
+          {!health.aishubConfigured && onOpenApiKeys ? (
+            <button
+              type="button"
+              onClick={onOpenApiKeys}
+              className="mt-2 text-[11px] font-mono tracking-wide text-amber-100 underline underline-offset-2 hover:text-white"
+            >
+              Open API Keys
+            </button>
+          ) : null}
         </div>
         <button
           type="button"

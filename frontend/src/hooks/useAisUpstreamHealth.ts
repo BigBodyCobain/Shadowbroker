@@ -8,6 +8,10 @@
  * banner can explain "AIS upstream is offline" instead of letting users
  * wonder.
  *
+ * When AISStream is silent, the backend can still fill ships via AISHub REST
+ * (`AISHUB_USERNAME`) on a slow cadence. ``aishubConfigured`` tells the banner
+ * whether to nudge the operator to add that backup or confirm it is active.
+ *
  * The poll interval is intentionally relaxed (30s) — this is a low-urgency UX
  * signal, not a real-time data feed. Backend already escalates top_status to
  * "degraded" when AIS is configured-but-disconnected.
@@ -35,6 +39,8 @@ export interface AisUpstreamHealth {
    *  seen — we approximate it by requiring at least one spawn before
    *  declaring an outage. */
   aisEnabled: boolean;
+  /** True when ``AISHUB_USERNAME`` is set so the REST backup can run. */
+  aishubConfigured: boolean;
 }
 
 const POLL_INTERVAL_MS = 30_000;
@@ -67,6 +73,7 @@ export function useAisUpstreamHealth(): AisUpstreamHealth | null {
           degradedTls: Boolean(proxy.degraded_tls),
           proxySpawnCount: spawns,
           aisEnabled: spawns > 0,
+          aishubConfigured: Boolean(proxy.aishub_configured),
         });
       } catch {
         // Backend unreachable — separate problem. Banner not relevant.

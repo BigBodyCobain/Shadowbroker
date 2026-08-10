@@ -111,6 +111,12 @@ async def health_check(request: Request):
         ais_status = ais_proxy_status() or {}
     except Exception:
         ais_status = {}
+    try:
+        from services.fetchers.aishub_fallback import aishub_fallback_enabled
+
+        ais_status["aishub_configured"] = bool(aishub_fallback_enabled())
+    except Exception:
+        ais_status["aishub_configured"] = bool(str(os.environ.get("AISHUB_USERNAME", "") or "").strip())
     if ais_status.get("degraded_tls") and top_status == "ok":
         # Don't override a worse top-level status if SLOs already failed,
         # but escalate ok -> degraded so the field surfaces in dashboards.
