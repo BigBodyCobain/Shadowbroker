@@ -195,6 +195,21 @@ describe('page.tsx decomposition — no admin-session/proxy regression', () => {
     expect(locateBar).not.toContain('nominatim.openstreetmap.org');
   });
 
+  it('LocateBar sizes the camera from typed precision and place extent', () => {
+    const locateBar = readAppFile('LocateBar.tsx');
+    expect(locateBar).toContain('parseCoordinateInput');
+    expect(locateBar).toContain('boundsForCoordinate');
+    expect(locateBar).toContain('sanitizeGeocodeBbox');
+    expect(locateBar).toContain('boundsForPlaceRank');
+    // The extent fields must survive the fetch mapping.
+    expect(locateBar).toContain('place_rank');
+  });
+
+  it('page.tsx forwards LocateBar bounds to the map', () => {
+    const page = readAppFile('page.tsx');
+    expect(page).toMatch(/onLocate=\{\(lat, lng, bounds\)/);
+  });
+
   it('useRegionDossier uses backend dossier APIs (no browser-direct enrichment)', () => {
     const hook = fs.readFileSync(
       path.resolve(__dirname, '../../hooks/useRegionDossier.ts'),
