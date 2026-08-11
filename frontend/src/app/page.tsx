@@ -437,6 +437,7 @@ export default function Dashboard() {
     lat: number;
     lng: number;
     zoom?: number;
+    bounds?: [number, number, number, number];
     ts: number;
   } | null>(null);
 
