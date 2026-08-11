@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Data sources
     AIS_API_KEY: str = ""
+    AISHUB_USERNAME: str = ""  # Optional AISHub REST backup when AISStream is silent
     OPENSKY_CLIENT_ID: str = ""
     OPENSKY_CLIENT_SECRET: str = ""
     LTA_ACCOUNT_KEY: str = ""

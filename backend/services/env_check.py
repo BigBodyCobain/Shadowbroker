@@ -46,6 +46,7 @@ _CRITICAL_WARN = {
 
 _OPTIONAL = {
     "AIS_API_KEY": "AIS vessel streaming (ships layer will be empty without it)",
+    "AISHUB_USERNAME": "AISHub REST backup when AISStream is silent (optional; free at aishub.net/api)",
     "GFW_API_TOKEN": "Global Fishing Watch fishing-vessel activity (fishing_activity layer)",
     "LTA_ACCOUNT_KEY": "Singapore LTA traffic cameras (CCTV layer)",
     "PUBLIC_API_KEY": "Optional client auth for public endpoints (recommended for exposed deployments)",

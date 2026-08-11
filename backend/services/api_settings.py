@@ -57,6 +57,15 @@ API_REGISTRY = [
         "required": True,
     },
     {
+        "id": "aishub_username",
+        "env_key": "AISHUB_USERNAME",
+        "name": "AISHub Username (backup)",
+        "description": "Free AISHub account username used as a slow REST backup when AISStream is silent or offline. Does not replace live AIS — polls about every 20 minutes into the same ships layer. Register at aishub.net/api.",
+        "category": "Maritime",
+        "url": "https://www.aishub.net/api",
+        "required": False,
+    },
+    {
         "id": "gfw_api_token",
         "env_key": "GFW_API_TOKEN",
         "name": "Global Fishing Watch",

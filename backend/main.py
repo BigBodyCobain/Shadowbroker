@@ -168,6 +168,7 @@ def _gate_privileged_access_status_snapshot_local() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 _SECRET_VARS = [
     "AIS_API_KEY",
+    "AISHUB_USERNAME",
     "OPENSKY_CLIENT_ID",
     "OPENSKY_CLIENT_SECRET",
     "LTA_ACCOUNT_KEY",

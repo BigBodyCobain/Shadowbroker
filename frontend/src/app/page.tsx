@@ -994,7 +994,7 @@ export default function Dashboard() {
         {/* AIS UPSTREAM OUTAGE BANNER — renders only when AIS is configured
             but the WebSocket upstream is unreachable. Tells users the empty
             ocean isn't their fault. */}
-        <AisUpstreamBanner />
+        <AisUpstreamBanner onOpenApiKeys={() => setSettingsOpen(true)} />
 
         {/* ONBOARDING MODAL */}
         {showOnboarding && (
