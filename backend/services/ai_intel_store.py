@@ -137,15 +137,16 @@ def inject_layer_data(
         tagged.append(entry)
 
     with _data_lock:
-        existing = latest_data.get(layer)
-        if not isinstance(existing, list):
-            existing = []
+        current = latest_data.get(layer)
+        existing = list(current) if isinstance(current, list) else []
 
         if mode == "replace":
             existing = [e for e in existing if not e.get("_injected")]
 
-        existing.extend(tagged)
-        latest_data[layer] = existing
+        # Readers can hold references to published layer lists after releasing
+        # _data_lock. Build a fresh list and swap it atomically rather than
+        # mutating the published object in place with list.extend().
+        latest_data[layer] = [*existing, *tagged]
 
     bump_data_version()
 
