@@ -76,3 +76,25 @@ def test_layer_enable_refresh_covers_cold_toggle_layers():
     source = inspect.getsource(layer_enable_refresh.refresh_newly_enabled_layers)
     for key in ("cctv", "firms", "power_plants", "psk_reporter", "datacenters"):
         assert key in layer_enable_refresh._INSTANT_LAYER_KEYS | layer_enable_refresh._SLOW_LAYER_KEYS
+
+
+def test_sigint_router_uses_subset_refs_not_full_deepcopy():
+    """/api/oracle/region-intel and /api/sigint/nearest-sdr each need one layer.
+
+    Both handlers are async, so a full-store deepcopy would block the event
+    loop. Their consumers (get_region_oracle_intel, find_nearest_kiwisdr) only
+    read the list they are handed, so direct refs are safe.
+    """
+    from routers import sigint as sigint_router
+
+    module_source = inspect.getsource(sigint_router)
+    assert "get_latest_data_subset_refs" in module_source
+    assert "get_latest_data()" not in module_source
+    assert "deepcopy" not in module_source
+
+    for handler, key in (
+        (sigint_router.oracle_region_intel, "news"),
+        (sigint_router.nearest_sdr, "kiwisdr"),
+    ):
+        source = inspect.getsource(handler)
+        assert f'get_latest_data_subset_refs("{key}")' in source

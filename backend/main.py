@@ -4082,8 +4082,9 @@ async def oracle_region_intel(
 ):
     """Get oracle intelligence summary for a geographic region."""
     from services.oracle_service import get_region_oracle_intel
+    from services.fetchers._store import get_latest_data_subset_refs
 
-    news_items = get_latest_data().get("news", [])
+    news_items = get_latest_data_subset_refs("news").get("news") or []
     return get_region_oracle_intel(lat, lng, news_items)
 
 
@@ -4135,8 +4136,9 @@ async def nearest_sdr(
 ):
     """Find the nearest KiwiSDR receivers to a given coordinate."""
     from services.sigint_bridge import find_nearest_kiwisdr
+    from services.fetchers._store import get_latest_data_subset_refs
 
-    kiwisdr_data = get_latest_data().get("kiwisdr", [])
+    kiwisdr_data = get_latest_data_subset_refs("kiwisdr").get("kiwisdr") or []
     return find_nearest_kiwisdr(lat, lng, kiwisdr_data)
 
 
@@ -4721,7 +4723,9 @@ async def mesh_messages(
 @limiter.limit("30/minute")
 async def mesh_channels(request: Request):
     """Get Meshtastic channel population stats â€” nodes per region/channel."""
-    stats = get_latest_data().get("mesh_channel_stats", {})
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    stats = get_latest_data_subset_refs("mesh_channel_stats").get("mesh_channel_stats") or {}
     return stats
 
 
@@ -6459,8 +6463,10 @@ async def oracle_predict(request: Request):
         pass
 
     # Get current market probability from live data
-    data = get_latest_data()
-    markets = data.get("prediction_markets", [])
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    data = get_latest_data_subset_refs("prediction_markets")
+    markets = data.get("prediction_markets") or []
     matched = None
     for m in markets:
         if m.get("title", "").lower() == market_title.lower():
@@ -6537,8 +6543,10 @@ async def oracle_markets(request: Request):
     from collections import defaultdict
     from services.mesh.mesh_oracle import oracle_ledger
 
-    data = get_latest_data()
-    markets = data.get("prediction_markets", [])
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    data = get_latest_data_subset_refs("prediction_markets")
+    markets = data.get("prediction_markets") or []
 
     # Get consensus for all active markets (bulk)
     all_consensus = oracle_ledger.get_all_market_consensus()
@@ -6601,8 +6609,10 @@ async def oracle_search(request: Request, q: str = "", limit: int = 20, offset: 
     kalshi_results = search_kalshi_direct(q, limit=provider_limit, offset=0)
 
     # Also search cached merged data so cross-provider consensus entries win.
-    data = get_latest_data()
-    markets = data.get("prediction_markets", [])
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    data = get_latest_data_subset_refs("prediction_markets")
+    markets = data.get("prediction_markets") or []
     q_lower = q.lower()
     cached_matches = [m for m in markets if q_lower in m.get("title", "").lower()]
 
@@ -6657,8 +6667,10 @@ async def oracle_markets_more(
     category = (category or "NEWS").upper()
     offset = max(0, int(offset or 0))
     limit = max(1, min(int(limit or 10), 100))
-    data = get_latest_data()
-    markets = data.get("prediction_markets", [])
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    data = get_latest_data_subset_refs("prediction_markets")
+    markets = data.get("prediction_markets") or []
     cat_markets = sorted(
         [m for m in markets if category == "ALL" or m.get("category") == category],
         key=lambda x: x.get("volume", 0) or 0,
@@ -8158,7 +8170,9 @@ async def trust_vouches(request: Request, node_id: str = "", limit: int = 20):
 @app.get("/api/debug-latest", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def debug_latest_data(request: Request):
-    return list(get_latest_data().keys())
+    from services.fetchers._store import get_latest_data_refs_snapshot
+
+    return list(get_latest_data_refs_snapshot().keys())
 
 
 # â”€â”€ CCTV media proxy (bypass CORS for cross-origin video/image streams) â”€â”€â”€
@@ -8682,26 +8696,42 @@ async def cctv_media_proxy(request: Request, url: str = Query(...)):
 @limiter.limit("30/minute")
 async def health_check(request: Request):
     import time
-    from services.fetchers._store import get_source_timestamps_snapshot
+    from services.fetchers._store import (
+        get_latest_data_subset_refs,
+        get_source_timestamps_snapshot,
+    )
 
-    d = get_latest_data()
+    d = get_latest_data_subset_refs(
+        "last_updated",
+        "commercial_flights",
+        "military_flights",
+        "ships",
+        "satellites",
+        "earthquakes",
+        "cctv",
+        "news",
+        "uavs",
+        "firms_fires",
+        "liveuamap",
+        "gdelt",
+    )
     last = d.get("last_updated")
     return {
         "status": "ok",
         "version": APP_VERSION,
         "last_updated": last,
         "sources": {
-            "flights": len(d.get("commercial_flights", [])),
-            "military": len(d.get("military_flights", [])),
-            "ships": len(d.get("ships", [])),
-            "satellites": len(d.get("satellites", [])),
-            "earthquakes": len(d.get("earthquakes", [])),
-            "cctv": len(d.get("cctv", [])),
-            "news": len(d.get("news", [])),
-            "uavs": len(d.get("uavs", [])),
-            "firms_fires": len(d.get("firms_fires", [])),
-            "liveuamap": len(d.get("liveuamap", [])),
-            "gdelt": len(d.get("gdelt", [])),
+            "flights": len(d.get("commercial_flights") or []),
+            "military": len(d.get("military_flights") or []),
+            "ships": len(d.get("ships") or []),
+            "satellites": len(d.get("satellites") or []),
+            "earthquakes": len(d.get("earthquakes") or []),
+            "cctv": len(d.get("cctv") or []),
+            "news": len(d.get("news") or []),
+            "uavs": len(d.get("uavs") or []),
+            "firms_fires": len(d.get("firms_fires") or []),
+            "liveuamap": len(d.get("liveuamap") or []),
+            "gdelt": len(d.get("gdelt") or []),
         },
         "freshness": get_source_timestamps_snapshot(),
         "uptime_seconds": round(time.time() - _start_time),

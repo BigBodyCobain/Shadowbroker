@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from limiter import limiter
 from auth import require_admin, require_local_operator
-from services.data_fetcher import get_latest_data
+from services.fetchers._store import get_latest_data_subset_refs
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ async def oracle_region_intel(
 ):
     """Get oracle intelligence summary for a geographic region."""
     from services.oracle_service import get_region_oracle_intel
-    news_items = get_latest_data().get("news", [])
+    news_items = get_latest_data_subset_refs("news").get("news") or []
     return get_region_oracle_intel(lat, lng, news_items)
 
 
@@ -63,5 +63,5 @@ async def nearest_sdr(
 ):
     """Find the nearest KiwiSDR receivers to a given coordinate."""
     from services.sigint_bridge import find_nearest_kiwisdr
-    kiwisdr_data = get_latest_data().get("kiwisdr", [])
+    kiwisdr_data = get_latest_data_subset_refs("kiwisdr").get("kiwisdr") or []
     return find_nearest_kiwisdr(lat, lng, kiwisdr_data)
