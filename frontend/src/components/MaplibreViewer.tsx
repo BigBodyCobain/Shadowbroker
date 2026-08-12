@@ -1360,7 +1360,6 @@ const MaplibreViewer = ({
       staticCrowdthreat,
       staticMalwareThreats,
       staticTelegramOsintPosts,
-      mapZoom,
     ],
     {
       bounds: mapBounds,
