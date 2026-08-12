@@ -3,14 +3,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '@/lib/api';
 import { NOMINATIM_DEBOUNCE_MS } from '@/lib/constants';
+import {
+  parseCoordinateInput,
+  boundsForCoordinate,
+  sanitizeGeocodeBbox,
+  boundsForPlaceRank,
+  type Bounds,
+} from '@/lib/mapZoom';
+
+type LocateResult = {
+  label: string;
+  lat: number;
+  lng: number;
+  bounds?: Bounds;
+};
 
 /* ── LOCATE BAR ── coordinate / place-name search above bottom status bar ── */
-export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, lng: number) => void; onOpenChange?: (open: boolean) => void }) {
+export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, lng: number, bounds?: Bounds) => void; onOpenChange?: (open: boolean) => void }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => { onOpenChange?.(open); }, [open]);
   const [value, setValue] = useState('');
-  const [results, setResults] = useState<{ label: string; lat: number; lng: number }[]>([]);
+  const [results, setResults] = useState<LocateResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,22 +50,17 @@ export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, 
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Parse raw coordinate input: "31.8, 34.8" or "31.8 34.8" or "-12.3, 45.6"
-  const parseCoords = (s: string): { lat: number; lng: number } | null => {
-    const m = s.trim().match(/^([+-]?\d+\.?\d*)[,\s]+([+-]?\d+\.?\d*)$/);
-    if (!m) return null;
-    const lat = parseFloat(m[1]),
-      lng = parseFloat(m[2]);
-    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
-    return null;
-  };
-
   const handleSearch = async (q: string) => {
     setValue(q);
     // Check for raw coordinates first
-    const coords = parseCoords(q);
+    const coords = parseCoordinateInput(q);
     if (coords) {
-      setResults([{ label: `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`, ...coords }]);
+      setResults([{
+        label: `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+        lat: coords.lat,
+        lng: coords.lng,
+        bounds: boundsForCoordinate(coords.lat, coords.lng, coords.decimals),
+      }]);
       return;
     }
     // Geocode with Nominatim (debounced)
@@ -74,11 +83,20 @@ export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, 
         );
         if (res.ok) {
           const data = await res.json();
-          const mapped = (data?.results || []).map(
-            (r: { label: string; lat: number; lng: number }) => ({
+          const mapped: LocateResult[] = (data?.results || []).map(
+            (r: {
+              label: string; lat: number; lng: number;
+              bbox?: string[]; place_rank?: number;
+            }) => ({
               label: r.label,
               lat: r.lat,
               lng: r.lng,
+              // A usable bbox frames the real thing; otherwise fall back to
+              // the rank's typical extent, which is the only honest answer
+              // for Tokyo prefecture, France and bare OSM nodes.
+              bounds:
+                sanitizeGeocodeBbox(r.bbox, r.lat, r.lng) ??
+                boundsForPlaceRank(r.lat, r.lng, r.place_rank),
             }),
           );
           setResults(mapped);
@@ -102,8 +120,8 @@ export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, 
     }, NOMINATIM_DEBOUNCE_MS);
   };
 
-  const handleSelect = (r: { lat: number; lng: number }) => {
-    onLocate(r.lat, r.lng);
+  const handleSelect = (r: LocateResult) => {
+    onLocate(r.lat, r.lng, r.bounds);
     setOpen(false);
     setValue('');
     setResults([]);
@@ -203,7 +221,7 @@ export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, 
         <div className="absolute bottom-full left-0 right-0 mb-1 bg-[var(--bg-secondary)] border border-[var(--border-primary)] overflow-hidden shadow-[0_-8px_30px_rgba(0,0,0,0.4)] max-h-[200px] overflow-y-auto styled-scrollbar">
           {results.map((r, i) => (
             <button
-              key={i}
+              key={`${r.label}-${r.lat}-${r.lng}`}
               onClick={() => handleSelect(r)}
               className="w-full text-left px-3 py-2 hover:bg-cyan-950/40 transition-colors border-b border-[var(--border-primary)]/50 last:border-0 flex items-center gap-2"
             >

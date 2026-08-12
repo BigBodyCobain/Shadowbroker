@@ -437,6 +437,7 @@ export default function Dashboard() {
     lat: number;
     lng: number;
     zoom?: number;
+    bounds?: [number, number, number, number];
     ts: number;
   } | null>(null);
 
@@ -826,7 +827,7 @@ export default function Dashboard() {
               >
                 {/* LOCATE BAR — search by coordinates or place name */}
                 <LocateBar
-                  onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
+                  onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
                   onOpenChange={setLocateBarOpen}
                 />
 
