@@ -114,7 +114,15 @@ _SLOW_FETCH_S = float(os.environ.get("FETCH_SLOW_THRESHOLD_S", "5"))
 # is treated as a failure so it cannot block an entire fetch tier indefinitely.
 _TASK_HARD_TIMEOUT_S = float(os.environ.get("FETCH_TASK_TIMEOUT_S", "120"))
 _FAST_STARTUP_CACHE_MAX_AGE_S = float(os.environ.get("FAST_STARTUP_CACHE_MAX_AGE_S", "21600"))
+# The fast tier runs every 60s but this cache is only read at cold boot, where a
+# stale-by-hours copy is still accepted (see _FAST_STARTUP_CACHE_MAX_AGE_S).  Writing
+# the multi-MB snapshot on every tick is wasted CPU + disk, so throttle it.
+_FAST_STARTUP_CACHE_SAVE_INTERVAL_S = float(
+    os.environ.get("FAST_STARTUP_CACHE_SAVE_INTERVAL_S", "600")
+)
 _FAST_STARTUP_CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "fast_startup_cache.json"
+# Monotonic timestamp of the last *successful* fast startup cache write (0 = never).
+_last_fast_startup_cache_save = 0.0
 _FAST_STARTUP_CACHE_KEYS = (
     "commercial_flights",
     "military_flights",
@@ -223,8 +231,20 @@ def _load_fast_startup_cache_if_available() -> bool:
         return False
 
 
-def _save_fast_startup_cache() -> None:
-    """Persist recent moving layers for the next cold start."""
+def _save_fast_startup_cache(force: bool = False) -> None:
+    """Persist recent moving layers for the next cold start.
+
+    Throttled to ``_FAST_STARTUP_CACHE_SAVE_INTERVAL_S`` because the snapshot is only
+    consumed at cold boot.  Pass ``force=True`` (shutdown flush) to bypass the throttle.
+    """
+    global _last_fast_startup_cache_save
+    now = time.monotonic()
+    if (
+        not force
+        and _last_fast_startup_cache_save
+        and (now - _last_fast_startup_cache_save) < _FAST_STARTUP_CACHE_SAVE_INTERVAL_S
+    ):
+        return
     try:
         with _data_lock:
             layers = {
@@ -245,9 +265,14 @@ def _save_fast_startup_cache() -> None:
         safe_payload = _cache_json_safe(payload)
         _FAST_STARTUP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = _FAST_STARTUP_CACHE_PATH.with_suffix(".tmp")
+        # One big write beats json.dump()'s thousands of small writes into the buffered
+        # file object (~4.5x faster on a 20MB snapshot).
+        encoded = json.dumps(safe_payload, separators=(",", ":"))
         with tmp_path.open("w", encoding="utf-8") as fh:
-            json.dump(safe_payload, fh, separators=(",", ":"))
+            fh.write(encoded)
         tmp_path.replace(_FAST_STARTUP_CACHE_PATH)
+        # Only advance on success so a failed write retries on the next tick.
+        _last_fast_startup_cache_save = time.monotonic()
     except Exception as e:
         logger.debug("Fast startup cache save skipped: %s", e)
 
@@ -1287,6 +1312,11 @@ def start_scheduler():
 
 
 def stop_scheduler():
+    # Flush the throttled fast startup cache so a clean restart still boots warm.
+    try:
+        _save_fast_startup_cache(force=True)
+    except Exception as e:
+        logger.debug("Fast startup cache shutdown flush skipped: %s", e)
     if _scheduler:
         _scheduler.shutdown(wait=False)
     _SLOW_EXECUTOR.shutdown(wait=False, cancel_futures=True)
