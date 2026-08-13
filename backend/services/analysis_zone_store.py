@@ -105,7 +105,18 @@ def create_zone(
     source: str = "openclaw",
     drivers: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Create an analysis zone. Returns the created zone dict."""
+    """Create an analysis zone. Returns the created zone dict.
+
+    Coordinates are validated so the agent channel's ``place_analysis_zone``
+    cannot drop a NaN / out-of-range square onto the operator's map.
+    """
+    from domain._util import valid_coord
+
+    coord = valid_coord(lat, lng)
+    if coord is None:
+        raise ValueError(f"invalid coordinates: lat={lat!r}, lng={lng!r}")
+    lat, lng = coord
+
     category = category if category in ZONE_CATEGORIES else "analysis"
     if severity not in ("high", "medium", "low"):
         severity = "medium"

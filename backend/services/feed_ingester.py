@@ -160,17 +160,28 @@ def _fetch_layer_feed(layer: dict[str, Any]) -> None:
     feed_url = layer["feed_url"]
     layer_name = layer.get("name", layer_id)
 
+    # SSRF guard: feed_url is operator/agent-supplied. Route it through the
+    # shared guard (blocks loopback, RFC1918, link-local/cloud-metadata,
+    # non-http(s) schemes, and revalidates every redirect hop) instead of a
+    # bare requests.get that could reach internal services or 169.254.169.254.
+    from services.ssrf_guard import safe_get
+
     try:
-        resp = requests.get(
+        resp = safe_get(
             feed_url,
             timeout=_FETCH_TIMEOUT,
             headers={"User-Agent": _feed_ingester_user_agent()},
         )
         resp.raise_for_status()
-        data = resp.json()
+    except ValueError as e:
+        logger.warning("Feed blocked by SSRF guard for layer '%s' (%s): %s", layer_name, feed_url, e)
+        return
     except requests.RequestException as e:
         logger.warning("Feed fetch failed for layer '%s' (%s): %s", layer_name, feed_url, e)
         return
+
+    try:
+        data = resp.json()
     except (ValueError, TypeError) as e:
         logger.warning("Feed parse failed for layer '%s' (%s): %s", layer_name, feed_url, e)
         return

@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
-from scripts.regen_duplicate_routes_baseline import (
+# The regenerator lives at the repository root (``scripts/``), not under
+# ``backend/scripts``. When pytest's rootdir is ``backend`` the repo root is not
+# on sys.path, so add it before importing (matches the documented invocation
+# ``python -m scripts.regen_duplicate_routes_baseline`` run from the repo root).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.regen_duplicate_routes_baseline import (  # noqa: E402
     build_baseline_payload,
     collect_duplicate_routes,
     write_baseline,

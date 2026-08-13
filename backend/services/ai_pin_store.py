@@ -245,7 +245,20 @@ def create_pin(
     metadata: Optional[dict] = None,
     entity_attachment: Optional[dict] = None,
 ) -> dict[str, Any]:
-    """Create a single pin and return it."""
+    """Create a single pin and return it.
+
+    Coordinates are validated here so every caller — the HTTP route AND the
+    agent command channel's ``place_pin`` (which previously reached this store
+    with only a ``float()`` cast) — is protected from NaN / out-of-range values
+    landing on the map.
+    """
+    from domain._util import valid_coord
+
+    coord = valid_coord(lat, lng)
+    if coord is None:
+        raise ValueError(f"invalid coordinates: lat={lat!r}, lng={lng!r}")
+    lat, lng = coord
+
     pin_id = str(uuid.uuid4())[:12]
     now = time.time()
 
@@ -292,12 +305,18 @@ def create_pin(
 
 
 def create_pins_batch(items: list[dict], default_layer_id: str = "") -> list[dict[str, Any]]:
-    """Create multiple pins at once."""
+    """Create multiple pins at once. Items with invalid coordinates are skipped."""
+    from domain._util import valid_coord
+
     created = []
     now = time.time()
 
     with _lock:
         for item in items[:200]:  # max 200 per batch
+            coord = valid_coord(item.get("lat"), item.get("lng"))
+            if coord is None:
+                continue  # never place NaN / out-of-range / null-island pins
+            item_lat, item_lng = coord
             pin_id = str(uuid.uuid4())[:12]
             cat = item.get("category", "custom")
             if cat not in PIN_CATEGORIES:
@@ -320,8 +339,8 @@ def create_pins_batch(items: list[dict], default_layer_id: str = "") -> list[dic
             pin = {
                 "id": pin_id,
                 "layer_id": item.get("layer_id", default_layer_id) or "",
-                "lat": float(item.get("lat", 0)),
-                "lng": float(item.get("lng", 0)),
+                "lat": item_lat,
+                "lng": item_lng,
                 "label": str(item.get("label", ""))[:200],
                 "category": cat,
                 "color": pin_color,
