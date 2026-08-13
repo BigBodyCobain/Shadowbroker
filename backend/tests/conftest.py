@@ -78,6 +78,13 @@ def client(_suppress_background_services):
             async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
                 return await ac.delete(url, **kw)
 
+        def patch(self, url, **kw):
+            return self._loop.run_until_complete(self._patch(url, **kw))
+
+        async def _patch(self, url, **kw):
+            async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
+                return await ac.patch(url, **kw)
+
     return SyncClient()
 
 

@@ -404,6 +404,8 @@ if _MESH_ONLY:
     intel_feeds_router = APIRouter()
     analytics_router = APIRouter()
     agent_shell_router = APIRouter()
+    investigations_router = APIRouter()
+    agent_tools_router = APIRouter()
 else:
     cctv_router = _load_optional_router("routers.cctv")
     radio_router = _load_optional_router("routers.radio")
@@ -420,6 +422,8 @@ else:
     intel_feeds_router = _load_optional_router("routers.intel_feeds")
     analytics_router = _load_optional_router("routers.analytics")
     agent_shell_router = _load_optional_router("routers.agent_shell")
+    investigations_router = _load_optional_router("routers.investigations")
+    agent_tools_router = _load_optional_router("routers.agent_tools")
 
 
 # ---------------------------------------------------------------------------
@@ -3859,6 +3863,8 @@ app.include_router(road_corridors_router)
 app.include_router(osint_router)
 app.include_router(scm_router)
 app.include_router(entity_graph_router)
+app.include_router(investigations_router)
+app.include_router(agent_tools_router)
 app.include_router(intel_feeds_router)
 app.include_router(analytics_router)
 app.include_router(agent_shell_router)

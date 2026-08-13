@@ -1632,7 +1632,7 @@ async def agent_tool_manifest(request: Request):
     access_tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
     available_commands = sorted(READ_COMMANDS | WRITE_COMMANDS) if access_tier == "full" else sorted(READ_COMMANDS)
 
-    return {
+    manifest = {
         "ok": True,
         "version": "0.9.82",
         "access_tier": access_tier,
@@ -2361,6 +2361,25 @@ async def agent_tool_manifest(request: Request):
             "Open GET /api/ai/channel/sse once and keep it open — all alerts/tasks stream to you in real-time.",
         ],
     }
+
+    # Reconcile the hand-written tool defs with the executable command allowlist
+    # so the manifest and the allowlist can never silently drift apart (an agent
+    # must be able to load a definition for every command it is told it may call).
+    # Rich hand-written defs stay authoritative; missing commands get a minimal
+    # auto-generated entry pointing at /api/ai/capabilities for detail.
+    _defined = {t["name"] for t in manifest["tools"]}
+    for _cmd in available_commands:
+        if _cmd not in _defined:
+            manifest["tools"].append(
+                {
+                    "name": _cmd,
+                    "type": "write" if _cmd in WRITE_COMMANDS else "read",
+                    "description": f"{_cmd.replace('_', ' ').capitalize()} (see /api/ai/capabilities for full details).",
+                    "parameters": {},
+                    "auto_generated": True,
+                }
+            )
+    return manifest
 
 
 # ---------------------------------------------------------------------------
