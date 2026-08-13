@@ -5,7 +5,22 @@ malformed input safety, and that every emitted alert carries explanatory
 ``drivers`` (no black-box conclusions).
 """
 
+import pytest
+
 from services import correlation_engine as ce
+
+
+@pytest.fixture(autouse=True)
+def _isolate_analysis_zones(monkeypatch):
+    """compute_correlations() merges live analysis zones from a global store.
+    Isolate that global (and suppress its disk write) so these tests are
+    deterministic regardless of other tests placing zones."""
+    from services import analysis_zone_store as az
+
+    monkeypatch.setattr(az, "_save", lambda: None)
+    az._zones.clear()
+    yield
+    az._zones.clear()
 
 
 def test_empty_data_yields_no_correlations():

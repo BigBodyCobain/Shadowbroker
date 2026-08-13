@@ -12,6 +12,16 @@ from services import ai_pin_store, analysis_zone_store
 from services.ssrf_guard import validate_host
 
 
+@pytest.fixture(autouse=True)
+def _isolate_zone_persistence(monkeypatch):
+    """Keep create_zone's global/disk side effects out of the shared state so
+    these tests don't pollute the analysis-zone store used by other tests."""
+    monkeypatch.setattr(analysis_zone_store, "_save", lambda: None)
+    analysis_zone_store._zones.clear()
+    yield
+    analysis_zone_store._zones.clear()
+
+
 # -- coordinate validation -------------------------------------------------- #
 @pytest.mark.parametrize("lat,lng", [
     (999, 10), (10, 999), (float("nan"), 10), (10, float("inf")), (-91, 0), (0, 181),
