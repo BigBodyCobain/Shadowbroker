@@ -77,6 +77,13 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   // need X-Admin-Key injected on the server-side proxy leg.
   if (pathSegments[0] === 'mesh' && pathSegments[1] === 'peers') return true;
   if (pathSegments[0] === 'tools') return true;
+  // Investigation platform routes use require_local_operator /
+  // require_openclaw_or_local on the backend and need the admin key injected
+  // on the server-side proxy leg.
+  if (pathSegments[0] === 'investigations') return true;
+  if (pathSegments[0] === 'entities') return true;
+  if (pathSegments[0] === 'agent') return true;
+  if (pathSegments[0] === 'domain') return true;
   return false;
 }
 

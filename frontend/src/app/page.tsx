@@ -76,6 +76,10 @@ const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ss
 const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), { ssr: false });
 const MeshTerminal = dynamic(() => import('@/components/MeshTerminal'), { ssr: false });
 const InfonetTerminal = dynamic(() => import('@/components/InfonetTerminal'), { ssr: false });
+const InvestigationsWorkspace = dynamic(
+  () => import('@/components/investigation/InvestigationsWorkspace'),
+  { ssr: false },
+);
 
 // LocateBar and SentinelInfoModal extracted to page-local modules (Sprint 4B)
 
@@ -443,6 +447,16 @@ export default function Dashboard() {
 
   const handleFlyTo = useCallback(
     (lat: number, lng: number) => setFlyToLocation({ lat, lng, ts: Date.now() }),
+    [],
+  );
+
+  // Investigation workspace (investigation-first surface).
+  const [showInvestigations, setShowInvestigations] = useState(false);
+  const focusFromInvestigation = useCallback(
+    (lat: number, lng: number) => {
+      setShowInvestigations(false);
+      setFlyToLocation({ lat, lng, zoom: 8, ts: Date.now() });
+    },
     [],
   );
 
@@ -1082,6 +1096,26 @@ export default function Dashboard() {
             {tickerOpen ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
           </button>
         </motion.div>
+
+        {/* INVESTIGATE — entry point to the investigation-first workspace */}
+        <button
+          type="button"
+          onClick={() => setShowInvestigations(true)}
+          className="absolute left-1/2 top-2 z-[1500] -translate-x-1/2 rounded border border-cyan-500/50 bg-black/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300 shadow-lg backdrop-blur hover:bg-cyan-950/60"
+          aria-label="Open investigations workspace"
+          title="Open the investigation workspace"
+        >
+          ⌕ Investigate
+        </button>
+
+        {showInvestigations && (
+          <ErrorBoundary name="InvestigationsWorkspace">
+            <InvestigationsWorkspace
+              onClose={() => setShowInvestigations(false)}
+              onFocusLocation={focusFromInvestigation}
+            />
+          </ErrorBoundary>
+        )}
 
         {/* GLOBAL MARKETS TICKER (BOTTOM ANCHOR) */}
         <motion.div

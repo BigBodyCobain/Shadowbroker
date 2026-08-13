@@ -206,6 +206,7 @@ docs/*
 !docs/OUTBOUND_DATA.md
 !docs/production-hardening.md
 !docs/contributor-map.md
+!docs/INVESTIGATION_PLATFORM.md
 !docs/mesh/
 docs/mesh/*
 !docs/mesh/threat-model.md
