@@ -80,3 +80,17 @@ jobs:
             tests/mesh/test_mesh_merkle.py \
             tests/test_release_helper.py \
             -v --tb=short
+      - name: Run investigation-platform tests
+        run: |
+          cd backend
+          uv run pytest \
+            tests/test_confidence.py \
+            tests/test_domain_models.py \
+            tests/test_investigation_store.py \
+            tests/test_investigations_api.py \
+            tests/test_agent_tools.py \
+            tests/test_agent_tools_api.py \
+            tests/test_correlation_engine.py \
+            tests/test_security_hardening.py \
+            tests/test_regen_duplicate_routes_baseline.py \
+            -v --tb=short

@@ -29,6 +29,19 @@ Designed for analysts, researchers, radio operators, and anyone who wants to see
 
 ---
 
+> ### 🔎 Intelligence Investigation Platform
+> ShadowBroker now includes a structured **investigation workflow** on top of the live map:
+> `QUESTION → INVESTIGATION → EVIDENCE → CORRELATION → ANALYSIS → HYPOTHESIS → HUMAN DECISION`.
+> First-class **Entity / Observation / Event / Source / Relationship / Investigation /
+> Evidence / Hypothesis / Alert** primitives with structural **fact-vs-inference**
+> separation, travelling **provenance**, **explainable confidence** (no fabricated
+> precision), a typed **AI analyst tool layer** with per-tool scopes and a
+> prompt-injection boundary, and an **Investigation Workspace** UI (open with the
+> **⌕ Investigate** button on the map). See
+> [`docs/INVESTIGATION_PLATFORM.md`](docs/INVESTIGATION_PLATFORM.md).
+
+---
+
 <details>
 <summary>🌍 Why This Exists</summary>
 
