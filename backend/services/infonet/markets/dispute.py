@@ -28,6 +28,7 @@ Two effects:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Iterable
 
 from services.infonet.config import CONFIG
@@ -36,6 +37,15 @@ from services.infonet.config import CONFIG
 def _payload(event: dict[str, Any]) -> dict[str, Any]:
     p = event.get("payload")
     return p if isinstance(p, dict) else {}
+
+
+def _finite_float(value: Any, default: float = 0.0) -> float:
+    """Parse a chain numeric without allowing NaN/inf to poison views."""
+    try:
+        parsed = float(value or default)
+    except (TypeError, ValueError):
+        return float(default)
+    return parsed if isfinite(parsed) else float(default)
 
 
 @dataclass
@@ -94,11 +104,8 @@ def collect_disputes(
         p = _payload(ev)
         did = _dispute_id(ev)
         challenger = ev.get("node_id") or ""
-        try:
-            cstake = float(p.get("challenger_stake") or 0.0)
-        except (TypeError, ValueError):
-            cstake = 0.0
-        opened_at = float(ev.get("timestamp") or 0.0)
+        cstake = _finite_float(p.get("challenger_stake"))
+        opened_at = _finite_float(ev.get("timestamp"))
         disputes[did] = DisputeView(
             dispute_id=did, market_id=str(market_id),
             challenger_id=str(challenger), challenger_stake=cstake,
@@ -120,10 +127,7 @@ def collect_disputes(
         rep_type = p.get("rep_type")
         if rep_type not in ("oracle", "common"):
             continue
-        try:
-            amount = float(p.get("amount") or 0.0)
-        except (TypeError, ValueError):
-            continue
+        amount = _finite_float(p.get("amount"))
         if amount <= 0:
             continue
         record = {
@@ -146,7 +150,7 @@ def collect_disputes(
         if outcome not in ("upheld", "reversed", "tie"):
             continue
         disputes[did].resolved_outcome = outcome
-        disputes[did].resolved_at = float(ev.get("timestamp") or 0.0)
+        disputes[did].resolved_at = _finite_float(ev.get("timestamp"))
 
     return sorted(disputes.values(), key=lambda d: (d.opened_at, d.dispute_id))
 
