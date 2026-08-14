@@ -33,6 +33,7 @@ responsibility.
 
 from __future__ import annotations
 
+import math
 import statistics
 from typing import Any, Iterable
 
@@ -45,6 +46,17 @@ from services.infonet.config import CONFIG
 # Byzantine arithmetic with up to ~5 colluding nodes (median is robust).
 # Configurable for tests.
 _DEFAULT_MEDIAN_N = 11
+
+
+def _finite_timestamp(value: Any) -> float | None:
+    """Return a finite numeric timestamp, or ``None`` when unusable."""
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(timestamp):
+        return None
+    return timestamp
 
 
 def chain_majority_time(
@@ -64,22 +76,27 @@ def chain_majority_time(
     """
     if n <= 0:
         raise ValueError("n must be positive")
-    events = [e for e in chain if isinstance(e, dict)]
-    events.sort(key=lambda e: float(e.get("timestamp") or 0.0), reverse=True)
+
+    events: list[tuple[float, dict[str, Any]]] = []
+    for event in chain:
+        if not isinstance(event, dict):
+            continue
+        timestamp = _finite_timestamp(event.get("timestamp"))
+        if timestamp is None:
+            continue
+        events.append((timestamp, event))
+    events.sort(key=lambda item: item[0], reverse=True)
+
     seen_nodes: set[str] = set()
     timestamps: list[float] = []
-    for ev in events:
-        node = ev.get("node_id")
+    for timestamp, event in events:
+        node = event.get("node_id")
         if not isinstance(node, str) or not node:
             continue
         if node in seen_nodes:
             continue
         seen_nodes.add(node)
-        ts = ev.get("timestamp")
-        try:
-            timestamps.append(float(ts))
-        except (TypeError, ValueError):
-            continue
+        timestamps.append(timestamp)
         if len(timestamps) >= n:
             break
     if not timestamps:
@@ -104,12 +121,10 @@ def is_event_too_future(
         if chain is None:
             raise ValueError("Pass chain or chain_time")
         chain_time = chain_majority_time(chain)
-    try:
-        ts = float(event.get("timestamp"))
-    except (TypeError, ValueError):
-        # Non-numeric timestamp is its own validation failure — let the
-        # schema-level check catch that. Drift check itself returns
-        # False here (we cannot meaningfully compare).
+    ts = _finite_timestamp(event.get("timestamp"))
+    if ts is None:
+        # Non-numeric or non-finite timestamps are their own validation
+        # failure. Drift checking cannot meaningfully compare them.
         return False
     drift = float(CONFIG["max_future_event_drift_sec"])
     return ts > chain_time + drift
