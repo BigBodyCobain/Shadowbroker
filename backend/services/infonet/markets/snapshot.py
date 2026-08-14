@@ -24,12 +24,39 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from typing import Any, Iterable
 
 
 def _payload(event: dict[str, Any]) -> dict[str, Any]:
     p = event.get("payload")
     return p if isinstance(p, dict) else {}
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _safe_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _event_order_key(event: dict[str, Any]) -> tuple[int, float, int, int]:
+    timestamp = _finite_float(event.get("timestamp"))
+    sequence = _safe_int(event.get("sequence"))
+    return (
+        1 if timestamp is None else 0,
+        0.0 if timestamp is None else timestamp,
+        1 if sequence is None else 0,
+        0 if sequence is None else sequence,
+    )
 
 
 def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -39,7 +66,7 @@ def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[
             continue
         if _payload(ev).get("market_id") == market_id:
             out.append(ev)
-    out.sort(key=lambda e: (float(e.get("timestamp") or 0.0), int(e.get("sequence") or 0)))
+    out.sort(key=_event_order_key)
     return out
 
 
@@ -61,6 +88,10 @@ def build_snapshot(
     to advance to EVIDENCE. Pass it explicitly so the function stays
     pure and deterministic.
     """
+    frozen_at_value = _finite_float(frozen_at)
+    if frozen_at_value is None:
+        raise ValueError("frozen_at must be finite")
+
     events = _events_for_market(market_id, chain)
 
     predictor_ids: list[str] = []
@@ -79,27 +110,29 @@ def build_snapshot(
         side = p.get("side")
         if side not in ("yes", "no"):
             continue
+
+        stake = p.get("stake_amount")
+        if stake is None:
+            weight = 1.0  # Free pick = 1.0 virtual stake (RULES §5.2).
+            staked_amount = 0.0
+        else:
+            parsed_stake = _finite_float(stake)
+            if parsed_stake is None or parsed_stake <= 0:
+                # Invalid paid predictions must not inflate participant
+                # counts or poison the frozen probability state.
+                continue
+            weight = parsed_stake
+            staked_amount = parsed_stake
+
         if node not in seen_predictors:
             seen_predictors.add(node)
             predictor_ids.append(node)
-        stake = p.get("stake_amount")
-        if stake is not None:
-            try:
-                a = float(stake)
-            except (TypeError, ValueError):
-                a = 0.0
-            if a > 0:
-                total_stake += a
-                if side == "yes":
-                    yes_weight += a
-                else:
-                    no_weight += a
+
+        total_stake += staked_amount
+        if side == "yes":
+            yes_weight += weight
         else:
-            # Free pick = 1.0 virtual stake (RULES §5.2).
-            if side == "yes":
-                yes_weight += 1.0
-            else:
-                no_weight += 1.0
+            no_weight += weight
 
     pool = yes_weight + no_weight
     if pool > 0:
@@ -114,7 +147,7 @@ def build_snapshot(
         "frozen_total_stake": total_stake,
         "frozen_predictor_ids": predictor_ids,
         "frozen_probability_state": {"yes": yes_p, "no": no_p},
-        "frozen_at": float(frozen_at),
+        "frozen_at": frozen_at_value,
     }
 
 
