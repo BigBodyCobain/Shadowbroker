@@ -26,6 +26,7 @@ production should run these *before* emitting):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -81,12 +82,18 @@ def _collect_lock_contributions(
         p = _payload(ev)
         try:
             paid = float(p.get("lock_cost") or 0.0)
-        except (TypeError, ValueError):
-            paid = 0.0
-        if paid < float(_lock_cost_per_member()):
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(paid) or paid < float(_lock_cost_per_member()):
+            continue
+        try:
+            timestamp = float(ev.get("timestamp") or 0.0)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(timestamp):
             continue
         seen.add(node)
-        out.append((node, float(ev.get("timestamp") or 0.0)))
+        out.append((node, timestamp))
     return out
 
 
@@ -133,7 +140,10 @@ def validate_lock_request(
     needs to change.
     """
     chain_list = list(chain)
-    cost = int(_lock_cost_per_member() if lock_cost is None else lock_cost)
+    try:
+        cost = int(_lock_cost_per_member() if lock_cost is None else lock_cost)
+    except (TypeError, ValueError, OverflowError):
+        return LockValidation(False, "invalid_lock_cost", 0)
     if cost < _lock_cost_per_member():
         return LockValidation(False, "lock_cost_below_min", cost)
     if node_id not in compute_member_set(gate_id, chain_list):
