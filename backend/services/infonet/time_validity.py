@@ -110,12 +110,15 @@ def is_event_too_future(
     *,
     chain_time: float | None = None,
 ) -> bool:
-    """Is ``event.timestamp`` more than ``max_future_event_drift_sec``
-    ahead of ``chain_majority_time``?
+    """Is ``event.timestamp`` invalid or beyond allowed future drift?
 
     Pass ``chain_time`` when the caller has already computed it (e.g.
     bulk validation of a batch — avoids recomputing the median per
     event). Otherwise pass ``chain``.
+
+    Invalid/non-finite event timestamps fail closed: they return
+    ``True`` so callers reject or re-queue them rather than allowing
+    malformed events through the drift gate.
     """
     if chain_time is None:
         if chain is None:
@@ -123,9 +126,7 @@ def is_event_too_future(
         chain_time = chain_majority_time(chain)
     ts = _finite_timestamp(event.get("timestamp"))
     if ts is None:
-        # Non-numeric or non-finite timestamps are their own validation
-        # failure. Drift checking cannot meaningfully compare them.
-        return False
+        return True
     drift = float(CONFIG["max_future_event_drift_sec"])
     return ts > chain_time + drift
 
