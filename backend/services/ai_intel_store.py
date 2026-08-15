@@ -141,7 +141,11 @@ def inject_layer_data(
         existing = list(current) if isinstance(current, list) else []
 
         if mode == "replace":
-            existing = [e for e in existing if not e.get("_injected")]
+            existing = [
+                entry
+                for entry in existing
+                if not (isinstance(entry, dict) and entry.get("_injected"))
+            ]
 
         # Readers can hold references to published layer lists after releasing
         # _data_lock. Build a fresh list and swap it atomically rather than
@@ -170,7 +174,11 @@ def clear_injected_data(layer: str = "") -> dict[str, Any]:
             if not isinstance(existing, list):
                 continue
             before = len(existing)
-            latest_data[lyr] = [e for e in existing if not e.get("_injected")]
+            latest_data[lyr] = [
+                entry
+                for entry in existing
+                if not (isinstance(entry, dict) and entry.get("_injected"))
+            ]
             removed += before - len(latest_data[lyr])
 
     if removed:
