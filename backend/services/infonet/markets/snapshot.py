@@ -36,27 +36,9 @@ def _payload(event: dict[str, Any]) -> dict[str, Any]:
 def _finite_float(value: Any) -> float | None:
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if math.isfinite(parsed) else None
-
-
-def _safe_int(value: Any) -> int | None:
-    try:
-        return int(value)
     except (TypeError, ValueError, OverflowError):
         return None
-
-
-def _event_order_key(event: dict[str, Any]) -> tuple[int, float, int, int]:
-    timestamp = _finite_float(event.get("timestamp"))
-    sequence = _safe_int(event.get("sequence"))
-    return (
-        1 if timestamp is None else 0,
-        0.0 if timestamp is None else timestamp,
-        1 if sequence is None else 0,
-        0 if sequence is None else sequence,
-    )
+    return parsed if math.isfinite(parsed) else None
 
 
 def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -66,7 +48,7 @@ def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[
             continue
         if _payload(ev).get("market_id") == market_id:
             out.append(ev)
-    out.sort(key=_event_order_key)
+    out.sort(key=lambda e: (float(e.get("timestamp") or 0.0), int(e.get("sequence") or 0)))
     return out
 
 
