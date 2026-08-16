@@ -54,10 +54,15 @@ class InfonetGateAdapter:
     def _events(self) -> list[dict[str, Any]]:
         return [e for e in self._chain_provider() if isinstance(e, dict)]
 
-    def _now(self, override: float | None) -> float:
+    def _now(
+        self,
+        override: float | None,
+        events: list[dict[str, Any]] | None = None,
+    ) -> float:
         if override is not None:
             return float(override)
-        events = self._events()
+        if events is None:
+            events = self._events()
         chain_now = chain_majority_time(events)
         return chain_now if chain_now > 0 else float(time.time())
 
@@ -102,7 +107,8 @@ class InfonetGateAdapter:
     def suspension_state(
         self, gate_id: str, *, now: float | None = None,
     ) -> SuspensionState:
-        return compute_suspension_state(gate_id, self._events(), now=self._now(now))
+        events = self._events()
+        return compute_suspension_state(gate_id, events, now=self._now(now, events))
 
     def validate_suspend_filing(
         self,
@@ -114,10 +120,11 @@ class InfonetGateAdapter:
         now: float | None = None,
         filer_cooldown_until: float | None = None,
     ) -> FilingValidation:
+        events = self._events()
         return validate_suspend_filing(
             gate_id, filer_id,
             reason=reason, evidence_hashes=evidence_hashes,
-            chain=self._events(), now=self._now(now),
+            chain=events, now=self._now(now, events),
             filer_cooldown_until=filer_cooldown_until,
         )
 
@@ -125,7 +132,8 @@ class InfonetGateAdapter:
     def shutdown_state(
         self, gate_id: str, *, now: float | None = None,
     ) -> ShutdownState:
-        return compute_shutdown_state(gate_id, self._events(), now=self._now(now))
+        events = self._events()
+        return compute_shutdown_state(gate_id, events, now=self._now(now, events))
 
     def validate_shutdown_filing(
         self,
@@ -137,10 +145,11 @@ class InfonetGateAdapter:
         now: float | None = None,
         filer_cooldown_until: float | None = None,
     ) -> FilingValidation:
+        events = self._events()
         return validate_shutdown_filing(
             gate_id, filer_id,
             reason=reason, evidence_hashes=evidence_hashes,
-            chain=self._events(), now=self._now(now),
+            chain=events, now=self._now(now, events),
             filer_cooldown_until=filer_cooldown_until,
         )
 
@@ -156,10 +165,11 @@ class InfonetGateAdapter:
         now: float | None = None,
         filer_cooldown_until: float | None = None,
     ) -> AppealValidation:
+        events = self._events()
         return validate_appeal_filing(
             gate_id, target_petition_id, filer_id,
             reason=reason, evidence_hashes=evidence_hashes,
-            chain=self._events(), now=self._now(now),
+            chain=events, now=self._now(now, events),
             filer_cooldown_until=filer_cooldown_until,
         )
 
