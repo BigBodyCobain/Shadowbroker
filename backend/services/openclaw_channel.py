@@ -1362,7 +1362,9 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         if not layer or not items:
             return {"ok": False, "detail": "layer and items required"}
         from services.ai_intel_store import inject_layer_data
-        result = inject_layer_data(layer, items)
+        result = inject_layer_data(layer, items, mode=args.get("mode", "append"))
+        if not result.get("ok"):
+            return result
         return {"ok": True, "data": result}
 
     if cmd == "create_layer":

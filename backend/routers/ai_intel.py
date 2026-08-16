@@ -125,8 +125,8 @@ class LayerUpdate(BaseModel):
 
 class InjectRequest(BaseModel):
     layer: str
-    items: list[dict[str, Any]] = Field(..., max_length=200)
-    mode: str = "append"  # "append" or "replace"
+    items: list[Any] = Field(..., max_length=200)
+    mode: str = "append"  # validated by inject_layer_data
 
 
 # ---------------------------------------------------------------------------
@@ -641,39 +641,15 @@ INJECTABLE_LAYERS = {
 @router.post("/api/ai/inject", dependencies=[Depends(require_openclaw_or_local)])
 @limiter.limit("30/minute")
 async def inject_data(request: Request, body: InjectRequest):
-    """Inject custom data into ANY native ShadowBroker layer.
-    Items appear as real telemetry alongside automated feeds.
-    Tagged with _source='user:openclaw' so they can be filtered/removed."""
-    from services.fetchers._store import latest_data, _data_lock, bump_data_version
+    """Inject custom data through the shared validated layer helper."""
+    from services.ai_intel_store import inject_layer_data
 
-    if body.layer not in INJECTABLE_LAYERS:
-        raise HTTPException(400, f"Layer '{body.layer}' is not injectable. "
-                            f"Valid layers: {sorted(INJECTABLE_LAYERS)}")
+    result = inject_layer_data(body.layer, body.items, mode=body.mode)
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("detail", "invalid injection payload"))
 
-    now = time.time()
-    items = body.items[:200]  # cap at 200
-
-    # Tag every injected item
-    for item in items:
-        item["_injected"] = True
-        item["_source"] = "user:openclaw"
-        item["_injected_at"] = now
-
-    with _data_lock:
-        existing = list(latest_data.get(body.layer) or [])
-        if body.mode == "replace":
-            existing = [x for x in existing if not x.get("_injected")]
-        existing.extend(items)
-        latest_data[body.layer] = existing
-        bump_data_version()
-
-    total = len(latest_data.get(body.layer, []))
-    return {
-        "ok": True,
-        "layer": body.layer,
-        "injected": len(items),
-        "total": total,
-    }
+    total = len(_latest_data.get(body.layer, []))
+    return {**result, "total": total}
 
 
 @router.delete("/api/ai/inject", dependencies=[Depends(require_openclaw_or_local)])

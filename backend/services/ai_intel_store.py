@@ -121,6 +121,10 @@ def inject_layer_data(
     if layer not in _INJECTABLE_LAYERS:
         return {"ok": False, "detail": f"layer '{layer}' not injectable"}
 
+    mode = str(mode or "").strip().lower()
+    if mode not in {"append", "replace"}:
+        return {"ok": False, "detail": "mode must be 'append' or 'replace'"}
+
     items = list(items or [])[:200]
     if not items:
         return {"ok": False, "detail": "no items provided"}
@@ -135,6 +139,9 @@ def inject_layer_data(
         entry["_source"] = "user:openclaw"
         entry["_injected_at"] = now
         tagged.append(entry)
+
+    if not tagged:
+        return {"ok": False, "detail": "no valid items provided"}
 
     with _data_lock:
         current = latest_data.get(layer)
