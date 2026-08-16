@@ -24,6 +24,13 @@ from enum import Enum
 from typing import Any, Iterable
 
 from services.infonet.config import CONFIG
+from services.infonet.markets.event_selection import (
+    events_for_market,
+    finite_float,
+    first_authoritative_event,
+    has_valid_ordering,
+    payload,
+)
 
 
 class MarketStatus(str, Enum):
@@ -37,24 +44,17 @@ class MarketStatus(str, Enum):
 _SECONDS_PER_HOUR = 3600.0
 
 
-def _payload(event: dict[str, Any]) -> dict[str, Any]:
-    p = event.get("payload")
-    return p if isinstance(p, dict) else {}
-
-
-def _market_id(event: dict[str, Any]) -> str:
-    return str(_payload(event).get("market_id") or "")
-
-
-def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for ev in chain:
-        if not isinstance(ev, dict):
-            continue
-        if _market_id(ev) == market_id:
-            out.append(ev)
-    out.sort(key=lambda e: (float(e.get("timestamp") or 0.0), int(e.get("sequence") or 0)))
-    return out
+def _snapshot_time(snapshot: dict[str, Any]) -> float | None:
+    """Return a valid snapshot time without masking malformed metadata."""
+    if not has_valid_ordering(snapshot):
+        return None
+    raw_timestamp = snapshot.get("timestamp")
+    # Preserve the pre-existing fallback only for an actually absent/zero
+    # timestamp. A present-but-malformed timestamp must fail closed instead
+    # of being disguised by a valid payload frozen_at.
+    if raw_timestamp in (None, "", 0, 0.0):
+        return finite_float(payload(snapshot).get("frozen_at"))
+    return finite_float(raw_timestamp)
 
 
 def compute_market_status(
@@ -71,24 +71,31 @@ def compute_market_status(
     ``chain_majority_time(chain)``) so every node converges on the same
     status.
     """
-    events = _events_for_market(market_id, chain)
+    events = events_for_market(market_id, chain)
     if not events:
         return MarketStatus.PREDICTING  # treated as not-yet-existing
 
-    create_event = next((e for e in events if e.get("event_type") == "prediction_create"), None)
-    if create_event is None:
+    create_event = first_authoritative_event(events, "prediction_create")
+    if create_event is None or not has_valid_ordering(create_event):
         return MarketStatus.PREDICTING
 
-    finalize = next((e for e in events if e.get("event_type") == "resolution_finalize"), None)
-    if finalize is not None:
-        outcome = _payload(finalize).get("outcome")
+    # The first finalize remains authoritative by chain order. A malformed
+    # first finalize cannot exert terminal authority, and a later finalize
+    # must not replace it; projection therefore falls through to the prior
+    # snapshot-backed phase.
+    finalize = first_authoritative_event(events, "resolution_finalize")
+    if finalize is not None and has_valid_ordering(finalize):
+        outcome = payload(finalize).get("outcome")
         return MarketStatus.INVALID if outcome == "invalid" else MarketStatus.FINAL
 
-    snapshot = next((e for e in events if e.get("event_type") == "market_snapshot"), None)
+    # Likewise, never let a later snapshot replace the first commitment.
+    snapshot = first_authoritative_event(events, "market_snapshot")
     if snapshot is None:
         return MarketStatus.PREDICTING
 
-    snapshot_ts = float(snapshot.get("timestamp") or _payload(snapshot).get("frozen_at") or 0.0)
+    snapshot_ts = _snapshot_time(snapshot)
+    if snapshot_ts is None:
+        return MarketStatus.PREDICTING
     evidence_close = snapshot_ts + float(CONFIG["evidence_window_hours"]) * _SECONDS_PER_HOUR
     if now < evidence_close:
         return MarketStatus.EVIDENCE
@@ -110,29 +117,37 @@ def should_advance_phase(
     - EVIDENCE → RESOLVING: just a status change (no chain event).
     - RESOLVING → FINAL/INVALID: emit ``resolution_finalize``.
     """
-    events = _events_for_market(market_id, chain)
+    events = events_for_market(market_id, chain)
     if not events:
         return None
 
-    create_event = next((e for e in events if e.get("event_type") == "prediction_create"), None)
-    if create_event is None:
+    create_event = first_authoritative_event(events, "prediction_create")
+    if create_event is None or not has_valid_ordering(create_event):
         return None
-    finalize = next((e for e in events if e.get("event_type") == "resolution_finalize"), None)
-    if finalize is not None:
-        return None  # already terminal
 
-    create_payload = _payload(create_event)
-    trigger_date = float(create_payload.get("trigger_date") or 0.0)
-    snapshot = next((e for e in events if e.get("event_type") == "market_snapshot"), None)
+    finalize = first_authoritative_event(events, "resolution_finalize")
+    if finalize is not None:
+        # Whether valid (terminal) or malformed (fail closed), do not let a
+        # later finalize replace the first authoritative chain event.
+        return None
+
+    create_payload = payload(create_event)
+    trigger_date = finite_float(create_payload.get("trigger_date"))
+    snapshot = first_authoritative_event(events, "market_snapshot")
 
     if snapshot is None:
         # PREDICTING — advance to EVIDENCE iff trigger_date has passed in
-        # majority chain time.
-        if now >= trigger_date:
+        # majority chain time. Invalid trigger metadata cannot authorize
+        # a phase transition.
+        if trigger_date is not None and now >= trigger_date:
             return (MarketStatus.PREDICTING, MarketStatus.EVIDENCE)
         return None
 
-    snapshot_ts = float(snapshot.get("timestamp") or _payload(snapshot).get("frozen_at") or 0.0)
+    snapshot_ts = _snapshot_time(snapshot)
+    if snapshot_ts is None:
+        # An invalid first snapshot cannot authorize a transition, and a
+        # later snapshot must not replace the commitment boundary.
+        return None
     evidence_close = snapshot_ts + float(CONFIG["evidence_window_hours"]) * _SECONDS_PER_HOUR
     resolution_close = evidence_close + float(CONFIG["resolution_window_hours"]) * _SECONDS_PER_HOUR
 
