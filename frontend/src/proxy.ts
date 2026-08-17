@@ -46,7 +46,9 @@ function isPrivilegedApiPath(pathname: string): boolean {
     path === '/api/ais/feed' ||
     path === '/api/mesh/infonet/ingest' ||
     path === '/api/mesh/meshtastic/send' ||
+    path === '/api/wormhole' ||
     path.startsWith('/api/wormhole/') ||
+    path === '/api/settings' ||
     path.startsWith('/api/settings/') ||
     path.startsWith('/api/ai/') ||
     path === '/api/ai' ||
