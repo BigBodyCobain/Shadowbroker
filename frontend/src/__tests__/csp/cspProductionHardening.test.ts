@@ -6,7 +6,7 @@
  *    inline fallback required by the Next.js production runtime
  * 2. Dev CSP retains 'unsafe-inline' and 'unsafe-eval'
  * 3. Unchanged directives (style-src, font-src, worker-src, etc.) intact
- * 4. API/static route exclusions remain intact
+ * 4. API security-boundary matching and static route exclusions remain intact
  * 5. isDev is evaluated per-request (not cached at module load)
  */
 
@@ -177,12 +177,12 @@ describe('unchanged directives in production', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. API/static route exclusions remain intact
+// 4. API security boundary / static route exclusions remain intact
 // ---------------------------------------------------------------------------
 
-describe('matcher exclusions unchanged', () => {
-  it('excludes /api paths', () => {
-    expect(matcherExcludes('/api/mesh/events')).toBe(true);
+describe('matcher security boundary and exclusions', () => {
+  it('includes /api paths so privileged requests can be screened', () => {
+    expect(matcherExcludes('/api/mesh/events')).toBe(false);
   });
 
   it('excludes /_next/static paths', () => {

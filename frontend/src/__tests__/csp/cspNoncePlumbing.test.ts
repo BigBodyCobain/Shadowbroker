@@ -5,7 +5,7 @@
  * 1. Document CSP remains hydration-safe for the Next.js runtime
  * 2. CSP is deterministic across repeated requests
  * 3. next.config.ts no longer owns a static CSP header
- * 4. Proxy does not break API/static routes (matcher exclusion)
+ * 4. Proxy screens API routes before handlers while static assets stay excluded
  * 5. Google Fonts domains are preserved in CSP
  * 6. Production CSP preserves required directives
  */
@@ -117,12 +117,54 @@ describe('next.config.ts CSP removal', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Proxy does not break API/static routes
+// 4. Proxy screens APIs while keeping document/static behavior intact
 // ---------------------------------------------------------------------------
 
-describe('proxy matcher exclusions', () => {
-  it('excludes /api paths', () => {
-    expect(matcherExcludes('/api/mesh/events')).toBe(true);
+describe('proxy matcher and privileged API boundary', () => {
+  it('includes /api paths so the request-boundary security guard runs', () => {
+    expect(matcherExcludes('/api/mesh/events')).toBe(false);
+  });
+
+  it('non-sensitive API requests pass through without document CSP', () => {
+    expect(getCsp('/api/mesh/events')).toBe('');
+  });
+
+  it('rejects hostile cross-origin privileged API requests before route handling', () => {
+    const req = new NextRequest('http://localhost/api/settings/tor/reset-identity', {
+      method: 'POST',
+      headers: {
+        host: 'localhost',
+        origin: 'https://evil.example',
+        'sec-fetch-site': 'cross-site',
+      },
+    });
+    const response = proxy(req);
+    expect(response.status).toBe(403);
+    expect(response.headers.get('Content-Security-Policy')).toBeNull();
+  });
+
+  it('preserves a legitimate reverse-proxy Forwarded host on an internal direct Host', () => {
+    const req = new NextRequest('http://frontend:3000/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'frontend:3000',
+        origin: 'https://shadowbroker.example',
+        forwarded: 'for=172.18.0.1;proto=https;host="shadowbroker.example"',
+      },
+    });
+    expect(proxy(req).status).not.toBe(403);
+  });
+
+  it('does not trust spoofed X-Forwarded-Host on a public direct Host', () => {
+    const req = new NextRequest('https://shadowbroker.example/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'shadowbroker.example',
+        origin: 'https://evil.example',
+        'x-forwarded-host': 'evil.example',
+      },
+    });
+    expect(proxy(req).status).toBe(403);
   });
 
   it('excludes /_next/static paths', () => {
