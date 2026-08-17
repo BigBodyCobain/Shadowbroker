@@ -64,8 +64,73 @@ function isPrivilegedApiPath(pathname: string): boolean {
   );
 }
 
-function normalizedHost(value: string | null): string {
-  return (value || '').split(',')[0].trim().replace(/^"|"$/g, '').toLowerCase();
+function normalizeHeaderHost(host: string | null): string {
+  return (host || '').trim().replace(/^"|"$/g, '').toLowerCase();
+}
+
+function hostnameFromHeaderHost(host: string): string {
+  const normalized = normalizeHeaderHost(host);
+  if (!normalized) return '';
+  try {
+    return new URL(`http://${normalized}`).hostname.toLowerCase();
+  } catch {
+    return normalized.replace(/:\d+$/, '').toLowerCase();
+  }
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  const [first, second] = parts;
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+}
+
+function isInternalProxyHost(host: string): boolean {
+  const hostname = hostnameFromHeaderHost(host);
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return false;
+  }
+  return (
+    !hostname.includes('.') ||
+    isPrivateIpv4(hostname) ||
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.docker')
+  );
+}
+
+function forwardedHostCandidates(request: NextRequest): string[] {
+  const hosts = new Set<string>();
+  const directHost = normalizeHeaderHost(request.headers.get('host'));
+  if (directHost) hosts.add(directHost);
+
+  // Only honor forwarding metadata when the direct Host itself looks like an
+  // internal reverse-proxy/container address. A public/localhost request may
+  // not promote attacker-supplied forwarded host values into trusted origins.
+  if (!isInternalProxyHost(directHost)) {
+    return [...hosts];
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  if (forwardedHost) {
+    for (const value of forwardedHost.split(',')) {
+      const host = normalizeHeaderHost(value);
+      if (host) hosts.add(host);
+    }
+  }
+
+  const forwarded = request.headers.get('forwarded');
+  if (forwarded) {
+    const hostPattern = /(?:^|[;,])\s*host=(?:"([^"]+)"|([^;,]+))/gi;
+    let match: RegExpExecArray | null;
+    while ((match = hostPattern.exec(forwarded)) !== null) {
+      const host = normalizeHeaderHost(match[1] || match[2] || '');
+      if (host) hosts.add(host);
+    }
+  }
+
+  return [...hosts];
 }
 
 function isSameOriginOrNonBrowser(request: NextRequest): boolean {
@@ -90,17 +155,7 @@ function isSameOriginOrNonBrowser(request: NextRequest): boolean {
   }
   if (!originHost) return false;
 
-  const candidates = new Set<string>();
-  const directHost = normalizedHost(request.headers.get('host'));
-  if (directHost) candidates.add(directHost);
-  const forwardedHost = request.headers.get('x-forwarded-host');
-  if (forwardedHost) {
-    for (const value of forwardedHost.split(',')) {
-      const host = normalizedHost(value);
-      if (host) candidates.add(host);
-    }
-  }
-  return candidates.has(originHost);
+  return forwardedHostCandidates(request).includes(originHost);
 }
 
 export function proxy(request: NextRequest) {
