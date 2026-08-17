@@ -143,6 +143,30 @@ describe('proxy matcher and privileged API boundary', () => {
     expect(response.headers.get('Content-Security-Policy')).toBeNull();
   });
 
+  it('preserves a legitimate reverse-proxy Forwarded host on an internal direct Host', () => {
+    const req = new NextRequest('http://frontend:3000/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'frontend:3000',
+        origin: 'https://shadowbroker.example',
+        forwarded: 'for=172.18.0.1;proto=https;host="shadowbroker.example"',
+      },
+    });
+    expect(proxy(req).status).not.toBe(403);
+  });
+
+  it('does not trust spoofed X-Forwarded-Host on a public direct Host', () => {
+    const req = new NextRequest('https://shadowbroker.example/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'shadowbroker.example',
+        origin: 'https://evil.example',
+        'x-forwarded-host': 'evil.example',
+      },
+    });
+    expect(proxy(req).status).toBe(403);
+  });
+
   it('excludes /_next/static paths', () => {
     expect(matcherExcludes('/_next/static/chunks/main.js')).toBe(true);
   });
