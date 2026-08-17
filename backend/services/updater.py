@@ -31,16 +31,15 @@ DOCKER_UPDATE_COMMANDS = (
     "docker compose pull && docker compose up -d"
 )
 
-# Issue #231: baked-in release digests. Loaded lazily, used as a fallback
-# verification source when the release's SHA256SUMS.txt asset can't be
-# fetched (e.g. transient network failure during update).
+# Issue #231: baked-in release digests. Loaded lazily and treated as an
+# independent trust source because they ship with the already-installed code.
 _RELEASE_DIGESTS_FILE = (
     Path(__file__).resolve().parent.parent / "data" / "release_digests.json"
 )
-# Pattern for the maintainer's signed source-archive release asset. This
-# is the file we prefer over the auto-generated ``zipball_url`` because
-# the maintainer's build process publishes it with a matching entry in
-# SHA256SUMS.txt — the zipball does not have a signed digest.
+# Pattern for the maintainer's source-archive release asset. The matching
+# SHA256SUMS.txt is still useful as a consistency check, but because both are
+# delivered by the same release channel it is not sufficient by itself to
+# authorize executable source replacement.
 _SOURCE_ASSET_PATTERN = re.compile(r"^ShadowBroker_v\d", re.IGNORECASE)
 _SHA256SUMS_ASSET_NAME = "SHA256SUMS.txt"
 
@@ -134,15 +133,13 @@ def _validate_update_url(url: str, *, allow_release_page: bool = False) -> str:
 def _download_release(temp_dir: str) -> tuple:
     """Fetch latest release info and download the source zip archive.
 
-    Issue #231: prefer the maintainer's signed release asset (matching
-    ``ShadowBroker_v*.zip``) over the auto-generated ``zipball_url``,
-    because the maintainer's release process publishes a matching entry
-    in SHA256SUMS.txt for the named asset but NOT for the zipball.
+    Prefer the maintainer's named release asset (matching
+    ``ShadowBroker_v*.zip``) over the auto-generated ``zipball_url`` so a
+    stable filename can be matched against a pre-pinned digest.
 
     Returns (zip_path, version_tag, download_url, release_url, asset_name,
-    sha256sums_url) — the last two are empty strings when the release
-    doesn't publish a signed asset, falling back to the legacy zipball
-    path.
+    sha256sums_url) — the last two are empty strings when the release does not
+    publish a named asset.
     """
     logger.info("Fetching latest release info from GitHub...")
     _validate_update_url(GITHUB_RELEASES_URL)
@@ -155,8 +152,6 @@ def _download_release(temp_dir: str) -> tuple:
     release_url = str(release.get("html_url") or GITHUB_RELEASES_PAGE_URL).strip()
     _validate_update_url(release_url, allow_release_page=True)
 
-    # Prefer the maintainer-signed release asset. Fall back to the
-    # auto-generated zipball if the release doesn't publish one.
     assets = release.get("assets") or []
     asset_name = ""
     asset_url = ""
@@ -175,7 +170,7 @@ def _download_release(temp_dir: str) -> tuple:
     if asset_url:
         zip_url = asset_url
         logger.info(
-            "Using signed release asset %s (sha256sums=%s)",
+            "Using release asset %s (sha256sums=%s)",
             asset_name,
             "yes" if sha256sums_url else "no",
         )
@@ -184,10 +179,10 @@ def _download_release(temp_dir: str) -> tuple:
         if not zip_url:
             raise RuntimeError("Latest release is missing a source archive URL")
         logger.warning(
-            "Release does not publish a signed ShadowBroker_v*.zip asset — "
-            "falling back to auto-generated zipball_url. Integrity will be "
-            "verified against the baked-in release_digests.json (if present) "
-            "or HTTPS-only otherwise."
+            "Release does not publish a ShadowBroker_v*.zip asset — falling "
+            "back to auto-generated zipball_url. In-place installation will "
+            "still require an explicit MESH_UPDATE_SHA256 pin or a matching "
+            "baked-in digest."
         )
 
     _validate_update_url(zip_url)
@@ -219,17 +214,7 @@ def _compute_sha256(zip_path: str) -> str:
 
 
 def _load_baked_in_release_digests() -> dict:
-    """Return the ``release_digests.json`` mapping, or an empty dict.
-
-    Schema (issue #231):
-        {
-          "<release_tag>": {
-            "<asset_filename>": "<sha256_hex>",
-            ...
-          },
-          ...
-        }
-    """
+    """Return the ``release_digests.json`` mapping, or an empty dict."""
     try:
         raw = _RELEASE_DIGESTS_FILE.read_text(encoding="utf-8")
         parsed = json.loads(raw)
@@ -254,12 +239,7 @@ def _load_baked_in_release_digests() -> dict:
 
 
 def _fetch_sha256sums(sha256sums_url: str) -> dict[str, str]:
-    """Download a SHA256SUMS.txt and return {filename: digest_hex_lower}.
-
-    Standard ``sha256sum`` format: ``<digest>  <filename>`` per line. The
-    leading ``*`` binary-mode marker (e.g. ``<digest> *<filename>``) is
-    handled.
-    """
+    """Download a SHA256SUMS.txt and return {filename: digest_hex_lower}."""
     try:
         _validate_update_url(sha256sums_url)
     except RuntimeError as exc:
@@ -268,15 +248,18 @@ def _fetch_sha256sums(sha256sums_url: str) -> dict[str, str]:
     try:
         resp = requests.get(sha256sums_url, timeout=15)
         resp.raise_for_status()
+        _validate_update_url(resp.url)
     except requests.RequestException as exc:
         logger.info("SHA256SUMS fetch failed: %s", exc)
+        return {}
+    except RuntimeError as exc:
+        logger.warning("SHA256SUMS redirect rejected: %s", exc)
         return {}
     out: dict[str, str] = {}
     for line in resp.text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        # Tolerant split: handle both `<digest>  <name>` and `<digest> *<name>`.
         parts = line.split(None, 1)
         if len(parts) != 2:
             continue
@@ -295,34 +278,26 @@ def _validate_zip_hash(
     sha256sums_url: str = "",
     release_tag: str = "",
 ) -> str:
-    """Verify the downloaded archive against trusted digest sources.
+    """Verify an executable source update against an independent trust source.
 
-    Issue #231: previously this returned silently when ``MESH_UPDATE_SHA256``
-    was unset, which made the auto-updater a supply-chain RCE vector on any
-    compromise of the GitHub release pipeline. The chain now is:
+    Authorization order:
 
-      1. ``MESH_UPDATE_SHA256`` env var (operator override — preserved for
-         power-users who want to pin an exact digest manually)
-      2. ``SHA256SUMS.txt`` release asset (primary — the maintainer's
-         release process already publishes this)
-      3. Baked-in ``backend/data/release_digests.json`` (second line of
-         defense for releases that lack the SHA256SUMS asset, or when the
-         asset can't be fetched at update time)
-      4. HTTPS-only fallback with a loud warning (preserves the auto-update
-         flow during transient outages — but never silently)
+      1. ``MESH_UPDATE_SHA256`` — explicit operator pin.
+      2. ``backend/data/release_digests.json`` — a digest already shipped in
+         the installed application.
 
-    A mismatch from a source that DID respond is fatal: the update is
-    refused and the existing install keeps running. Only the "no source
-    reachable at all" case falls back to HTTPS-only.
-
-    Returns a short human-readable description of which source verified
-    the archive (used in the update-success message).
+    A release ``SHA256SUMS.txt`` is fetched only as a consistency diagnostic.
+    Because it is controlled by the same GitHub release channel as the ZIP, a
+    matching value cannot independently authenticate a compromised release.
+    If neither independent source is available, the updater fails closed and
+    leaves the existing installation untouched.
     """
     actual = _compute_sha256(zip_path)
 
-    # Source 1: explicit operator override.
     override = os.environ.get("MESH_UPDATE_SHA256", "").strip().lower()
     if override:
+        if len(override) != 64 or any(c not in "0123456789abcdef" for c in override):
+            raise RuntimeError("MESH_UPDATE_SHA256 must be a 64-character hexadecimal SHA-256 digest")
         if actual == override:
             return f"verified via MESH_UPDATE_SHA256 ({actual[:16]}...)"
         raise RuntimeError(
@@ -330,21 +305,6 @@ def _validate_zip_hash(
             f"expected={override[:16]}..."
         )
 
-    # Source 2: SHA256SUMS.txt asset from the release.
-    sums_map: dict[str, str] = {}
-    if sha256sums_url and asset_name:
-        sums_map = _fetch_sha256sums(sha256sums_url)
-
-    sums_expected = sums_map.get(asset_name) if asset_name else None
-    if sums_expected:
-        if actual == sums_expected:
-            return f"verified via release SHA256SUMS.txt ({actual[:16]}...)"
-        raise RuntimeError(
-            f"Update SHA-256 mismatch vs release SHA256SUMS.txt: "
-            f"archive={actual[:16]}..., expected={sums_expected[:16]}..."
-        )
-
-    # Source 3: baked-in digest list.
     baked = _load_baked_in_release_digests()
     baked_expected = ""
     if release_tag and asset_name:
@@ -357,23 +317,23 @@ def _validate_zip_hash(
             f"archive={actual[:16]}..., expected={baked_expected[:16]}..."
         )
 
-    # Source 4: HTTPS-only fallback. We keep onboarding/auto-update working
-    # during transient outages (no SHA256SUMS reachable AND no baked-in
-    # entry for this release), but surface the degraded posture loudly so
-    # the operator can see it in logs and the maintainer can populate the
-    # digest list on the next release bump.
-    logger.warning(
-        "Update integrity check fell back to HTTPS-only trust "
-        "(no SHA256SUMS.txt response and no baked-in digest for "
-        "release=%s asset=%s). The archive SHA-256 is %s. Once the "
-        "release ships a SHA256SUMS.txt asset OR backend/data/"
-        "release_digests.json is updated with this release, the secure "
-        "path will activate automatically.",
-        release_tag or "unknown",
-        asset_name or "unknown",
-        actual,
+    release_checksum_note = ""
+    if sha256sums_url and asset_name:
+        sums_expected = _fetch_sha256sums(sha256sums_url).get(asset_name)
+        if sums_expected:
+            if actual != sums_expected:
+                raise RuntimeError(
+                    f"Update SHA-256 mismatch vs release SHA256SUMS.txt: "
+                    f"archive={actual[:16]}..., expected={sums_expected[:16]}..."
+                )
+            release_checksum_note = " The same-release SHA256SUMS.txt matched, but is not an independent trust root."
+
+    raise RuntimeError(
+        "Update refused: no independent archive digest is trusted for "
+        f"release={release_tag or 'unknown'} asset={asset_name or 'unknown'}."
+        f"{release_checksum_note} Pin MESH_UPDATE_SHA256 or ship a matching "
+        "backend/data/release_digests.json entry before enabling in-place installation."
     )
-    return f"https-only (no digest source reachable, archive={actual[:16]}...)"
 
 
 def _is_source_checkout(project_root: str) -> bool:
@@ -399,7 +359,6 @@ def _backup_current(project_root: str, temp_dir: str) -> str:
             if not os.path.isdir(dir_path):
                 continue
             for root, dirs, files in os.walk(dir_path):
-                # Prune protected directories from walk
                 dirs[:] = [d for d in dirs if d not in _PROTECTED_DIRS]
                 for fname in files:
                     full = os.path.join(root, fname)
@@ -438,8 +397,6 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
                 raise RuntimeError(f"Updater refused archive path traversal entry: {member.filename}")
         zf.extractall(extract_dir)
 
-    # Detect wrapper folder: if extracted root has a single directory that
-    # itself contains frontend/ or backend/, use it as the real base.
     base = extract_dir
     entries = [e for e in os.listdir(base) if not e.startswith(".")]
     if len(entries) == 1:
@@ -454,7 +411,6 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
     skipped = 0
 
     for root, dirs, files in os.walk(base):
-        # Prune protected directories so os.walk never descends into them
         dirs[:] = [d for d in dirs if d not in _PROTECTED_DIRS]
 
         for fname in files:
@@ -466,7 +422,6 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
                 continue
 
             dst = os.path.abspath(os.path.join(project_root, rel))
-            # Safety: never write outside the project root (zip path traversal)
             if not dst.startswith(os.path.abspath(project_root)):
                 logger.warning(f"Safety skip (path traversal): {rel}")
                 skipped += 1
