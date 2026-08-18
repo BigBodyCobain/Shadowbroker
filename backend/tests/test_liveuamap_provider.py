@@ -29,8 +29,8 @@ def test_api_geojson_is_normalized_and_auth_header_is_sent(monkeypatch):
     )
     seen = {}
 
-    def fake_get(url, *, headers, timeout):
-        seen.update(url=url, headers=headers, timeout=timeout)
+    def fake_get(url, *, headers, timeout, allow_redirects):
+        seen.update(url=url, headers=headers, timeout=timeout, allow_redirects=allow_redirects)
         return _Response(
             {
                 "type": "FeatureCollection",
@@ -53,12 +53,49 @@ def test_api_geojson_is_normalized_and_auth_header_is_sent(monkeypatch):
     assert markers[0]["provider"] == "api"
     assert seen["headers"]["Authorization"] == "Bearer secret-key"
     assert seen["timeout"] == (5, 12)
+    assert seen["allow_redirects"] is False
+
+
+def test_api_query_token_is_not_exposed_as_marker_fallback(monkeypatch):
+    monkeypatch.setenv(
+        "LIVEUAMAP_API_URL",
+        "https://api.example.test/events?token=super-secret",
+    )
+    monkeypatch.setattr(
+        scraper.requests,
+        "get",
+        lambda *args, **kwargs: _Response(
+            [{"id": "evt", "lat": 10, "lng": 20, "title": "No link"}]
+        ),
+    )
+    markers = scraper._fetch_liveuamap_api()
+    assert markers[0]["link"] == "https://liveuamap.com"
+    assert "super-secret" not in repr(markers)
+
+
+def test_api_redirect_is_refused_before_following_credentials(monkeypatch):
+    monkeypatch.setenv("LIVEUAMAP_API_URL", "https://api.example.test/events")
+    monkeypatch.setattr(
+        scraper.requests,
+        "get",
+        lambda *args, **kwargs: _Response({}, status_code=302),
+    )
+    try:
+        scraper._fetch_liveuamap_api()
+    except requests.HTTPError as exc:
+        assert "redirected" in str(exc)
+    else:
+        raise AssertionError("redirect should have been rejected")
 
 
 def test_api_failure_falls_back_to_browser_when_browser_is_allowed(monkeypatch):
     monkeypatch.setattr(settings, "liveuamap_api_configured", lambda: True)
     monkeypatch.setattr(settings, "liveuamap_browser_scraper_enabled", lambda: True)
-    monkeypatch.setattr(scraper, "_fetch_liveuamap_api", lambda: (_ for _ in ()).throw(requests.Timeout("boom")))
+    monkeypatch.setattr(
+        scraper,
+        "_fetch_liveuamap_api",
+        lambda: (_ for _ in ()).throw(requests.Timeout("boom")),
+    )
     monkeypatch.setattr(scraper, "_fetch_liveuamap_browser", lambda: [{"id": "browser"}])
     assert scraper.fetch_liveuamap() == [{"id": "browser"}]
 
@@ -66,7 +103,11 @@ def test_api_failure_falls_back_to_browser_when_browser_is_allowed(monkeypatch):
 def test_api_failure_does_not_force_browser_when_browser_is_disabled(monkeypatch):
     monkeypatch.setattr(settings, "liveuamap_api_configured", lambda: True)
     monkeypatch.setattr(settings, "liveuamap_browser_scraper_enabled", lambda: False)
-    monkeypatch.setattr(scraper, "_fetch_liveuamap_api", lambda: (_ for _ in ()).throw(requests.Timeout("boom")))
+    monkeypatch.setattr(
+        scraper,
+        "_fetch_liveuamap_api",
+        lambda: (_ for _ in ()).throw(requests.Timeout("boom")),
+    )
     called = False
 
     def browser():
@@ -86,6 +127,14 @@ def test_browser_disable_does_not_disable_configured_api_scheduler_gate(monkeypa
     monkeypatch.setenv("LIVEUAMAP_API_URL", "https://api.example.test/events")
     assert settings.liveuamap_browser_scraper_enabled() is False
     assert settings.liveuamap_scraper_enabled() is True
+
+
+def test_api_url_with_embedded_credentials_is_rejected(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "_OPT_IN_FILE", tmp_path / "choice.json")
+    monkeypatch.setattr(settings.os, "name", "nt")
+    monkeypatch.setenv("LIVEUAMAP_API_URL", "https://user:password@api.example.test/events")
+    assert settings.liveuamap_api_configured() is False
+    assert scraper._api_url() == ""
 
 
 def test_http_api_endpoint_is_not_used(monkeypatch):

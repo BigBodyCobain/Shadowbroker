@@ -31,7 +31,12 @@ def _valid_https_url(raw: str) -> bool:
         parsed = urlparse(raw)
     except ValueError:
         return False
-    return parsed.scheme.lower() == "https" and bool(parsed.netloc)
+    return (
+        parsed.scheme.lower() == "https"
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+    )
 
 
 def liveuamap_requires_ui_opt_in() -> bool:

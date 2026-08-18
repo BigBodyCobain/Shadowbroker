@@ -3,7 +3,7 @@
 Global Incidents itself is backed independently by GDELT. This module adds
 LiveUAMap pins when either an operator-configured supported API is available or
 the existing Playwright provider is allowed. Provider failures are isolated and
-return an empty enrichment set instead of breaking the scheduler.
+return an empty enrichment set instead of breaking the fetch scheduler.
 
 The browser provider intentionally does not add any new anti-bot behavior. It
 retains the repository's pre-existing Playwright/stealth profile for backward
@@ -82,9 +82,20 @@ def _api_url() -> str:
         parsed = urlparse(raw)
     except ValueError:
         return ""
-    if parsed.scheme.lower() != "https" or not parsed.netloc:
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
         return ""
     return raw
+
+
+def _public_api_base_url(raw: str) -> str:
+    """Return a URL safe to use for relative links without exposing query auth."""
+    parsed = urlparse(raw)
+    return parsed._replace(query="", fragment="").geturl()
 
 
 def _api_headers() -> dict[str, str]:
@@ -116,22 +127,35 @@ def _fetch_liveuamap_api() -> list[dict[str, Any]]:
     timeout_s = _bounded_int_env("LIVEUAMAP_API_TIMEOUT_S", 30, minimum=5, maximum=120)
     hostname = urlparse(url).hostname or "configured endpoint"
     logger.info("Fetching LiveUAMap supported API from %s", hostname)
-    response = requests.get(url, headers=_api_headers(), timeout=(5, timeout_s))
+    # Refuse redirects while sending operator credentials. A custom auth header
+    # is not guaranteed to be stripped by requests on a redirect, so the safest
+    # contract is that LIVEUAMAP_API_URL names the final HTTPS endpoint.
+    response = requests.get(
+        url,
+        headers=_api_headers(),
+        timeout=(5, timeout_s),
+        allow_redirects=False,
+    )
+    if 300 <= response.status_code < 400:
+        raise requests.HTTPError("LiveUAMap API redirected; configure the final HTTPS endpoint")
     response.raise_for_status()
     try:
         payload = response.json()
-    except (requests.JSONDecodeError, ValueError) as exc:
+    except ValueError as exc:
         raise ValueError("LiveUAMap API did not return JSON/GeoJSON") from exc
 
     candidates = normalize_liveuamap_payload(payload)
     markers = _format_markers(
         candidates,
         region="LiveUAMap",
-        base_url=url,
+        base_url=_public_api_base_url(url),
+        fallback_link="https://liveuamap.com",
         provider="api",
     )
     if not markers:
-        raise ValueError(f"LiveUAMap API returned no recognizable point markers ({payload_shape(payload)})")
+        raise ValueError(
+            f"LiveUAMap API returned no recognizable point markers ({payload_shape(payload)})"
+        )
     logger.info("LiveUAMap API returned %s normalized markers", len(markers))
     return markers
 
@@ -249,21 +273,23 @@ def _fetch_liveuamap_browser() -> list[dict[str, Any]]:
                             )
                         page.wait_for_timeout(5_000)
                         html = page.content()
-                        if _looks_like_challenge(html):
-                            logger.warning(
-                                "LiveUAMap %s appears to be serving an access challenge; "
-                                "leaving this region empty",
-                                region["name"],
-                            )
-                            failed_regions += 1
-                            continue
 
+                        # Try the useful payload before classifying the page as
+                        # a challenge. Normal pages may legitimately load a
+                        # Turnstile asset; valid marker data should win.
                         payload = _read_page_payload(page, html)
                         if payload is None:
-                            logger.warning(
-                                "LiveUAMap %s did not expose an ovens payload",
-                                region["name"],
-                            )
+                            if _looks_like_challenge(html):
+                                logger.warning(
+                                    "LiveUAMap %s appears to be serving an access challenge; "
+                                    "leaving this region empty",
+                                    region["name"],
+                                )
+                            else:
+                                logger.warning(
+                                    "LiveUAMap %s did not expose an ovens payload",
+                                    region["name"],
+                                )
                             failed_regions += 1
                             continue
 
@@ -276,11 +302,17 @@ def _fetch_liveuamap_browser() -> list[dict[str, Any]]:
                             seen_ids=seen_ids,
                         )
                         if not region_markers:
-                            logger.warning(
-                                "LiveUAMap %s payload contained no recognizable point markers (%s)",
-                                region["name"],
-                                payload_shape(payload),
-                            )
+                            if _looks_like_challenge(html):
+                                logger.warning(
+                                    "LiveUAMap %s returned no markers and appears challenge-gated",
+                                    region["name"],
+                                )
+                            else:
+                                logger.warning(
+                                    "LiveUAMap %s payload contained no recognizable point markers (%s)",
+                                    region["name"],
+                                    payload_shape(payload),
+                                )
                             failed_regions += 1
                             continue
 
@@ -316,6 +348,7 @@ def _format_markers(
     base_url: str,
     provider: str,
     seen_ids: set[str] | None = None,
+    fallback_link: str | None = None,
 ) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
     dedupe = seen_ids if seen_ids is not None else set()
@@ -364,7 +397,7 @@ def _format_markers(
                 "lng": lng,
                 "timestamp": event_time if event_time is not None else "",
                 "date": date_str,
-                "link": link or base_url,
+                "link": link or fallback_link or base_url,
                 "region": _as_text(marker.get("region") or region).strip() or region,
                 "category": category,
                 "image": image,
