@@ -73,6 +73,17 @@ def test_api_query_token_is_not_exposed_as_marker_fallback(monkeypatch):
     assert "super-secret" not in repr(markers)
 
 
+def test_non_http_marker_link_is_rejected():
+    markers = scraper._format_markers(
+        [{"id": "evt", "lat": 10, "lng": 20, "link": "javascript:alert(1)"}],
+        region="Ukraine",
+        base_url="https://liveuamap.com",
+        provider="browser",
+    )
+    assert markers[0]["link"] == "https://liveuamap.com"
+    assert "javascript:" not in repr(markers)
+
+
 def test_api_redirect_is_refused_before_following_credentials(monkeypatch):
     monkeypatch.setenv("LIVEUAMAP_API_URL", "https://api.example.test/events")
     monkeypatch.setattr(

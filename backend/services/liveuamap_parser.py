@@ -113,20 +113,21 @@ def _collect(
             out.append(marker)
         return
 
-    # Common wrapper shapes returned by APIs or page-side serialization.
-    for key in _WRAPPER_KEYS:
-        if key in value and isinstance(value[key], (dict, list, str)):
-            _collect(value[key], out, depth=depth + 1, inherited_id=None)
-            return
-
-    # A direct marker is accepted even if coordinates are absent here; the
-    # provider formatter performs the final coordinate/range validation.
+    # Coordinate-bearing objects are markers even if they also contain a field
+    # named `data`/`events`. Check them before generic wrapper traversal so a
+    # legitimate marker cannot be swallowed by wrapper heuristics.
     if _looks_like_marker(value):
         marker = dict(value)
         if inherited_id and not marker.get("id"):
             marker["id"] = inherited_id
         out.append(marker)
         return
+
+    # Common wrapper shapes returned by APIs or page-side serialization.
+    for key in _WRAPPER_KEYS:
+        if key in value and isinstance(value[key], (dict, list, str)):
+            _collect(value[key], out, depth=depth + 1, inherited_id=None)
+            return
 
     # Some versions expose a dictionary keyed by marker ID. Traverse mapping
     # values while preserving the key as a fallback identifier.

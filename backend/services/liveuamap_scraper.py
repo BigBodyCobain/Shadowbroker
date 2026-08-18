@@ -274,9 +274,9 @@ def _fetch_liveuamap_browser() -> list[dict[str, Any]]:
                         page.wait_for_timeout(5_000)
                         html = page.content()
 
-                        # Try the useful payload before classifying the page as
-                        # a challenge. Normal pages may legitimately load a
-                        # Turnstile asset; valid marker data should win.
+                        # Try useful marker state before classifying the page as
+                        # a challenge. Normal pages may load Turnstile assets;
+                        # valid marker data should win over that heuristic.
                         payload = _read_page_payload(page, html)
                         if payload is None:
                             if _looks_like_challenge(html):
@@ -341,6 +341,26 @@ def _fetch_liveuamap_browser() -> list[dict[str, Any]]:
     return []
 
 
+def _normalize_marker_link(raw: Any, base_url: str) -> str:
+    """Resolve only HTTP(S) marker links; reject active/non-web URL schemes."""
+    text = _as_text(raw).strip()
+    if not text:
+        return ""
+    try:
+        parsed = urlparse(text)
+    except ValueError:
+        return ""
+    if parsed.scheme:
+        return text if parsed.scheme.lower() in {"http", "https"} else ""
+
+    try:
+        resolved = urljoin(base_url.rstrip("/") + "/", text)
+        resolved_scheme = urlparse(resolved).scheme.lower()
+    except ValueError:
+        return ""
+    return resolved if resolved_scheme in {"http", "https"} else ""
+
+
 def _format_markers(
     candidates: list[dict[str, Any]],
     *,
@@ -374,9 +394,7 @@ def _format_markers(
         image = _as_text(marker.get("img") or marker.get("image") or marker.get("photo") or "").strip()
         source = _as_text(marker.get("source") or marker.get("src") or "").strip()
         event_time = marker.get("time", marker.get("t", marker.get("timestamp", "")))
-        link = _as_text(marker.get("link") or marker.get("url") or "").strip()
-        if link and not urlparse(link).scheme:
-            link = urljoin(base_url.rstrip("/") + "/", link.lstrip("/"))
+        link = _normalize_marker_link(marker.get("link") or marker.get("url") or "", base_url)
 
         raw_id = marker.get("id", marker.get("event_id"))
         marker_id = _as_text(raw_id).strip() if raw_id is not None else ""

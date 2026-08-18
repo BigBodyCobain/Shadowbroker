@@ -44,6 +44,19 @@ def test_common_wrapper_shape():
     assert _ids(payload) == ["wrapped"]
 
 
+def test_coordinate_marker_wins_over_wrapper_named_field():
+    payload = {
+        "id": "direct",
+        "lat": 10,
+        "lng": 20,
+        "data": {"diagnostic": "metadata, not a marker wrapper"},
+    }
+    markers = normalize_liveuamap_payload(payload)
+    assert len(markers) == 1
+    assert markers[0]["id"] == "direct"
+    assert markers[0]["lat"] == 10
+
+
 def test_legacy_urlencoded_base64_json():
     raw = json.dumps([{"id": "legacy", "lat": 1, "lng": 2}]).encode()
     payload = quote(base64.b64encode(raw).decode())
