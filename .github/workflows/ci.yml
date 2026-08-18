@@ -79,4 +79,7 @@ jobs:
             tests/mesh/test_mesh_canonical.py \
             tests/mesh/test_mesh_merkle.py \
             tests/test_release_helper.py \
+            tests/test_liveuamap_scraper_opt_in.py \
+            tests/test_liveuamap_parser.py \
+            tests/test_liveuamap_provider.py \
             -v --tb=short
