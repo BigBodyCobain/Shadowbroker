@@ -52,7 +52,9 @@ COPY pyproject.toml /workspace/pyproject.toml
 COPY uv.lock /workspace/uv.lock
 COPY backend/pyproject.toml /workspace/backend/pyproject.toml
 
-# Install Python dependencies using the lockfile
+# Install Python dependencies using the lockfile. Playwright's Chromium install
+# also includes the matching headless-shell bundle used by default headless
+# launches; the runtime-user assertion below verifies both are actually present.
 RUN cd /workspace/backend && uv sync --frozen --no-dev --extra road-corridor \
     && playwright install --with-deps chromium \
     && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
@@ -90,10 +92,10 @@ RUN adduser --system --uid 1001 --home /app backenduser \
 USER backenduser
 
 # Build-time packaging assertion for #516. Do not launch Chromium here because
-# multi-arch image builds may run under emulation; instead verify that the exact
-# runtime user resolves an executable Chromium and that the headless-shell
-# bundle used by headless launches is present and executable.
-RUN python -c "import os; from pathlib import Path; from playwright.sync_api import sync_playwright; p=sync_playwright().start(); path=p.chromium.executable_path; assert os.path.isfile(path), path; assert os.access(path, os.X_OK), path; shells=list(Path(os.environ['PLAYWRIGHT_BROWSERS_PATH']).glob('chromium_headless_shell-*/**/headless_shell')); assert any(s.is_file() and os.access(s, os.X_OK) for s in shells), shells; print('Playwright runtime browser:', path, 'headless-shell:', shells[0]); p.stop()"
+# downstream users may cross-build under emulation; instead verify that the exact
+# runtime user resolves an executable Chromium and can see the headless-shell
+# binary Playwright's default headless launch expects.
+RUN python -c "import os; from pathlib import Path; from playwright.sync_api import sync_playwright; p=sync_playwright().start(); path=p.chromium.executable_path; assert os.path.isfile(path), path; assert os.access(path, os.X_OK), path; shells=list(Path(os.environ['PLAYWRIGHT_BROWSERS_PATH']).glob('chromium_headless_shell-*/**/chrome-headless-shell')); assert any(s.is_file() and os.access(s, os.X_OK) for s in shells), shells; print('Playwright runtime browser:', path, 'headless-shell:', shells[0]); p.stop()"
 
 # Expose port
 EXPOSE 8000
