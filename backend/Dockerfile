@@ -93,9 +93,11 @@ USER backenduser
 
 # Build-time packaging assertion for #516. Do not launch Chromium here because
 # downstream users may cross-build under emulation; instead verify that the exact
-# runtime user resolves an executable Chromium and can see the headless-shell
-# binary Playwright's default headless launch expects.
-RUN python -c "import os; from pathlib import Path; from playwright.sync_api import sync_playwright; p=sync_playwright().start(); path=p.chromium.executable_path; assert os.path.isfile(path), path; assert os.access(path, os.X_OK), path; shells=list(Path(os.environ['PLAYWRIGHT_BROWSERS_PATH']).glob('chromium_headless_shell-*/**/chrome-headless-shell')); assert any(s.is_file() and os.access(s, os.X_OK) for s in shells), shells; print('Playwright runtime browser:', path, 'headless-shell:', shells[0]); p.stop()"
+# runtime user resolves an executable Chromium and can see the architecture-
+# specific headless-shell binary Playwright's default headless launch expects.
+# Playwright names that binary chrome-headless-shell on Linux x64 and
+# headless_shell on Linux arm64.
+RUN python -c "import os; from pathlib import Path; from playwright.sync_api import sync_playwright; p=sync_playwright().start(); path=p.chromium.executable_path; assert os.path.isfile(path), path; assert os.access(path, os.X_OK), path; root=Path(os.environ['PLAYWRIGHT_BROWSERS_PATH']); shells=[s for s in root.glob('chromium_headless_shell-*/*/*') if s.name in {'chrome-headless-shell','headless_shell'} and s.is_file() and os.access(s, os.X_OK)]; assert shells, list(root.glob('chromium_headless_shell-*/*/*')); print('Playwright runtime browser:', path, 'headless-shell:', shells[0]); p.stop()"
 
 # Expose port
 EXPOSE 8000
