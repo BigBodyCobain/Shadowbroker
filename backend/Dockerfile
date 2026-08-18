@@ -55,7 +55,6 @@ COPY backend/pyproject.toml /workspace/backend/pyproject.toml
 # Install Python dependencies using the lockfile
 RUN cd /workspace/backend && uv sync --frozen --no-dev --extra road-corridor \
     && playwright install --with-deps chromium \
-    && playwright install chromium-headless-shell \
     && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 
 # Copy backend source code
