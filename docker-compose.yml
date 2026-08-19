@@ -26,6 +26,15 @@ services:
       - ADMIN_KEY=${ADMIN_KEY:-}
       - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       - AIRFRAMES_API_KEY=${AIRFRAMES_API_KEY:-}
+      # LiveUAMap is optional enrichment for Global Incidents. GDELT remains
+      # available regardless. The browser provider preserves existing Linux/
+      # Docker behavior unless explicitly disabled; paid API access is optional.
+      - SHADOWBROKER_ENABLE_LIVEUAMAP_SCRAPER=${SHADOWBROKER_ENABLE_LIVEUAMAP_SCRAPER:-}
+      - LIVEUAMAP_API_URL=${LIVEUAMAP_API_URL:-}
+      - LIVEUAMAP_API_KEY=${LIVEUAMAP_API_KEY:-}
+      - LIVEUAMAP_API_AUTH_HEADER=${LIVEUAMAP_API_AUTH_HEADER:-Authorization}
+      - LIVEUAMAP_API_AUTH_SCHEME=${LIVEUAMAP_API_AUTH_SCHEME:-Bearer}
+      - LIVEUAMAP_API_TIMEOUT_S=${LIVEUAMAP_API_TIMEOUT_S:-30}
       # Override allowed CORS origins (comma-separated). Auto-detects LAN IPs if empty.
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       # Private Infonet bootstrap seeds. Seeds are discovery hints, not fixed roots.

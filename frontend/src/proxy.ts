@@ -43,6 +43,8 @@ function isPrivilegedApiPath(pathname: string): boolean {
     path === '/api/debug-latest' ||
     path === '/api/system/update' ||
     path === '/api/layers' ||
+    path === '/api/liveuamap' ||
+    path.startsWith('/api/liveuamap/') ||
     path === '/api/ais/feed' ||
     path === '/api/mesh/infonet/ingest' ||
     path === '/api/mesh/meshtastic/send' ||
