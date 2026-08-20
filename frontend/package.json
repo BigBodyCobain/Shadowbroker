@@ -28,7 +28,7 @@
     "framer-motion": "^12.38.0",
     "hls.js": "^1.6.15",
     "lucide-react": "^0.575.0",
-    "maplibre-gl": "^4.7.1",
+    "maplibre-gl": "^6.4.0",
     "next": "^16.2.7",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
