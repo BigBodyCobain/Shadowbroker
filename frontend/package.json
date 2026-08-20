@@ -31,7 +31,7 @@
     "maplibre-gl": "^4.7.1",
     "next": "^16.2.7",
     "qrcode": "^1.5.4",
-    "react": "^19.2.7",
+    "react": "^19.2.8",
     "react-dom": "^19.2.7",
     "react-map-gl": "^8.1.0",
     "satellite.js": "^6.0.2",
