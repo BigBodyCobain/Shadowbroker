@@ -1,8 +1,10 @@
 import type { ActiveLayers } from '@/types/dashboard';
+import { API_BASE } from '@/lib/api';
 
 export const LAYER_PREFERENCES_STORAGE_KEY = 'sb_active_layers_v1';
 export const DASHBOARD_PREFS_STORAGE_KEY = 'sb_dashboard_prefs_v1';
 export const DASHBOARD_PREFS_VERSION = 1;
+export const LAYER_PREFERENCES_CHANGED_EVENT = 'sb:layer-preferences-changed';
 
 export const MAP_STYLES = ['DEFAULT', 'SATELLITE'] as const;
 export type MapStyle = (typeof MAP_STYLES)[number];
@@ -91,6 +93,10 @@ export function getDefaultActiveLayers(): ActiveLayers {
 }
 
 const ACTIVE_LAYER_KEYS = Object.keys(getDefaultActiveLayers()) as (keyof ActiveLayers)[];
+const LAYER_BACKEND_SYNC_INTERVAL_MS = 5000;
+let layerBackendSyncTimer: number | null = null;
+let layerBackendSyncInFlight = false;
+let repairedDefaultBackendState = false;
 
 function isBooleanRecord(value: unknown): value is Record<string, boolean> {
   if (!value || typeof value !== 'object') return false;
@@ -174,8 +180,99 @@ export function loadActiveLayers(): ActiveLayers {
   return mergeActiveLayers(defaults, readDashboardPrefs().layers);
 }
 
+function layerMapsEqual(left: ActiveLayers, right: ActiveLayers): boolean {
+  return ACTIVE_LAYER_KEYS.every((key) => left[key] === right[key]);
+}
+
+function emitLayerPreferencesChanged(layers: ActiveLayers): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent<ActiveLayers>(LAYER_PREFERENCES_CHANGED_EVENT, { detail: layers }),
+  );
+}
+
+/**
+ * Quietly repair the backend's process-local layer gate after a runtime restart.
+ *
+ * The dashboard already saves the operator's layer choices locally. The backend,
+ * however, resets its fetcher gates on process restart. This reconciliation loop
+ * observes the existing GET /api/layers endpoint and replays the saved operator
+ * state only when the backend is unmistakably back at its shipped defaults.
+ * It deliberately leaves other non-default server state alone, so independent
+ * clients do not get into a five-second preference tug-of-war.
+ */
+export async function reconcileActiveLayersWithBackend(): Promise<'synced' | 'noop' | 'offline'> {
+  if (typeof window === 'undefined' || typeof fetch !== 'function') return 'offline';
+  if (layerBackendSyncInFlight) return 'noop';
+  layerBackendSyncInFlight = true;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/layers`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`layer state probe failed (${response.status})`);
+
+    const payload: unknown = await response.json();
+    const rawLayers =
+      payload && typeof payload === 'object' ? (payload as { layers?: unknown }).layers : null;
+    if (!isBooleanRecord(rawLayers)) {
+      throw new Error('layer state probe returned an invalid payload');
+    }
+
+    const defaults = getDefaultActiveLayers();
+    const desired = loadActiveLayers();
+    const backend = mergeActiveLayers(defaults, rawLayers);
+    const mismatch = !layerMapsEqual(desired, backend);
+    const backendAtDefaults = layerMapsEqual(backend, defaults);
+    const shouldRepair = mismatch && backendAtDefaults && !repairedDefaultBackendState;
+
+    if (shouldRepair) {
+      const syncResponse = await fetch(`${API_BASE}/api/layers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layers: desired }),
+      });
+      if (!syncResponse.ok) {
+        throw new Error(`layer state sync failed (${syncResponse.status})`);
+      }
+      // useDataPolling already listens for this event and refreshes gated data immediately.
+      window.dispatchEvent(new Event('sb:layer-toggle'));
+      repairedDefaultBackendState = true;
+      return 'synced';
+    }
+
+    // Once the repaired non-default state is observable, arm the watchdog for a
+    // future backend restart that returns the process-local gate to defaults.
+    if (!backendAtDefaults) repairedDefaultBackendState = false;
+    return 'noop';
+  } catch {
+    return 'offline';
+  } finally {
+    layerBackendSyncInFlight = false;
+  }
+}
+
+function ensureLayerBackendSync(): void {
+  if (
+    typeof window === 'undefined' ||
+    typeof fetch !== 'function' ||
+    process.env.NODE_ENV === 'test'
+  ) {
+    return;
+  }
+  if (layerBackendSyncTimer !== null) return;
+
+  void reconcileActiveLayersWithBackend();
+  layerBackendSyncTimer = window.setInterval(() => {
+    void reconcileActiveLayersWithBackend();
+  }, LAYER_BACKEND_SYNC_INTERVAL_MS);
+}
+
 export function saveActiveLayers(layers: ActiveLayers): void {
   writeDashboardPrefs({ layers });
+  emitLayerPreferencesChanged(layers);
+  ensureLayerBackendSync();
 }
 
 export function clearActiveLayersPreference(): void {
@@ -190,6 +287,9 @@ export function clearActiveLayersPreference(): void {
   } catch {
     /* ignore */
   }
+  const defaults = getDefaultActiveLayers();
+  emitLayerPreferencesChanged(defaults);
+  ensureLayerBackendSync();
 }
 
 export function getDefaultMapStyle(): MapStyle {
@@ -242,3 +342,7 @@ export function loadLayerSectionExpanded(): Record<string, boolean> {
 export function saveLayerSectionExpanded(expanded: Record<string, boolean>): void {
   writeDashboardPrefs({ layerSectionsExpanded: expanded });
 }
+
+// Start the passive restart watchdog as soon as the preferences module is loaded
+// in a real browser. SSR and Vitest are guarded inside ensureLayerBackendSync().
+ensureLayerBackendSync();
