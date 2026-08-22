@@ -636,6 +636,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [DigiTraffic](https://www.digitraffic.fi) | European rail positions | ~60s | No |
 | [Global Fishing Watch](https://globalfishingwatch.org) | Fishing vessel activity events | ~1hr | **Yes** (`GFW_API_TOKEN`) |
 | [Telegram public previews](https://t.me/s) | War/OSINT channel posts (`telegram_osint`) | ~1hr | No (optional `TELEGRAM_OSINT_CHANNELS`) |
+| [Xquik](https://docs.xquik.com) | Public X posts from an operator-defined search | ~30min | **Yes** (opt-in) |
 | Transport for London, NYC DOT, TxDOT | CCTV cameras (UK, US) | ~10min | No |
 | Caltrans, WSDOT, GDOT, IDOT, MDOT | CCTV cameras (5 US states) | ~10min | No |
 | Spain DGT, Madrid City | CCTV cameras (Spain) | ~10min | No |
@@ -1141,6 +1142,9 @@ OPENCLAW_ACCESS_TIER=restricted               # OpenClaw agent tier: "restricted
 GFW_API_TOKEN=your_gfw_token                  # Global Fishing Watch — fishing_activity layer (Settings → Maritime)
 TELEGRAM_OSINT_ENABLED=true                   # Telegram OSINT layer (default on)
 TELEGRAM_OSINT_CHANNELS=osintdefender,...     # Comma-separated public channel slugs (see .env.example)
+XQUIK_ENABLED=false                           # Opt-in X search enrichment
+XQUIK_API_KEY=                                # Server-side API key
+XQUIK_SEARCH_QUERY=                           # Operator-defined search query
 
 # Private-lane privacy-core pinning (required when Arti or RNS is enabled)
 PRIVACY_CORE_MIN_VERSION=0.1.0

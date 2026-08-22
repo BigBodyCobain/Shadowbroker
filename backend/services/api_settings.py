@@ -156,6 +156,15 @@ API_REGISTRY = [
         "required": False,
     },
     {
+        "id": "xquik_api_key",
+        "env_key": "XQUIK_API_KEY",
+        "name": "Xquik — API Key",
+        "description": "Server-side key for opt-in X post search in the shared news and threat feed.",
+        "category": "Intelligence",
+        "url": "https://docs.xquik.com/",
+        "required": False,
+    },
+    {
         "id": "yfinance",
         "env_key": None,
         "name": "Yahoo Finance (yfinance)",

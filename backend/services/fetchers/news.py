@@ -5,11 +5,13 @@ import time
 import logging
 import calendar
 import concurrent.futures
+
 import requests
 import feedparser
 from services.network_utils import fetch_with_curl
 from services.fetchers._store import latest_data, _data_lock, _mark_fresh
 from services.fetchers.retry import with_retry
+from services.fetchers.xquik_news import fetch_xquik_entries
 from services.oracle_service import enrich_news_items, compute_global_threat_level, detect_breaking_events
 
 
@@ -200,18 +202,23 @@ def fetch_news():
         source_name, url = item
         try:
             xml_data = fetch_with_curl(url, timeout=10).text
-            return source_name, feedparser.parse(xml_data)
+            return source_name, feedparser.parse(xml_data).entries
         except (requests.RequestException, ConnectionError, TimeoutError, ValueError, KeyError, OSError) as e:
             logger.warning(f"Feed {source_name} failed: {e}")
-            return source_name, None
+            return source_name, []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(feeds), 6)) as pool:
         feed_results = list(pool.map(_fetch_feed, feeds.items()))
 
-    for source_name, feed in feed_results:
-        if not feed:
+    for entry in fetch_xquik_entries():
+        source_name = entry["source"]
+        source_weights[source_name] = 3
+        feed_results.append((source_name, [entry]))
+
+    for source_name, entries in feed_results:
+        if not entries:
             continue
-        for entry in feed.entries[:5]:
+        for entry in entries[:5]:
             # Drop articles older than the max-age threshold so the
             # threat feed doesn't show stale stories across cycles.
             pp = entry.get("published_parsed")
