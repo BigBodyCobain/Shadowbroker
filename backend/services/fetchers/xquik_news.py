@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -26,7 +27,8 @@ _MAX_TEXT_LENGTH = 500
 _cache_lock = threading.Lock()
 _cache_signature: tuple[str, int] | None = None
 _cache_entries: list[dict[str, Any]] = []
-_cache_fetched_at = 0.0
+_attempt_signature: tuple[str, int, str] | None = None
+_last_attempt_at: float | None = None
 
 
 def xquik_fetch_enabled() -> bool:
@@ -63,13 +65,22 @@ def _normalize_tweet(tweet: object) -> dict[str, Any] | None:
     if not isinstance(tweet, dict):
         return None
     tweet_id = str(tweet.get("id") or "").strip()
-    text = " ".join(str(tweet.get("text") or "").split())
+    raw_text = tweet.get("text")
     author = tweet.get("author")
     username = str(author.get("username") or "").strip() if isinstance(author, dict) else ""
-    if not _TWEET_ID_RE.fullmatch(tweet_id) or not _USERNAME_RE.fullmatch(username) or not text:
+    created_at = tweet.get("createdAt")
+    if (
+        not _TWEET_ID_RE.fullmatch(tweet_id)
+        or not _USERNAME_RE.fullmatch(username)
+        or not isinstance(raw_text, str)
+        or not isinstance(created_at, str)
+    ):
         return None
 
-    created_at = tweet.get("createdAt")
+    text = " ".join(raw_text.split())
+    created_at = created_at.strip()
+    if not text:
+        return None
     published_parts = _published_parts(created_at)
     if published_parts is None:
         return None
@@ -121,6 +132,11 @@ def _request_entries(api_key: str, query: str, limit: int) -> list[dict[str, Any
     return entries
 
 
+def _credential_fingerprint(api_key: str) -> str:
+    """Return a non-secret cache key so credential rotation retries immediately."""
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+
+
 def fetch_xquik_entries() -> list[dict[str, Any]]:
     """Return cached, normalized X posts for the configured search query."""
     if not xquik_fetch_enabled():
@@ -134,30 +150,42 @@ def fetch_xquik_entries() -> list[dict[str, Any]]:
 
     limit = _bounded_int("XQUIK_SEARCH_LIMIT", 20, 1, _MAX_RESULTS)
     interval_seconds = _bounded_int("XQUIK_SEARCH_INTERVAL_MINUTES", 30, 5, 1440) * 60
-    signature = (query, limit)
+    cache_signature = (query, limit)
+    attempt_signature = (query, limit, _credential_fingerprint(api_key))
 
-    global _cache_entries, _cache_fetched_at, _cache_signature
+    global _cache_entries, _cache_signature
+    global _attempt_signature, _last_attempt_at
     with _cache_lock:
+        now = time.monotonic()
         if (
-            _cache_signature == signature
-            and _cache_fetched_at
-            and time.monotonic() - _cache_fetched_at < interval_seconds
+            _attempt_signature == attempt_signature
+            and _last_attempt_at is not None
+            and now - _last_attempt_at < interval_seconds
         ):
-            return [dict(entry) for entry in _cache_entries]
+            if _cache_signature == cache_signature:
+                return [dict(entry) for entry in _cache_entries]
+            return []
+
+        # Record every outbound attempt, not only successes. This keeps an
+        # unhealthy provider from being retried by the 5-minute news scheduler
+        # more frequently than the operator-configured Xquik interval.
+        _attempt_signature = attempt_signature
+        _last_attempt_at = now
 
         entries = _request_entries(api_key, query, limit)
         if entries is not None:
-            _cache_signature = signature
+            _cache_signature = cache_signature
             _cache_entries = entries
-            _cache_fetched_at = time.monotonic()
-        if _cache_signature == signature:
+        if _cache_signature == cache_signature:
             return [dict(entry) for entry in _cache_entries]
         return []
 
 
 def _reset_cache_for_tests() -> None:
-    global _cache_entries, _cache_fetched_at, _cache_signature
+    global _cache_entries, _cache_signature
+    global _attempt_signature, _last_attempt_at
     with _cache_lock:
         _cache_signature = None
         _cache_entries = []
-        _cache_fetched_at = 0.0
+        _attempt_signature = None
+        _last_attempt_at = None

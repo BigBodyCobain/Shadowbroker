@@ -93,6 +93,8 @@ def test_request_is_bounded_and_normalizes_untrusted_posts(monkeypatch) -> None:
                     _tweet(tweet_id="9876543210", username="invalid-name"),
                     {**_tweet(tweet_id="111"), "createdAt": "not-a-date"},
                     {"id": "42", "text": "", "author": {"username": "empty"}},
+                    {**_tweet(tweet_id="222"), "text": {"unexpected": "shape"}},
+                    {**_tweet(tweet_id="333"), "createdAt": 1234567890},
                     "not-an-object",
                 ]
             }
@@ -139,7 +141,7 @@ def test_successful_results_are_cached_and_copied(monkeypatch) -> None:
     assert second[0]["title"] == "Missile strike reported in Kyiv"
 
 
-def test_http_failure_keeps_cached_results_without_retry(monkeypatch) -> None:
+def test_http_failure_keeps_cached_results_and_respects_poll_interval(monkeypatch) -> None:
     _enable(monkeypatch)
     responses = [_Response({"tweets": [_tweet()]}), _Response({}, status_code=429)]
     calls = 0
@@ -150,11 +152,48 @@ def test_http_failure_keeps_cached_results_without_retry(monkeypatch) -> None:
         return responses.pop(0)
 
     monkeypatch.setattr(xquik_news.requests, "get", fake_get)
-    clock = iter((1000.0, 2801.0))
+    clock = iter((1000.0, 2801.0, 2802.0))
     monkeypatch.setattr(xquik_news.time, "monotonic", lambda: next(clock))
-    expected = xquik_news.fetch_xquik_entries()
 
+    expected = xquik_news.fetch_xquik_entries()
     assert xquik_news.fetch_xquik_entries() == expected
+    assert xquik_news.fetch_xquik_entries() == expected
+    assert calls == 2
+
+
+def test_failure_without_cache_is_throttled(monkeypatch) -> None:
+    _enable(monkeypatch)
+    calls = 0
+
+    def fake_get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return _Response({}, status_code=503)
+
+    monkeypatch.setattr(xquik_news.requests, "get", fake_get)
+    clock = iter((1000.0, 1001.0))
+    monkeypatch.setattr(xquik_news.time, "monotonic", lambda: next(clock))
+
+    assert xquik_news.fetch_xquik_entries() == []
+    assert xquik_news.fetch_xquik_entries() == []
+    assert calls == 1
+
+
+def test_api_key_rotation_bypasses_failed_attempt_backoff(monkeypatch) -> None:
+    _enable(monkeypatch)
+    responses = [_Response({}, status_code=401), _Response({"tweets": [_tweet()]})]
+    calls = 0
+
+    def fake_get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return responses.pop(0)
+
+    monkeypatch.setattr(xquik_news.requests, "get", fake_get)
+
+    assert xquik_news.fetch_xquik_entries() == []
+    monkeypatch.setenv("XQUIK_API_KEY", "rotated-unit-test-key")
+    assert len(xquik_news.fetch_xquik_entries()) == 1
     assert calls == 2
 
 
@@ -162,7 +201,9 @@ def test_failed_query_change_does_not_reuse_another_query(monkeypatch) -> None:
     _enable(monkeypatch)
     responses = [_Response({"tweets": [_tweet()]}), _Response({}, status_code=503)]
     monkeypatch.setattr(
-        xquik_news.requests, "get", lambda *args, **kwargs: responses.pop(0)
+        xquik_news.requests,
+        "get",
+        lambda *args, **kwargs: responses.pop(0),
     )
     assert len(xquik_news.fetch_xquik_entries()) == 1
 
@@ -176,6 +217,7 @@ def test_redirect_and_invalid_json_fail_closed(monkeypatch) -> None:
 
     monkeypatch.setattr(xquik_news.requests, "get", lambda *args, **kwargs: responses.pop(0))
     assert xquik_news.fetch_xquik_entries() == []
+    monkeypatch.setenv("XQUIK_SEARCH_QUERY", "different region")
     assert xquik_news.fetch_xquik_entries() == []
 
 
