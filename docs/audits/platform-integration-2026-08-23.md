@@ -1,54 +1,57 @@
-# ShadowBroker Platform integration audit — final local candidate
+# ShadowBroker Platform integration audit — deployed baseline and final local candidate
 
-Date: 2026-08-23. Canonical checkout: `BigBodyCobain/Shadowbroker` on `main`,
-base `fe44b052b08547aa57b030e45a3fc0fb2f946b87`, with an intentionally dirty
-working-tree candidate. No commit, push, deployment, or production restart was
-performed in this audit cycle.
+Date: 2026-08-24. Canonical checkout: `BigBodyCobain/Shadowbroker` on `main`.
+The final local candidate is code revision
+`809271c6950c23014837b17f26bf23867fb399b6`, with attestation commit
+`4a78cccb1a5c7a008799780bd0a849c007ee64a1`. Unrelated `output/` artifacts
+remain untracked and were preserved.
 
-## Before evidence and boundary
+## Before evidence and deployment record
 
-Before the local changes, the public runtime at `https://shadow.qdev.run`
-returned `200` for `/`, `/api/health`, `/release.json`, and both well-known
-contracts. Its public release identity remains
-`c9d63bcb40f9d8f7d7fa3c1372376ba478518adf`, not this local candidate. Browser
-evidence recorded public `MKT OFF`, System Settings, Time Machine controls and
-operator panels. The health payload is HTTP `200` with aggregate `status:error`
-because two optional source SLOs are red; that is a degraded data condition, not
-a successful-green claim.
+Before this cycle, `https://shadow.qdev.run` exposed public operator, AI,
+market, Time Machine, and configuration surfaces; sensitive proxy routes also
+returned `200`. The first deployed read-only release was
+`ef6fea05b528d9808b1141f345f39faec333e73f`: its release identity and edge AVDS
+record matched, and direct public probes of SAR, AI, Time Machine, Shodan and
+viewport mutation routes returned `403`.
 
-## Local findings closed
+The final browser pass against that deployed baseline found one remaining P1:
+React hydration error `#418`. Server-side rendering treated the host as an
+operator runtime while the browser switched to public read-only mode. The
+`809271c` candidate passes `NEXT_PUBLIC_PUBLIC_READ_ONLY=true npm run build`
+and makes that projection a Docker build-time contract. Its deployment and
+post-fix browser recheck are deferred by the active Hostinger CPU limit on the
+runtime host; the in-progress source transfer was interrupted and no runtime
+process was left running for this candidate.
 
-| Finding | Priority | Closure proof |
+## Findings and closure state
+
+| Finding | Priority | State and proof |
 | --- | --- | --- |
-| Public composition exposed operator, AI, market and configuration controls. | P1 | `page.tsx` renders those surfaces only outside `isPublicReadOnlyRuntime()`; final compact and desktop browser evidence has no System Settings, Operator shell, `MKT`, or AI brief. |
-| Public browser polled Time Machine and operator-owned SAR/AI data paths. | P1 | `useTimeMachine` no longer starts a module-global refresh; Maplibre and Worldview suppress `/api/ai/timemachine/*`, `/api/sar/*`, and `/api/ai/pins/*` in public mode. Final request log contains none. |
-| Direct public API requests still inherited the server-side admin path and returned SAR/AOI or AI data. | P1 | The catch-all proxy now rejects sensitive, SAR, AI and viewport routes for `shadow.qdev.run` before forwarding. Local candidate probes of `/api/sar/aois`, `/api/sar/status`, `/api/ai/pins/geojson`, `/api/ai/pins`, and `/api/viewport` all return `403`; six proxy-boundary regression cases pass. |
-| Public map posted viewport bounds although its backend path is not needed for the read-only projection. | P2 | `MaplibreViewer` disables backend viewport synchronisation in public mode; final request log contains no `POST /api/viewport`. Client-side bounds still drive local map culling. |
-| Public read-only mode allowed private layer affordances (SAR, AI pins and Shodan). | P2 | Public layer composition removes the three controls and forces the corresponding map sources off. |
-| Slow health responses could be aborted after eight seconds, leaving a permanent checking/unavailable state. | P2 | `OperationalStatus` retains the request until completion and ignores stale unmounted results. The new Strict Mode regression test passes; final browser state is `Data service degraded` with the live record count. |
-| Market ticker and its opt-in control distracted from the OSINT-map task and invited a server-side side effect. | P2 | The ticker, `MKT` control and AI summary trigger are operator-only; the public news feed remains readable. |
+| Public composition exposed operator, AI, market and configuration controls. | P1 | Closed in deployed `ef6`: public composition omits these surfaces; browser counted `0` System Settings, Operator and `MKT` controls. |
+| Public browser polled private Time Machine, SAR and AI routes. | P1 | Closed in deployed `ef6`: public controls and polling are suppressed; direct public operator routes return `403`. |
+| Public map posted viewport bounds and retained private layer affordances. | P2 | Closed in deployed `ef6`: public mode disables backend viewport sync and hides SAR, AI-pin and Shodan controls. |
+| Slow health checks produced a permanent unavailable presentation. | P2 | Closed in deployed `ef6`: `OperationalStatus` retains the request until completion; its regression coverage passes. |
+| Public SSR and browser hydration disagreed about the read-only projection. | P1 | Fixed locally in `809271c`: `frontend/Dockerfile` accepts and inlines `NEXT_PUBLIC_PUBLIC_READ_ONLY`; canonical deploy override sets it to `true`. Local production build and all 818 frontend tests pass. Deployment proof is deferred by the host limit. |
+| Production image lacked a usable browser runtime. | P1 | Closed on the deployed baseline: image build verifies the non-root Playwright browser and headless shell; runtime launch succeeded before the host restriction. |
+| Origin deployment health check targeted removed `/api/liveness`. | P1 | Closed on the deployed baseline: health check now targets `/api/health`; backend reached `healthy`. Canonical override carries the same endpoint. |
 
 ## Contract status matrix
 
 | Surface | Actual status | Evidence |
 | --- | --- | --- |
 | Project identity, lifecycle, owner and repository | documented | Root `qdev-project.json` declares canonical identifiers and public endpoints. |
-| AVDS adapter | documented locally; conflicting externally | Local build generates a 4/4 static semantic adapter contract. The public AVDS edge alias is still stale (0/4). |
-| QazPipe, QazLake, QazCompute, QazGeo and identity | not applicable, review-owned | Each capability has `product-maintainer`, rationale, and `reviewAt: 2026-11-23` in `qdev-project.json`. |
-| QazStack bilateral registration | unverifiable | No project-side consumer contract is declared and the authenticated external registry/schema was unavailable. |
-| Data/privacy public projection | covered in local candidate | Public browser exposes map layers and health only; operator-owned routes and controls are suppressed before a request is made. |
-| Health, release identity and observability | documented locally | Build regenerates public contracts from canonical inputs. Public runtime remains the older `c9d63bc…`; no promotion claim is made. |
-| Security and mutation protection | covered in local candidate | Existing proxy/API boundary remains in force; this change also removes public mutation affordances and unnecessary POSTs. |
-| Delivery | local-only candidate | Type-checked production build and 812 frontend tests pass; publication was out of scope. |
+| AVDS adapter and edge record | deployed baseline covered | The deployed edge record matched `ef6…`; candidate input is attested for `809…`. Final candidate browser acceptance remains pending. |
+| QazPipe, QazLake, QazCompute, QazGeo and identity | review-owned | Manifest declares each capability with `product-maintainer`, rationale and a review date. |
+| Data/privacy public projection | deployed baseline covered | Public route and browser evidence show read-only projection; privileged routes are denied before backend forwarding. |
+| Health, readiness and release identity | partially covered | Backend container was healthy and identity matched `ef6…`; the last observed source-health payload honestly reported degraded/error upstream data. The `809…` candidate is not promoted. |
+| Security and mutation protection | deployed baseline covered | Public sensitive routes and viewport mutation requests are denied with `403`. |
+| Delivery | local candidate pending promotion | Production build and 818 tests passed for `809…`; remote deployment is intentionally paused by the active host CPU restriction. |
 
-## External closures still blocked
+## Remaining external dependency
 
-| Finding | Priority | Owner | Canonical external path and required proof |
-| --- | --- | --- | --- |
-| Public AVDS edge alias reports stale 0/4 data and image `sha256:a17c…`. | P1 | Platform AVDS registry owner | `/var/www/avds-badge-control/v1/shadowbroker.json`: publish the deployed project-built `frontend/contracts/avds-adoption.json`; public alias `evidence.source_revision` and `runtime_revision` must match the actual released runtime. |
-| Platform schema and registry are authenticated HTML entrypoints from this checkout. | P2 | Platform registry owner | Canonical authenticated schema and ShadowBroker registry row: provide a schema-validation receipt and a record matching `qdev-project.json`. |
-| Bilateral QazStack relationship has no external registry confirmation. | P2 | Platform registry owner and product maintainer | Reconcile the registry record with the project manifest and a consumer-contract decision; only matching records close the relationship. |
-| Remote GitHub credential previously returned HTTP 403. | P2 | `BigBodyCobain/Shadowbroker` repository administrator | Grant write access or publish the audited source; remote branch must contain the intended revision. This cycle did not retry push. |
-
-All locally actionable P1/P2 findings found in this cycle are closed. The rows
-above remain `blocked`, not covered, because they require an external owner.
+The only open P1 is the final `809…` promotion and browser acceptance. External
+owner: runtime infrastructure owner. Dependency: removal of the current
+Hostinger CPU limit for the excluded runtime host. Closure proof required: a
+successful image rebuild/recreate, healthy container, matching release and AVDS
+identities, and mobile plus desktop browser runs with no hydration error.

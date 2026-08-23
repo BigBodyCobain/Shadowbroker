@@ -1,6 +1,6 @@
-# ShadowBroker EdPol rewrite record — final local candidate
+# ShadowBroker EdPol rewrite record — deployed baseline and final local candidate
 
-Date: 2026-08-23. Scope: public product copy in `frontend/src/app`,
+Date: 2026-08-24. Scope: public product copy in `frontend/src/app`,
 `frontend/src/components`, and `frontend/src/i18n`. Authority inputs were the
 EdPol editorial-language policy `1.1.0`
 (`sha256:3d2c66102da7f3066b6609581067a838035d7813a73366587a1437f55d2bdb76`),
@@ -37,5 +37,8 @@ fabricated metric, vague call-to-action, or ungrounded availability claim. The
 browser final state visibly uses `Data service degraded` when the source health
 is not `ok`.
 
-The current public deployment is older than this rewrite candidate and is not
-claimed as EdPol-verified by this report.
+The deployed `ef6…` public baseline contains the rewritten public composition,
+but it is not the final browser-accepted release because the later browser check
+found a hydration error. The final local candidate is `809271c…`; its change is
+packaging-only and does not alter reviewed public copy. Promotion and final
+browser verification are deferred by the active Hostinger CPU restriction.

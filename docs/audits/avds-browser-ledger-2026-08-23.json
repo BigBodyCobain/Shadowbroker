@@ -10,6 +10,11 @@
       "/api/sar/status",
       "/api/ai/pins/geojson",
       "/api/ai/pins",
+      "/api/ai/layers",
+      "/api/ai/timemachine/hourly-index",
+      "/api/ai/timemachine/snapshots",
+      "/api/ai/timemachine/config",
+      "/api/tools/shodan/status",
       "/api/viewport"
     ],
     "expectedStatus": 403
