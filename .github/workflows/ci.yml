@@ -84,4 +84,5 @@ jobs:
             tests/test_liveuamap_provider.py \
             tests/test_liveuamap_docker_contract.py \
             tests/test_xquik_news.py \
+            tests/test_aprs_is_resource_safety.py \
             -v --tb=short
