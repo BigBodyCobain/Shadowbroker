@@ -27,7 +27,6 @@ _MAX_TEXT_LENGTH = 500
 _cache_lock = threading.Lock()
 _cache_signature: tuple[str, int] | None = None
 _cache_entries: list[dict[str, Any]] = []
-_cache_fetched_at = 0.0
 _attempt_signature: tuple[str, int, str] | None = None
 _last_attempt_at = 0.0
 
@@ -154,7 +153,7 @@ def fetch_xquik_entries() -> list[dict[str, Any]]:
     cache_signature = (query, limit)
     attempt_signature = (query, limit, _credential_fingerprint(api_key))
 
-    global _cache_entries, _cache_fetched_at, _cache_signature
+    global _cache_entries, _cache_signature
     global _attempt_signature, _last_attempt_at
     with _cache_lock:
         now = time.monotonic()
@@ -177,18 +176,16 @@ def fetch_xquik_entries() -> list[dict[str, Any]]:
         if entries is not None:
             _cache_signature = cache_signature
             _cache_entries = entries
-            _cache_fetched_at = now
         if _cache_signature == cache_signature:
             return [dict(entry) for entry in _cache_entries]
         return []
 
 
 def _reset_cache_for_tests() -> None:
-    global _cache_entries, _cache_fetched_at, _cache_signature
+    global _cache_entries, _cache_signature
     global _attempt_signature, _last_attempt_at
     with _cache_lock:
         _cache_signature = None
         _cache_entries = []
-        _cache_fetched_at = 0.0
         _attempt_signature = None
         _last_attempt_at = 0.0
