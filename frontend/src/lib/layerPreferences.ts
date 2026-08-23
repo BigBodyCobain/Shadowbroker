@@ -1,5 +1,6 @@
 import type { ActiveLayers } from '@/types/dashboard';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 export const LAYER_PREFERENCES_STORAGE_KEY = 'sb_active_layers_v1';
 export const DASHBOARD_PREFS_STORAGE_KEY = 'sb_dashboard_prefs_v1';
@@ -203,6 +204,7 @@ function emitLayerPreferencesChanged(layers: ActiveLayers): void {
  */
 export async function reconcileActiveLayersWithBackend(): Promise<'synced' | 'noop' | 'offline'> {
   if (typeof window === 'undefined' || typeof fetch !== 'function') return 'offline';
+  if (isPublicReadOnlyRuntime()) return 'noop';
   if (layerBackendSyncInFlight) return 'noop';
   layerBackendSyncInFlight = true;
 
@@ -261,6 +263,7 @@ function ensureLayerBackendSync(): void {
   ) {
     return;
   }
+  if (isPublicReadOnlyRuntime()) return;
   if (layerBackendSyncTimer !== null) return;
 
   void reconcileActiveLayersWithBackend();

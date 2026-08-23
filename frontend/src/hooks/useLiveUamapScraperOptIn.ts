@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 export type LiveUamapScraperStatus = {
   platform_requires_opt_in: boolean;
@@ -19,6 +20,10 @@ export function useLiveUamapScraperOptIn(enabled = true) {
   const choicePromptedRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
+    if (isPublicReadOnlyRuntime()) {
+      setStatus(null);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/liveuamap/scraper-status`);
       if (!res.ok) return;
@@ -35,6 +40,9 @@ export function useLiveUamapScraperOptIn(enabled = true) {
   }, [enabled, refreshStatus]);
 
   const setOptIn = useCallback(async (optedIn: boolean) => {
+    if (isPublicReadOnlyRuntime()) {
+      throw new Error('LiveUAMap controls are available only in the local operator runtime');
+    }
     const res = await fetch(`${API_BASE}/api/liveuamap/scraper-opt-in`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

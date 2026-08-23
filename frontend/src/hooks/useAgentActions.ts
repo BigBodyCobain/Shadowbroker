@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 interface AgentAction {
   action: string;
@@ -43,6 +44,7 @@ export function useAgentActions(
   onFlyToRef.current = onFlyTo;
 
   const poll = useCallback(async () => {
+    if (isPublicReadOnlyRuntime()) return;
     try {
       const res = await fetch(`${API_BASE}/api/ai/agent-actions`);
       if (!res.ok) return;
@@ -71,7 +73,7 @@ export function useAgentActions(
 
   useEffect(() => {
     // Poll every 3 seconds — lightweight endpoint, ~50 bytes when empty
-    if (!enabled) return;
+    if (!enabled || isPublicReadOnlyRuntime()) return;
     const interval = setInterval(poll, 3000);
     // Initial poll on mount
     poll();

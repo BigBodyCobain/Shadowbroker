@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 export type PredictionMarketsStatus = {
   enabled: boolean;
@@ -18,6 +19,10 @@ export function usePredictionMarketsOptIn(enabled = true) {
   const [status, setStatus] = useState<PredictionMarketsStatus | null>(null);
 
   const refreshStatus = useCallback(async () => {
+    if (isPublicReadOnlyRuntime()) {
+      setStatus(null);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/prediction-markets/status`);
       if (!res.ok) return;
@@ -35,6 +40,9 @@ export function usePredictionMarketsOptIn(enabled = true) {
 
   const setOptIn = useCallback(
     async (optedIn: boolean) => {
+      if (isPublicReadOnlyRuntime()) {
+        throw new Error('Prediction markets controls are available only in the local operator runtime');
+      }
       const res = await fetch(`${API_BASE}/api/prediction-markets/opt-in`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

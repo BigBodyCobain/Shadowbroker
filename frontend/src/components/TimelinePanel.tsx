@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useDataKey } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 import { controlPlaneFetch } from '@/lib/controlPlane';
 import {
   enterSnapshotMode,
@@ -86,6 +87,7 @@ export default function TimelinePanel() {
   const [scrubOffsetMs, setScrubOffsetMs] = useState<number | null>(null);
 
   useEffect(() => {
+    if (isPublicReadOnlyRuntime()) return;
     const fetchStatus = () => {
       fetch(`${API_BASE}/api/settings/timemachine`)
         .then((r) => r.json())
@@ -105,6 +107,7 @@ export default function TimelinePanel() {
   }, []);
 
   const toggleTm = useCallback(async () => {
+    if (isPublicReadOnlyRuntime()) return;
     setTmSaving(true);
     try {
       const res = await controlPlaneFetch('/api/settings/timemachine', {
@@ -130,6 +133,7 @@ export default function TimelinePanel() {
   }, [tmEnabled]);
 
   const applyPreset = useCallback(async (preset: string) => {
+    if (isPublicReadOnlyRuntime()) return;
     try {
       const res = await controlPlaneFetch('/api/ai/timemachine/config', {
         method: 'PUT',

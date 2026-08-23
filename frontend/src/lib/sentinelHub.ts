@@ -14,6 +14,7 @@
  */
 
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 // Token exchange proxied through our backend (Copernicus blocks browser CORS).
 const TOKEN_PROXY_URL = `${API_BASE}/api/sentinel/token`;
@@ -41,6 +42,10 @@ let _backendStatusPromise: Promise<boolean> | null = null;
  * tile requests). Never returns the secret itself — that stays server-side.
  */
 export async function checkBackendSentinelStatus(): Promise<boolean> {
+  if (isPublicReadOnlyRuntime()) {
+    _backendCredentialsConfigured = false;
+    return false;
+  }
   if (_backendCredentialsConfigured !== null) return _backendCredentialsConfigured;
   if (_backendStatusPromise) return _backendStatusPromise;
 

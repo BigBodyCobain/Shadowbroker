@@ -40,6 +40,7 @@ import {
 } from '@/lib/layerPreferences';
 import type { ShodanSearchMatch } from '@/types/shodan';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 import { useDataPolling, LAYER_TOGGLE_EVENT } from '@/hooks/useDataPolling';
 import { useBackendStatus, useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
@@ -310,6 +311,7 @@ export default function Dashboard() {
   const initialLayerSyncRef = useRef(false);
   useEffect(() => {
     if (!secondaryBootReady || !layerPrefsHydrated) return;
+    if (isPublicReadOnlyRuntime()) return;
     const syncLayers = (triggerRefetch: boolean) =>
       fetch(`${API_BASE}/api/layers`, {
         method: 'POST',
@@ -340,6 +342,7 @@ export default function Dashboard() {
   // missed poll self-corrects and a dropped backend just lets them lapse.
   useEffect(() => {
     if (!secondaryBootReady) return;
+    if (isPublicReadOnlyRuntime()) return;
     let cancelled = false;
     const pollOverrides = () =>
       fetch(`${API_BASE}/api/layers`)

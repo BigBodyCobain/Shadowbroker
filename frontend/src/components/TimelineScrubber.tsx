@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useDataKey } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 import { controlPlaneFetch } from '@/lib/controlPlane';
 import {
   useTimeMachine,
@@ -53,6 +54,7 @@ export default function TimelineScrubber() {
 
   // Hydration-safe: read localStorage only after mount
   useEffect(() => {
+    if (isPublicReadOnlyRuntime()) return;
     if (localStorage.getItem('sb_tm_tooltip_dismissed') === '1') {
       setTmTooltipDismissed(true);
     }
@@ -60,6 +62,7 @@ export default function TimelineScrubber() {
 
   // Check if Time Machine is enabled + refresh hourly index
   useEffect(() => {
+    if (isPublicReadOnlyRuntime()) return;
     refreshHourlyIndex();
     fetch(`${API_BASE}/api/settings/timemachine`)
       .then((r) => r.json())
@@ -76,6 +79,7 @@ export default function TimelineScrubber() {
   }, []);
 
   const toggleTm = useCallback(async () => {
+    if (isPublicReadOnlyRuntime()) return;
     const turningOn = !tmEnabled;
     try {
       const res = await controlPlaneFetch('/api/settings/timemachine', {
