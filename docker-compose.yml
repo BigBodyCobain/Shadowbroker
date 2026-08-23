@@ -80,6 +80,18 @@ services:
       - MESH_MQTT_EXTRA_ROOTS=${MESH_MQTT_EXTRA_ROOTS:-}
       - MESH_MQTT_EXTRA_TOPICS=${MESH_MQTT_EXTRA_TOPICS:-}
       - MESHTASTIC_OPERATOR_CALLSIGN=${MESHTASTIC_OPERATOR_CALLSIGN:-}
+      # APRS-IS receive is opt-in and geographically bounded on public servers.
+      # Configure a center before enabling; public radius is hard-capped at 500 km.
+      - APRS_IS_ENABLED=${APRS_IS_ENABLED:-false}
+      - APRS_IS_HOST=${APRS_IS_HOST:-rotate.aprs2.net}
+      - APRS_IS_PORT=${APRS_IS_PORT:-14580}
+      - APRS_IS_LAT=${APRS_IS_LAT:-}
+      - APRS_IS_LON=${APRS_IS_LON:-}
+      - APRS_IS_RADIUS_KM=${APRS_IS_RADIUS_KM:-100}
+      - APRS_IS_CALLSIGN=${APRS_IS_CALLSIGN:-N0CALL}
+      - APRS_IS_MAX_SIGNALS=${APRS_IS_MAX_SIGNALS:-5000}
+      - APRS_IS_PRIVATE_SERVER=${APRS_IS_PRIVATE_SERVER:-false}
+      - APRS_IS_FILTER=${APRS_IS_FILTER:-}
       # The bundled Docker UI talks to the backend across Docker's private bridge.
       # Treat that bridge as local operator access while ports remain bound to 127.0.0.1 by default.
       - SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR=${SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR:-1}
