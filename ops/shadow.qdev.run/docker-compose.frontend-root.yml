@@ -2,6 +2,13 @@
 # qdev-project.json while building its public contracts. Pair this with the
 # runtime compose file, whose working directory is ops/shadow.qdev.run.
 services:
+  backend:
+    deploy:
+      resources:
+        limits:
+          # The origin's Docker daemon is allocated one CPU.
+          cpus: "1.0"
+
   frontend:
     build:
       context: ../..
