@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from '@/lib/motion';
 import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio, Copy, Check, Network } from 'lucide-react';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 
 const CURRENT_ONBOARDING_VERSION = '0.9.81-agentic-onboarding-1';
 const STORAGE_KEY = `shadowbroker_onboarding_complete_v${CURRENT_ONBOARDING_VERSION}`;
@@ -783,6 +784,9 @@ export function useOnboarding() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
+    // The public site is a read-only research surface. Never invite an
+    // unauthenticated visitor to paste operational credentials there.
+    if (isPublicReadOnlyRuntime()) return;
     const done = localStorage.getItem(STORAGE_KEY);
     if (!done) {
       setShowOnboarding(true);
