@@ -15,3 +15,8 @@ services:
     build:
       context: ../..
       dockerfile: frontend/Dockerfile
+      args:
+        # Keep the server-rendered shell and the browser on the same public
+        # projection. Without this build-time value, SSR renders operator UI
+        # while the browser switches to read-only mode by hostname.
+        NEXT_PUBLIC_PUBLIC_READ_ONLY: "true"
