@@ -16,8 +16,8 @@
   },
   "evidence": {
     "revision_kind": "git-commit",
-    "source_revision": "113005195c9bc8d368821c35ced68ba5f241ce86",
-    "runtime_revision": "113005195c9bc8d368821c35ced68ba5f241ce86",
+    "source_revision": "ef6fea05b528d9808b1141f345f39faec333e73f",
+    "runtime_revision": "ef6fea05b528d9808b1141f345f39faec333e73f",
     "verification": "runtime identity is asserted by the release build; public browser verification is required before acceptance"
   }
 }
