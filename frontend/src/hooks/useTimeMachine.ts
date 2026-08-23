@@ -6,7 +6,7 @@
  * recorded snapshots for moving entities.
  */
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
 import { mergeData } from './useDataStore';
 import { forceRefreshLiveData, pausePolling, resumePolling } from './useDataPolling';
@@ -523,12 +523,17 @@ export function setPlaybackSpeed(secondsPerSegment: number): void {
   if (state.playing) _startPlaybackTimer();
 }
 
-export function useTimeMachine(): TimeMachineState {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
+export function useTimeMachine({ autoRefresh = true }: { autoRefresh?: boolean } = {}): TimeMachineState {
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-let _indexRefreshTimer: ReturnType<typeof setInterval> | null = null;
-if (typeof window !== 'undefined' && !_indexRefreshTimer) {
-  setTimeout(refreshHourlyIndex, 1500);
-  _indexRefreshTimer = setInterval(refreshHourlyIndex, 5 * 60 * 1000);
+  useEffect(() => {
+    if (!autoRefresh) return;
+    void refreshHourlyIndex();
+    const refreshTimer = window.setInterval(() => {
+      void refreshHourlyIndex();
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(refreshTimer);
+  }, [autoRefresh]);
+
+  return snapshot;
 }

@@ -1,36 +1,41 @@
-# ShadowBroker EdPol rewrite record
+# ShadowBroker EdPol rewrite record — final local candidate
 
-Date: 2026-08-23. Policy inputs: EdPol language policy `1.1.0` and typography
-policy `1.1.1`, retrieved as public authority inputs for this review.
+Date: 2026-08-23. Scope: public product copy in `frontend/src/app`,
+`frontend/src/components`, and `frontend/src/i18n`. Authority inputs were the
+EdPol editorial-language policy `1.1.0`
+(`sha256:3d2c66102da7f3066b6609581067a838035d7813a73366587a1437f55d2bdb76`),
+typography policy `1.1.1`, and AI-origin evidence policy. This review does not
+infer authorship from style.
 
-## Applied rewrite
+## Applied rewrite and composition changes
 
-- Replaced generic or simulated-operational copy: `GLOBAL THREAT INTERCEPT`,
-  `THREAT INTERCEPT`, `TOP SECRET // SI-TK // NOFORN`, `FLIR`, and the made-up
-  `OPTIC VIS` metric string.
-- Reframed the product subtitle in English, Farsi, French and Simplified
-  Chinese as the factual scope: map layers and intelligence feeds.
-- Replaced the faux reticle, scanlines and CRT vignette with a named page
-  identity and a source-derived service-status surface.
-- Rewrote title and description metadata to describe an OSINT map, source-aware
-  data layers and local operator controls without unsupported superiority claims.
+- The public Time Machine card now says exactly what is available: recorded
+  snapshots are available in the local operator runtime. It does not imitate an
+  available control or imply public access.
+- Removed public AI-brief and market-correlation triggers, together with the
+  market ticker. They were operator-side effects or out-of-scope visual noise,
+  not a useful public map action.
+- Public layer text no longer offers SAR, AI-pin or Shodan surfaces that belong
+  to the local operator boundary. The retained map, source layers and news use
+  direct, observable labels.
+- Existing source-derived headlines, attribution, timestamps and runtime scores
+  remain data, not editorial claims. Their source provenance remains governed by
+  the product data boundary.
 
-## Boundary and residual risk
+## Post-scan
 
-Feed items, source titles, risk scores and upstream labels remain source/runtime
-data rather than editorially rewritten product copy. Their accuracy, attribution
-and licensing must continue to be enforced by the existing product data
-boundaries. The post-change source scan is recorded with the final local
-verification evidence; no claim is made about copy in the currently deployed,
-older public runtime.
+The candidate scan considered 126 files, scanned 125, and skipped only
+`frontend/src/app/favicon.ico` as an unsupported extension. It returned 407
+`structural-candidate` matches, principally technical `unknown` placeholders
+and decorative symbols in private/operator code. The scanner declares those
+manual-context candidates; they are neither exact EdPol policy findings nor an
+AI-origin determination. The exact-rule invocation returned no blocking policy
+match.
 
-## Deterministic post-scan
+Manual review of the changed public path found no unsupported superiority,
+fabricated metric, vague call-to-action, or ungrounded availability claim. The
+browser final state visibly uses `Data service degraded` when the source health
+is not `ok`.
 
-The exact-rule scan used language-policy `1.1.0`
-(`3d2c66102da7f3066b6609581067a838035d7813a73366587a1437f55d2bdb76`)
-over eight user-facing English source files. It found no `policy-exact`
-matches. It emitted 102 `structural-candidate` source matches for `unknown`
-and decorative emoji, all marked manual-context review by the scanner rather
-than treated as an authorship or publication verdict. The verified local
-unavailable-service browser state contains neither an `unknown` placeholder
-nor the removed fabricated metric labels.
+The current public deployment is older than this rewrite candidate and is not
+claimed as EdPol-verified by this report.

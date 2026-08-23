@@ -363,7 +363,7 @@ function EmissionsEstimateBlock({ flight }: { flight: Flight }) {
     );
 }
 
-function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gtDossier, gtDossierLoading, onArticleClick, onExpandEntityGraph }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, gtDossier?: import('@/types/dashboard').GtDossier | null, gtDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void, onExpandEntityGraph?: () => void }) {
+function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gtDossier, gtDossierLoading, onArticleClick, onExpandEntityGraph, publicReadOnly = false }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, gtDossier?: import('@/types/dashboard').GtDossier | null, gtDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void, onExpandEntityGraph?: () => void, publicReadOnly?: boolean }) {
     const data = useDataKeys([
       'news', 'fimi', 'commercial_flights', 'private_flights', 'private_jets',
       'military_flights', 'tracked_flights', 'ships', 'gdelt', 'liveuamap',
@@ -1638,7 +1638,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
+                        {!publicReadOnly && <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const next = !aiSummaryOpen;
@@ -1659,7 +1659,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                             title="AI Intelligence Brief"
                         >
                             <Brain size={14} />
-                        </button>
+                        </button>}
                         {isMinimized ? (
                             <Plus size={16} className="text-cyan-400" />
                         ) : (
@@ -1678,7 +1678,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         >
                             <div className="flex items-center gap-1.5 min-w-0">
                                 <span className="px-1 border border-cyan-500/30 shrink-0">SYS.STATUS: MONITORING</span>
-                                <button
+                                {!publicReadOnly && <button
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -1703,7 +1703,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                 >
                                     <TrendingUp size={10} />
                                     MKT {marketsCorrelationEnabled ? 'ON' : 'OFF'}
-                                </button>
+                                </button>}
                             </div>
                             <span className="flex items-center gap-1 shrink-0"><Clock size={10} /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
                         </motion.div>
@@ -1746,7 +1746,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
 
             {/* AI Intelligence Brief */}
             <AnimatePresence>
-                {!isMinimized && aiSummaryOpen && (
+                {!publicReadOnly && !isMinimized && aiSummaryOpen && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}

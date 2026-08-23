@@ -1,73 +1,58 @@
-# ShadowBroker verification record — deployed public candidate
+# ShadowBroker verification record — final local candidate
 
-Date: 2026-08-23. Deployed source/runtime revision:
-`c9d63bcb40f9d8f7d7fa3c1372376ba478518adf`; `sourceDirty` is `false`.
-The frontend image is `sha256:4d471c71dfb240a5db542e6c9914482ce9aa492d269d4a86d3d48dab484ec1c9`.
-The release was staged immutably on the origin, after a verified backend-volume
-backup, then the frontend was recreated only after its production build passed.
+Date: 2026-08-23. Source baseline:
+`fe44b052b08547aa57b030e45a3fc0fb2f946b87`; the candidate has uncommitted
+changes. `NEXT_PUBLIC_PUBLIC_READ_ONLY=true` was used only for the local
+browser/build candidate. No publication action was performed.
 
 ## Passed
 
-- `node --check frontend/scripts/generate-public-contracts.cjs`, JSON parsing
-  for manifest/adoption/release contracts, and `git diff --check`.
-- `npm run contracts:generate` and `npm run build` for the previous candidate,
-  then the final origin Docker `npm run build`, which generated public contracts
-  for `c9d63bc…` and built the published image.
-- Focused frontend tests for the public-runtime and Sentinel boundaries: `4`
-  files / `42` tests, plus the final onboarding regression subset: `2` files /
-  `9` tests, all passed.
-- Targeted lint of every changed UI and contract-generation surface: `0`
-  errors and `0` warnings.
-- AVDS anti-generative and visual-craft audit ledgers both pass their supplied
-  validators with no unresolved findings.
-- Public browser pass at `390x844`: exactly one H1 (`ShadowBroker`), `MAP
-  LAYERS` is an H2, public credential onboarding is absent, the health surface
-  truthfully says `Data service degraded`, and the console has `0` errors.
-- Public HTTP proof: `/`, `/api/health`, `/release.json` and
-  `/.well-known/qdev-project.json` return `200`; public `release.json` names
-  `c9d63bc…` for both source and runtime.
-- Bundled Python 3.12 `compileall` for `backend`.
-- In a clean temporary checkout with no user data and
-  `MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK=true`:
-  `test_regen_duplicate_routes_baseline.py`, `test_no_new_duplicate_routes.py`
-  and the health smoke test passed (`7 passed`).
+- Targeted ESLint over every changed public-boundary, map, status and news-feed
+  surface: `0` errors and `0` warnings.
+- Targeted regression suite: `4` files / `34` tests passed, including Time
+  Machine public-boundary, host detection, page decomposition and slow-health
+  Strict Mode coverage.
+- Full frontend suite: `94` files / `818` tests passed.
+- `NEXT_PUBLIC_PUBLIC_READ_ONLY=true npm run build`: canonical public contracts
+  regenerated from their inputs, TypeScript passed, and the production build
+  completed.
+- Local browser, production build, proxied to current public data at
+  `127.0.0.1:3017`: compact `390x844` and desktop `1440x960` evidence both
+  show one H1, no public operator/system/market/AI controls, the explicit Time
+  Machine boundary, and a truthful `Data service degraded` state. Browser
+  console: `0` errors, `0` warnings; CSP report-only messages are informational.
+- Final browser request inventory has no Time Machine, SAR, AI-pin, prediction,
+  or viewport-sync request. Health remains a permitted public request and
+  returned `200`.
+- Direct local-candidate probes of `/api/sar/aois`, `/api/sar/status`,
+  `/api/ai/pins/geojson`, `/api/ai/pins`, and `/api/viewport` each return
+  `403` before backend forwarding; the retained local `/api/health` returns
+  `200` with its honest aggregate `error` state.
+- EdPol exact-rule invocation completed with no blocking policy match. The
+  candidate scan covered `125/126` files (favicon skipped by extension) and
+  found `407` structural candidates only; each is manual context review, not a
+  policy breach or AI-authorship finding.
+- `git diff --check` and both AVDS audit-ledger validators pass after the
+  report/evidence updates.
 
-## Evidence and known boundaries
+## Evidence layers
 
-`/api/health` returns HTTP 200 with its documented aggregate state `error`
-while data is warming or optional source SLOs are red; the UI represents this
-as the non-fabricated `degraded` state. It is not used as a claim of full data
-availability.
-
-The final public AVDS alias is an external stale registry record (0/4), not a
-copy of the deployed project contract. It remains blocked in the Platform
-integration report and is not treated as coverage evidence.
-
-## Non-blocking lint and typecheck debt
-
-The full `npm run lint` command finishes with `0 errors` and `202` legacy
-warnings. The remaining warnings are concentrated in unmodified mesh, tests,
-AI, map and legacy UI code. The candidate introduces none on its changed
-surface and the warnings do not block the type-checked production build; they
-remain P3 maintenance debt and are not presented as a clean lint baseline.
-
-Raw `npx tsc --noEmit` also includes the test fixtures under a compiler
-configuration that does not load their test-runner globals. Its remaining
-diagnostics are pre-existing test-harness/fixture debt; the actual production
-typecheck is the successful `npm run build`. A separate test `tsconfig` with
-the runner types is needed before that ad-hoc command can serve as a gate.
-
-## Full-suite boundary
-
-The same clean checkout's complete backend suite produced `2469 passed`,
-`252 failed`, `15 skipped`. This is baseline debt outside the closed findings,
-not evidence that the local candidate is fully regression-clean.
-
-| Blocker | Owner | Required closure proof |
+| Layer | Result | Identity / artifact |
 | --- | --- | --- |
-| Mesh/MLS failures require `privacy-core` shared-library output; the source exists in `privacy-core/`, but no Rust/Cargo toolchain or compiled dylib is available in this environment. | Privacy-core/runtime owner | Reproducible Rust build receipt and matching `libprivacy_core.dylib`, then a clean full-suite result. |
-| Remaining mesh privacy failures include incompatible expectations around redaction, alias continuity, signed-write and transport contracts. Changing either side without a reviewed contract would risk weakening safety controls. | Product security maintainer | Reconciled canonical security contract, explicit expected-output decisions, and passing focused suites followed by a clean full run. |
-| Running tests directly in the canonical checkout reads its encrypted local custody data and requires the unavailable `MESH_SECURE_STORAGE_SECRET`. | Local runtime-data owner | A disposable isolated test-data configuration or an authorised test secret; the private data itself was neither read nor modified. |
+| Local source candidate | passed | Working tree on base `fe44b052…`; public contracts identify it as a dirty local candidate. |
+| Local browser | passed | `output/playwright/shadowbroker-local-candidate-2026-08-23/` contains final compact `page-2026-08-23T17-23-53-231Z.png` and desktop `page-2026-08-23T17-14-13-190Z.png`. |
+| Current public runtime baseline | not re-promoted | `https://shadow.qdev.run/release.json` remains `c9d63bc…`; it does not contain the current candidate. |
+| AVDS runner | blocked by local tooling | The supplied runner cannot resolve its `playwright` package from the skill directory. Manual Playwright CLI evidence is retained, but it is not represented as an AVDS runner acceptance certificate. |
 
-The blocked rows are not promoted to `covered`; they remain external or
-baseline limitations, not release-identity evidence.
+## Known, truthful runtime condition
+
+`/api/health` is HTTP `200` with aggregate `status:error` while optional source
+SLOs remain red. The candidate calls this **degraded**, never available/green.
+Repairing upstream source freshness is outside this checkout and was not masked
+in UI or reports.
+
+## Non-local blockers
+
+See `platform-integration-2026-08-23.md` for the stale external AVDS registry,
+authenticated Platform schema/registry, bilateral QazStack proof and GitHub
+write-access owners. They are not converted into coverage claims here.

@@ -1,6 +1,7 @@
 'use client';
 
 import { API_BASE } from '@/lib/api';
+import { isPublicReadOnlyRuntime } from '@/lib/publicRuntime';
 import { clampZoom, ZOOM_MAX, ZOOM_FALLBACK } from '@/lib/mapZoom';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Map, {
@@ -405,6 +406,7 @@ const MaplibreViewer = ({
   onSarAoiDropped,
   sarAoiListVersion,
 }: Omit<MaplibreViewerProps, 'data'>) => {
+  const publicReadOnly = isPublicReadOnlyRuntime();
   const coreData = useDataKeys([
     'tracked_flights',
     'commercial_flights',
@@ -509,11 +511,12 @@ const MaplibreViewer = ({
     activeLayers.sentinel_hub;
   const imageryReferenceOverlayOpacity = activeLayers.viirs_nightlights ? 1 : 0.9;
   const backendViewportSyncEnabled =
-    activeLayers.ships_military ||
-    activeLayers.ships_cargo ||
-    activeLayers.ships_civilian ||
-    activeLayers.ships_passenger ||
-    activeLayers.ships_tracked_yachts;
+    !publicReadOnly &&
+    (activeLayers.ships_military ||
+      activeLayers.ships_cargo ||
+      activeLayers.ships_civilian ||
+      activeLayers.ships_passenger ||
+      activeLayers.ships_tracked_yachts);
 
   const { mapBounds, inView, updateBounds } = useViewportBounds(
     mapRef,
@@ -820,7 +823,10 @@ const MaplibreViewer = ({
 
   // AI Intel layer — pins from OpenClaw and the AI co-pilot
   useEffect(() => {
-    if (!activeLayers.ai_intel) return;
+    if (publicReadOnly || !activeLayers.ai_intel) {
+      setAiIntelPins([]);
+      return;
+    }
     let cancelled = false;
     const poll = async () => {
       try {
@@ -838,10 +844,10 @@ const MaplibreViewer = ({
     poll();
     const tid = setInterval(poll, 15_000); // poll every 15s
     return () => { cancelled = true; clearInterval(tid); };
-  }, [activeLayers.ai_intel, aiIntelRefreshTick]);
+  }, [activeLayers.ai_intel, aiIntelRefreshTick, publicReadOnly]);
   const aiIntelGeoJSON = useMemo(
-    () => (activeLayers.ai_intel ? buildAIIntelGeoJSON(aiIntelPins, data) : null),
-    [activeLayers.ai_intel, aiIntelPins, data],
+    () => (!publicReadOnly && activeLayers.ai_intel ? buildAIIntelGeoJSON(aiIntelPins, data) : null),
+    [activeLayers.ai_intel, aiIntelPins, data, publicReadOnly],
   );
 
   const ukraineAlertsGeoJSON = useMemo(
@@ -1463,7 +1469,10 @@ const MaplibreViewer = ({
     import('@/types/dashboard').SarAoi[]
   >([]);
   useEffect(() => {
-    if (!activeLayers.sar) return;
+    if (publicReadOnly || !activeLayers.sar) {
+      setSarAoisList([]);
+      return;
+    }
     let cancelled = false;
     const run = async () => {
       try {
@@ -1487,15 +1496,15 @@ const MaplibreViewer = ({
       cancelled = true;
       clearInterval(iv);
     };
-  }, [activeLayers.sar, sarAoiListVersion]);
+  }, [activeLayers.sar, publicReadOnly, sarAoiListVersion]);
 
   const sarAnomaliesGeoJSON = useMemo(
-    () => (activeLayers.sar ? buildSarAnomaliesGeoJSON(data?.sar_anomalies) : null),
-    [activeLayers.sar, data?.sar_anomalies],
+    () => (!publicReadOnly && activeLayers.sar ? buildSarAnomaliesGeoJSON(data?.sar_anomalies) : null),
+    [activeLayers.sar, data?.sar_anomalies, publicReadOnly],
   );
   const sarAoisGeoJSON = useMemo(
-    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),
-    [activeLayers.sar, sarAoisList],
+    () => (!publicReadOnly && activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),
+    [activeLayers.sar, publicReadOnly, sarAoisList],
   );
 
   const getSelectedEntityLiveCoords = useCallback(

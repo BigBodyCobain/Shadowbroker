@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "avds-browser-acceptance-ledger-v1",
+  "preflight": {
+    "health": "/api/health",
+    "requiredPaths": ["/", "/api/health"]
+  },
+  "publicBoundary": {
+    "deniedPaths": [
+      "/api/sar/aois",
+      "/api/sar/status",
+      "/api/ai/pins/geojson",
+      "/api/ai/pins",
+      "/api/viewport"
+    ],
+    "expectedStatus": 403
+  },
+  "viewports": [
+    { "id": "compact", "width": 390, "height": 844 },
+    { "id": "desktop", "width": 1440, "height": 960 }
+  ],
+  "routes": [
+    {
+      "id": "public-osint-map",
+      "path": "/",
+      "role": "public",
+      "states": [
+        { "id": "degraded-data", "fixtureKind": "production-like" }
+      ]
+    }
+  ],
+  "visualCraft": {
+    "required": true,
+    "allowedFontFamilies": ["Arial", "Inter", "system-ui", "sans-serif"],
+    "targets": [
+      { "id": "title", "selector": "main h1", "role": "text", "typeGroup": "page-title" },
+      { "id": "service-status", "selector": "[data-ui=service-status]", "role": "surface", "radiusGroup": "status" },
+      { "id": "timeline-boundary", "selector": "[data-ui=timeline-public-boundary]", "role": "surface", "radiusGroup": "surface" },
+      { "id": "layers-toggle", "selector": "[data-ui=map-layers-toggle]", "role": "control", "radiusGroup": "control" }
+    ]
+  }
+}

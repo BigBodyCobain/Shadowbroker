@@ -4,64 +4,71 @@
     {
       "route": "/",
       "role": "public",
-      "state": "data-service-unavailable",
+      "state": "degraded-data",
       "viewport": "390x844",
       "geometry": [
         {
-          "pattern": "The service status overlapped the compact map rail near the header.",
-          "selector": "[data-ui=service-status]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
-          "cause": "The rail used the desktop top offset at the compact breakpoint.",
-          "avdsContract": "Semantic control surfaces need a clear, non-overlapping compact composition.",
-          "fix": "Raised the compact rail offset to top-40 while keeping the desktop offset at sm:top-28.",
-          "status": "resolved"
-        },
-        {
-          "pattern": "Both compact rails could consume the map viewport when opened together.",
+          "pattern": "Compact public UI mixed private side effects into the map controls.",
           "selector": "[data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png",
-          "cause": "Layer and intelligence controls had independent open state.",
-          "avdsContract": "Compact controls should preserve a usable primary viewport.",
-          "fix": "Made the compact rails mutually exclusive; each edge toggle remains available.",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-23-53-231Z.png",
+          "cause": "The same composition was rendered for operator and public contexts.",
+          "avdsContract": "A compact control surface must contain actions the current role can complete.",
+          "fix": "Public composition filters operator-only panels and private layer affordances before layout.",
           "status": "resolved"
         }
       ],
       "radii": [
         {
-          "pattern": "Status and control surfaces lacked a shared semantic corner treatment.",
-          "selector": "[data-ui=service-status], [data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
-          "cause": "The compact overlay surfaces did not use a shared adapter token.",
-          "avdsContract": "AVDS adapter control radius token.",
-          "fix": "Applied the AVDS adapter control radius to the status and compact control surfaces.",
+          "pattern": "Public status and boundary surfaces needed a shared semantic corner treatment.",
+          "selector": "[data-ui=service-status], [data-ui=timeline-public-boundary], [data-ui=map-layers-toggle]",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-23-53-231Z.png",
+          "cause": "The initial public boundary was not represented as a named surface.",
+          "avdsContract": "Semantic status, surface and control radius roles come from the AVDS adapter.",
+          "fix": "The status, availability boundary and layer control use declared AVDS role surfaces.",
           "status": "resolved"
         }
       ],
       "typography": [
         {
-          "pattern": "Faux operational metrics and classified-language labels obscured the product hierarchy.",
-          "selector": "[data-ui=page-header], [data-ui=service-status]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
-          "cause": "Decorative surveillance-style labels substituted for the actual product and service state.",
-          "avdsContract": "Product identity and service state must be legible, semantic, and source-aware.",
-          "fix": "Replaced fabricated metrics and labels with a direct product title and factual service-state copy.",
+          "pattern": "An unavailable workflow was labelled like an operational control rather than a readable boundary.",
+          "selector": "[data-ui=timeline-public-boundary]",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-23-53-231Z.png",
+          "cause": "Configuration language remained visible to a public visitor.",
+          "avdsContract": "Public copy must use direct, role-appropriate information hierarchy.",
+          "fix": "The boundary now states that recorded snapshots are available in the local operator runtime.",
           "status": "resolved"
         }
       ],
       "space": [
         {
-          "pattern": "Compact header, status surface, controls, and map viewport needed a stable visual separation.",
-          "selector": "[data-ui=page-header], [data-ui=service-status], [data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png",
-          "cause": "Desktop overlay spacing had not been adapted to the compact control sequence.",
-          "avdsContract": "Compact spacing should keep primary controls and the map viewport independently usable.",
-          "fix": "Separated the header, status surface, and rails; the browser evidence confirms the final compact layouts.",
+          "pattern": "The market ticker took compact viewport space without serving the OSINT-map task.",
+          "selector": "main",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-23-53-231Z.png",
+          "cause": "A shared operator/public bottom anchor remained enabled.",
+          "avdsContract": "Compact composition preserves the primary map viewport and keeps secondary information intentional.",
+          "fix": "Public runtime does not render the market ticker or its toggle.",
           "status": "resolved"
         }
-      ],
-      "screenshots": [
-        "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
-        "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png"
+      ]
+    },
+    {
+      "route": "/",
+      "role": "public",
+      "state": "degraded-data",
+      "viewport": "1440x960",
+      "geometry": [],
+      "radii": [],
+      "typography": [],
+      "space": [
+        {
+          "pattern": "Desktop map hierarchy was diluted by a bottom market ticker.",
+          "selector": "main",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-14-13-190Z.png",
+          "cause": "The ticker rendered independently of the public role.",
+          "avdsContract": "A page-level composition should reserve its anchors for product-relevant information.",
+          "fix": "The final public desktop composition omits the ticker and retains map, layers, health and news surfaces.",
+          "status": "resolved"
+        }
       ]
     }
   ]

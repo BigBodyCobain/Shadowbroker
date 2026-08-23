@@ -32,21 +32,23 @@ export default function OperationalStatus() {
   const [state, setState] = useState<StatusState>({ kind: 'loading' });
 
   useEffect(() => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 8_000);
+    let active = true;
 
-    void fetch(`${API_BASE}/api/health`, { signal: controller.signal, cache: 'no-store' })
+    void fetch(`${API_BASE}/api/health`, { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error(`health ${response.status}`);
         return response.json() as Promise<HealthSnapshot>;
       })
-      .then((health) => setState({ kind: 'ready', health }))
-      .catch(() => setState({ kind: 'unavailable' }))
-      .finally(() => window.clearTimeout(timeout));
+      .then((health) => {
+        if (active) setState({ kind: 'ready', health });
+      })
+      .catch(() => {
+        if (!active) return;
+        setState({ kind: 'unavailable' });
+      });
 
     return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
+      active = false;
     };
   }, []);
 

@@ -732,6 +732,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onMinimizedChange,
   onOpenSarAoiEditor,
   viewBoundsRef,
+  publicReadOnly = false,
 }: {
   activeLayers: ActiveLayers;
   setActiveLayers: React.Dispatch<React.SetStateAction<ActiveLayers>>;
@@ -759,6 +760,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onMinimizedChange?: (minimized: boolean) => void;
   onOpenSarAoiEditor?: () => void;
   viewBoundsRef?: React.RefObject<{ south: number; west: number; north: number; east: number } | null>;
+  publicReadOnly?: boolean;
 }) {
   const data = useDataKeys(WORLDVIEW_PANEL_DATA_KEYS) as DashboardData;
   const { t } = useTranslation();
@@ -853,6 +855,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   // 'b_active' without prompting.  If it flips back to off, reset so the
   // next toggle re-prompts.
   useEffect(() => {
+    if (publicReadOnly) return;
     let cancelled = false;
     const check = async () => {
       try {
@@ -890,7 +893,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     };
     // Run on mount only — the auto-detect is best-effort.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [publicReadOnly]);
 
   // Sentinel tile loading feedback
   const [sentinelInflight, setSentinelInflight] = useState(0);
@@ -1798,7 +1801,16 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                   </div>
                 )}
 
-                {sections.map((section) => {
+                {(publicReadOnly
+                  ? sections
+                      .map((section) => ({
+                        ...section,
+                        layers: section.layers.filter(
+                          (layer) => !['ai_intel', 'sar', 'shodan_overlay'].includes(layer.id),
+                        ),
+                      }))
+                      .filter((section) => section.layers.length > 0)
+                  : sections).map((section) => {
                   const SectionIcon = section.icon;
                   const sectionLayerIds = section.layers.map((l) => l.id);
                   const allOn = sectionLayerIds.every(

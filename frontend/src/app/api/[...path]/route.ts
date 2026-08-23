@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { resolveAdminSessionToken } from '@/lib/server/adminSessionStore';
+import { isPublicReadOnlyHost } from '@/lib/publicRuntime';
 
 // Headers that must not be forwarded to the backend.
 const STRIP_REQUEST = new Set([
@@ -146,6 +147,22 @@ function forwardedHostCandidates(req: NextRequest): string[] {
   return [...hosts];
 }
 
+function isPublicReadOnlyRequest(req: NextRequest): boolean {
+  if (process.env.NEXT_PUBLIC_PUBLIC_READ_ONLY === 'true') return true;
+  return forwardedHostCandidates(req).some((host) =>
+    isPublicReadOnlyHost(hostnameFromHeaderHost(host)),
+  );
+}
+
+function isPublicReadOnlyBlockedPath(pathSegments: string[]): boolean {
+  const joined = pathSegments.join('/');
+  return (
+    isSensitiveProxyPath(pathSegments) ||
+    pathSegments[0] === 'sar' ||
+    joined === 'viewport'
+  );
+}
+
 /**
  * CSRF guard for the server-side admin-key injection (issues #249 / #254).
  *
@@ -207,6 +224,13 @@ function canUseEnvAdminKey(req: NextRequest, pathSegments: string[]): boolean {
 
 async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   try {
+    if (isPublicReadOnlyRequest(req) && isPublicReadOnlyBlockedPath(pathSegments)) {
+      return NextResponse.json(
+        { detail: 'This endpoint is available in the local operator runtime only.' },
+        { status: 403, headers: NO_STORE_PROXY_HEADERS },
+      );
+    }
+
     const isMesh = pathSegments[0] === 'mesh';
     const meshSegments = pathSegments.slice(1);
     const isSensitiveMeshPath = isMesh && meshSegments[0] === 'dm';

@@ -83,6 +83,7 @@ const InfonetTerminal = dynamic(() => import('@/components/InfonetTerminal'), { 
 export default function Dashboard() {
   const viewBoundsRef = useRef<{ south: number; west: number; north: number; east: number } | null>(null);
   const { t } = useTranslation();
+  const publicReadOnly = isPublicReadOnlyRuntime();
   // Start the critical map data request before panel/control-plane effects.
   // Non-map widgets can warm up after this; first paint needs flights, ships, and intel first.
   useDataPolling();
@@ -282,7 +283,9 @@ export default function Dashboard() {
     toggleLeft: () => setLeftOpen((p) => !p),
     toggleRight: () => setRightOpen((p) => !p),
     toggleMarkets: () => setTickerOpen((p) => !p),
-    openSettings: () => setSettingsOpen(true),
+    openSettings: () => {
+      if (!publicReadOnly) setSettingsOpen(true);
+    },
     openLegend: () => setLegendOpen((p) => !p),
     openShortcuts: () => setShortcutsOpen((p) => !p),
     deselectEntity: () => {
@@ -498,23 +501,31 @@ export default function Dashboard() {
   // Overrides merge last so they win over both the operator's toggles and the
   // first-paint suppressions below.
   const firstPaintActiveLayers = useMemo<ActiveLayers>(() => {
-    if (secondaryBootReady) return { ...activeLayers, ...layerOverrides };
+    const firstPaint = secondaryBootReady
+      ? { ...activeLayers, ...layerOverrides }
+      : {
+          ...activeLayers,
+          cctv: false,
+          sar: false,
+          gibs_imagery: false,
+          highres_satellite: false,
+          sentinel_hub: false,
+          viirs_nightlights: false,
+          road_corridor_trends: false,
+          psk_reporter: false,
+          tinygs: false,
+          datacenters: false,
+          power_plants: false,
+          ...layerOverrides,
+        };
+    if (!publicReadOnly) return firstPaint;
     return {
-      ...activeLayers,
-      cctv: false,
+      ...firstPaint,
+      ai_intel: false,
       sar: false,
-      gibs_imagery: false,
-      highres_satellite: false,
-      sentinel_hub: false,
-      viirs_nightlights: false,
-      road_corridor_trends: false,
-      psk_reporter: false,
-      tinygs: false,
-      datacenters: false,
-      power_plants: false,
-      ...layerOverrides,
+      shodan_overlay: false,
     };
-  }, [activeLayers, layerOverrides, secondaryBootReady]);
+  }, [activeLayers, layerOverrides, publicReadOnly, secondaryBootReady]);
   // Agent fly_to handler (sar_focus_aoi etc.) — wired here now that
   // setFlyToLocation is in scope.  show_image is routed through
   // useAgentActions at the top of Dashboard.
@@ -615,9 +626,10 @@ export default function Dashboard() {
                       setActiveLayers={setActiveLayers}
                       onResetLayers={resetActiveLayers}
                       shodanResultCount={shodanResults.length}
-                      onSettingsClick={() => setSettingsOpen(true)}
+                      onSettingsClick={publicReadOnly ? undefined : () => setSettingsOpen(true)}
                       onLegendClick={() => setLegendOpen(true)}
-                      onOpenSarAoiEditor={() => setSarAoiEditorOpen(true)}
+                      onOpenSarAoiEditor={publicReadOnly ? undefined : () => setSarAoiEditorOpen(true)}
+                      publicReadOnly={publicReadOnly}
                       gibsDate={gibsDate}
                       setGibsDate={setGibsDate}
                       gibsOpacity={gibsOpacity}
@@ -648,7 +660,7 @@ export default function Dashboard() {
               </div>
 
               {/* 2. MESHTASTIC CHAT (Middle) */}
-              {secondaryBootReady && (
+              {!publicReadOnly && secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <MeshChat
                     onFlyTo={handleFlyTo}
@@ -664,7 +676,7 @@ export default function Dashboard() {
               )}
 
               {/* 3. SHODAN CONNECTOR (Bottom) */}
-              {secondaryBootReady && (
+              {!publicReadOnly && secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <ShodanPanel
                     currentResults={shodanResults}
@@ -684,7 +696,7 @@ export default function Dashboard() {
               )}
 
               {/* 4. RECON + SCM */}
-              {secondaryBootReady && (
+              {!publicReadOnly && secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <ReconPanel />
                   <ScmPanel layerEnabled={activeLayers.scm_suppliers} />
@@ -692,7 +704,7 @@ export default function Dashboard() {
               )}
 
               {/* 5. AI INTEL */}
-              {secondaryBootReady && (
+              {!publicReadOnly && secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <AIIntelPanel
                     onFlyTo={handleFlyTo}
@@ -757,13 +769,15 @@ export default function Dashboard() {
               animate={{ x: rightOpen ? 0 : 440 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
-              <TopRightControls
-                onTerminalToggle={openInfonet}
-                onInfonetToggle={toggleInfonet}
-                onSettingsClick={() => setSettingsOpen(true)}
-                onMeshChatNavigate={launchMeshChatTab}
-                dmCount={dmCount}
-              />
+              {!publicReadOnly && (
+                <TopRightControls
+                  onTerminalToggle={openInfonet}
+                  onInfonetToggle={toggleInfonet}
+                  onSettingsClick={() => setSettingsOpen(true)}
+                  onMeshChatNavigate={launchMeshChatTab}
+                  dmCount={dmCount}
+                />
+              )}
 
               {/* FIND / LOCATE */}
               <div className="flex-shrink-0">
@@ -815,6 +829,7 @@ export default function Dashboard() {
                     gtDossierLoading={gtDossierLoading}
                     onExpandEntityGraph={handleExpandEntityGraph}
                     onArticleClick={handleArticleClick}
+                    publicReadOnly={publicReadOnly}
                   />
                 </ErrorBoundary>
               </div>
@@ -961,9 +976,11 @@ export default function Dashboard() {
 
 
         {/* SETTINGS PANEL */}
-        <ErrorBoundary name="SettingsPanel">
-          <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-        </ErrorBoundary>
+        {!publicReadOnly && (
+          <ErrorBoundary name="SettingsPanel">
+            <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          </ErrorBoundary>
+        )}
 
         {/* MAP LEGEND */}
         <ErrorBoundary name="MapLegend">
@@ -983,10 +1000,10 @@ export default function Dashboard() {
         {/* AIS UPSTREAM OUTAGE BANNER — renders only when AIS is configured
             but the WebSocket upstream is unreachable. Tells users the empty
             ocean isn't their fault. */}
-        <AisUpstreamBanner onOpenApiKeys={() => setSettingsOpen(true)} />
+        {!publicReadOnly && <AisUpstreamBanner onOpenApiKeys={() => setSettingsOpen(true)} />}
 
         {/* ONBOARDING MODAL */}
-        {showOnboarding && (
+        {!publicReadOnly && showOnboarding && (
           <OnboardingModal
             onClose={() => setShowOnboarding(false)}
             onOpenSettings={() => {
@@ -997,22 +1014,22 @@ export default function Dashboard() {
         )}
 
         {/* FIRST-RUN WARMUP NOTICE — shows once after onboarding */}
-        {!showOnboarding && showWarmupNotice && (
+        {!publicReadOnly && !showOnboarding && showWarmupNotice && (
           <StartupWarmupModal onClose={() => setShowWarmupNotice(false)} />
         )}
 
         {/* v0.4 CHANGELOG MODAL — shows once per version after onboarding */}
-        {!showOnboarding && !showWarmupNotice && showChangelog && (
+        {!publicReadOnly && !showOnboarding && !showWarmupNotice && showChangelog && (
           <ChangelogModal onClose={() => setShowChangelog(false)} />
         )}
 
         {/* SENTINEL HUB — first-time info modal (extracted to SentinelInfoModal.tsx) */}
-        {showSentinelInfo && (
+        {!publicReadOnly && showSentinelInfo && (
           <SentinelInfoModal onClose={() => setShowSentinelInfo(false)} />
         )}
 
         {/* SAR AOI EDITOR — portals to document.body internally */}
-        {(sarAoiEditorOpen || sarAoiDropMode) && (
+        {!publicReadOnly && (sarAoiEditorOpen || sarAoiDropMode) && (
           <SarAoiEditorModal
             onClose={() => { setSarAoiEditorOpen(false); setSarAoiDropMode(false); }}
             onRequestMapPick={() => { setSarAoiEditorOpen(false); setSarAoiDropMode(true); }}
@@ -1024,28 +1041,32 @@ export default function Dashboard() {
         )}
 
         {/* MESH TERMINAL */}
-        <MeshTerminal
-          isOpen={terminalOpen}
-          launchToken={terminalLaunchToken}
-          onClose={() => setTerminalOpen(false)}
-          onDmCount={setDmCount}
-          onSettingsClick={() => setSettingsOpen(true)}
-        />
+        {!publicReadOnly && (
+          <MeshTerminal
+            isOpen={terminalOpen}
+            launchToken={terminalLaunchToken}
+            onClose={() => setTerminalOpen(false)}
+            onDmCount={setDmCount}
+            onSettingsClick={() => setSettingsOpen(true)}
+          />
+        )}
 
         {showEntityGraph && selectedEntity && isEntityGraphEligible(selectedEntity) && (
           <EntityGraphPanel entity={selectedEntity} onClose={() => setShowEntityGraph(false)} />
         )}
 
         {/* INFONET TERMINAL */}
-        <InfonetTerminal
-          isOpen={infonetOpen}
-          onClose={() => {
-            setInfonetOpen(false);
-            void endInfonetTerminalSession();
-          }}
-          onOpenLiveGate={openLiveGateFromShell}
-          onOpenDeadDrop={openDeadDropFromShell}
-        />
+        {!publicReadOnly && (
+          <InfonetTerminal
+            isOpen={infonetOpen}
+            onClose={() => {
+              setInfonetOpen(false);
+              void endInfonetTerminalSession();
+            }}
+            onOpenLiveGate={openLiveGateFromShell}
+            onOpenDeadDrop={openDeadDropFromShell}
+          />
+        )}
 
         {/* BACKEND DISCONNECTED BANNER */}
         {backendStatus === 'disconnected' && (
@@ -1055,8 +1076,8 @@ export default function Dashboard() {
             </span>
           </div>
         )}
-        {/* BOTTOM TICKER TOGGLE TAB — moved to center-right to avoid panel overlap */}
-        <motion.div
+        {/* BOTTOM TICKER TOGGLE TAB — operator composition only */}
+        {!publicReadOnly && <motion.div
            className={`absolute bottom-0 right-[28rem] z-[8001] pointer-events-auto hud-zone transition-opacity duration-300 ${tickerOpen ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
            animate={{ y: tickerOpen ? -28 : 0 }}
            transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -1070,10 +1091,10 @@ export default function Dashboard() {
             </div>
             {tickerOpen ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
           </button>
-        </motion.div>
+        </motion.div>}
 
         {/* GLOBAL MARKETS TICKER (BOTTOM ANCHOR) */}
-        <motion.div
+        {!publicReadOnly && <motion.div
           className="absolute bottom-0 left-0 right-0 z-[8000] h-7"
           animate={{ y: tickerOpen ? 0 : 28 }}
           transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -1081,7 +1102,7 @@ export default function Dashboard() {
           <ErrorBoundary name="GlobalTicker">
             <GlobalTicker />
           </ErrorBoundary>
-        </motion.div>
+        </motion.div>}
 
       </main>
     </>

@@ -46,7 +46,8 @@ interface HourBin {
 
 export default function TimelineScrubber() {
   const news = useDataKey('news') as NewsArticle[] | undefined;
-  const tm = useTimeMachine();
+  const publicReadOnly = isPublicReadOnlyRuntime();
+  const tm = useTimeMachine({ autoRefresh: !publicReadOnly });
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tmEnabled, setTmEnabled] = useState(false);
@@ -54,15 +55,15 @@ export default function TimelineScrubber() {
 
   // Hydration-safe: read localStorage only after mount
   useEffect(() => {
-    if (isPublicReadOnlyRuntime()) return;
+    if (publicReadOnly) return;
     if (localStorage.getItem('sb_tm_tooltip_dismissed') === '1') {
       setTmTooltipDismissed(true);
     }
-  }, []);
+  }, [publicReadOnly]);
 
   // Check if Time Machine is enabled + refresh hourly index
   useEffect(() => {
-    if (isPublicReadOnlyRuntime()) return;
+    if (publicReadOnly) return;
     refreshHourlyIndex();
     fetch(`${API_BASE}/api/settings/timemachine`)
       .then((r) => r.json())
@@ -76,7 +77,7 @@ export default function TimelineScrubber() {
         .catch(() => {});
     }, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [publicReadOnly]);
 
   const toggleTm = useCallback(async () => {
     if (isPublicReadOnlyRuntime()) return;

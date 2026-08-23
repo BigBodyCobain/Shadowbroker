@@ -4,23 +4,39 @@
     {
       "route": "/",
       "role": "public",
-      "state": "data-service-unavailable",
+      "state": "degraded-data",
       "viewport": "390x844",
       "findings": [
         {
-          "pattern": "fabricated operational metrics and security labels",
+          "pattern": "A public research screen exposed AI, market and operator-looking affordances that did not belong to its task.",
           "selector": "[data-ui=page-header]",
-          "screenshot": "frontend/output/playwright/before/.playwright-cli/page-2026-08-23T14-09-46-654Z.png",
-          "semanticTest": "The before state rendered OPTIC VIS metrics and TOP SECRET-style framing without a data source.",
-          "replacement": "Named product scope plus a source-derived service-status surface.",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-10-00-526Z.png",
+          "semanticTest": "Public interaction must be limited to the OSINT map, its layer controls, filters, search, news, and source-derived health state.",
+          "replacement": "Public runtime conditionally removes private panels, market/AI triggers and ticker while preserving the map task.",
           "status": "resolved"
         },
         {
-          "pattern": "generic threat-intercept wording",
-          "selector": "[data-ui=page-header]",
-          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
-          "semanticTest": "Rendered local candidate exposes ShadowBroker, map layers and intelligence feeds, with an honest unavailable state.",
-          "replacement": "Map layers and intelligence feeds; data service is unavailable when the health contract fails.",
+          "pattern": "Time Machine presented configuration affordances to a visitor who cannot access operator snapshots.",
+          "selector": "[data-ui=timeline-public-boundary]",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-23-53-231Z.png",
+          "semanticTest": "A public boundary must state the access condition rather than simulate a disabled operational workflow.",
+          "replacement": "A short factual availability message names the local operator runtime without a control or claim of public access.",
+          "status": "resolved"
+        }
+      ]
+    },
+    {
+      "route": "/",
+      "role": "public",
+      "state": "degraded-data",
+      "viewport": "1440x960",
+      "findings": [
+        {
+          "pattern": "The public page mixed a ticker and control-plane chrome into a dense map canvas.",
+          "selector": "main",
+          "screenshot": "output/playwright/shadowbroker-local-candidate-2026-08-23/page-2026-08-23T17-10-54-554Z.png",
+          "semanticTest": "The primary desktop visual hierarchy must remain map → source controls → truthful service state, without decorative operational simulation.",
+          "replacement": "The final public shell removes ticker/control-plane chrome and keeps named AVDS semantic surfaces around the map.",
           "status": "resolved"
         }
       ]

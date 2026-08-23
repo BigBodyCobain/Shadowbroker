@@ -76,7 +76,8 @@ function pct(value: number, min: number, max: number): number {
 }
 
 export default function TimelinePanel() {
-  const tm = useTimeMachine();
+  const publicReadOnly = isPublicReadOnlyRuntime();
+  const tm = useTimeMachine({ autoRefresh: !publicReadOnly });
   const [isMinimized, setIsMinimized] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [tmEnabled, setTmEnabled] = useState(false);
@@ -87,7 +88,7 @@ export default function TimelinePanel() {
   const [scrubOffsetMs, setScrubOffsetMs] = useState<number | null>(null);
 
   useEffect(() => {
-    if (isPublicReadOnlyRuntime()) return;
+    if (publicReadOnly) return;
     const fetchStatus = () => {
       fetch(`${API_BASE}/api/settings/timemachine`)
         .then((r) => r.json())
@@ -104,7 +105,7 @@ export default function TimelinePanel() {
     refreshHourlyIndex();
     const iv = setInterval(fetchStatus, 60_000);
     return () => clearInterval(iv);
-  }, []);
+  }, [publicReadOnly]);
 
   const toggleTm = useCallback(async () => {
     if (isPublicReadOnlyRuntime()) return;
@@ -224,6 +225,20 @@ export default function TimelinePanel() {
       window.removeEventListener('pointerup', finish);
     };
   }, [commitScrub, isScrubbing, scrubOffsetMs]);
+
+  if (publicReadOnly) {
+    return (
+      <section className="bg-[rgba(5,10,18,0.92)] border border-cyan-900/40" data-ui="timeline-public-boundary">
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-cyan-900/40">
+          <Clock size={16} className="text-cyan-400" aria-hidden="true" />
+          <h2 className="text-[12px] font-mono tracking-widest font-bold text-cyan-400">TIME MACHINE</h2>
+        </div>
+        <p className="px-3 py-3 text-[12px] font-mono leading-relaxed text-[var(--text-secondary)]">
+          Recorded snapshots are available in the local operator runtime.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="bg-[rgba(5,10,18,0.92)] border border-cyan-900/40 backdrop-blur-sm">
