@@ -28,7 +28,7 @@ _cache_lock = threading.Lock()
 _cache_signature: tuple[str, int] | None = None
 _cache_entries: list[dict[str, Any]] = []
 _attempt_signature: tuple[str, int, str] | None = None
-_last_attempt_at = 0.0
+_last_attempt_at: float | None = None
 
 
 def xquik_fetch_enabled() -> bool:
@@ -159,7 +159,7 @@ def fetch_xquik_entries() -> list[dict[str, Any]]:
         now = time.monotonic()
         if (
             _attempt_signature == attempt_signature
-            and _last_attempt_at
+            and _last_attempt_at is not None
             and now - _last_attempt_at < interval_seconds
         ):
             if _cache_signature == cache_signature:
@@ -188,4 +188,4 @@ def _reset_cache_for_tests() -> None:
         _cache_signature = None
         _cache_entries = []
         _attempt_signature = None
-        _last_attempt_at = 0.0
+        _last_attempt_at = None
