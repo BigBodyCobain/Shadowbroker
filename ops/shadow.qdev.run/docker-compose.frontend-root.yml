@@ -1,0 +1,8 @@
+# Deploy override for a frontend image that needs the root-level
+# qdev-project.json while building its public contracts. Pair this with the
+# runtime compose file, whose working directory is ops/shadow.qdev.run.
+services:
+  frontend:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
