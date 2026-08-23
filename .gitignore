@@ -206,6 +206,11 @@ docs/*
 !docs/OUTBOUND_DATA.md
 !docs/production-hardening.md
 !docs/contributor-map.md
+!docs/contracts/
+!docs/contracts/*.md
+!docs/audits/
+!docs/audits/*.md
+!docs/audits/*.json
 !docs/mesh/
 docs/mesh/*
 !docs/mesh/threat-model.md

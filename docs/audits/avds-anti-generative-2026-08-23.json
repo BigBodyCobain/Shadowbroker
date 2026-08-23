@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "avds-anti-generative-audit-v1",
+  "cells": [
+    {
+      "route": "/",
+      "role": "public",
+      "state": "data-service-unavailable",
+      "viewport": "390x844",
+      "findings": [
+        {
+          "pattern": "fabricated operational metrics and security labels",
+          "selector": "[data-ui=page-header]",
+          "screenshot": "frontend/output/playwright/before/.playwright-cli/page-2026-08-23T14-09-46-654Z.png",
+          "semanticTest": "The before state rendered OPTIC VIS metrics and TOP SECRET-style framing without a data source.",
+          "replacement": "Named product scope plus a source-derived service-status surface.",
+          "status": "resolved"
+        },
+        {
+          "pattern": "generic threat-intercept wording",
+          "selector": "[data-ui=page-header]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
+          "semanticTest": "Rendered local candidate exposes ShadowBroker, map layers and intelligence feeds, with an honest unavailable state.",
+          "replacement": "Map layers and intelligence feeds; data service is unavailable when the health contract fails.",
+          "status": "resolved"
+        }
+      ]
+    }
+  ]
+}

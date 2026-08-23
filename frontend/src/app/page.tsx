@@ -7,7 +7,6 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react'
 import WorldviewLeftPanel from '@/components/WorldviewLeftPanel';
 
 import NewsFeed from '@/components/NewsFeed';
-import MarketsPanel from '@/components/MarketsPanel';
 import FilterPanel from '@/components/FilterPanel';
 import FindLocateBar from '@/components/FindLocateBar';
 import TopRightControls from '@/components/TopRightControls';
@@ -69,6 +68,7 @@ import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { SentinelInfoModal } from './SentinelInfoModal';
 import SarAoiEditorModal from '@/components/SarAoiEditorModal';
+import OperationalStatus from '@/components/OperationalStatus';
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -106,6 +106,7 @@ export default function Dashboard() {
   const [uiVisible, setUiVisible] = useState(true);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [compactLayout, setCompactLayout] = useState(false);
   const [tickerOpen, setTickerOpen] = useState(true);
 
   // Persist UI panel states
@@ -130,6 +131,20 @@ export default function Dashboard() {
     localStorage.setItem('sb_ticker_open', tickerOpen.toString());
   }, [tickerOpen]);
 
+  // Compact screens use a single open rail so map controls and intelligence
+  // content remain reachable without overlapping each other.
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const syncLayout = () => {
+      setCompactLayout(media.matches);
+      if (media.matches) setRightOpen(false);
+    };
+
+    syncLayout();
+    media.addEventListener('change', syncLayout);
+    return () => media.removeEventListener('change', syncLayout);
+  }, []);
+
   // Issue #298: kick the one-time backend Sentinel-status check on mount.
   // This populates the cached value that ``hasSentinelCredentials()`` reads
   // synchronously elsewhere (MaplibreViewer's tile-URL memo, the
@@ -142,7 +157,7 @@ export default function Dashboard() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalLaunchToken, setTerminalLaunchToken] = useState(0);
+  const terminalLaunchToken = 0;
   const [infonetOpen, setInfonetOpen] = useState(false);
   const [meshChatLaunchRequest, setMeshChatLaunchRequest] = useState<{
     tab: 'infonet' | 'meshtastic' | 'dms';
@@ -162,13 +177,7 @@ export default function Dashboard() {
   const [sarAoiEditorOpen, setSarAoiEditorOpen] = useState(false);
   const [sarAoiDropMode, setSarAoiDropMode] = useState(false);
   const [sarAoiDroppedCoords, setSarAoiDroppedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const sarAoiListChangedRef = useRef(0);
   const [sarAoiListVersion, setSarAoiListVersion] = useState(0);
-
-  const openMeshTerminal = useCallback(() => {
-    setTerminalOpen(true);
-    setTerminalLaunchToken((prev) => prev + 1);
-  }, []);
 
   const openInfonet = useCallback(() => {
     setInfonetOpen(true);
@@ -380,7 +389,7 @@ export default function Dashboard() {
   );
 
   // Right panel: which panel is "focused" (expanded). null = none focused, all normal.
-  const [rightFocusedPanel, setRightFocusedPanel] = useState<string | null>(null);
+  const [rightFocusedPanel] = useState<string | null>(null);
 
   // Auto-expand Data Layers when user starts tracking an SDR/Scanner
   useEffect(() => {
@@ -569,44 +578,27 @@ export default function Dashboard() {
 
         {uiVisible && (
           <>
-            {/* WORLDVIEW HEADER */}
-            <motion.div
+            <motion.header
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1 }}
-              className="absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
+              transition={{ duration: 0.35 }}
+              className="avds-page-header absolute top-4 left-4 right-4 z-[200] pointer-events-none hud-zone"
+              data-ui="page-header"
             >
-              <div className="w-8 h-8 flex items-center justify-center">
-                {/* Target Reticle Icon */}
-                <div className="w-6 h-6 rounded-full border border-cyan-500 relative flex items-center justify-center">
-                  <div className="w-4 h-4 rounded-full bg-cyan-500/30"></div>
-                  <div className="absolute top-[-2px] bottom-[-2px] w-[1px] bg-cyan-500"></div>
-                  <div className="absolute left-[-2px] right-[-2px] h-[1px] bg-cyan-500"></div>
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <h1
-                  className="text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)] flex items-center gap-3 text-glow"
-                  style={{ fontFamily: 'var(--font-roboto-mono), monospace' }}
-                >
-                  S H A D O W <span className="text-cyan-400">B R O K E R</span>
-                </h1>
-                <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.3em] mt-1 ml-1">
+              <div className="avds-page-header__identity">
+                <h1 className="avds-page-header__title">ShadowBroker</h1>
+                <p className="avds-page-header__subtitle">
                   {t('brand.subtitle')}
-                </span>
+                </p>
               </div>
-            </motion.div>
-
-            {/* SYSTEM METRICS TOP LEFT */}
-            <div className="absolute top-2 left-6 text-[11px] font-mono tracking-widest text-cyan-500/50 z-[200] pointer-events-none hud-zone">
-              {t('brand.systemMetrics')}
-            </div>
-
-            {/* SYSTEM METRICS TOP RIGHT — removed, label moved into TimelineScrubber */}
+              <div className="pointer-events-auto">
+                <OperationalStatus />
+              </div>
+            </motion.header>
 
             {/* LEFT HUD CONTAINER — mirrors right side: one scroll container, scrollbar on LEFT edge */}
             <motion.div
-              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
+              className="absolute left-4 sm:left-6 top-40 sm:top-28 bottom-9 w-[min(22rem,calc(100vw-2rem))] flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
               style={{ direction: 'rtl' }}
               animate={{ x: leftOpen ? 0 : -360 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -715,7 +707,11 @@ export default function Dashboard() {
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
               <button
-                onClick={() => setLeftOpen(!leftOpen)}
+                data-ui="map-layers-toggle"
+                onClick={() => {
+                  if (compactLayout) setRightOpen(false);
+                  setLeftOpen(!leftOpen);
+                }}
                 className="flex flex-col items-center gap-1.5 py-5 px-1.5 bg-cyan-950/40 border border-cyan-800/50 border-l-0 rounded-r text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
               >
                 {leftOpen ? <ChevronLeft size={10} /> : <ChevronRight size={10} />}
@@ -735,7 +731,11 @@ export default function Dashboard() {
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
               <button
-                onClick={() => setRightOpen(!rightOpen)}
+                data-ui="intelligence-toggle"
+                onClick={() => {
+                  if (compactLayout) setLeftOpen(false);
+                  setRightOpen(!rightOpen);
+                }}
                 className="flex flex-col items-center gap-1.5 py-5 px-1.5 bg-cyan-950/40 border border-cyan-800/50 border-r-0 rounded-l text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
               >
                 {rightOpen ? <ChevronRight size={10} /> : <ChevronLeft size={10} />}
@@ -750,7 +750,7 @@ export default function Dashboard() {
 
             {/* RIGHT HUD CONTAINER — slides off right edge when hidden */}
             <motion.div
-              className="absolute right-6 top-24 bottom-9 w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
+              className="absolute right-4 sm:right-6 top-40 sm:top-28 bottom-9 w-[min(25rem,calc(100vw-2rem))] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
               animate={{ x: rightOpen ? 0 : 440 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
@@ -947,20 +947,6 @@ export default function Dashboard() {
           />
         </div>
         )}
-
-        {/* STATIC CRT VIGNETTE */}
-        <div
-          className="absolute inset-0 pointer-events-none z-[2]"
-          style={{
-            background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 100%)',
-          }}
-        />
-
-        {/* SCANLINES OVERLAY */}
-        <div
-          className="absolute inset-0 pointer-events-none z-[3] opacity-[0.08] bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px)]"
-          style={{ backgroundSize: '100% 4px' }}
-        ></div>
 
         {/* WATCHLIST WIDGET */}
         <WatchlistWidget

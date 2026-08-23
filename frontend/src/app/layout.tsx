@@ -14,8 +14,8 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'WORLDVIEW // ORBITAL TRACKING',
-  description: 'Advanced Geopolitical Risk Dashboard',
+  title: 'ShadowBroker — OSINT map and source controls',
+  description: 'A self-hosted OSINT map with source-aware data layers and local operator controls.',
 };
 
 // The dashboard is a live local runtime, not a static landing page. If Next

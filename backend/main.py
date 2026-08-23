@@ -11776,24 +11776,6 @@ async def api_wormhole_dm_contact_delete(request: Request, peer_id: str):
     return {"ok": True, "peer_id": peer_id, "deleted": deleted}
 
 
-@app.post("/api/wormhole/dm/contact/{peer_id}/sever", dependencies=[Depends(require_admin)])
-@limiter.limit("60/minute")
-async def api_wormhole_dm_contact_sever(request: Request, peer_id: str):
-    from services.mesh.mesh_wormhole_contacts import sever_wormhole_dm_contact
-
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    if not isinstance(body, dict):
-        body = {}
-    block = bool(body.get("block", False))
-    try:
-        return sever_wormhole_dm_contact(peer_id, block=block)
-    except ValueError as exc:
-        return {"ok": False, "detail": str(exc)}
-
-
 _WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready", "arti_ready"}
 
 

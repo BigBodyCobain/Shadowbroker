@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from '@/lib/motion';
-import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio, Bot, Copy, Check, Network } from 'lucide-react';
+import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio, Copy, Check, Network } from 'lucide-react';
 
 const CURRENT_ONBOARDING_VERSION = '0.9.81-agentic-onboarding-1';
 const STORAGE_KEY = `shadowbroker_onboarding_complete_v${CURRENT_ONBOARDING_VERSION}`;
@@ -341,6 +341,8 @@ const OnboardingModal = React.memo(function OnboardingModal({
                 </div>
               </div>
               <button
+                type="button"
+                aria-label="Close first-time setup"
                 onClick={handleDismiss}
                 className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
               >

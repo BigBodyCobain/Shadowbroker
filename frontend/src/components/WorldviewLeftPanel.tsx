@@ -1598,10 +1598,10 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       {/* Header */}
       <div className="mb-4 pointer-events-auto">
         <div className="text-[9px] text-[var(--text-muted)] font-mono tracking-[0.3em] mb-3 opacity-50">
-          TOP SECRET // SI-TK // NOFORN · KH11-4094 OPS-4168
+          Map layer controls
         </div>
         <div className="flex items-center gap-1.5">
-          <h1 className="text-xl font-bold tracking-[0.25em] text-[var(--text-heading)] mr-1">FLIR</h1>
+          <h2 className="text-xl font-bold tracking-[0.18em] text-[var(--text-heading)] mr-1">MAP LAYERS</h2>
           <button
             onClick={toggleTheme}
             className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"

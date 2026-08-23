@@ -54,6 +54,8 @@ export default function StartupWarmupModal({ onClose }: StartupWarmupModalProps)
               </div>
             </div>
             <button
+              type="button"
+              aria-label="Close startup cache notice"
               onClick={handleDismiss}
               className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
             >

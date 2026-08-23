@@ -1,8 +1,7 @@
 {
   "brand": {
     "title": "影子经纪人",
-    "subtitle": "全球威胁拦截系统",
-    "systemMetrics": "光学 可视:113 源:180 密度:1.42 0.8ms"
+    "subtitle": "地图图层与情报信息流"
   },
   "nav": {
     "layers": "图层",

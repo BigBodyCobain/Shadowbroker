@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../styles/avds-adapter.css';
 
 :root {
   --background: #0a0a0a;

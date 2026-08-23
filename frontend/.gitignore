@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/output/
+/.playwright-cli/
 
 # next.js
 /.next/
@@ -19,6 +21,10 @@
 
 # production
 /build
+
+# Generated at build time from qdev-project.json and frontend/contracts/.
+/public/release.json
+/public/.well-known/
 
 # misc
 .DS_Store

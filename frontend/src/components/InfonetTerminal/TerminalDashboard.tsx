@@ -68,7 +68,7 @@ export default function TerminalDashboard({ onNavigate, onComingSoon }: Terminal
       {/* Dashboard Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-800 pb-3 gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-cyan-400 uppercase tracking-widest font-bold">GLOBAL THREAT INTERCEPT</span>
+          <span className="text-xs text-cyan-400 uppercase tracking-widest font-bold">INTELLIGENCE FEED</span>
           {threat && (
             <span className={`text-sm px-2 py-0.5 ${threatStyle.bg} ${threatStyle.text} ${threatStyle.border} border animate-pulse font-bold`}>
               {threat.level}

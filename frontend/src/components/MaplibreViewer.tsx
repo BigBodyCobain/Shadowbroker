@@ -241,6 +241,10 @@ type ScannerProps = Partial<Scanner> & GeoExtras;
 type SigintProps = Partial<SigintSignal> & GeoExtras;
 type TrailPoint = { lng: number; lat: number; alt?: number; sog?: number; ts?: number };
 type TrailKind = 'flight' | 'ship';
+type AIIntelGeoJSONFeature = {
+  properties: Omit<AIIntelPinData, 'lat' | 'lng'>;
+  geometry?: { coordinates?: [number, number] };
+};
 
 const FLIGHT_SELECTION_TYPES = new Set([
   'flight',
@@ -284,12 +288,6 @@ function parseTrailPoints(raw: unknown, kind: TrailKind): TrailPoint[] {
 function hasKnownRouteName(value?: string | null): boolean {
   const normalized = String(value || '').trim().toUpperCase();
   return Boolean(normalized && normalized !== 'UNKNOWN');
-}
-
-function flightHasKnownRoute(entity: ReturnType<typeof findSelectedEntity>, dynamicRoute: DynamicRoute | null): boolean {
-  if (!entity) return false;
-  if (dynamicRoute?.orig_loc && dynamicRoute?.dest_loc) return true;
-  return flightPayloadHasKnownRoute(entity);
 }
 
 function flightPayloadHasKnownRoute(entity: ReturnType<typeof findSelectedEntity>): boolean {
@@ -828,12 +826,12 @@ const MaplibreViewer = ({
       try {
         const resp = await fetch(`${API_BASE}/api/ai/pins/geojson`);
         if (!resp.ok || cancelled) return;
-        const gj = await resp.json();
-        const pins = (gj.features || []).map((f: any) => ({
-          ...f.properties,
-          lat: f.geometry?.coordinates?.[1],
-          lng: f.geometry?.coordinates?.[0],
-        }));
+        const gj = await resp.json() as { features?: AIIntelGeoJSONFeature[] };
+        const pins = (gj.features ?? []).flatMap((feature) => {
+          const [lng, lat] = feature.geometry?.coordinates ?? [];
+          if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+          return [{ ...feature.properties, lat, lng }];
+        });
         if (!cancelled) setAiIntelPins(pins);
       } catch {}
     };
@@ -1633,7 +1631,7 @@ const MaplibreViewer = ({
     }
 
     return { type: 'FeatureCollection' as const, features };
-  }, [selectedEntity, data, selectedTrailPoints, dynamicRoute, getSelectedEntityLiveCoords, interpTick]);
+  }, [selectedEntity, data, selectedTrailPoints, getSelectedEntityLiveCoords, interpTick]);
 
   // Predictive vector GeoJSON: dotted line projecting ~5 min ahead based on heading + speed
   // Skip when entity has a known route (origin+dest) — the route line already shows where it's going
@@ -5487,7 +5485,7 @@ const MaplibreViewer = ({
 
         {/* Power Plant click popup */}
         {selectedEntity?.type === 'power_plant' && (() => {
-            const pp = data?.power_plants?.find((_: any, i: number) => `pp-${i}` === selectedEntity.id);
+            const pp = data?.power_plants?.find((_, i) => `pp-${i}` === selectedEntity.id);
             if (!pp) return null;
             return (
                 <Popup
@@ -5534,7 +5532,7 @@ const MaplibreViewer = ({
         {/* VIIRS Change Node click popup */}
         {selectedEntity?.type === 'viirs_change_node' && (() => {
             const node = data?.viirs_change_nodes?.find(
-                (_: any, i: number) => `viirs-${i}` === selectedEntity.id
+                (_, i) => `viirs-${i}` === selectedEntity.id
             );
             if (!node) return null;
             const isLoss = node.mean_change_pct < 0;
@@ -6096,13 +6094,13 @@ const MaplibreViewer = ({
             );
           })()}
 
-        {/* ── THREAT INTERCEPT — fullscreen intelligence dossier modal ── */}
+        {/* ── Intelligence update — fullscreen source dossier modal ── */}
         {(() => {
           if (selectedEntity?.type !== 'news' || !data?.news) return null;
-          const item = data.news.find((n: any) => {
-            const key = (n as any).alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`;
+          const item = data.news.find((n) => {
+            const key = n.alertKey || `${n.title}|${n.coords?.[0]},${n.coords?.[1]}`;
             return key === selectedEntity.id;
-          }) as any;
+          });
           if (!item) return null;
 
           const rs = item.risk_score ?? 0;
@@ -6125,9 +6123,9 @@ const MaplibreViewer = ({
           const sentBg = sent != null ? (sent < -0.1 ? 'bg-red-500/10 border-red-500/30' : sent > 0.1 ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-500/10 border-gray-500/30') : '';
           const sentArrow = sent != null ? (sent < -0.1 ? '▼' : sent > 0.1 ? '▲' : '—') : '';
           const sentLabel = sent != null ? (sent < -0.1 ? 'NEGATIVE' : sent > 0.1 ? 'POSITIVE' : 'NEUTRAL') : '';
-          const pred = item.prediction_odds as any;
-          const articles = (item.articles as any[]) || [];
-          const clusterCount = (item.cluster_count as number) || 1;
+          const pred = item.prediction_odds;
+          const articles = item.articles ?? [];
+          const clusterCount = item.cluster_count ?? 1;
           const isBreaking = item.breaking === true;
 
           return (
@@ -6161,7 +6159,7 @@ const MaplibreViewer = ({
                   <div className="flex items-center gap-3">
                     <AlertTriangle size={18} className={threatColor} />
                     <span className={`text-[14px] tracking-[0.25em] font-bold ${threatColor}`}>
-                      {isBreaking ? 'BREAKING INTERCEPT' : 'THREAT INTERCEPT'}
+                      {isBreaking ? 'BREAKING UPDATE' : 'INTELLIGENCE UPDATE'}
                     </span>
                     {isBreaking && <span className="text-[9px] bg-red-500 text-white px-2 py-0.5 rounded-sm font-bold animate-pulse">LIVE</span>}
                   </div>
@@ -6332,7 +6330,7 @@ const MaplibreViewer = ({
                         CORROBORATING SOURCES ({articles.length})
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        {articles.map((sub: any, si: number) => {
+                        {articles.map((sub, si) => {
                           const subRs = sub.risk_score ?? 0;
                           const subColor = subRs >= 8 ? 'text-red-400' : subRs >= 6 ? 'text-orange-400' : subRs >= 4 ? 'text-yellow-400' : 'text-green-400';
                           return (

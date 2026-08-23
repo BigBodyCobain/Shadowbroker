@@ -7,6 +7,8 @@
     "dev:frontend": "next dev",
     "dev:backend": "node ../start-backend.js",
     "build:privacy-core-wasm": "node scripts/build-privacy-core-wasm.cjs",
+    "contracts:generate": "node scripts/generate-public-contracts.cjs",
+    "prebuild": "npm run contracts:generate",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

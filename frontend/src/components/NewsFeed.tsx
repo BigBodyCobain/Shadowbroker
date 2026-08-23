@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from '@/lib/motion';
 import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2, TrendingUp } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -8,12 +9,12 @@ import { usePredictionMarketsOptIn } from '@/hooks/usePredictionMarketsOptIn';
 import React, { useEffect, useRef, useCallback } from 'react';
 import WikiImage from '@/components/WikiImage';
 import { fetchWikipediaSummary } from '@/lib/wikimediaClient';
-import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
+import type { Flight, NewsArticle, RegionDossier, FimiData, SelectedEntity } from "@/types/dashboard";
 import { useDataKeys } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
 import DatalinkMessagesBlock from '@/components/DatalinkMessagesBlock';
 import { lookupShodanHost } from '@/lib/shodanClient';
-import type { ShodanHost } from '@/types/shodan';
+import type { ShodanHost, ShodanSearchMatch } from '@/types/shodan';
 
 // Format time from pubish string "Tue, 24 Feb 2026 15:30:00 GMT" to "15:30"
 function formatTime(pubDate: string) {
@@ -250,7 +251,47 @@ const VESSEL_TYPE_WIKI: Record<string, string> = {
     'military_vessel': 'https://en.wikipedia.org/wiki/Warship',
 };
 
-type FlightTrailPoint = { lat?: number; lng?: number; alt?: number; ts?: number } | number[];
+type FlightTrailPoint = { lat: number; lng: number; alt?: number; ts?: number } | number[];
+type ShodanHostView = Partial<ShodanHost>
+    & Pick<Partial<ShodanSearchMatch>, 'port' | 'product' | 'transport' | 'timestamp' | 'data_snippet'>;
+type AiNewsSummary = {
+    summary: string;
+    top_stories?: Array<{ link: string; risk_score: number; title: string }>;
+    keywords?: Array<{ word: string; count: number }>;
+    threat_distribution?: Record<string, number>;
+};
+
+function parseAiNewsSummary(value: unknown): AiNewsSummary | null {
+    if (!value || typeof value !== 'object') return null;
+    const summary = (value as { summary?: unknown }).summary;
+    return typeof summary === 'string' ? value as AiNewsSummary : null;
+}
+
+function isFlightTrailPoint(value: unknown): value is FlightTrailPoint {
+    if (Array.isArray(value)) return value.length >= 2 && value.every((part) => typeof part === 'number' && Number.isFinite(part));
+    if (!value || typeof value !== 'object') return false;
+    const point = value as { lat?: unknown; lng?: unknown };
+    return typeof point.lat === 'number'
+        && Number.isFinite(point.lat)
+        && typeof point.lng === 'number'
+        && Number.isFinite(point.lng);
+}
+
+function isShodanHost(value: unknown): value is ShodanHost {
+    if (!value || typeof value !== 'object') return false;
+    const host = value as Partial<ShodanHost>;
+    return typeof host.id === 'string'
+        && typeof host.ip === 'string'
+        && (typeof host.lat === 'number' || host.lat === null)
+        && (typeof host.lng === 'number' || host.lng === null)
+        && Array.isArray(host.hostnames)
+        && Array.isArray(host.domains)
+        && Array.isArray(host.tags)
+        && Array.isArray(host.ports)
+        && Array.isArray(host.services)
+        && Array.isArray(host.vulns)
+        && typeof host.attribution === 'string';
+}
 
 function formatObservedDuration(seconds: number): string {
     // Compact "1h 14m" / "23m" / "45s" — matches the density of the rest
@@ -265,7 +306,7 @@ function formatObservedDuration(seconds: number): string {
     return `${minutes}m`;
 }
 
-function EmissionsEstimateBlock({ flight }: { flight: any }) {
+function EmissionsEstimateBlock({ flight }: { flight: Flight }) {
     const emissions = flight?.emissions;
     // Cumulative fuel/CO2 since the backend first saw this hex this
     // flight session. Prefer these big numbers — the user explicitly
@@ -333,12 +374,14 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     const [expandedIndexes, setExpandedIndexes] = useState<number[]>([]);
     const [fimiExpanded, setFimiExpanded] = useState(false);
     const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
-    const [aiSummary, setAiSummary] = useState<any>(null);
+    const [aiSummary, setAiSummary] = useState<AiNewsSummary | null>(null);
     const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
     const [pmConsentOpen, setPmConsentOpen] = useState(false);
     const { status: pmStatus, setOptIn: setPmOptIn } = usePredictionMarketsOptIn();
     const marketsCorrelationEnabled = pmStatus?.enabled ?? false;
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const summaryTopStories = aiSummary?.top_stories ?? [];
+    const summaryKeywords = aiSummary?.keywords ?? [];
 
     // Intentionally omitting map click triggers for expanding
     // as we now show a contextual pop-up on the map directly.
@@ -409,7 +452,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 .then((res) => (res.ok ? res.json() : null))
                 .then((payload) => {
                     if (cancelled) return;
-                    const trail = Array.isArray(payload?.trail) ? payload.trail as FlightTrailPoint[] : [];
+                    const trail = Array.isArray(payload?.trail) ? payload.trail.filter(isFlightTrailPoint) : [];
                     setSelectedFlightTrail(trail);
                 })
                 .catch(() => {
@@ -423,9 +466,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
             cancelled = true;
             window.clearInterval(trailRefreshTimer);
         };
-    }, [selectedEntity?.id, selectedEntity?.type]);
+    }, [selectedEntity]);
 
-    const withSelectedTrail = useCallback((flight: any) => {
+    const withSelectedTrail = useCallback((flight: Flight): Flight => {
         if (!flight || selectedFlightTrail.length < 2) return flight;
         const selectedId = String(selectedEntity?.id || '').trim().toLowerCase();
         const flightId = String(flight.icao24 || '').trim().toLowerCase();
@@ -439,16 +482,16 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
 
     useEffect(() => {
         let cancelled = false;
-        const host = (selectedEntity?.extra || {}) as Record<string, any>;
-        const ip = selectedEntity?.type === 'shodan_host' ? String(host.ip || '').trim() : '';
+        const host = selectedEntity?.extra;
+        const ip = selectedEntity?.type === 'shodan_host' && host ? String(host.ip || '').trim() : '';
         if (!ip) {
             setShodanDetail(null);
             setShodanLoading(false);
             setShodanError(null);
             return;
         }
-        if (Array.isArray(host.services) && host.services.length > 0) {
-            setShodanDetail(host as unknown as ShodanHost);
+        if (isShodanHost(host) && host.services.length > 0) {
+            setShodanDetail(host);
             setShodanLoading(false);
             setShodanError(null);
             return;
@@ -625,8 +668,8 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'shodan_host') {
-        const baseHost = (selectedEntity.extra || {}) as Record<string, any>;
-        const host = (shodanDetail || baseHost) as Record<string, any>;
+        const baseHost = (selectedEntity.extra || {}) as ShodanHostView;
+        const host: ShodanHostView = shodanDetail || baseHost;
         const portLabel = host.port ? `${host.ip}:${host.port}` : (host.ip || selectedEntity.name || 'UNKNOWN HOST');
         return (
             <motion.div
@@ -684,7 +727,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                 SERVICES
                             </div>
                             <div className="flex flex-col gap-2">
-                                {host.services.slice(0, 8).map((service: Record<string, any>, idx: number) => (
+                                {host.services.slice(0, 8).map((service, idx) => (
                                     <div key={`${service.port || 'svc'}-${idx}`} className="border border-green-900/40 bg-black/40 p-2">
                                         <div className="flex justify-between text-[10px]">
                                             <span className="text-green-300 font-bold">
@@ -722,7 +765,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'tracked_flight') {
-        const flight = data?.tracked_flights?.find((f: any) => f.icao24 === selectedEntity.id);
+        const flight = data?.tracked_flights?.find((f) => f.icao24 === selectedEntity.id);
         if (flight) {
             const flightForEmissions = withSelectedTrail(flight);
             const callsign = flight.callsign || "UNKNOWN";
@@ -964,7 +1007,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
             : selectedEntity.type === 'private_flight' ? data?.private_flights
                 : selectedEntity.type === 'private_jet' ? data?.private_jets
                     : data?.military_flights;
-        const flight = flightsList?.find((f: any) => f.icao24 === selectedEntity.id);
+        const flight = flightsList?.find((f) => f.icao24 === selectedEntity.id);
 
         if (flight) {
             const flightForEmissions = withSelectedTrail(flight);
@@ -1070,7 +1113,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         {/* Military: Aircraft model Wikipedia image (gold accent) */}
                         {selectedEntity.type === 'military_flight' && (() => {
                             // Resolve model to Wikipedia article — ICAO code first, then ac_type regex
-                            const milAcType = (flight as Record<string, any>).alert_type as string | undefined;
+                            const milAcType = flight.alert_type;
                             const milWikiTitle = (flight.model ? AIRCRAFT_WIKI[flight.model] : undefined)
                                 || (milAcType ? resolveAcTypeWiki(milAcType) : null)
                                 || (flight.model ? resolveAcTypeWiki(flight.model) : null);
@@ -1096,11 +1139,13 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                         )}
                                         {aircraftImgUrl && (
                                             <a href={aircraftWikiUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                                <img
+                                                <Image
                                                     src={aircraftImgUrl}
                                                     alt={AIRCRAFT_WIKI[flight.model] || flight.model}
+                                                    width={640}
+                                                    height={320}
+                                                    sizes="(max-width: 768px) 100vw, 320px"
                                                     className="w-full h-auto max-h-32 object-cover border border-amber-500/30 hover:border-amber-400/60 transition-colors"
-                                                    style={{ imageRendering: 'auto' }}
                                                 />
                                             </a>
                                         )}
@@ -1134,11 +1179,13 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                 )}
                                 {aircraftImgUrl && (
                                     <a href={aircraftWikiUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
-                                        <img
+                                        <Image
                                             src={aircraftImgUrl}
                                             alt={AIRCRAFT_WIKI[flight.model] || flight.model}
+                                            width={640}
+                                            height={320}
+                                            sizes="(max-width: 768px) 100vw, 320px"
                                             className="w-full h-auto max-h-32 object-cover border border-[var(--border-primary)]/50 hover:border-cyan-500/50 transition-colors"
-                                            style={{ imageRendering: 'auto' }}
                                         />
                                     </a>
                                 )}
@@ -1202,7 +1249,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'ship') {
-        const ship = data?.ships?.find((s: any) => s.mmsi === selectedEntity.id);
+        const ship = data?.ships?.find((s) => s.mmsi === selectedEntity.id);
         if (ship) {
             const vesselTypeLabels: Record<string, string> = {
                 'tanker': 'TANKER',
@@ -1320,7 +1367,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'gdelt') {
-        const gdeltItem = data?.gdelt?.find((g: any) => (g.properties?.name || String(g.geometry?.coordinates)) === selectedEntity.id);
+        const gdeltItem = data?.gdelt?.find((g) => (g.properties?.name || String(g.geometry?.coordinates)) === selectedEntity.id);
         if (gdeltItem && gdeltItem.properties) {
             const props = gdeltItem.properties;
             return (
@@ -1384,7 +1431,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'liveuamap') {
-        const item = data?.liveuamap?.find((l: any) => String(l.id) === String(selectedEntity.id));
+        const item = data?.liveuamap?.find((l) => String(l.id) === String(selectedEntity.id));
         if (item) {
             return (
                 <motion.div
@@ -1439,7 +1486,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 >
                     <div className="p-3 border-b border-red-500/30 bg-red-950/40 flex justify-between items-center">
                         <h2 className="text-xs tracking-widest font-bold text-red-400 flex items-center gap-2">
-                            <AlertTriangle size={14} className="text-red-400" /> THREAT INTERCEPT
+                            <AlertTriangle size={14} className="text-red-400" /> INTELLIGENCE FEED
                         </h2>
                         <span className="text-[10px] text-[var(--text-muted)] font-mono">LVL: {item.risk_score}/10</span>
                     </div>
@@ -1504,7 +1551,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'airport') {
-        const apt = data?.airports?.find((a: any) => String(a.id) === String(selectedEntity.id));
+        const apt = data?.airports?.find((a) => String(a.id) === String(selectedEntity.id));
         if (apt) {
             return (
                 <motion.div
@@ -1587,7 +1634,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                     <div className="flex items-center gap-2">
                         <AlertTriangle size={16} className="text-cyan-400" />
                         <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
-                            GLOBAL THREAT INTERCEPT
+                            INTELLIGENCE FEED
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1600,7 +1647,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                     setAiSummaryLoading(true);
                                     fetch('/api/ai/news/summary')
                                         .then(r => r.json())
-                                        .then(d => { setAiSummary(d); setAiSummaryLoading(false); })
+                                        .then((d: unknown) => { setAiSummary(parseAiNewsSummary(d)); setAiSummaryLoading(false); })
                                         .catch(() => setAiSummaryLoading(false));
                                 }
                             }}
@@ -1722,11 +1769,11 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                     <div className="text-purple-200 font-mono leading-relaxed">
                                         {aiSummary.summary}
                                     </div>
-                                    {aiSummary.top_stories?.length > 0 && (
+                                    {summaryTopStories.length > 0 && (
                                         <div>
                                             <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">TOP STORIES</div>
                                             <div className="flex flex-col gap-1">
-                                                {aiSummary.top_stories.slice(0, 5).map((s: any, i: number) => (
+                                                {summaryTopStories.slice(0, 5).map((s, i) => (
                                                     <a key={i} href={s.link} target="_blank" rel="noreferrer" className="text-[11px] text-purple-200/80 hover:text-white transition-colors truncate">
                                                         <span className={`mr-1 ${
                                                             s.risk_score >= 9 ? 'text-red-400' :
@@ -1739,11 +1786,11 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                             </div>
                                         </div>
                                     )}
-                                    {aiSummary.keywords?.length > 0 && (
+                                    {summaryKeywords.length > 0 && (
                                         <div>
                                             <div className="text-[11px] text-purple-400 tracking-widest font-bold mb-1">TRENDING KEYWORDS</div>
                                             <div className="flex flex-wrap gap-1">
-                                                {aiSummary.keywords.slice(0, 10).map((kw: any, i: number) => (
+                                                {summaryKeywords.slice(0, 10).map((kw, i) => (
                                                     <span key={i} className="text-[10px] px-1 py-0.5 bg-purple-950/50 border border-purple-500/20 text-purple-300 rounded-sm">
                                                         {kw.word} ({kw.count})
                                                     </span>
@@ -1954,8 +2001,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         exit={{ opacity: 0 }}
                         className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 styled-scrollbar"
                     >
-                        {news.map((item: any, idx: number) => {
-                            let bgClass, titleClass, badgeClass;
+                        {news.map((item: NewsArticle, idx: number) => {
+                          let bgClass, titleClass, badgeClass;
+                            const sourceCount = item.cluster_count ?? 1;
                             const isBreaking = item.breaking === true;
                             if (isBreaking) {
                                 bgClass = "bg-red-950/30 border-red-500/60";
@@ -2047,9 +2095,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                 ⚠ DISINFORMATION-LINKED
                                             </span>
                                         )}
-                                        {item.cluster_count > 1 && (
+                                        {sourceCount > 1 && (
                                             <button onClick={() => toggleExpand(idx)} className="text-[11px] font-bold font-mono text-cyan-500 bg-[var(--bg-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--hover-accent)] border border-cyan-500/30 px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer">
-                                                {isExpanded ? '- COLLAPSE' : `+${item.cluster_count - 1} SOURCES`}
+                                                {isExpanded ? '- COLLAPSE' : `+${sourceCount - 1} SOURCES`}
                                             </button>
                                         )}
                                         {item.coords && (
@@ -2067,7 +2115,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="mt-2 pt-2 border-t border-cyan-500/20 flex flex-col gap-2 overflow-hidden"
                                             >
-                                                {item.articles.slice(1).map((subItem: any, subIdx: number) => (
+                                                {item.articles.slice(1).map((subItem, subIdx: number) => (
                                                     <div key={subIdx} className="flex flex-col gap-0.5 pl-2 border-l border-cyan-500/20">
                                                         <div className="flex items-center justify-between text-[11px] uppercase font-bold">
                                                             <span className="text-white">&gt;_ {subItem.source}</span>
@@ -2091,7 +2139,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         })}
                         {news.length === 0 && (
                             <div className="text-cyan-500/50 text-[10px] tracking-widest font-bold text-center mt-6">
-                                NO NEWS ITEMS LOADED
+                                NO FEED ITEMS AVAILABLE
                                 <div className="mt-2 text-[11px] font-normal tracking-normal text-cyan-600/80">
                                     Feed ingest is empty or still warming up.
                                 </div>

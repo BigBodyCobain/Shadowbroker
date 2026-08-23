@@ -18,15 +18,23 @@ export interface FlightBase {
   icao24: string;
   squawk?: string;
   aircraft_category?: string;
+  /** Optional upstream aircraft classifier used for model enrichment. */
+  alert_type?: string;
   nac_p?: number;
   _seen_at?: number;
   origin_loc?: [number, number] | null;
   dest_loc?: [number, number] | null;
   origin_name?: string;
   dest_name?: string;
-  trail?: Array<{ lat: number; lng: number; alt?: number; ts?: number }>;
+  trail?: Array<{ lat: number; lng: number; alt?: number; ts?: number } | number[]>;
   holding?: boolean;
-  emissions?: { fuel_gph: number; co2_kg_per_hour: number };
+  emissions?: {
+    fuel_gph: number;
+    co2_kg_per_hour: number;
+    observed_seconds?: number;
+    fuel_gallons_burned?: number;
+    co2_kg_emitted?: number;
+  };
 }
 
 export interface CommercialFlight extends FlightBase {
@@ -57,7 +65,6 @@ export interface TrackedFlight extends FlightBase {
   alert_flag?: string;
   alert_color?: string;
   alert_wiki?: string;
-  alert_type?: string;
   alert_tags?: string[];
   alert_link?: string;
   alert_socials?: { twitter?: string; instagram?: string };
@@ -614,6 +621,25 @@ export interface CorrelationAlert {
 
 // ─── NEWS / GLOBAL INCIDENTS ────────────────────────────────────────────────
 
+export interface NewsSourceArticle {
+  title: string;
+  link: string;
+  published?: string;
+  source: string;
+  risk_score: number;
+  coords?: [number, number] | null;
+}
+
+export interface NewsPredictionOdds {
+  title: string;
+  polymarket_pct: number | null;
+  kalshi_pct: number | null;
+  consensus_pct: number | null;
+  match_score: number;
+  slug?: string;
+  kalshi_ticker?: string;
+}
+
 export interface NewsArticle {
   id: number | string;
   title: string;
@@ -626,19 +652,18 @@ export interface NewsArticle {
   lng: number;
   region?: string;
   coords?: [number, number];
+  /** Feed adapters provide this RFC-822/ISO date field. */
+  published?: string;
+  /** Stable client-side key added for map-marker selection. */
+  alertKey?: string;
+  /** Number of source articles represented by this clustered item. */
+  cluster_count?: number;
+  articles?: NewsSourceArticle[];
   machine_assessment?: string;
   oracle_score?: number;
   sentiment?: number;
   breaking?: boolean;
-  prediction_odds?: {
-    title: string;
-    polymarket_pct: number | null;
-    kalshi_pct: number | null;
-    consensus_pct: number | null;
-    match_score: number;
-    slug?: string;
-    kalshi_ticker?: string;
-  } | null;
+  prediction_odds?: NewsPredictionOdds | null;
 }
 
 export interface ThreatLevel {

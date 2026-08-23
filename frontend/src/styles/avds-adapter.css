@@ -1,0 +1,84 @@
+/*
+ * ShadowBroker static AVDS adapter.
+ *
+ * AVDS live release: 4.7.0, source SHA 79342b07b061938c14101a213d1dd0c7a412d689.
+ * The exact source object was not available in this checkout on 2026-08-23;
+ * this adapter is therefore a local candidate mapping, not a claim of package
+ * consumption or source-current AVDS conformance. See docs/contracts/avds-adapter.md.
+ */
+
+:root {
+  --avds-surface-canvas: var(--bg-primary);
+  --avds-surface-raised: var(--bg-panel);
+  --avds-border-subtle: var(--border-primary);
+  --avds-border-strong: var(--border-secondary);
+  --avds-text-primary: var(--text-primary);
+  --avds-text-secondary: var(--text-secondary);
+  --avds-text-muted: var(--text-muted);
+  --avds-space-2: 0.5rem;
+  --avds-space-3: 0.75rem;
+  --avds-space-4: 1rem;
+  --avds-radius-control: 0.375rem;
+  --avds-radius-surface: 0.5rem;
+}
+
+.avds-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--avds-space-3);
+}
+
+.avds-page-header__identity {
+  max-width: min(100%, 26rem);
+  border-left: 2px solid var(--avds-text-secondary);
+  padding-left: var(--avds-space-3);
+}
+
+.avds-page-header__title {
+  color: var(--avds-text-primary);
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+
+.avds-page-header__subtitle {
+  color: var(--avds-text-muted);
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin-top: 0.25rem;
+}
+
+.avds-operational-status {
+  align-items: center;
+  background: var(--avds-surface-raised);
+  border: 1px solid var(--avds-border-subtle);
+  border-radius: var(--avds-radius-control);
+  color: var(--avds-text-secondary);
+  display: flex;
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.6875rem;
+  gap: var(--avds-space-2);
+  max-width: min(100%, 28rem);
+  padding: var(--avds-space-2) var(--avds-space-3);
+}
+
+.avds-operational-status--degraded,
+.avds-operational-status--unavailable {
+  border-color: color-mix(in srgb, #f59e0b 60%, var(--avds-border-subtle));
+  color: #fcd34d;
+}
+
+@media (max-width: 767px) {
+  .avds-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .avds-operational-status {
+    max-width: 100%;
+  }
+}

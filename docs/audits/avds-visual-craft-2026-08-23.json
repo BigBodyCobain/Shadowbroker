@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "avds-visual-craft-audit-v1",
+  "cells": [
+    {
+      "route": "/",
+      "role": "public",
+      "state": "data-service-unavailable",
+      "viewport": "390x844",
+      "geometry": [
+        {
+          "pattern": "The service status overlapped the compact map rail near the header.",
+          "selector": "[data-ui=service-status]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
+          "cause": "The rail used the desktop top offset at the compact breakpoint.",
+          "avdsContract": "Semantic control surfaces need a clear, non-overlapping compact composition.",
+          "fix": "Raised the compact rail offset to top-40 while keeping the desktop offset at sm:top-28.",
+          "status": "resolved"
+        },
+        {
+          "pattern": "Both compact rails could consume the map viewport when opened together.",
+          "selector": "[data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png",
+          "cause": "Layer and intelligence controls had independent open state.",
+          "avdsContract": "Compact controls should preserve a usable primary viewport.",
+          "fix": "Made the compact rails mutually exclusive; each edge toggle remains available.",
+          "status": "resolved"
+        }
+      ],
+      "radii": [
+        {
+          "pattern": "Status and control surfaces lacked a shared semantic corner treatment.",
+          "selector": "[data-ui=service-status], [data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
+          "cause": "The compact overlay surfaces did not use a shared adapter token.",
+          "avdsContract": "AVDS adapter control radius token.",
+          "fix": "Applied the AVDS adapter control radius to the status and compact control surfaces.",
+          "status": "resolved"
+        }
+      ],
+      "typography": [
+        {
+          "pattern": "Faux operational metrics and classified-language labels obscured the product hierarchy.",
+          "selector": "[data-ui=page-header], [data-ui=service-status]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
+          "cause": "Decorative surveillance-style labels substituted for the actual product and service state.",
+          "avdsContract": "Product identity and service state must be legible, semantic, and source-aware.",
+          "fix": "Replaced fabricated metrics and labels with a direct product title and factual service-state copy.",
+          "status": "resolved"
+        }
+      ],
+      "space": [
+        {
+          "pattern": "Compact header, status surface, controls, and map viewport needed a stable visual separation.",
+          "selector": "[data-ui=page-header], [data-ui=service-status], [data-ui=map-layers-toggle], [data-ui=intelligence-toggle]",
+          "screenshot": "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png",
+          "cause": "Desktop overlay spacing had not been adapted to the compact control sequence.",
+          "avdsContract": "Compact spacing should keep primary controls and the map viewport independently usable.",
+          "fix": "Separated the header, status surface, and rails; the browser evidence confirms the final compact layouts.",
+          "status": "resolved"
+        }
+      ],
+      "screenshots": [
+        "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-17-24-585Z.png",
+        "frontend/output/playwright/after/.playwright-cli/page-2026-08-23T14-18-24-650Z.png"
+      ]
+    }
+  ]
+}

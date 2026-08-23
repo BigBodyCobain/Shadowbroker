@@ -1,0 +1,79 @@
+{
+  "$schema": "https://platform.qdev.run/schemas/qdev-project-manifest-v1.json",
+  "schemaVersion": "qdev-project-manifest-v1",
+  "id": "shadowbroker",
+  "name": "ShadowBroker",
+  "lifecycle": "experimental",
+  "repository": {
+    "url": "https://github.com/BigBodyCobain/Shadowbroker",
+    "defaultBranch": "main"
+  },
+  "owner": {
+    "role": "product-maintainer",
+    "handle": "BigBodyCobain"
+  },
+  "entrypoints": {
+    "public": "https://shadow.qdev.run",
+    "health": "https://shadow.qdev.run/api/health",
+    "release": "https://shadow.qdev.run/release.json"
+  },
+  "capabilities": {
+    "avds": {
+      "mode": "required",
+      "integration": "static-semantic-adapter",
+      "version": "4.7.0",
+      "sourceSha": "79342b07b061938c14101a213d1dd0c7a412d689",
+      "currency": "unverified-exact-source-object-unavailable",
+      "evidence": "docs/contracts/avds-adapter.md"
+    },
+    "qazpipe": {
+      "mode": "not_applicable",
+      "owner": "product-maintainer",
+      "reviewAt": "2026-11-23",
+      "rationale": "Product-owned fetchers retain source-specific attribution, opt-in and failure semantics."
+    },
+    "qazlake": {
+      "mode": "not_applicable",
+      "owner": "product-maintainer",
+      "reviewAt": "2026-11-23",
+      "rationale": "The public map reads self-hosted runtime projections; no QazLake consumer contract is configured."
+    },
+    "qazcompute": {
+      "mode": "not_applicable",
+      "owner": "product-maintainer",
+      "reviewAt": "2026-11-23",
+      "rationale": "Optional product-owned analysis remains behind local operator controls."
+    },
+    "qazgeo": {
+      "mode": "not_applicable",
+      "owner": "product-maintainer",
+      "reviewAt": "2026-11-23",
+      "rationale": "Geocoding is a product-owned provider boundary with its own attribution and privacy controls."
+    },
+    "identity": {
+      "mode": "not_applicable",
+      "owner": "product-maintainer",
+      "reviewAt": "2026-11-23",
+      "rationale": "The public dashboard has no account system; privileged operations use the local-operator boundary."
+    }
+  },
+  "dataBoundary": {
+    "publicProjection": "Public OSINT map layers and health summaries only.",
+    "privateBoundary": "Operator credentials, recon controls, private mesh lanes and diagnostics are not public projections.",
+    "policy": "DATA-ATTRIBUTION.md and docs/OUTBOUND_DATA.md"
+  },
+  "verification": {
+    "health": "/api/health",
+    "releaseIdentity": "/release.json",
+    "commands": [
+      "cd frontend && npm run lint",
+      "cd frontend && npm test",
+      "cd frontend && npm run build",
+      "cd backend && uv run pytest"
+    ]
+  },
+  "schemaValidation": {
+    "state": "unverifiable",
+    "reason": "The Platform schema endpoint requires an authenticated registry session as observed on 2026-08-23."
+  }
+}
