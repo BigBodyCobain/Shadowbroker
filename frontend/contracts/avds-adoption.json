@@ -3,21 +3,21 @@
   "project_id": "shadowbroker",
   "version": "4.7.0",
   "coverage": {
-    "scope": "public-map-shell-local-candidate",
+    "scope": "public-map-shell",
     "basis": "implemented_requirements_over_reviewed_requirements",
     "required": 4,
     "implemented": 4,
     "percent": 100
   },
   "work": {
-    "status": "local_candidate",
+    "status": "release_candidate",
     "remaining": 0,
     "items": []
   },
   "evidence": {
-    "revision_kind": "working-tree-candidate",
-    "source_revision": "generated-at-build",
-    "runtime_revision": null,
-    "verification": "local-only; a public claim requires matching deployed runtime identity"
+    "revision_kind": "git-commit",
+    "source_revision": "113005195c9bc8d368821c35ced68ba5f241ce86",
+    "runtime_revision": "113005195c9bc8d368821c35ced68ba5f241ce86",
+    "verification": "runtime identity is asserted by the release build; public browser verification is required before acceptance"
   }
 }
