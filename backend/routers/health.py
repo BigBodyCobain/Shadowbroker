@@ -78,13 +78,13 @@ def _get_start_time() -> float:
 @router.get("/api/health", response_model=HealthResponse)
 @limiter.limit("30/minute")
 async def health_check(request: Request):
-    from services.fetchers._store import get_source_timestamps_snapshot
+    from services.fetchers._store import effective_layers, get_source_timestamps_snapshot
     from services.slo import compute_all_statuses, summarise_statuses
 
     d = _health_data_snapshot()
     last = d.get("last_updated")
     timestamps = get_source_timestamps_snapshot()
-    slo_statuses = compute_all_statuses(d, timestamps)
+    slo_statuses = compute_all_statuses(d, timestamps, effective_layers())
     slo_summary = summarise_statuses(slo_statuses)
     # Top-level status reflects worst SLO result — "degraded" if any
     # yellow, "error" if any red, "ok" otherwise. This is the single

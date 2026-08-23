@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +136,15 @@ SLO_REGISTRY: Dict[str, SLO] = {
 }
 
 
+# Most SLO sources are always part of the runtime. These two are optional map
+# overlays controlled by the operator. A disabled overlay must not make the
+# whole service fail readiness merely because it has deliberately not fetched.
+OPTIONAL_SLO_LAYERS: Dict[str, str] = {
+    "firms_fires": "firms",
+    "uap_sightings": "uap_sightings",
+}
+
+
 def _parse_iso(iso: Optional[str]) -> Optional[datetime]:
     """Parse an ISO-8601 timestamp as naive UTC. Returns None on failure."""
     if not iso:
@@ -213,6 +222,7 @@ def compute_status(
 def compute_all_statuses(
     latest_data: Dict[str, Any],
     source_timestamps: Dict[str, str],
+    active_layers: Optional[Mapping[str, bool]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Compute status for every source in the SLO registry.
 
@@ -222,6 +232,20 @@ def compute_all_statuses(
     """
     out: Dict[str, Dict[str, Any]] = {}
     for source in SLO_REGISTRY:
+        layer_name = OPTIONAL_SLO_LAYERS.get(source)
+        if (
+            layer_name is not None
+            and active_layers is not None
+            and not active_layers.get(layer_name, True)
+        ):
+            out[source] = {
+                "source": source,
+                "status": "unconfigured",
+                "enabled": False,
+                "reason": "layer_disabled",
+                "description": SLO_REGISTRY[source].description,
+            }
+            continue
         value = latest_data.get(source)
         if hasattr(value, "__len__"):
             count = len(value)

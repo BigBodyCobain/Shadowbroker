@@ -491,7 +491,11 @@ active_layers: dict[str, bool] = {
     "psk_reporter": False,
     "correlations": True,
     "contradictions": True,
-    "uap_sightings": True,
+    # NUFORC is currently protected by an upstream Cloudflare challenge and
+    # its historical mirror has no recent reports. Keep this optional layer
+    # off until a fresh, attributable source is available rather than expose
+    # an empty overlay as if it were live data.
+    "uap_sightings": False,
     "wastewater": True,
     "ai_intel": True,
     "crowdthreat": False,
