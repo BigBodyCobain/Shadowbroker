@@ -1,4 +1,4 @@
-# ShadowBroker AVDS visual uplift — local candidate
+# ShadowBroker AVDS visual uplift — public release candidate
 
 Date: 2026-08-23. Mode: visual uplift. The live AVDS reference reported version
 `4.7.0` and source SHA `79342b07b061938c14101a213d1dd0c7a412d689`; its exact
@@ -22,11 +22,13 @@ adapter and not a package-consumption or source-current claim.
 
 ## Evidence boundary
 
-The candidate is local-only. A `390x844` browser pass confirms the heading
-hierarchy, labelled modal exits and the compact map shell. It deliberately
-shows the unavailable-service state because the local frontend was started
-without a backend; that is not runtime or public acceptance. The
-machine-readable anti-generative/visual-craft ledgers pass their supplied AVDS
-validators without unresolved findings. Any public AVDS status must be
-reconciled with the actual deployed release identity; the existing public 0/4
-adoption file is not treated as evidence for this working tree.
+The release is publicly browser-accepted at `390x844` on
+`https://shadow.qdev.run`: the page has one H1, a compact map shell, truthful
+degraded state, no public credential onboarding and zero browser-console
+errors. Its runtime identity is `c9d63bc…`.
+
+The machine-readable anti-generative/visual-craft ledgers pass their supplied
+validators without unresolved findings. The public AVDS alias still returns an
+external stale 0/4 record for image digest `sha256:a17c…`; it is not evidence
+for this release and requires the Platform AVDS registry owner to publish the
+project-built contract before adoption can be declared covered.

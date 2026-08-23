@@ -1,33 +1,47 @@
-# ShadowBroker verification record — local candidate
+# ShadowBroker verification record — deployed public candidate
 
-Date: 2026-08-23. Candidate base revision:
-`2fca1a494aace994fba95dde1fc8dde9e4c7a664`; working tree intentionally
-dirty with the fixes recorded in this audit. No commit, push, deployment or
-production restart was performed.
+Date: 2026-08-23. Deployed source/runtime revision:
+`c9d63bcb40f9d8f7d7fa3c1372376ba478518adf`; `sourceDirty` is `false`.
+The frontend image is `sha256:4d471c71dfb240a5db542e6c9914482ce9aa492d269d4a86d3d48dab484ec1c9`.
+The release was staged immutably on the origin, after a verified backend-volume
+backup, then the frontend was recreated only after its production build passed.
 
 ## Passed
 
 - `node --check frontend/scripts/generate-public-contracts.cjs`, JSON parsing
   for manifest/adoption/release contracts, and `git diff --check`.
-- `npm run contracts:generate` and the final `npm run build` in `frontend`;
-  the production build compiled, type-checked and emitted the public-contract
-  files from canonical inputs after all candidate changes.
-- `npm test` in `frontend`: `90` test files and `808` tests passed.
+- `npm run contracts:generate` and `npm run build` for the previous candidate,
+  then the final origin Docker `npm run build`, which generated public contracts
+  for `c9d63bc…` and built the published image.
+- Focused frontend tests for the public-runtime and Sentinel boundaries: `4`
+  files / `42` tests, plus the final onboarding regression subset: `2` files /
+  `9` tests, all passed.
 - Targeted lint of every changed UI and contract-generation surface: `0`
   errors and `0` warnings.
 - AVDS anti-generative and visual-craft audit ledgers both pass their supplied
   validators with no unresolved findings.
-- Browser pass against the production-built local candidate at `390x844`:
-  the page has one H1 (`ShadowBroker`), `MAP LAYERS` is an H2, the three
-  first-run/release close controls have accessible names, and the unavailable
-  service state leaves map controls available. The local frontend had no
-  backend configured, so its `/api/*` requests returned `502`; this is
-  truthful degraded-state evidence, not a healthy runtime acceptance.
+- Public browser pass at `390x844`: exactly one H1 (`ShadowBroker`), `MAP
+  LAYERS` is an H2, public credential onboarding is absent, the health surface
+  truthfully says `Data service degraded`, and the console has `0` errors.
+- Public HTTP proof: `/`, `/api/health`, `/release.json` and
+  `/.well-known/qdev-project.json` return `200`; public `release.json` names
+  `c9d63bc…` for both source and runtime.
 - Bundled Python 3.12 `compileall` for `backend`.
 - In a clean temporary checkout with no user data and
   `MESH_ALLOW_RAW_SECURE_STORAGE_FALLBACK=true`:
   `test_regen_duplicate_routes_baseline.py`, `test_no_new_duplicate_routes.py`
   and the health smoke test passed (`7 passed`).
+
+## Evidence and known boundaries
+
+`/api/health` returns HTTP 200 with its documented aggregate state `error`
+while data is warming or optional source SLOs are red; the UI represents this
+as the non-fabricated `degraded` state. It is not used as a claim of full data
+availability.
+
+The final public AVDS alias is an external stale registry record (0/4), not a
+copy of the deployed project contract. It remains blocked in the Platform
+integration report and is not treated as coverage evidence.
 
 ## Non-blocking lint and typecheck debt
 
@@ -55,5 +69,5 @@ not evidence that the local candidate is fully regression-clean.
 | Remaining mesh privacy failures include incompatible expectations around redaction, alias continuity, signed-write and transport contracts. Changing either side without a reviewed contract would risk weakening safety controls. | Product security maintainer | Reconciled canonical security contract, explicit expected-output decisions, and passing focused suites followed by a clean full run. |
 | Running tests directly in the canonical checkout reads its encrypted local custody data and requires the unavailable `MESH_SECURE_STORAGE_SECRET`. | Local runtime-data owner | A disposable isolated test-data configuration or an authorised test secret; the private data itself was neither read nor modified. |
 
-The blocked rows are not promoted to `covered`; they remain local-candidate
-limitations.
+The blocked rows are not promoted to `covered`; they remain external or
+baseline limitations, not release-identity evidence.
