@@ -611,6 +611,7 @@ async def update_layers(update: LayerUpdate, request: Request):
         start_ais_stream()
         logger.info("AIS stream started (ship layer enabled)")
     from services.sigint_bridge import sigint_grid
+    from services.aprs_is_bridge import aprs_is_bridge
     if old_mesh and not new_mesh:
         try:
             from services.meshtastic_mqtt_settings import mqtt_bridge_enabled
@@ -637,14 +638,24 @@ async def update_layers(update: LayerUpdate, request: Request):
                 "(set MESH_MQTT_ENABLED=true to participate in the public broker)"
             )
     if old_aprs and not new_aprs:
-        sigint_grid.aprs.stop()
-        logger.info("APRS bridge stopped (layer disabled)")
+        # #533/#534: never start or stop the legacy SIGINTGrid APRS client.
+        # It used an unbounded public APRS-IS filter. The replacement bridge
+        # validates bounded operator configuration and fails closed.
+        aprs_is_bridge.reconcile(False)
+        logger.info("Bounded APRS-IS bridge stopped (layer disabled)")
     elif not old_aprs and new_aprs:
-        sigint_grid.aprs.start()
-        logger.info("APRS bridge started (layer enabled)")
+        aprs_is_bridge.reconcile(True)
+        logger.info("Bounded APRS-IS bridge reconciled (layer enabled)")
     if not old_viirs and new_viirs:
         _queue_viirs_change_refresh()
         logger.info("VIIRS change refresh queued (layer enabled)")
+    if old_mesh != new_mesh or old_aprs != new_aprs:
+        # Publish a single merged snapshot immediately so enabling both radio
+        # layers behaves like one "scan all" action while the bridges continue
+        # receiving independently in their own bounded lifecycles.
+        from services.fetchers.sigint import fetch_sigint
+
+        threading.Thread(target=fetch_sigint, daemon=True, name="sigint-layer-refresh").start()
     refresh_newly_enabled_layers(layers_before)
     return {"status": "ok"}
 

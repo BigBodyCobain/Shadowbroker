@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock
 
 import pytest
@@ -199,3 +200,13 @@ def test_fetch_path_never_calls_legacy_grid_start(monkeypatch: pytest.MonkeyPatc
     sigint_fetcher.fetch_sigint()
 
     legacy_start.assert_not_called()
+
+
+def test_layer_toggle_does_not_start_legacy_global_aprs_client() -> None:
+    """The layer endpoint must route APRS through the bounded bridge only."""
+    from routers import data as data_router
+
+    source = inspect.getsource(data_router.update_layers)
+    assert "sigint_grid.aprs.start" not in source
+    assert "sigint_grid.aprs.stop" not in source
+    assert "aprs_is_bridge.reconcile" in source

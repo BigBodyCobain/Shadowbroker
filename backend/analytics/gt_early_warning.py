@@ -326,6 +326,21 @@ class GT_EarlyWarning:
             if item_id:
                 self._seen_item_ids.add(item_id)
 
+        # Keep geolocated feed items plottable even when they do not contain a
+        # costly-signal keyword. The prior placement below only stored coords
+        # after a positive classification, so most derived-OSINT regions were
+        # emitted at [0, 0] and correctly discarded by the map builder.
+        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+            try:
+                lat = float(coords[0])
+                lng = float(coords[1])
+            except (TypeError, ValueError):
+                pass
+            else:
+                with self._lock:
+                    state = self._region_state(region)
+                    state.coords = [lat, lng]
+
         signals = self.classify_signals(text, source)
         total_strength = float(sum(signals.values()))
 
@@ -361,14 +376,6 @@ class GT_EarlyWarning:
                 evidence_strength=evidence_strength * (1.0 + 0.15 * deviation),
             )
             posteriors[domain] = posterior
-
-        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
-            with self._lock:
-                state = self._region_state(region)
-                try:
-                    state.coords = [float(coords[0]), float(coords[1])]
-                except (TypeError, ValueError):
-                    pass
 
         self._update_graph(region, entities, total_strength, coords if isinstance(coords, list) else None)
 

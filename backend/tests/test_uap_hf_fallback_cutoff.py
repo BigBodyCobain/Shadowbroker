@@ -226,6 +226,32 @@ def test_fetch_uap_sightings_succeeds_when_fallback_returns_data(monkeypatch):
     assert canary_calls == [], "canary should not trip when fallback supplies data"
 
 
+def test_fetch_uap_sightings_retains_last_known_snapshot_when_refresh_empty(monkeypatch):
+    """An empty weekly refresh must not erase the last visible UAP snapshot."""
+    from services.fetchers import earth_observation as eo
+    from services.fetchers import _store
+
+    monkeypatch.setattr(_store, "is_any_active", lambda layer: True)
+    monkeypatch.setattr(eo, "_load_nuforc_sightings_cache", lambda force_refresh=False: None)
+    monkeypatch.setattr(
+        eo,
+        "_build_recent_uap_sightings",
+        lambda: (_ for _ in ()).throw(RuntimeError("NUFORC unavailable")),
+    )
+    monkeypatch.setattr(eo, "_build_uap_sightings_from_hf_mirror", lambda: [])
+    last_known = [{"id": "older-uap", "date_time": "2025-01-01", "lat": 39.7, "lng": -104.9}]
+    monkeypatch.setattr(eo, "_load_nuforc_last_known_sightings", lambda: last_known)
+    monkeypatch.setattr(eo, "_mark_fresh", lambda *keys: None)
+
+    with _store._data_lock:
+        _store.latest_data["uap_sightings"] = []
+
+    eo.fetch_uap_sightings()
+
+    with _store._data_lock:
+        assert _store.latest_data["uap_sightings"] == last_known
+
+
 def test_uap_scheduler_runs_weekly():
     """UAP layer refreshes weekly so each install pulls live NUFORC on a steady cadence."""
     from services import data_fetcher

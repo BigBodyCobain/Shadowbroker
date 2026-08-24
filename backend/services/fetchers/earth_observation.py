@@ -878,6 +878,40 @@ def _load_nuforc_sightings_cache(*, force_refresh: bool = False) -> list[dict] |
     return None
 
 
+def _load_nuforc_last_known_sightings() -> list[dict] | None:
+    """Return the last non-empty snapshot for display when refresh is unavailable.
+
+    This deliberately skips freshness and rolling-window checks. It is only a
+    stale-data safety net after a refresh has produced no usable rows; the
+    normal cache loader remains strict so stale data is never presented as
+    fresh.
+    """
+    with _data_lock:
+        current = latest_data.get("uap_sightings")
+    if isinstance(current, list):
+        in_memory = [row.copy() for row in current if isinstance(row, dict)]
+        if in_memory:
+            return in_memory
+
+    if not _NUFORC_SIGHTINGS_CACHE_FILE.exists():
+        return None
+    try:
+        raw = json.loads(_NUFORC_SIGHTINGS_CACHE_FILE.read_text(encoding="utf-8"))
+        sightings = raw.get("sightings")
+        if not isinstance(sightings, list):
+            return None
+        last_known = [row.copy() for row in sightings if isinstance(row, dict)]
+        if last_known:
+            logger.warning(
+                "UAP sightings: using %d last-known cached reports because the refresh returned no usable rows",
+                len(last_known),
+            )
+        return last_known or None
+    except Exception as e:
+        logger.warning("UAP sightings: last-known cache load error: %s", e)
+        return None
+
+
 def _save_nuforc_sightings_cache(sightings: list[dict]) -> None:
     if not sightings:
         logger.warning("UAP sightings: refusing to save empty daily cache")
@@ -1693,9 +1727,17 @@ def fetch_uap_sightings(*, force_refresh: bool = False):
     if sightings:
         sightings = _filter_uap_sightings_recent(sightings)
 
+    fresh_snapshot = bool(sightings)
+    if not sightings:
+        sightings = _load_nuforc_last_known_sightings()
+        if sightings:
+            logger.warning(
+                "UAP sightings: retaining last-known snapshot; current refresh did not produce usable recent reports"
+            )
+
     with _data_lock:
         latest_data["uap_sightings"] = sightings or []
-    if sightings:
+    if fresh_snapshot:
         _mark_fresh("uap_sightings")
     return
 
