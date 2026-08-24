@@ -56,3 +56,35 @@ def test_refresh_cctv_runs_on_slow_executor():
     assert slow_exec.submit.call_args[0][1] == ("cctv",)
 
     active_layers["cctv"] = before.get("cctv", False)
+
+
+def test_cctv_enable_seeds_empty_catalog_before_loading():
+    """An empty CCTV DB must trigger the public ingestors on first enable."""
+    from services.layer_enable_refresh import _slow_fetch
+
+    with (
+        patch("services.cctv_pipeline.get_camera_count", return_value=0) as count,
+        patch("services.cctv_pipeline.run_all_ingestors") as seed,
+        patch("services.fetchers.infrastructure.fetch_cctv") as fetch_cctv,
+    ):
+        _slow_fetch("cctv")
+
+    count.assert_called_once()
+    seed.assert_called_once()
+    fetch_cctv.assert_called_once()
+
+
+def test_cctv_enable_reuses_nonempty_catalog():
+    """A populated CCTV DB should stay fast and avoid re-seeding on enable."""
+    from services.layer_enable_refresh import _slow_fetch
+
+    with (
+        patch("services.cctv_pipeline.get_camera_count", return_value=12) as count,
+        patch("services.cctv_pipeline.run_all_ingestors") as seed,
+        patch("services.fetchers.infrastructure.fetch_cctv") as fetch_cctv,
+    ):
+        _slow_fetch("cctv")
+
+    count.assert_called_once()
+    seed.assert_not_called()
+    fetch_cctv.assert_called_once()

@@ -51,8 +51,15 @@ def _instant_fetch(key: str) -> None:
 
 def _slow_fetch(key: str) -> None:
     if key == "cctv":
+        from services.cctv_pipeline import get_camera_count, run_all_ingestors
         from services.fetchers.infrastructure import fetch_cctv
 
+        # A fresh checkout can have an empty SQLite catalog even though the
+        # public camera feeds are available. Seed it the first time CCTV is
+        # enabled; otherwise the layer stays ON with zero map records until a
+        # later scheduler cycle happens to run.
+        if get_camera_count() == 0:
+            run_all_ingestors()
         fetch_cctv()
         logger.info("CCTV loaded (layer enabled)")
         return

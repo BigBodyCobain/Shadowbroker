@@ -299,6 +299,9 @@ class BaseCCTVIngestor(ABC):
         pass
 
     def ingest(self):
+        # Ingestors may run independently (including from worker threads), so
+        # make sure a fresh checkout has both the directory and schema ready.
+        init_db()
         conn = sqlite3.connect(str(DB_PATH))
         try:
             cameras = self.fetch_data()

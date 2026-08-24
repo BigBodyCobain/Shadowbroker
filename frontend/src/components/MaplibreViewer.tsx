@@ -3856,7 +3856,7 @@ const MaplibreViewer = ({
           <Layer
             id="telegram-osint-layer"
             type="circle"
-            minzoom={4}
+            minzoom={2}
             paint={{
               'circle-radius': [
                 'interpolate',
@@ -3870,9 +3870,11 @@ const MaplibreViewer = ({
                 ['case', ['>', ['get', 'post_count'], 1], 26, 22],
               ],
               'circle-color': '#ef4444',
-              'circle-stroke-width': 0,
+              'circle-stroke-width': 1,
               'circle-stroke-color': '#fca5a5',
-              'circle-opacity': 0,
+              // Keep a visible MapLibre fallback while the HTML pins are
+              // temporarily suppressed during map interaction.
+              'circle-opacity': 0.65,
             }}
           />
         </Source>
