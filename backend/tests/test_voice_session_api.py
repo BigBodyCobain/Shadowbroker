@@ -1,16 +1,22 @@
 """Voice session WS + wire-contract integration suite (plan §7.C, items 22–24).
 
 22. WS upgrade auth: expired/reused/garbage one-time tokens close 4403; a
-    valid token burns on first use.
+    valid token burns on first use; expiry is exercised for REAL via an
+    injected clock; tokens minted for a session cannot upgrade a different
+    active session.
 23. Fake upstream streams crafted ``response.done`` events exceeding the cap:
     events forward verbatim AND the upstream socket is closed; the client
-    received ``warn`` then ``cap`` exactly once.
+    received ``warn`` then ``cap`` exactly once. The tier-2 estimator meters
+    at the session's resolved VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC.
 24. Wire contract: oversized frame → ``bad_frame``; third violation → close
     4400 ``protocol_violation``; valid PCM16 arrives upstream wrapped as
     ``input_audio_buffer.append`` with matching base64; ``ready`` echoes the
     exact audio format block; grounding-frame contract (valid snapshot
     observable in the next ``build_session_config`` output; oversize or
     schema-violating snapshot → ``bad_frame``).
+Plus: the operator DELETE kill switch terminates a LIVE relay (audio flow
+stops, upstream closed, ``closed{reason:"terminated"}``), and never-upgraded
+grants are reaped so they cannot exhaust the concurrency gate.
 """
 
 from __future__ import annotations
@@ -205,6 +211,80 @@ class TestWsUpgradeAuth:
         assert consume_voice_session_token(token) is False, "one-time token must burn on use"
 
 
+class TestTokenTtlAndSessionBinding:
+    """Item 22 hardened: REAL TTL expiry via an injected clock, plus the
+    sessionId binding that keeps one minted grant from upgrading a different
+    active session."""
+
+    def test_real_ttl_expiry_rejects_at_the_store(self, voice_env, monkeypatch):
+        import services.voice_session_tokens as tokens_mod
+
+        fake_clock = {"now": tokens_mod._now()}
+        monkeypatch.setattr(tokens_mod, "_now", lambda: fake_clock["now"])
+        token, ttl = tokens_mod.mint_voice_session_token()
+        assert ttl == 60
+
+        fake_clock["now"] += 61.0  # genuinely past the TTL — not merely unknown
+        assert tokens_mod.consume_voice_session_token(token) is False
+
+    def test_expired_token_closes_4403_on_upgrade(self, voice_env, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        import services.voice_session_tokens as tokens_mod
+
+        fake_clock = {"now": tokens_mod._now()}
+        monkeypatch.setattr(tokens_mod, "_now", lambda: fake_clock["now"])
+        token, _ttl = tokens_mod.mint_voice_session_token()
+        fake_clock["now"] += 61.0
+
+        app = TestWsUpgradeAuth()._mini_app()
+        client = TestClient(app)
+        with pytest.raises(Exception):
+            with client.websocket_connect(
+                f"/api/voice/session/ws?token={token}&sessionId=x"
+            ) as ws:
+                ws.receive_text()
+
+    def test_valid_token_cannot_upgrade_a_different_active_session(
+        self, voice_env, monkeypatch
+    ):
+        voice_env.setenv("VOICE_OPENAI_API_KEY", "test-key")
+        import services.voice_broker as broker
+        from fastapi.testclient import TestClient
+        from services.voice_session_tokens import mint_voice_session_token
+
+        session_a, err_a = broker.create_session(tier="standard", settings=_settings_ns())
+        session_b, err_b = broker.create_session(
+            tier="standard",
+            settings=_settings_ns(VOICE_MAX_CONCURRENT_SESSIONS=2),
+        )
+        assert err_a is None and err_b is None
+
+        token, _ttl = mint_voice_session_token(session_id=session_a.session_id)
+        app = TestWsUpgradeAuth()._mini_app()
+        client = TestClient(app)
+        # The token is valid — but presented for session B. The sessionId
+        # binding must reject the upgrade.
+        with pytest.raises(Exception):
+            with client.websocket_connect(
+                f"/api/voice/session/ws?token={token}&sessionId={session_b.session_id}"
+            ) as ws:
+                ws.receive_text()
+
+    def test_binding_unit_semantics(self, voice_env):
+        from services.voice_session_tokens import (
+            consume_voice_session_token,
+            mint_voice_session_token,
+        )
+
+        token, _ttl = mint_voice_session_token(session_id="sess-A")
+        assert consume_voice_session_token(token, session_id="sess-B") is False
+        # One-time semantics survive a mismatched attempt: already burned.
+        assert consume_voice_session_token(token, session_id="sess-A") is False
+        rebound, _ttl = mint_voice_session_token(session_id="sess-A")
+        assert consume_voice_session_token(rebound, session_id="sess-A") is True
+
+
 # ---------------------------------------------------------------------------
 # Item 23 — metering tap, warn/cap push, broker-side cap enforcement
 # ---------------------------------------------------------------------------
@@ -291,6 +371,158 @@ class TestCapEnforcement:
         snap = session.tracker.state()
         # 10 s × 50 tok/s ÷ 1M × $32 audio-input rate = $0.016 (exact figure).
         assert abs(snap.total_usd - 0.016) < 1e-9
+
+    def test_fallback_estimator_meters_at_session_tokens_per_sec(self, voice_env):
+        """VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC must actually flow into the
+        tier-2 estimator — not silently no-op onto the module constant."""
+        voice_env.setenv("VOICE_OPENAI_API_KEY", "test-key")
+        settings = _settings_ns(
+            VOICE_COST_WARN_USD=100.0,
+            VOICE_COST_CAP_USD=200.0,
+            VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC=25,
+        )
+        import services.voice_broker as broker
+
+        session, _err = broker.create_session(tier="standard", settings=settings)
+        assert session.tokens_per_sec == 25
+        state = broker._RelayState(session)
+        state.input_audio_bytes = 2 * broker.AUDIO_SAMPLE_RATE * 10  # 10 s of audio
+        asyncio.run(state.meter_response_done(FakeClientWS(), None))
+        snap = session.tracker.state()
+        # 10 s × 25 tok/s ÷ 1M × $32 audio-input rate = $0.008. The default-50
+        # constant would have produced $0.016, so this pins the plumbing.
+        assert abs(snap.total_usd - 0.008) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Operator DELETE kill switch vs a LIVE relay (R5 hot-mic brake)
+# ---------------------------------------------------------------------------
+
+
+class StreamingUpstream:
+    """Upstream fake that streams audio deltas forever until closed."""
+
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+        self.closed = False
+
+    async def send(self, raw: str) -> None:
+        self.sent.append(raw)
+
+    async def recv(self) -> str:
+        if self.closed:
+            raise ConnectionError("upstream closed")
+        await asyncio.sleep(0.005)
+        pcm = bytes(range(16))
+        return json.dumps(
+            {"type": "response.audio.delta", "delta": base64.b64encode(pcm).decode("ascii")}
+        )
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class TestOperatorKillSwitchTerminatesLiveRelay:
+    def test_delete_during_live_relay_stops_audio_flow(self, voice_env, monkeypatch):
+        voice_env.setenv("VOICE_OPENAI_API_KEY", "test-key")
+        settings = _settings_ns(VOICE_COST_WARN_USD=100.0, VOICE_COST_CAP_USD=200.0)
+        import services.voice_broker as broker
+
+        session, _err = broker.create_session(tier="standard", settings=settings)
+        upstream = StreamingUpstream()
+        client = FakeClientWS()
+
+        async def fake_connect(url, headers):
+            return upstream
+
+        monkeypatch.setattr(broker, "_connect_upstream", fake_connect)
+
+        async def scenario():
+            relay = asyncio.ensure_future(
+                broker.run_realtime_relay(client, session, settings=settings)
+            )
+            assert await _wait_until_async(lambda: len(client.sent_bytes) >= 5), (
+                "relay must be actively streaming audio before DELETE"
+            )
+            assert broker.end_session(session.session_id, "operator_delete") is True
+            # The relay must terminate promptly (not hang out the idle window).
+            await asyncio.wait_for(relay, timeout=5)
+            count_after_termination = len(client.sent_bytes)
+            await asyncio.sleep(0.15)  # give any stray pump iteration time to leak
+            return count_after_termination
+
+        frozen_count = asyncio.run(scenario())
+
+        assert upstream.closed, "kill switch must close the live upstream socket"
+        frames = _frames(client)
+        closed_frames = [f for f in frames if f.get("type") == "closed"]
+        assert closed_frames and closed_frames[-1]["reason"] == "terminated"
+        assert len(client.sent_bytes) == frozen_count, "no audio may flow after DELETE"
+        assert broker.active_session_count() == 0, "kill switch must free the slot"
+
+    def test_client_pump_exits_session_closed_without_upstream(self, voice_env):
+        """The closed-flag poll alone (no schedulable upstream close) stops the
+        client pump within one termination-poll slice."""
+        import services.voice_broker as broker
+
+        settings = _settings_ns()
+        session, _err = broker.create_session(tier="standard", settings=settings)
+        state = broker._RelayState(session)
+        state.upstream = FakeUpstream()
+        client = FakeClientWS()
+
+        async def scenario():
+            pump = asyncio.ensure_future(broker.pump_client_to_upstream(client, state))
+            await asyncio.sleep(0.05)
+            session.closed = True
+            return await asyncio.wait_for(pump, timeout=5)
+
+        assert asyncio.run(scenario()) == "session_closed"
+
+
+# ---------------------------------------------------------------------------
+# Never-upgraded grants are reaped before they exhaust the concurrency gate
+# ---------------------------------------------------------------------------
+
+
+class TestUnclaimedSessionReap:
+    def test_expired_grant_frees_concurrency_slot_on_next_create(self, voice_env):
+        import services.voice_broker as broker
+
+        settings = _settings_ns(VOICE_MAX_CONCURRENT_SESSIONS=1)
+        first, err = broker.create_session(tier="standard", settings=settings)
+        assert err is None and first.ws_connected is False
+
+        dup, dup_err = broker.create_session(tier="standard", settings=settings)
+        assert dup_err == {"error": "concurrency"}, (
+            "within the claim TTL the grant still holds its slot"
+        )
+
+        first.created_at -= broker.UNCLAIMED_SESSION_TTL_SECONDS + 1
+        second, err2 = broker.create_session(tier="standard", settings=settings)
+        assert err2 is None, "expired unclaimed grants must free their concurrency slot"
+        assert second.session_id != first.session_id
+        assert first.closed is True and first.closed_reason == "unclaimed_expired"
+        assert broker.active_session_count() == 1
+
+    def test_get_session_reaps_expired_grant(self, voice_env):
+        import services.voice_broker as broker
+
+        settings = _settings_ns(VOICE_MAX_CONCURRENT_SESSIONS=2)
+        grant, _err = broker.create_session(tier="standard", settings=settings)
+        grant.created_at -= broker.UNCLAIMED_SESSION_TTL_SECONDS + 1
+        assert broker.get_session(grant.session_id) is None
+        assert grant.closed_reason == "unclaimed_expired"
+
+    def test_ws_never_connected_is_the_reap_condition(self, voice_env):
+        """An UPGRADED session is never TTL-reaped — caps/idle/kill switch own it."""
+        import services.voice_broker as broker
+
+        settings = _settings_ns(VOICE_MAX_CONCURRENT_SESSIONS=1)
+        live, _err = broker.create_session(tier="standard", settings=settings)
+        live.ws_connected = True
+        live.created_at -= broker.UNCLAIMED_SESSION_TTL_SECONDS * 10
+        assert broker.get_session(live.session_id) is live
 
 
 # ---------------------------------------------------------------------------

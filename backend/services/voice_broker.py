@@ -42,8 +42,10 @@ from typing import Any
 from services.config import get_settings
 from services.voice_cost import (
     VoiceCostTracker,
+    estimate_usage_cost_usd,
     is_known_voice_tier,
     resolve_voice_model,
+    resolve_voice_model_by_id,
     serialize_cost_limits,
 )
 from services.voice_daily_budget import evaluate_daily_budget, read_daily_spend, record_response
@@ -70,6 +72,13 @@ CLIENT_PATCH_ALLOWLIST = frozenset(
 CLIENT_FRAME_TYPES = frozenset({"session.update", "stop", "context.grounding"})
 VIOLATIONS_BEFORE_CLOSE = 3
 IDLE_TIMEOUT_SECONDS = 90.0  # hot-mic brake, §4.7
+#: How often the client-side pump wakes to re-check ``session.closed`` so an
+#: operator DELETE terminates a live relay promptly (≤1 s) without waiting out
+#: the full idle window.
+_TERMINATION_POLL_SECONDS = 1.0
+#: A minted session grant whose WebSocket never upgraded within this window is
+#: reaped — an abandoned POST must not hold its concurrency slot forever.
+UNCLAIMED_SESSION_TTL_SECONDS = 120.0
 
 #: Only used when a Settings-like object lacks the fields entirely (tests).
 DEFAULT_WARN_FALLBACK = 2.0
@@ -251,6 +260,13 @@ class VoiceSession:
     client_patch: dict[str, Any] = field(default_factory=dict)
     closed: bool = False
     closed_reason: str | None = None
+    #: True once the WebSocket upgrade succeeded — unclaimed grants are the
+    #: only ones eligible for TTL reaping.
+    ws_connected: bool = False
+    #: Live upstream socket handle while a relay runs. Lets ``end_session``
+    #: (operator DELETE kill switch) terminate an active relay immediately by
+    #: closing the socket both pumps block on.
+    relay_upstream: Any = None
 
 
 _sessions: dict[str, VoiceSession] = {}
@@ -262,10 +278,58 @@ def active_session_count() -> int:
         return len(_sessions)
 
 
-def get_session(session_id: str) -> VoiceSession | None:
+def _reap_unclaimed_locked(now: float) -> None:
+    """Drop sessions whose WebSocket never upgraded within the claim TTL.
+
+    A minted grant that was abandoned (page closed before connect) would
+    otherwise hold its concurrency slot permanently and exhaust the gate.
+    Upgraded sessions never expire here — cost caps, the idle brake, and the
+    operator kill switch own those. Caller holds ``_sessions_lock``.
+    """
+    stale = [
+        session_id
+        for session_id, session in _sessions.items()
+        if not session.ws_connected and (now - session.created_at) > UNCLAIMED_SESSION_TTL_SECONDS
+    ]
+    for session_id in stale:
+        session = _sessions.pop(session_id)
+        session.closed = True
+        session.closed_reason = "unclaimed_expired"
+        logger.info(
+            "voice session %s reaped unclaimed after %.0fs", session_id, UNCLAIMED_SESSION_TTL_SECONDS
+        )
+
+
+def get_session(session_id: str, *, now: float | None = None) -> VoiceSession | None:
     cleaned = str(session_id or "").strip()
+    moment = time.time() if now is None else now
     with _sessions_lock:
+        _reap_unclaimed_locked(moment)
         return _sessions.get(cleaned)
+
+
+def _terminate_relay(session: VoiceSession) -> None:
+    """Kill-switch half of termination: close the live upstream socket.
+
+    Closing it unblocks ``pump_upstream_to_client``'s ``recv`` immediately;
+    both pumps additionally poll ``session.closed`` each iteration, so a relay
+    terminates even when no event loop is schedulable on this thread.
+    """
+    upstream = session.relay_upstream
+    if upstream is None:
+        return
+
+    async def _close_quietly() -> None:
+        try:
+            await upstream.close()
+        except Exception:
+            pass
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return  # cross-thread caller — the closed-flag polls stop the pumps
+    loop.create_task(_close_quietly())
 
 
 def end_session(session_id: str, reason: str = "operator_delete") -> bool:
@@ -276,6 +340,7 @@ def end_session(session_id: str, reason: str = "operator_delete") -> bool:
         return False
     session.closed = True
     session.closed_reason = reason
+    _terminate_relay(session)
     return True
 
 
@@ -304,6 +369,7 @@ def create_session(*, tier: str = "standard", settings=None) -> tuple[VoiceSessi
         tokens_per_sec = 50
 
     with _sessions_lock:
+        _reap_unclaimed_locked(time.time())
         if len(_sessions) >= max_concurrent:
             return None, {"error": "concurrency"}
         session = VoiceSession(
@@ -503,13 +569,13 @@ class _RelayState:
         if usage:
             snapshot = session.tracker.record(usage)
         else:
-            # Tier-2 conservative estimator: bill counted audio seconds.
+            # Tier-2 conservative estimator: bill counted audio seconds at the
+            # session's resolved VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC rate.
             snapshot = session.tracker.record(
                 None,
                 input_audio_s=_pcm_seconds(self.input_audio_bytes),
                 output_audio_s=_pcm_seconds(self.output_audio_bytes),
-                # tokens/sec plumbing lives on the tracker rates path via the
-                # module constant; see voice_cost.estimate_fallback_audio_cost_usd.
+                tokens_per_sec=session.tokens_per_sec,
             )
         self.input_audio_bytes = 0
         self.output_audio_bytes = 0
@@ -557,6 +623,35 @@ async def _drain_binary_to_upstream(state: _RelayState, pcm: bytes) -> None:
     )
 
 
+async def _receive_with_termination_brake(
+    client_ws: Any,
+    state: _RelayState,
+    idle_timeout: float,
+) -> Any:
+    """Receive one message, waking at least once per poll interval.
+
+    Returns the received message, or a sentinel ``{"type": "idle.timeout"}`` /
+    ``{"type": "session.closed"}`` so an operator DELETE terminates a live
+    relay within ~1 s instead of after the full 90 s idle window.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + idle_timeout
+    while True:
+        if state.session.closed:
+            return {"type": "session.closed"}
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            return {"type": "idle.timeout"}
+        try:
+            return await asyncio.wait_for(
+                client_ws.receive(), timeout=min(_TERMINATION_POLL_SECONDS, remaining)
+            )
+        except asyncio.TimeoutError:
+            continue  # slice boundary — re-check session.closed promptly
+        except Exception:
+            return {"type": "websocket.disconnect"}
+
+
 async def pump_client_to_upstream(
     client_ws: Any,
     state: _RelayState,
@@ -566,19 +661,18 @@ async def pump_client_to_upstream(
     """Translate client frames onto the upstream socket.
 
     Returns a stop reason: ``client_disconnected`` | ``stop_frame`` |
-    ``protocol_violation`` | ``idle_timeout``.
+    ``protocol_violation`` | ``idle_timeout`` | ``session_closed``.
     """
     while True:
-        try:
-            message = await asyncio.wait_for(client_ws.receive(), timeout=idle_timeout)
-        except asyncio.TimeoutError:
-            return "idle_timeout"
-        except Exception:
-            return "client_disconnected"
+        message = await _receive_with_termination_brake(client_ws, state, idle_timeout)
 
         mtype = message.get("type") if isinstance(message, dict) else None
         if mtype == "websocket.disconnect":
             return "client_disconnected"
+        if mtype == "idle.timeout":
+            return "idle_timeout"
+        if mtype == "session.closed":
+            return "session_closed"
 
         if message.get("bytes") is not None:
             pcm = message["bytes"]
@@ -653,9 +747,12 @@ async def pump_client_to_upstream(
 async def pump_upstream_to_client(client_ws: Any, state: _RelayState) -> str:
     """Tap the untouched provider stream: meter, translate audio, forward.
 
-    Returns ``upstream_closed`` | ``capped``.
+    Returns ``upstream_closed`` | ``capped`` | ``session_closed``.
     """
     while True:
+        if state.session.closed:
+            # Operator DELETE (or reap) ended the session mid-relay.
+            return "session_closed"
         try:
             raw = await state.upstream.recv()
         except Exception:
@@ -738,6 +835,8 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
     s = settings or get_settings()
     provider_info = resolve_provider(s)
     state = _RelayState(session)
+    # The upgrade gate passed: this grant is claimed and no longer reapable.
+    session.ws_connected = True
 
     if provider_info["resolved"] is None:
         end_session(session.session_id, "unconfigured")
@@ -760,6 +859,9 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
         )
         await state.send_json(client_ws, {"type": "closed", "reason": "upstream_unavailable"})
         return
+    # Register the live socket so the operator DELETE kill switch can close it
+    # mid-relay (see _terminate_relay); cleared again in _teardown.
+    session.relay_upstream = state.upstream
 
     session.provider = provider_info["resolved"]
     limits_public = {
@@ -798,6 +900,9 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
         stop_reasons = [task.result() for task in done if not task.cancelled()]
         capped = "capped" in stop_reasons
         protocol_violation = "protocol_violation" in stop_reasons
+        # The session was ended externally (operator DELETE kill switch) — the
+        # pumps observed it via the closed flag or the upstream socket close.
+        terminated = state.session.closed and state.session.closed_reason == "operator_delete"
         for task in pending:
             task.cancel()
         if pending:
@@ -820,7 +925,7 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
         if protocol_violation:
             await _teardown(client_ws, state, "protocol_violation", close_code=4400)
         else:
-            reason = "capped" if capped else "completed"
+            reason = "capped" if capped else "terminated" if terminated else "completed"
             await _teardown(client_ws, state, reason)
     finally:
         for task in (client_task, upstream_task):
@@ -848,6 +953,7 @@ async def _teardown(
             await state.upstream.close()
         except Exception:
             pass
+    session.relay_upstream = None
     end_session(session.session_id, reason)
     await state.send_json(client_ws, {"type": "closed", "reason": reason})
     try:
@@ -861,6 +967,44 @@ async def _teardown(
 # ---------------------------------------------------------------------------
 
 CHAT_CONTEXT_MAX_BYTES = 32 * 1024
+
+
+def _usage_token(usage: Any, keys: tuple[str, ...]) -> float:
+    """First positive value among ``keys`` on a chat-completions usage dict."""
+    for key in keys:
+        try:
+            number = float(usage.get(key))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if number > 0:
+            return number
+    return 0.0
+
+
+def _meter_chat_usage(model_id: str, usage: Any) -> None:
+    """Bill one typed-text turn into the persisted daily ledger (§4.1/§4.2).
+
+    Metering is unconditional across all modes — the degraded typed-text leg
+    is no exception when the provider returns usage. Chat traffic is text
+    tokens, billed against the U1 rate table for the model actually served
+    (an unknown id bills at worst-case rates). Never fails the chat turn.
+    """
+    try:
+        prompt = _usage_token(usage, ("prompt_tokens", "input_tokens"))
+        completion = _usage_token(usage, ("completion_tokens", "output_tokens"))
+        if prompt <= 0 and completion <= 0:
+            return
+        realtime_usage = {
+            "input_tokens": prompt,
+            "output_tokens": completion,
+            "input_token_details": {"text_tokens": prompt},
+            "output_token_details": {"text_tokens": completion},
+        }
+        usd = estimate_usage_cost_usd(realtime_usage, resolve_voice_model_by_id(model_id).rates)
+        if usd > 0:
+            record_response(usd=usd)
+    except Exception as exc:
+        logger.warning("voice chat-leg metering failed: %s", exc)
 
 
 async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict[str, Any]:
@@ -907,4 +1051,5 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
     usage = body.get("usage")
     if isinstance(usage, dict):
         result["usage"] = usage
+        _meter_chat_usage(provider["chatModel"], usage)
     return result

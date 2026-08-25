@@ -250,6 +250,124 @@ class TestStatusRobustness:
 
 
 # ---------------------------------------------------------------------------
+# §4.1/§4.2 — metering is unconditional across all modes: the typed-text chat
+# leg bills its returned usage into the persisted daily ledger.
+# ---------------------------------------------------------------------------
+
+
+class TestChatLegMetering:
+    def test_chat_turn_with_usage_grows_daily_ledger(self, loopback, voice_env, monkeypatch):
+        import httpx
+
+        _enable(voice_env, VOICE_CHAT_MODEL="test-chat-model")
+
+        class _FakeResponse:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {
+                    "choices": [{"message": {"content": "hello operator"}}],
+                    "usage": {"prompt_tokens": 1000, "completion_tokens": 500},
+                }
+
+        class _FakeAsyncClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def post(self, url, json=None, headers=None):
+                return _FakeResponse()
+
+        monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
+
+        from services.voice_daily_budget import read_daily_spend
+
+        before = read_daily_spend()["usdSpent"]
+        response = loopback.post("/api/voice/chat", json={"text": "sitrep?"})
+        assert response.status_code == 200, response.text
+        assert response.json()["reply"] == "hello operator"
+
+        after = read_daily_spend()["usdSpent"]
+        # 1000 prompt × $4 + 500 completion × $24 per 1M (worst-case table for
+        # an unrecognized model id) = $0.016 — degraded traffic IS metered and
+        # therefore governed by VOICE_DAILY_BUDGET_USD like every other mode.
+        assert after > before
+        assert abs(after - before - 0.016) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# §3.3 mount — POST /api/voice/tool executes through validate_and_gate + the
+# server command dispatcher verbatim.
+# ---------------------------------------------------------------------------
+
+
+class TestVoiceToolMount:
+    def test_unknown_tool_is_400_unknown_tool(self, loopback, voice_env):
+        _enable(voice_env)
+        response = loopback.post("/api/voice/tool", json={"tool": "definitely_not_a_tool"})
+        assert response.status_code == 400
+        body = response.json()
+        assert body["ok"] is False
+        assert body["code"] == "unknown_tool"
+
+    def test_read_tool_dispatches_through_server_dispatcher(self, loopback, voice_env, monkeypatch):
+        import services.openclaw_channel as channel_mod
+
+        _enable(voice_env)
+        captured: dict = {}
+
+        def fake_dispatch(cmd, args):
+            captured["cmd"] = cmd
+            captured["args"] = dict(args)
+            return {"ok": True, "data": {"echo": cmd}}
+
+        monkeypatch.setattr(channel_mod, "_dispatch_command", fake_dispatch)
+        response = loopback.post(
+            "/api/voice/tool", json={"tool": "get_summary", "args": {"format": "brief"}}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {"ok": True, "data": {"echo": "get_summary"}}
+        assert captured["cmd"] == "get_summary"
+        assert "confirm_expensive" not in captured["args"]
+
+    def test_destructive_gate_blocks_then_confirmed_call_dispatches_clean(
+        self, loopback, voice_env, monkeypatch
+    ):
+        import services.openclaw_channel as channel_mod
+
+        _enable(voice_env, OPENCLAW_ACCESS_TIER="full")
+        captured: dict = {}
+
+        def fake_dispatch(cmd, args):
+            captured["args"] = dict(args)
+            return {"ok": True}
+
+        monkeypatch.setattr(channel_mod, "_dispatch_command", fake_dispatch)
+
+        blocked = loopback.post("/api/voice/tool", json={"tool": "delete_pin", "args": {}})
+        assert blocked.status_code == 400
+        body = blocked.json()
+        assert body["ok"] is False and body["code"] == "destructive_confirm_required"
+        assert "args" not in captured, "blocked calls must never reach the dispatcher"
+
+        confirmed = loopback.post(
+            "/api/voice/tool",
+            json={"tool": "delete_pin", "args": {"id": "pin-1"}, "confirm": True},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+        assert captured["args"].get("id") == "pin-1"
+        assert "confirm" not in captured["args"], (
+            "gate control keys must be consumed, never forwarded as tool args"
+        )
+
+
+# ---------------------------------------------------------------------------
 # MESH_ONLY lean-mode guard (defense-in-depth, §1.5)
 # ---------------------------------------------------------------------------
 

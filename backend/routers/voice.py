@@ -221,7 +221,9 @@ else:
         if error is not None:
             return JSONResponse(status_code=429, content=error)
 
-        token, expires_in = mint_voice_session_token()
+        # The token is BOUND to this sessionId — a leaked grant cannot be
+        # replayed to upgrade a different active session.
+        token, expires_in = mint_voice_session_token(session.session_id)
         return JSONResponse(
             status_code=201,
             content={
@@ -290,7 +292,7 @@ else:
             if not _voice_origin_allowed(ws):
                 await ws.close(code=4403, reason="voice origin rejected")
                 return
-            if not consume_voice_session_token(token):
+            if not consume_voice_session_token(token, session_id=sessionId):
                 await ws.close(code=4403, reason="voice credential required")
                 return
             session = get_session(sessionId)

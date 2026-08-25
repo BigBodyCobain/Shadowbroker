@@ -470,17 +470,25 @@ class VoiceCostTracker:
         *,
         input_audio_s: float = 0.0,
         output_audio_s: float = 0.0,
+        tokens_per_sec: int | None = None,
     ) -> CostSnapshot:
         """Fold one response into the session total.
 
         Pass the provider's ``response.usage`` when present (tier-1 exact
         metering). When the provider strips usage, pass the counted audio
         seconds instead — they bill through the conservative fallback
-        estimator and flag the snapshot ``estimated``.
+        estimator and flag the snapshot ``estimated``. ``tokens_per_sec``
+        overrides :data:`FALLBACK_AUDIO_TOKENS_PER_SEC` so the live
+        ``VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC`` setting actually meters
+        (the broker passes its session's resolved value; None keeps the
+        module default).
         """
         if usage is None:
             usd = estimate_fallback_audio_cost_usd(
-                input_audio_s, output_audio_s, self.model.rates
+                input_audio_s,
+                output_audio_s,
+                self.model.rates,
+                tokens_per_sec=tokens_per_sec if tokens_per_sec else FALLBACK_AUDIO_TOKENS_PER_SEC,
             )
             if usd > 0:
                 self._estimated = True
