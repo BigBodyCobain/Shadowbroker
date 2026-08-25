@@ -54,9 +54,18 @@ third-party egress lane with its own discipline:
   `error` strings (structured fields only), server-side validation as the sole
   authority on tool calls, and narration that asserts only what `ok:true`
   envelopes actually show.
-- **Pre-existing desktop-shell allowance (documented, unchanged by this
-  feature).** The Tauri shell CSP already permits page→third-party https egress
+- **Pre-existing desktop-shell allowance (U7 posture decision: documented, not
+  tightened).** The Tauri shell CSP already permits page→third-party https egress
   (`connect-src 'self' http://127.0.0.1:* https://*`,
-  `desktop-shell/tauri.conf.json`). The voice feature adds no new CSP origins;
-  closing or tightening that pre-existing allowance is tracked separately on the
-  hardening milestone.
+  `desktop-shell/tauri.conf.json:36`). The voice feature adds no new CSP origins.
+  Decision rationale: the companion window renders the same SPA as the browser
+  deployment, whose MapLibre basemap legitimately fetches tiles and fonts from
+  third-party HTTPS CDNs (`*.basemaps.cartocdn.com` et al. — `docs/OUTBOUND_DATA.md`
+  "Basemap CDN" #354); dropping `https://*` without a per-origin allowlist would
+  break the basemap in the packaged shell. The voice agent's privacy guarantees
+  therefore rest on code discipline, not the shell CSP: server-side brokering
+  only, no provider keys in the client, and the SpeechRecognition ban below.
+  Replacing `https://*` with an explicit per-origin tile/font allowlist is the
+  proper follow-up and belongs to the basemap self-hosting decision (#354), made
+  behind its own two-step acknowledgment if it ever changes operator-visible
+  behavior.
