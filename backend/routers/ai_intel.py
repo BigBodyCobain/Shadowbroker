@@ -1589,37 +1589,7 @@ async def ai_correlation_explanations(request: Request):
 
 # ---------------------------------------------------------------------------
 # Agent Tool Manifest — machine-readable tool definitions for LLM agents
-# ---------------------------------------------------------------------------
-# Any LLM agent (OpenClaw, custom, etc.) hits this endpoint once on connect
-# and loads the result as its tool definitions. No manual reading required.
-
-@router.get("/api/ai/tools", dependencies=[Depends(require_openclaw_or_local)])
-@limiter.limit("30/minute")
-async def agent_tool_manifest(request: Request):
-    """Return structured tool definitions that an LLM agent can load directly.
-
-    This is the machine-readable equivalent of /api/ai/capabilities.
-    An agent loads these as its available tools on first connect.
-    Each tool has: name, description, parameters (with types), and examples.
-    """
-    from services.openclaw_channel import READ_COMMANDS, WRITE_COMMANDS
-    from services.config import get_settings
-
-    access_tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
-    available_commands = sorted(READ_COMMANDS | WRITE_COMMANDS) if access_tier == "full" else sorted(READ_COMMANDS)
-
-    return {
-        "ok": True,
-        "version": "0.9.82",
-        "access_tier": access_tier,
-        "available_commands": available_commands,
-        "transport": {
-            "commands": "POST /api/ai/channel/command  body: {\"cmd\": \"<tool_name>\", \"args\": {<params>}}",
-            "batch": "POST /api/ai/channel/batch  body: {\"commands\": [{\"cmd\": \"...\", \"args\": {...}}, ...]}  (max 20, concurrent execution, one HTTP round-trip)",
-            "realtime_stream": "GET /api/ai/channel/sse  (Server-Sent Events — keeps Tor circuit warm, receives push events)",
-            "auth": "HMAC-SHA256 headers: X-SB-Timestamp, X-SB-Nonce, X-SB-Signature. Sign: HMAC(key, METHOD|path|ts|nonce|sha256(body))",
-        },
-        "tools": [
+_AGENT_TOOLS = [
             # ── Read Tools ────────────────────────────────────
             {
                 "name": "get_summary",
@@ -2297,7 +2267,39 @@ async def agent_tool_manifest(request: Request):
                 "description": "Clear OpenClaw-created analysis zones from the map.",
                 "parameters": {},
             },
-        ],
+]
+
+# ---------------------------------------------------------------------------
+# Any LLM agent (OpenClaw, custom, etc.) hits this endpoint once on connect
+# and loads the result as its tool definitions. No manual reading required.
+
+@router.get("/api/ai/tools", dependencies=[Depends(require_openclaw_or_local)])
+@limiter.limit("30/minute")
+async def agent_tool_manifest(request: Request):
+    """Return structured tool definitions that an LLM agent can load directly.
+
+    This is the machine-readable equivalent of /api/ai/capabilities.
+    An agent loads these as its available tools on first connect.
+    Each tool has: name, description, parameters (with types), and examples.
+    """
+    from services.openclaw_channel import READ_COMMANDS, WRITE_COMMANDS
+    from services.config import get_settings
+
+    access_tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
+    available_commands = sorted(READ_COMMANDS | WRITE_COMMANDS) if access_tier == "full" else sorted(READ_COMMANDS)
+
+    return {
+        "ok": True,
+        "version": "0.9.82",
+        "access_tier": access_tier,
+        "available_commands": available_commands,
+        "transport": {
+            "commands": "POST /api/ai/channel/command  body: {\"cmd\": \"<tool_name>\", \"args\": {<params>}}",
+            "batch": "POST /api/ai/channel/batch  body: {\"commands\": [{\"cmd\": \"...\", \"args\": {...}}, ...]}  (max 20, concurrent execution, one HTTP round-trip)",
+            "realtime_stream": "GET /api/ai/channel/sse  (Server-Sent Events — keeps Tor circuit warm, receives push events)",
+            "auth": "HMAC-SHA256 headers: X-SB-Timestamp, X-SB-Nonce, X-SB-Signature. Sign: HMAC(key, METHOD|path|ts|nonce|sha256(body))",
+        },
+        "tools": _AGENT_TOOLS,
         "sse_events": {
             "description": "Events pushed via GET /api/ai/channel/sse — keep connection open to receive these in real-time.",
             "events": {
