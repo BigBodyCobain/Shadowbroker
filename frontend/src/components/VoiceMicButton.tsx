@@ -76,20 +76,27 @@ export default function VoiceMicButton() {
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
   const visual = PHASE_MATRIX[state.phase];
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heldRef = useRef(false);
+  // True only once a press crossed the hold threshold. Consumed (reset) by
+  // handleClick so the synthetic click that follows pointerup — which fires
+  // AFTER endHold() ran — can never double-fire as a panel toggle.
+  const wasHoldRef = useRef(false);
   const [showHint, setShowHint] = useState(false);
 
-  // One-time 6-second discoverability hint (dismissal persisted once).
+  // One-time 6-second discoverability hint (dismissal persisted once). §5.4
+  // gates it on voice being enabled: phase `idle` is the only fully-enabled,
+  // non-degraded resting phase, so a dimmed/degraded button never nags.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.localStorage.getItem('sb_voice_hint_seen_v1')) return;
+    if (state.phase !== 'idle' || typeof window === 'undefined' || window.localStorage.getItem('sb_voice_hint_seen_v1')) {
+      setShowHint(false);
+      return;
+    }
     setShowHint(true);
     const id = setTimeout(() => {
       setShowHint(false);
       window.localStorage.setItem('sb_voice_hint_seen_v1', '1');
     }, 6000);
     return () => clearTimeout(id);
-  }, []);
+  }, [state.phase]);
 
   useEffect(
     () => () => {
@@ -105,9 +112,9 @@ export default function VoiceMicButton() {
 
   const startHold = () => {
     if (!visual.interactive) return;
-    heldRef.current = false;
+    wasHoldRef.current = false;
     holdTimer.current = setTimeout(() => {
-      heldRef.current = true;
+      wasHoldRef.current = true;
       if (state.degraded) {
         // §3.7 zero-model rule: no brokered STT path → route to composer.
         voiceController.requestComposerFocus();
@@ -123,14 +130,17 @@ export default function VoiceMicButton() {
       clearTimeout(holdTimer.current);
       holdTimer.current = null;
     }
-    if (heldRef.current) {
-      heldRef.current = false;
-      voiceController.endPtt();
-    }
+    if (wasHoldRef.current) voiceController.endPtt();
   };
 
   const handleClick = () => {
-    if (heldRef.current) return; // was a PTT hold, not a console request
+    // A hold-release arrives here as a synthetic click after endHold(); the
+    // flag is consumed exactly once so the release never toggles the panel.
+    // startHold() resets it, so a stale flag cannot swallow the next tap.
+    if (wasHoldRef.current) {
+      wasHoldRef.current = false;
+      return;
+    }
     if (visual.interactive) voiceController.setPanelOpen(!state.panelOpen);
     else voiceController.setPanelOpen(true);
     if (state.degraded) voiceController.requestComposerFocus();
@@ -141,7 +151,7 @@ export default function VoiceMicButton() {
   return (
     <div className="relative" data-testid="voice-mic-button">
       {showHint && (
-        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--bg-primary)]/90 border border-violet-500/40 px-2 py-1 text-[9px] font-mono tracking-widest text-violet-300">
+        <div data-testid="voice-hint-chip" className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--bg-primary)]/90 border border-violet-500/40 px-2 py-1 text-[9px] font-mono tracking-widest text-violet-300">
           {t('voice.hint.ptt')}
         </div>
       )}

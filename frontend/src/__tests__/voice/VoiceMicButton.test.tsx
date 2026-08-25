@@ -4,7 +4,7 @@
  * degraded-mode pointer routing to the composer.
  */
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import VoiceMicButton from '@/components/VoiceMicButton';
@@ -49,6 +49,10 @@ function drive(phase: VoicePhase) {
       break;
     case 'idle':
       voiceController.applyStatus(enabledStatus());
+      // The controller singleton keeps non-terminal phases across tests
+      // (resetForNewSession only clears quota-capped/error) — force a legal
+      // transition back to idle so each test starts from a known state.
+      voiceController.backToIdle();
       break;
     case 'connecting':
       voiceController.beginPtt();
@@ -81,7 +85,11 @@ describe('VoiceMicButton render matrix', () => {
 
   afterEach(() => {
     cleanup();
+    // Spies wrap the shared controller singleton — without restoring, the
+    // next spyOn() reuses the same mock AND its call history across tests.
+    vi.restoreAllMocks();
     voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
   });
 
   const CASES: Array<[VoicePhase, string | null]> = [
@@ -175,6 +183,43 @@ describe('VoiceMicButton render matrix', () => {
     }
   });
 
+  it('mouse hold-release does NOT also toggle the panel (double-fire regression)', () => {
+    vi.useFakeTimers();
+    try {
+      drive('idle');
+      const endSpy = vi.spyOn(voiceController, 'endPtt');
+      const openSpy = vi.spyOn(voiceController, 'setPanelOpen');
+      render(<VoiceMicButton />);
+      const button = screen.getByTestId('voice-mic-button').querySelector('button') as HTMLButtonElement;
+      fireEvent.pointerDown(button);
+      vi.advanceTimersByTime(300); // past the hold threshold → wasHold
+      fireEvent.pointerUp(button); // endHold() fires first…
+      fireEvent.click(button);     // …then the synthetic click arrives
+      expect(endSpy).toHaveBeenCalled();          // PTT released exactly once
+      expect(openSpy).not.toHaveBeenCalled();     // panel NOT toggled by the release
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a click AFTER a consumed hold-release still toggles the panel', () => {
+    vi.useFakeTimers();
+    try {
+      drive('idle');
+      const openSpy = vi.spyOn(voiceController, 'setPanelOpen');
+      render(<VoiceMicButton />);
+      const button = screen.getByTestId('voice-mic-button').querySelector('button') as HTMLButtonElement;
+      fireEvent.pointerDown(button);
+      vi.advanceTimersByTime(300);
+      fireEvent.pointerUp(button);
+      fireEvent.click(button);            // release click — swallowed
+      fireEvent.click(button);            // genuine next tap — must toggle
+      expect(openSpy).toHaveBeenCalledWith(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('quick tap (below the hold threshold) opens the console panel', () => {
     drive('idle');
     const openSpy = vi.spyOn(voiceController, 'setPanelOpen');
@@ -184,5 +229,61 @@ describe('VoiceMicButton render matrix', () => {
     fireEvent.pointerUp(button); // released before PTT_HOLD_MS
     fireEvent.click(button);
     expect(openSpy).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('VoiceMicButton hint chip gating (§5.4 — only when enabled)', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem('sb_voice_hint_seen_v1');
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
+    window.localStorage.removeItem('sb_voice_hint_seen_v1');
+  });
+
+  function disabledStatus(): VoiceStatusResponse {
+    const base = enabledStatus();
+    return {
+      ...base,
+      effectiveEnable: false,
+      provider: { ...base.provider, resolved: null },
+      degradedReason: 'voice disabled',
+      reasons: ['Voice agent outbound is blocked by configuration'],
+    };
+  }
+
+  it('shows the hint for an enabled mic when the once-flag is unset', () => {
+    drive('idle'); // enabled status applied → phase idle
+    render(<VoiceMicButton />);
+    expect(screen.getByTestId('voice-hint-chip')).not.toBeNull();
+  });
+
+  it('never shows the hint over a dimmed disabled/degraded button', () => {
+    drive('opt-in-required'); // degraded resting phase
+    render(<VoiceMicButton />);
+    expect(screen.queryByTestId('voice-hint-chip')).toBeNull();
+  });
+
+  it('stays hidden once the dismissal flag is persisted', () => {
+    window.localStorage.setItem('sb_voice_hint_seen_v1', '1');
+    drive('idle');
+    render(<VoiceMicButton />);
+    expect(screen.queryByTestId('voice-hint-chip')).toBeNull();
+  });
+
+  it('appears when the status poll enables voice after mount', () => {
+    act(() => {
+      voiceController.applyStatus(disabledStatus()); // dimmed until the poll enables
+    });
+    render(<VoiceMicButton />);
+    expect(screen.queryByTestId('voice-hint-chip')).toBeNull();
+    act(() => {
+      voiceController.applyStatus(enabledStatus()); // poll flips to enabled → phase idle
+    });
+    expect(screen.getByTestId('voice-hint-chip')).not.toBeNull();
   });
 });

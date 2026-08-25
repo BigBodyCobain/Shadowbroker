@@ -30,6 +30,24 @@ export type DeterministicResolution =
   | { kind: 'local_reply'; reply: string }
   | { kind: 'route_query' };
 
+/** A route_query recommendation the backend gate blocked, awaiting 'confirm'. */
+export interface PendingConfirmation {
+  tool: string;
+  args: Record<string, unknown>;
+  kind: 'expensive' | 'destructive';
+}
+
+let pendingConfirmation: PendingConfirmation | null = null;
+
+/** The gated recommendation awaiting an operator confirm, if any. */
+export function getPendingConfirmation(): PendingConfirmation | null {
+  return pendingConfirmation;
+}
+
+export function clearPendingConfirmation(): void {
+  pendingConfirmation = null;
+}
+
 // Camera-intent regexes (§3.7) — mirrored from services/voice_tool_registry.py.
 const RE_ORBIT_STOP = /\b(?:stop|cancel|end)\s+(?:the\s+)?orbit\b/i;
 const RE_ORBIT = /\borbit\b/i;
@@ -42,6 +60,10 @@ const RE_LAYER_TOGGLE =
   /\b(?:toggle|enable|disable|turn\s+(?:on|off)|show|hide)\s+(?:the\s+)?([a-z0-9 _-]{2,40}?)\s+(?:layer|layers)\b/i;
 const RE_TM_CONTROL =
   /\b(play|resume|pause|stop)\s+(?:the\s+)?time[ -]?machine\b/i;
+
+// §3.7 item 2 — the operator's unlock word for a gated recommendation.
+const RE_CONFIRM =
+  /^\s*(?:confirm(?:\s+(?:it|the\s+\S+))?|yes|yeah|yep|y|go\s+ahead|do\s+it|run\s+it)\s*[.!]?\s*$/i;
 
 function matchLayerKey(phrase: string, ctx: ClientToolContext): string | null {
   const wanted = phrase.trim().toLowerCase().replace(/\s+/g, '_');
@@ -118,11 +140,23 @@ async function geocodePlace(label: string): Promise<GeocodeHit | null> {
   };
 }
 
-async function postVoiceTool(tool: string, args: Record<string, unknown>): Promise<ToolResult> {
+async function postVoiceTool(
+  tool: string,
+  args: Record<string, unknown>,
+  flags: { confirmExpensive?: boolean; confirm?: boolean } = {},
+): Promise<ToolResult> {
   const res = await fetch(`${API_BASE}/api/voice/tool`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tool, args }),
+    // Confirm flags ride top-level (§3.6/U3): validate_and_gate consumes them
+    // for its gates and strips them from clean_call.args — never rely on them
+    // round-tripping inside `args`.
+    body: JSON.stringify({
+      tool,
+      args,
+      confirm_expensive: flags.confirmExpensive === true,
+      confirm: flags.confirm === true,
+    }),
   });
   let payload: Record<string, unknown> = {};
   try {
@@ -139,6 +173,7 @@ async function postVoiceTool(tool: string, args: Record<string, unknown>): Promi
     ok: false,
     action: tool,
     error: String(payload.detail ?? payload.error ?? `voice tool endpoint returned HTTP ${res.status}`),
+    ...(typeof payload.code === 'string' ? { code: payload.code } : {}),
   };
 }
 
@@ -168,7 +203,8 @@ export async function runDeterministicTurn(
   text: string,
   ctx: ClientToolContext,
 ): Promise<DeterministicOutcome> {
-  const resolution = resolveDeterministic(text, ctx);
+  const raw = String(text || '').trim();
+  const resolution = resolveDeterministic(raw, ctx);
   const steps: TurnStep[] = [];
 
   const record = (result: ToolResult, tool: string, argsSummary: string): string => {
@@ -180,6 +216,26 @@ export async function runDeterministicTurn(
     });
     return result.ok === true ? '' : String(result.error ?? 'command failed');
   };
+
+  // §3.7 item 2 — a gated recommendation awaits confirmation like the LLM
+  // path: the bare unlock word re-runs it with the matching confirm flag;
+  // any other input abandons it honestly and proceeds with the new text.
+  if (pendingConfirmation && RE_CONFIRM.test(raw)) {
+    const pending = pendingConfirmation;
+    pendingConfirmation = null;
+    const flags =
+      pending.kind === 'expensive'
+        ? { confirmExpensive: true }
+        : { confirm: true };
+    const confirmed = await postVoiceTool(pending.tool, pending.args, flags);
+    const err = record(confirmed, pending.tool, '');
+    if (err) return { steps, reply: err };
+    return { steps, reply: templateReply(pending.tool, confirmed) };
+  }
+  if (pendingConfirmation) {
+    pendingConfirmation = null;
+    steps.push({ tool: null, argsSummary: '', ok: true, detail: 'pending confirmation discarded' });
+  }
 
   if (resolution.kind === 'client_verb') {
     const args = { ...resolution.args };
@@ -275,6 +331,21 @@ export async function runDeterministicTurn(
 
   steps.push({ tool: 'route_query', argsSummary: `intent=${intent}`, ok: true, detail: cmd });
   const executed = await postVoiceTool(cmd, recommended.args ?? {});
+  if (!executed.ok) {
+    // §3.7 item 2: an expensive/destructive recommendation speaks the gate
+    // message verbatim and awaits confirmation instead of dying as a bare
+    // error. The unlock word is handled at the top of the next turn.
+    const code = typeof executed.code === 'string' ? executed.code : '';
+    if (code === 'expensive_command_blocked' || code === 'destructive_confirm_required') {
+      pendingConfirmation = {
+        tool: cmd,
+        args: recommended.args ?? {},
+        kind: code === 'expensive_command_blocked' ? 'expensive' : 'destructive',
+      };
+      steps.push({ tool: cmd, argsSummary: '', ok: false, detail: code });
+      return { steps, reply: `${String(executed.error)} Type 'confirm' to run it.` };
+    }
+  }
   const err = record(executed, cmd, '');
   if (err) return { steps, reply: err };
   return { steps, reply: templateReply(cmd, executed) };

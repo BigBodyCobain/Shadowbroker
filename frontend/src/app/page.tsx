@@ -532,6 +532,11 @@ export default function Dashboard() {
     },
     toggleLayer: (layer, enabled) => {
       if (!Object.prototype.hasOwnProperty.call(activeLayers, layer)) return null;
+      // §3.4 executor discipline ("actual ≠ requested ⇒ ok:false"): the
+      // updater below assigns `enabled` unconditionally at this key and no
+      // other reducer can rewrite it before React commits, so the committed
+      // value equals the requested value by construction — returning it IS
+      // the applied state. (The refusal path above is the only way to get null.)
       setActiveLayers((prev) => ({ ...prev, [layer]: enabled }));
       return enabled;
     },

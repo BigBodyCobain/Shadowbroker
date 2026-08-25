@@ -6,7 +6,8 @@
  * header (model + cost chips), reverse-chronological transcript with verbatim
  * tool rows, and the always-present composer driving the identical
  * deterministic pipeline. The NARRATE block / freshness strip land with U5's
- * grounding composer; collapse ticker is included.
+ * grounding composer; collapse is panel open/close only — the one-line ticker
+ * mode is deferred (see the U4 milestone report).
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
