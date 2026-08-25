@@ -338,3 +338,76 @@ class TestHudSummaryEndpoint:
         )
         assert different.status_code == 200
         assert len(calls_box) == 2
+
+    def test_over_budget_is_429_before_any_generation(self, loopback, voice_env):
+        """§2.7 "429 latched cap": briefs are billable generations — the same
+        persisted daily-budget gate as session minting applies here."""
+        _enable(voice_env, VOICE_OPENAI_API_KEY="test-key", VOICE_DAILY_BUDGET_USD="0.01")
+        from services.voice_daily_budget import record_response
+
+        record_response(usd=0.05)  # persist spend into today's ledger
+        response = loopback.post("/api/voice/hud-summary", json={"snapshot": _VALID_SNAPSHOT})
+        assert response.status_code == 429
+        body = response.json()
+        assert body["error"] == "budget"
+        assert body["resetsAt"]
+        assert int(response.headers["Retry-After"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# POST /api/voice/turn — endpoint-level picker-loop contract (§3.6)
+# ---------------------------------------------------------------------------
+
+
+class TestTurnEndpoint:
+    def test_disabled_is_409_opt_in_required(self, loopback):
+        response = loopback.post("/api/voice/turn", json={"text": "sitrep"})
+        assert response.status_code == 409
+        body = response.json()
+        assert body["error"] == "opt_in_required"
+        assert body["reasons"]
+
+    def test_flags_set_without_chat_model_is_503(self, loopback, voice_env):
+        _enable(voice_env)  # opt-in satisfied, but no VOICE_CHAT_MODEL
+        response = loopback.post("/api/voice/turn", json={"text": "sitrep"})
+        assert response.status_code == 503
+        assert response.json()["error"] == "chat_unconfigured"
+
+    def test_happy_path_narration_turn(self, loopback, voice_env, monkeypatch):
+        import services.voice_broker as broker
+
+        legs: list = []
+
+        async def fake_chat(messages, settings=None):
+            legs.append([dict(m) for m in messages])
+            return {"ok": True, "reply": '{"tool": null, "say": "View is quiet."}', "model": "test-chat-model"}
+
+        monkeypatch.setattr(broker, "chat_completion", fake_chat)
+        _enable(voice_env, VOICE_CHAT_MODEL="m")
+        response = loopback.post("/api/voice/turn", json={"text": "sitrep", "snapshot": _VALID_SNAPSHOT})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["ok"] is True
+        assert body["say"] == "View is quiet."
+        assert body["mode"] in ("full", "mesh_lean")
+        assert legs, "the turn must dial the chat model exactly once for narration"
+
+    def test_over_budget_is_429_before_any_generation(self, loopback, voice_env, monkeypatch):
+        """§2.7 latched cap: a capped operator cannot drive picker turns past
+        the daily budget either."""
+        import services.voice_broker as broker
+
+        async def must_not_dial(messages, settings=None):  # pragma: no cover
+            raise AssertionError("budget cap must short-circuit before the chat leg")
+
+        monkeypatch.setattr(broker, "chat_completion", must_not_dial)
+        _enable(voice_env, VOICE_OPENAI_API_KEY="test-key", VOICE_DAILY_BUDGET_USD="0.01")
+        from services.voice_daily_budget import record_response
+
+        record_response(usd=0.05)
+        response = loopback.post("/api/voice/turn", json={"text": "sitrep"})
+        assert response.status_code == 429
+        body = response.json()
+        assert body["error"] == "budget"
+        assert body["resetsAt"]
+        assert int(response.headers["Retry-After"]) > 0

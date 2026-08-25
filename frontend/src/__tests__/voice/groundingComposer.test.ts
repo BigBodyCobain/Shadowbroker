@@ -15,7 +15,8 @@ import {
   dispositionForLayer,
   newsSentimentBucket,
 } from '@/lib/voiceFreshness';
-import { composeFreshness } from '@/hooks/useVoiceGrounding';
+import { composeFreshness, resolveMapZoom } from '@/hooks/useVoiceGrounding';
+import { onRequest } from '@/lib/mapControlBus';
 
 const NOW = Date.parse('2026-08-25T12:00:00Z');
 function stampAge(secondsAgo: number): string {
@@ -116,5 +117,30 @@ describe('post-fix golden fixtures — real dispositions, not unknown', () => {
     const { map } = composeFreshness({ gdelt: 'not-a-timestamp' }, NOW);
     expect(map.gdelt.disposition).toBe('unknown');
     expect(ageFromStamp('not-a-timestamp')).toBeNull();
+  });
+});
+
+describe('resolveMapZoom — §2.4 view.zoom rides the live camera (judge fix)', () => {
+  it('reads zoom through the map control bus and coarsens to 0.1', async () => {
+    const off = onRequest((cmd) => {
+      if (cmd.type !== 'getViewState') return { ok: false, action: cmd.type };
+      return { ok: true, action: 'getViewState', view: { center: { lat: 50.45, lng: 30.52 }, zoom: 9.27 } };
+    });
+    try {
+      await expect(resolveMapZoom()).resolves.toBe(9.3);
+    } finally {
+      off();
+    }
+  });
+  it('non-finite camera answers degrade to null, never an estimate', async () => {
+    const off = onRequest(() => ({ ok: true, action: 'getViewState', view: { zoom: Number.NaN } }));
+    try {
+      await expect(resolveMapZoom()).resolves.toBeNull();
+    } finally {
+      off();
+    }
+  });
+  it('null when no viewer is mounted — snapshot composition never blocks', async () => {
+    await expect(resolveMapZoom()).resolves.toBeNull();
   });
 });

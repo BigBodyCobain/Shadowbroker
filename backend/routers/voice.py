@@ -108,6 +108,37 @@ else:
             "reasons": reasons,
         }
 
+    def _budget_gate(settings):
+        """Gate 3 — persisted daily-budget governor (§2.7 "429 latched cap").
+
+        Shared by EVERY voice LLM surface (session mint, hud-summary briefs and
+        picker turns): a capped operator must not be able to keep generating.
+        Returns ``(refusal_or_None, gate)`` so callers can still read
+        ``gate["suggestTier"]`` on the allowed path.
+        """
+        from services.voice_broker import daily_spend_view
+        from services.voice_daily_budget import evaluate_daily_budget
+
+        gate = evaluate_daily_budget(
+            daily_spend_view(settings),
+            getattr(settings, "VOICE_DAILY_BUDGET_USD", 0.0),
+            mini_configured=bool(str(getattr(settings, "VOICE_MODEL_MINI", "") or "").strip()),
+        )
+        if gate["allowed"]:
+            return None, gate
+        retry_after = 3600
+        try:
+            resets_at = datetime.fromisoformat(gate["resetsAt"])
+            retry_after = max(60, int((resets_at - datetime.now(timezone.utc)).total_seconds()))
+        except Exception:
+            pass
+        refusal = JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+            content={"error": "budget", "resetsAt": gate["resetsAt"]},
+        )
+        return refusal, gate
+
     # ------------------------------------------------------------------
     # GET /api/voice/status — powers mic-button states; never 500s
     # ------------------------------------------------------------------
@@ -190,9 +221,8 @@ else:
     @router.post("/api/voice/session", status_code=201, dependencies=[Depends(require_local_operator)])
     @limiter.limit("10/minute")
     async def create_voice_session(request: Request, body: VoiceSessionRequest):
-        from services.voice_broker import create_session, daily_spend_view, resolve_provider
+        from services.voice_broker import create_session, resolve_provider
         from services.voice_session_tokens import mint_voice_session_token
-        from services.voice_daily_budget import evaluate_daily_budget
 
         s = _settings()
 
@@ -207,27 +237,10 @@ else:
         if provider["resolved"] is None:
             return JSONResponse(status_code=503, content={"error": "unconfigured", "detail": provider["degradedReason"]})
 
-        # Gate 3 — persisted daily budget governor.
-        spend = daily_spend_view(s)
-        gate = evaluate_daily_budget(
-            spend,
-            getattr(s, "VOICE_DAILY_BUDGET_USD", 0.0),
-            mini_configured=bool(str(getattr(s, "VOICE_MODEL_MINI", "") or "").strip()),
-        )
-        if not gate["allowed"]:
-            retry_after = 3600
-            try:
-                from datetime import datetime, timezone
-
-                resets_at = datetime.fromisoformat(gate["resetsAt"])
-                retry_after = max(60, int((resets_at - datetime.now(timezone.utc)).total_seconds()))
-            except Exception:
-                pass
-            return JSONResponse(
-                status_code=429,
-                headers={"Retry-After": str(retry_after)},
-                content={"error": "budget", "resetsAt": gate["resetsAt"]},
-            )
+        # Gate 3 — persisted daily budget governor (shared helper).
+        budget_refusal, gate = _budget_gate(s)
+        if budget_refusal is not None:
+            return budget_refusal
 
         # Gate 4 — bounded concurrency registry.
         tier = str(body.tier or "standard").strip().lower()
@@ -428,6 +441,13 @@ else:
                 },
             )
 
+        # Gate 3 — persisted daily-budget cap (§2.7 "429 latched cap"): briefs
+        # are billable generations, so the cap applies here too, not only to
+        # session minting.
+        budget_refusal, _gate = _budget_gate(s)
+        if budget_refusal is not None:
+            return budget_refusal
+
         snapshot = validate_grounding_snapshot(body.snapshot)
         if snapshot is None:
             return JSONResponse(
@@ -483,6 +503,12 @@ else:
         if not effective:
             provider_probe = resolve_provider(s)
             return JSONResponse(status_code=409, content=_opt_in_refusal_payload(provider_probe["reasons"]))
+
+        # Gate 3 — persisted daily-budget cap (§2.7): picker turns dial the
+        # chat model, so the same latched cap governs this surface.
+        budget_refusal, _gate = _budget_gate(s)
+        if budget_refusal is not None:
+            return budget_refusal
 
         result = await run_picker_turn(
             body.text,
