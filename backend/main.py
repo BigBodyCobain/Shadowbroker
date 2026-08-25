@@ -404,6 +404,7 @@ if _MESH_ONLY:
     intel_feeds_router = APIRouter()
     analytics_router = APIRouter()
     agent_shell_router = APIRouter()
+    voice_router = APIRouter()
 else:
     cctv_router = _load_optional_router("routers.cctv")
     radio_router = _load_optional_router("routers.radio")
@@ -420,6 +421,7 @@ else:
     intel_feeds_router = _load_optional_router("routers.intel_feeds")
     analytics_router = _load_optional_router("routers.analytics")
     agent_shell_router = _load_optional_router("routers.agent_shell")
+    voice_router = _load_optional_router("routers.voice")
 
 
 # ---------------------------------------------------------------------------
@@ -3868,6 +3870,7 @@ app.include_router(entity_graph_router)
 app.include_router(intel_feeds_router)
 app.include_router(analytics_router)
 app.include_router(agent_shell_router)
+app.include_router(voice_router)
 
 from services.data_fetcher import update_all_data
 
