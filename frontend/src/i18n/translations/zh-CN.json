@@ -350,5 +350,37 @@
     "translatedFrom": "由 {lang} 翻译",
     "showOriginal": "显示原文（{lang}）",
     "showTranslation": "显示译文"
+  },
+  "voice": {
+    "label": "语音",
+    "micAria": {
+      "opt-in-required": "语音链路已停用 — 需要操作员确认启用",
+      "lean-unavailable": "精简模式下语音不可用",
+      "idle": "语音控制台 — 按住 V 说话，或点击打开",
+      "connecting": "正在连接语音链路",
+      "listening": "监听中 — 松开 V 发送",
+      "thinking": "正在处理请求",
+      "speaking": "代理播报中",
+      "error": "语音链路故障",
+      "quota-capped": "已达会话费用上限"
+    },
+    "hint": { "ptt": "按住 V 说话 · 点击打开控制台" },
+    "panel": {
+      "title": "语音链路",
+      "costNote": "会话费用，由服务端计量",
+      "textModeChip": "文本模式",
+      "composerPlaceholder": "试试：fly to Kyiv · zoom in · what changed",
+      "close": "关闭语音控制台"
+    },
+    "summary": { "prefix": "SYS.NARRATIVE" },
+    "freshness": { "fresh": "实时", "stale": "老化", "offline": "过期", "unknown": "未知" },
+    "turn": { "you": "操作员", "sys": "系统", "toolOk": "成功", "toolFail": "失败" },
+    "states": {
+      "optInRequired": "需确认启用",
+      "leanMode": "精简模式",
+      "error": "故障",
+      "quotaCapped": "$ 上限"
+    },
+    "shortcut": { "desc": "按住说话（语音控制台）" }
   }
 }

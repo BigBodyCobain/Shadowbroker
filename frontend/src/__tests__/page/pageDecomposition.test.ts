@@ -250,3 +250,30 @@ describe('page.tsx decomposition — retained orchestration', () => {
     expect(page).toMatch(/\[infonetOpen,\s*setInfonetOpen\]\s*=\s*useState/);
   });
 });
+
+// ─── Voice console integration (U4) ────────────────────────────────────────
+
+describe('page.tsx decomposition — voice console wrap', () => {
+  const page = readAppFile('page.tsx');
+
+  it('wraps LocateBar and VoiceMicButton in one flex row with an ErrorBoundary each', () => {
+    expect(page).toContain('relative flex items-center gap-2');
+    expect(page).toMatch(/<ErrorBoundary name="VoiceMicButton">/);
+    expect(page.indexOf('<VoiceMicButton />')).toBeGreaterThan(page.indexOf('<LocateBar'));
+  });
+
+  it('mounts VoiceHudPanel inside the mic row while open', () => {
+    expect(page).toContain('<VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />');
+  });
+
+  it('wires useVoiceAgent as the single client-tool binding site', () => {
+    expect(page).toMatch(/import\s*\{[^}]*useVoiceAgent[^}]*\}\s*from\s+['"]@\/hooks\/useVoiceAgent['"]/);
+    expect(page).toMatch(/useVoiceAgent\(\{/);
+    expect(page).toContain('viewSummary: () => ({');
+  });
+
+  it('passes the V push-to-talk channel to useKeyboardShortcuts and routes Escape through the controller', () => {
+    expect(page).toMatch(/voicePtt:\s*\{\s*begin:\s*\(\)\s*=>\s*\{\s*voiceRef\.current\?\.beginPtt\(\);/);
+    expect(page).toMatch(/voiceRef\.current\?\.cancelActive\(\)/);
+  });
+});

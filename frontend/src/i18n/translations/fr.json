@@ -350,5 +350,37 @@
     "translatedFrom": "Traduit depuis {lang}",
     "showOriginal": "AFFICHER L'ORIGINAL ({lang})",
     "showTranslation": "AFFICHER LA TRADUCTION"
+  },
+  "voice": {
+    "label": "VOIX",
+    "micAria": {
+      "opt-in-required": "Liaison vocale désactivée — activation de l'opérateur requise",
+      "lean-unavailable": "Voix indisponible en mode allégé",
+      "idle": "Console vocale — maintenez V pour parler ou cliquez pour ouvrir",
+      "connecting": "Connexion de la liaison vocale",
+      "listening": "Écoute — relâchez V pour envoyer",
+      "thinking": "Traitement de la demande",
+      "speaking": "L'agent parle",
+      "error": "Défaillance de la liaison vocale",
+      "quota-capped": "Plafond de coût de session atteint"
+    },
+    "hint": { "ptt": "MAINTENEZ V POUR PARLER · CLIQUEZ POUR LA CONSOLE" },
+    "panel": {
+      "title": "LIAISON VOCALE",
+      "costNote": "coût de session, mesuré côté serveur",
+      "textModeChip": "MODE TEXTE",
+      "composerPlaceholder": "Essayez : fly to Kyiv · zoom in · what changed",
+      "close": "Fermer la console vocale"
+    },
+    "summary": { "prefix": "SYS.NARRATIVE" },
+    "freshness": { "fresh": "direct", "stale": "vieillissant", "offline": "périmé", "unknown": "inconnu" },
+    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "ÉCHEC" },
+    "states": {
+      "optInRequired": "ACTIVATION REQUISE",
+      "leanMode": "MODE ALLÉGÉ",
+      "error": "DÉFAILLANCE",
+      "quotaCapped": "$ PLAFOND"
+    },
+    "shortcut": { "desc": "Maintenir pour parler (console vocale)" }
   }
 }

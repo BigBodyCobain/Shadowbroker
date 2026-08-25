@@ -48,6 +48,9 @@ import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useRegionDossier } from '@/hooks/useRegionDossier';
 import { useGtDossier } from '@/hooks/useGtDossier';
 import { useAgentActions } from '@/hooks/useAgentActions';
+import { useVoiceAgent, type UseVoiceAgentResult } from '@/hooks/useVoiceAgent';
+import VoiceMicButton from '@/components/VoiceMicButton';
+import VoiceHudPanel from '@/components/VoiceHudPanel';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import KeyboardShortcutsOverlay from '@/components/KeyboardShortcutsOverlay';
@@ -268,6 +271,11 @@ export default function Dashboard() {
     return () => window.clearTimeout(id);
   }, [criticalPaintReady, secondaryBootReady]);
 
+  // Voice console actions resolve through this ref: the V shortcut is
+  // registered here while the single useVoiceAgent binding site sits further
+  // down, next to the other agent wiring (§3.5).
+  const voiceRef = useRef<UseVoiceAgentResult | null>(null);
+
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     toggleLeft: () => setLeftOpen((p) => !p),
@@ -276,7 +284,13 @@ export default function Dashboard() {
     openSettings: () => setSettingsOpen(true),
     openLegend: () => setLegendOpen((p) => !p),
     openShortcuts: () => setShortcutsOpen((p) => !p),
+    voicePtt: {
+      begin: () => { voiceRef.current?.beginPtt(); },
+      end: () => { voiceRef.current?.endPtt(); },
+    },
     deselectEntity: () => {
+      // Escape also cancels an open mic or aborts a thinking turn (§5.4).
+      voiceRef.current?.cancelActive();
       if (shortcutsOpen) { setShortcutsOpen(false); return; }
       if (settingsOpen) { setSettingsOpen(false); return; }
       if (legendOpen) { setLegendOpen(false); return; }
@@ -510,6 +524,30 @@ export default function Dashboard() {
   useAgentActions(handleMapRightClick, ({ lat, lng, zoom }) => {
     setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
   }, secondaryBootReady);
+
+  // Voice console (U4) — the single wiring site for client tool bindings (§3.5).
+  const voice = useVoiceAgent({
+    flyTo: (target: { lat: number; lng: number; zoom?: number; bounds?: [number, number, number, number] }) => {
+      setFlyToLocation({ ...target, ts: Date.now() });
+    },
+    toggleLayer: (layer, enabled) => {
+      if (!Object.prototype.hasOwnProperty.call(activeLayers, layer)) return null;
+      setActiveLayers((prev) => ({ ...prev, [layer]: enabled }));
+      return enabled;
+    },
+    applyMapStyle: (style) => {
+      setActiveStyle(style);
+      setActiveLayers((l) => ({ ...l, highres_satellite: style === 'SATELLITE' }));
+      return style;
+    },
+    setFilter: (filterKey, values) => setActiveFilters((prev) => ({ ...prev, [filterKey]: values })),
+    setSelectedEntity,
+    viewSummary: () => ({
+      activeLayers: { ...activeLayers, ...layerOverrides },
+      filters: activeFilters,
+    }),
+  });
+  voiceRef.current = voice;
 
   // Eavesdrop Mode State
   const [isEavesdropping] = useState(false);
@@ -827,11 +865,21 @@ export default function Dashboard() {
                 transition={{ delay: 1, duration: 1 }}
                 className="absolute bottom-9 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto flex flex-col items-center gap-2 hud-zone"
               >
-                {/* LOCATE BAR — search by coordinates or place name */}
-                <LocateBar
-                  onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
-                  onOpenChange={setLocateBarOpen}
-                />
+                {/* LOCATE BAR + VOICE MIC — flex row wrap (§5.1) */}
+                <div className="relative flex items-center gap-2">
+                  <LocateBar
+                    onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
+                    onOpenChange={setLocateBarOpen}
+                  />
+                  <ErrorBoundary name="VoiceMicButton">
+                    <VoiceMicButton />
+                  </ErrorBoundary>
+                  {voice.state.panelOpen && (
+                    <ErrorBoundary name="VoiceHudPanel">
+                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />
+                    </ErrorBoundary>
+                  )}
+                </div>
 
                 <div
                   className="bg-[#0a0a0a]/90 border border-cyan-900/40 px-6 py-2 flex items-center gap-6 border-b-2 border-b-cyan-800 cursor-pointer backdrop-blur-sm"

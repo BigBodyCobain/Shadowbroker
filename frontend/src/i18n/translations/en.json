@@ -350,5 +350,37 @@
     "translatedFrom": "Translated from {lang}",
     "showOriginal": "SHOW ORIGINAL ({lang})",
     "showTranslation": "SHOW TRANSLATION"
+  },
+  "voice": {
+    "label": "VOICE",
+    "micAria": {
+      "opt-in-required": "Voice link disabled — operator opt-in required",
+      "lean-unavailable": "Voice unavailable in mesh lean mode",
+      "idle": "Voice console — hold V to talk or click to open",
+      "connecting": "Connecting voice link",
+      "listening": "Listening — release V to send",
+      "thinking": "Processing request",
+      "speaking": "Agent speaking",
+      "error": "Voice link fault",
+      "quota-capped": "Session cost cap reached"
+    },
+    "hint": { "ptt": "HOLD V TO SPEAK · CLICK FOR CONSOLE" },
+    "panel": {
+      "title": "VOICE LINK",
+      "costNote": "session spend, metered server-side",
+      "textModeChip": "TEXT MODE",
+      "composerPlaceholder": "Try: fly to Kyiv · zoom in · what changed",
+      "close": "Close voice console"
+    },
+    "summary": { "prefix": "SYS.NARRATIVE" },
+    "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },
+    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED" },
+    "states": {
+      "optInRequired": "OPT-IN REQUIRED",
+      "leanMode": "LEAN MODE",
+      "error": "FAULT",
+      "quotaCapped": "$ CAP"
+    },
+    "shortcut": { "desc": "Hold to talk (voice console)" }
   }
 }

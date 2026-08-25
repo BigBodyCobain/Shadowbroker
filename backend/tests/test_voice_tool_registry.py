@@ -101,7 +101,7 @@ class TestManifestConstruction:
 
 
 # ---------------------------------------------------------------------------
-# Item 12 — fixture drift vs TS descriptor block (scaffolding: activates in U4)
+# Item 12 — fixture drift vs TS descriptor block (active since U4)
 # ---------------------------------------------------------------------------
 
 _TS_BEGIN_MARKER = "/* voice-client-tools:begin */"
@@ -134,12 +134,14 @@ class TestFixtureDriftGuard:
 
     def test_client_fixture_matches_ts_descriptor_block(self):
         path = _clienttools_path()
-        if not os.path.exists(path):
-            pytest.skip("frontend/src/lib/clientTools.ts lands in U4 (§3.9); "
-                        "drift guard activates then")
+        assert os.path.exists(path), (
+            "frontend/src/lib/clientTools.ts is required since U4 (§3.9)"
+        )
         source = open(path, encoding="utf-8").read()
-        if _TS_BEGIN_MARKER not in source or _TS_END_MARKER not in source:
-            pytest.skip("clientTools.ts descriptor markers not present yet (U4)")
+        assert _TS_BEGIN_MARKER in source and _TS_END_MARKER in source, (
+            "clientTools.ts must carry the /* voice-client-tools:begin/end */ "
+            "marker block (single source of truth, §3.3/R13)"
+        )
         ts_tools = _parse_ts_descriptor_block(source)
         fixture_tools = _load_fixture_tools()
         assert ts_tools == fixture_tools, (

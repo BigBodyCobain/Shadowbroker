@@ -1,0 +1,225 @@
+'use client';
+/**
+ * VoiceMicButton — PTT owner + phase matrix (voice-agent plan §5.2/§5.4).
+ *
+ * Closed-state chrome clones LOCATE with the violet agent accent; every
+ * color-coded phase also carries a text chip (color independence). Hold V is
+ * wired in useKeyboardShortcuts; pointer press-and-hold mirrors it here.
+ * In degraded/deterministic mode the button renders its dimmed TXT state and
+ * routes activation to the composer instead of mic capture (§3.7 — there is
+ * no brokered STT path without a model).
+ */
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { voiceController } from '@/lib/voiceController';
+import type { VoicePhase } from '@/lib/voiceTypes';
+import { useTranslation } from '@/i18n';
+
+interface PhaseVisual {
+  buttonClass: string;
+  chip: string | null;
+  interactive: boolean;
+}
+
+/** Per-phase visual matrix: border / text / chip. */
+const PHASE_MATRIX: Record<VoicePhase, PhaseVisual> = {
+  'opt-in-required': {
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] opacity-50 cursor-pointer hover:border-violet-800',
+    chip: 'states.optInRequired',
+    interactive: false,
+  },
+  'lean-unavailable': {
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] opacity-50 cursor-not-allowed',
+    chip: 'states.leanMode',
+    interactive: false,
+  },
+  idle: {
+    buttonClass: 'border-violet-500/40 text-violet-400 hover:border-violet-400 bg-violet-500/10',
+    chip: null,
+    interactive: true,
+  },
+  connecting: {
+    buttonClass: 'border-violet-400/70 text-violet-300 bg-violet-500/20',
+    chip: 'LINK…',
+    interactive: true,
+  },
+  listening: {
+    buttonClass: 'border-violet-300 text-violet-200 bg-violet-500/30 shadow-[0_0_18px_rgba(139,92,246,0.45)]',
+    chip: null,
+    interactive: true,
+  },
+  thinking: {
+    buttonClass: 'border-cyan-700 text-cyan-400 bg-cyan-950/40',
+    chip: '…',
+    interactive: true,
+  },
+  speaking: {
+    buttonClass: 'border-cyan-500/60 text-cyan-300 bg-cyan-950/40',
+    chip: 'TX',
+    interactive: true,
+  },
+  error: {
+    buttonClass: 'border-red-800/70 text-red-400 bg-red-950/30',
+    chip: 'FAULT',
+    interactive: true,
+  },
+  'quota-capped': {
+    buttonClass: 'border-amber-700/70 text-amber-400 bg-amber-950/20 opacity-60 cursor-not-allowed',
+    chip: '$ CAP',
+    interactive: false,
+  },
+};
+
+const PTT_HOLD_MS = 250;
+
+export default function VoiceMicButton() {
+  const { t } = useTranslation();
+  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+  const visual = PHASE_MATRIX[state.phase];
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heldRef = useRef(false);
+  const [showHint, setShowHint] = useState(false);
+
+  // One-time 6-second discoverability hint (dismissal persisted once).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem('sb_voice_hint_seen_v1')) return;
+    setShowHint(true);
+    const id = setTimeout(() => {
+      setShowHint(false);
+      window.localStorage.setItem('sb_voice_hint_seen_v1', '1');
+    }, 6000);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+    },
+    [],
+  );
+
+  const tooltip =
+    state.phase === 'opt-in-required' || state.phase === 'lean-unavailable'
+      ? state.reasons[0] || t(`voice.states.${state.phase === 'lean-unavailable' ? 'leanMode' : 'optInRequired'}`)
+      : undefined;
+
+  const startHold = () => {
+    if (!visual.interactive) return;
+    heldRef.current = false;
+    holdTimer.current = setTimeout(() => {
+      heldRef.current = true;
+      if (state.degraded) {
+        // §3.7 zero-model rule: no brokered STT path → route to composer.
+        voiceController.requestComposerFocus();
+        voiceController.setPanelOpen(true);
+      } else {
+        voiceController.beginPtt();
+      }
+    }, PTT_HOLD_MS);
+  };
+
+  const endHold = () => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+    if (heldRef.current) {
+      heldRef.current = false;
+      voiceController.endPtt();
+    }
+  };
+
+  const handleClick = () => {
+    if (heldRef.current) return; // was a PTT hold, not a console request
+    if (visual.interactive) voiceController.setPanelOpen(!state.panelOpen);
+    else voiceController.setPanelOpen(true);
+    if (state.degraded) voiceController.requestComposerFocus();
+  };
+
+  const waveform = state.pttHeld || state.phase === 'listening';
+
+  return (
+    <div className="relative" data-testid="voice-mic-button">
+      {showHint && (
+        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--bg-primary)]/90 border border-violet-500/40 px-2 py-1 text-[9px] font-mono tracking-widest text-violet-300">
+          {t('voice.hint.ptt')}
+        </div>
+      )}
+      <button
+        type="button"
+        onPointerDown={startHold}
+        onPointerUp={endHold}
+        onPointerCancel={endHold}
+        onPointerLeave={endHold}
+        onClick={handleClick}
+        title={tooltip}
+        aria-label={t(`voice.micAria.${state.phase}`)}
+        aria-disabled={!visual.interactive}
+        className={`flex items-center gap-2 border px-5 py-2 text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
+      >
+        {/* Slash icon for opt-in-required */}
+        {state.phase === 'opt-in-required' && (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M12 3a3 3 0 0 0-3 3v5m0 3a3 3 0 0 0 5.6 1.5M17 11v-1M5 11v1a7 7 0 0 0 10.6 6M3 3l18 18" />
+          </svg>
+        )}
+
+        {/* 4-bar waveform while listening */}
+        {waveform && (
+          <span className="flex items-end gap-[2px] h-3 motion-reduce:hidden" data-testid="voice-waveform">
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                className="w-[3px] bg-violet-300 animate-pulse motion-reduce:animate-none"
+                style={{ height: `${5 + ((i * 3) % 7)}px` }}
+              />
+            ))}
+          </span>
+        )}
+
+        {/* Spinner while thinking — LocateBar clone */}
+        {state.phase === 'thinking' && (
+          <span className="w-3 h-3 border border-cyan-500 border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
+        )}
+
+        {/* Cyan equalizer while speaking */}
+        {state.phase === 'speaking' && (
+          <span className="flex items-center gap-[2px] h-3 motion-reduce:hidden">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className="w-[3px] bg-cyan-400 animate-pulse motion-reduce:animate-none" style={{ height: `${4 + i * 3}px` }} />
+            ))}
+          </span>
+        )}
+
+        <span>{t('voice.label')}</span>
+
+        {/* Phase text chip — every color-coded phase carries one */}
+        {visual.chip && (
+          <span
+            data-testid="voice-phase-chip"
+            className={`px-1 py-[1px] text-[9px] font-bold tracking-widest rounded-sm ${
+              state.phase === 'error'
+                ? 'bg-red-500/20 border border-red-500/40 text-red-300'
+                : state.phase === 'quota-capped'
+                  ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                  : 'bg-violet-500/20 border border-violet-500/40 text-violet-300'
+            }`}
+          >
+            {visual.chip.startsWith('states.') ? t(`voice.${visual.chip}`) : visual.chip}
+          </span>
+        )}
+
+        {/* Degraded corner badge */}
+        {state.degraded && (
+          <span
+            data-testid="voice-txt-badge"
+            title={t('voice.panel.textModeChip')}
+            className="absolute -top-1 -right-1 px-1 text-[8px] font-mono font-bold bg-[var(--bg-primary)] border border-cyan-800/60 text-cyan-400"
+          >
+            TXT
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}

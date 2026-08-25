@@ -350,5 +350,37 @@
     "translatedFrom": "ترجمه‌شده از {lang}",
     "showOriginal": "نمایش نسخه اصلی ({lang})",
     "showTranslation": "نمایش ترجمه"
+  },
+  "voice": {
+    "label": "صدا",
+    "micAria": {
+      "opt-in-required": "پیوند صوتی غیرفعال است — تأیید اپراتور لازم است",
+      "lean-unavailable": "صدا در حالت سبک در دسترس نیست",
+      "idle": "کنسول صوتی — برای صحبت V را نگه دارید یا برای باز کردن کلیک کنید",
+      "connecting": "در حال برقراری پیوند صوتی",
+      "listening": "در حال شنیدن — برای ارسال V را رها کنید",
+      "thinking": "در حال پردازش درخواست",
+      "speaking": "عامل در حال گفتار است",
+      "error": "خرابی پیوند صوتی",
+      "quota-capped": "سقف هزینه نشست به پایان رسید"
+    },
+    "hint": { "ptt": "برای صحبت V را نگه دارید · برای کنسول کلیک کنید" },
+    "panel": {
+      "title": "پیوند صوتی",
+      "costNote": "هزینه نشست، اندازه‌گیری‌شده در سرویس‌دهنده",
+      "textModeChip": "حالت متنی",
+      "composerPlaceholder": "امتحان کنید: fly to Kyiv · zoom in · what changed",
+      "close": "بستن کنسول صوتی"
+    },
+    "summary": { "prefix": "SYS.NARRATIVE" },
+    "freshness": { "fresh": "زنده", "stale": "کهنه", "offline": "منقضی", "unknown": "نامعلوم" },
+    "turn": { "you": "اپراتور", "sys": "سیستم", "toolOk": "موفق", "toolFail": "ناموفق" },
+    "states": {
+      "optInRequired": "تأیید لازم است",
+      "leanMode": "حالت سبک",
+      "error": "خطا",
+      "quotaCapped": "$ سقف"
+    },
+    "shortcut": { "desc": "نگه داشتن برای صحبت (کنسول صوتی)" }
   }
 }

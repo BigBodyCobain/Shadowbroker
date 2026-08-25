@@ -14,8 +14,11 @@ the canonical idiom (same expression as ``main.py:23``) and refuses route
 registration in lean mode — a lean node exposes no voice surface even if the
 router module somehow loads.
 """
-
-from __future__ import annotations
+# NOTE: no ``from __future__ import annotations`` here — it would turn the
+# route handlers' parameter annotations into strings that FastAPI cannot
+# resolve against these function-scope Pydantic models (``body`` would be
+# misread as a query parameter and every JSON POST would fail with 422).
+# Python 3.11 evaluates ``X | None`` unions natively at runtime.
 
 import json
 import logging
