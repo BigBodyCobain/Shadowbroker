@@ -361,4 +361,8 @@ def fetch_military_flights():
             updated_tracked.append(t)
     with _data_lock:
         latest_data["tracked_flights"] = updated_tracked
+    # Both flight tasks legitimately write tracked_flights; stamping each final
+    # write keeps layer_versions truthful (last-writer-wins within the same
+    # 60 s cycle; fingerprint hash + server dedupe absorb double-churn).
+    _mark_fresh("tracked_flights")
     logger.info(f"Tracked flights: {len(updated_tracked)} total ({len(tracked_mil)} from military, {stale_dropped} stale dropped)")

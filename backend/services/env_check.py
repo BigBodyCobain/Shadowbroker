@@ -20,6 +20,7 @@ from services.config import (
     get_settings,
     private_clearnet_fallback_effective,
     private_clearnet_fallback_requested,
+    voice_outbound_effective,
 )
 from services.mesh.mesh_compatibility import (
     compat_dm_invite_import_override_active,
@@ -862,6 +863,24 @@ def get_security_posture_warnings(settings=None) -> list[str]:
         warnings.append(
             "MESH_ALLOW_LEGACY_DM1_UNTIL is active — raw dm1 compose/decrypt remains enabled for migration. "
             "Disable it after peers move to MLS."
+        )
+
+    voice_requested = (
+        str(getattr(snapshot, "VOICE_AGENT_OUTBOUND_ENABLE", "block") or "block").strip().lower()
+        == "allow"
+    )
+    voice_ack = bool(getattr(snapshot, "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE", False))
+    if voice_requested and not voice_ack:
+        warnings.append(
+            "VOICE_AGENT_OUTBOUND_ENABLE=allow without VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true — "
+            "the AI voice agent remains disabled until you explicitly acknowledge that enabling it "
+            "sends operator speech to the configured OpenAI-compatible endpoint (docs/OUTBOUND_DATA.md)."
+        )
+    elif voice_outbound_effective(snapshot):
+        warnings.append(
+            "VOICE_AGENT_OUTBOUND_ENABLE=allow with VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true — "
+            "operator speech is sent to the configured voice endpoint with per-install attribution "
+            "(docs/OUTBOUND_DATA.md)."
         )
 
     gate_recovery_envelope_requested = bool(

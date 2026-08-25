@@ -38,6 +38,9 @@ dependencies = [
     "starlette==1.0.1",
     "vaderSentiment>=3.3.0",
     "uvicorn==0.34.0",
+    # Voice-agent realtime relay (services/voice_broker.py) — verified at
+    # install against the narrow surface used there: connect/send/close.
+    "websockets==16.0",
     "yfinance==1.3.0",
 ]
 

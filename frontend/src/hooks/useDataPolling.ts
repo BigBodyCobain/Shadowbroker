@@ -89,6 +89,11 @@ export function pausePolling() {
   _pollingPaused = true;
 }
 
+/** True while Time Machine snapshot playback has paused live polling. */
+export function isPollingPaused(): boolean {
+  return _pollingPaused;
+}
+
 /** Resume live data polling and invalidate ETags for a full refresh. */
 export function resumePolling() {
   _pollingPaused = false;

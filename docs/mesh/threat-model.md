@@ -36,3 +36,27 @@ intended to keep README, UI, and release claims aligned with the implementation.
 - Treat all v0.9.7 mesh lanes as testnet lanes.
 - Keep runtime keys, relay state, Tor hidden-service data, and `backend/data/*` operator state out of Git.
 - Use the release zip asset for v0.9.6 auto-update compatibility, and prefer signed/hashed release artifacts where available.
+
+## AI Voice Agent Egress & Prompt-Injection Surface
+
+The opt-in operator voice agent (see `docs/OUTBOUND_DATA.md`) introduces a
+third-party egress lane with its own discipline:
+
+- **Server-side brokering only.** Every provider dial lives in the backend
+  (`services/voice_broker.py` once U2 lands). The browser never holds a provider
+  key and never connects to the third-party host. Browser `SpeechRecognition` /
+  `webkitSpeechRecognition` are banned (CI-enforced) because Chromium's
+  implementation ships microphone audio unbrokered to Google cloud.
+- **Prompt injection via data fields.** Narration/tool-picking prompts embed live
+  data (place names, news verdicts, health error text, correlation summaries). A
+  hostile feed can attempt instruction smuggling through those fields. Mitigations:
+  system-prompt injection-defense rules, free-text parameters never flowing into
+  `error` strings (structured fields only), server-side validation as the sole
+  authority on tool calls, and narration that asserts only what `ok:true`
+  envelopes actually show.
+- **Pre-existing desktop-shell allowance (documented, unchanged by this
+  feature).** The Tauri shell CSP already permits page→third-party https egress
+  (`connect-src 'self' http://127.0.0.1:* https://*`,
+  `desktop-shell/tauri.conf.json`). The voice feature adds no new CSP origins;
+  closing or tightening that pre-existing allowance is tracked separately on the
+  hardening milestone.

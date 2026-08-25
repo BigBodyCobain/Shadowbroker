@@ -225,6 +225,27 @@ API_REGISTRY = [
         "url": "https://dataspace.copernicus.eu/",
         "required": False,
     },
+    # AI Voice Agent — provider keys are brokered server-side only: the browser
+    # never holds a provider key and never dials a third-party host
+    # (docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.
+    {
+        "id": "voice_openai_api_key",
+        "env_key": "VOICE_OPENAI_API_KEY",
+        "name": "Voice Agent — OpenAI API Key",
+        "description": "Server-side key for the operator-configured OpenAI realtime voice endpoint. Used only by the backend voice broker when the voice agent is explicitly enabled; operator speech is sent to the configured endpoint (docs/OUTBOUND_DATA.md).",
+        "category": "Voice",
+        "url": "https://platform.openai.com/api-keys",
+        "required": False,
+    },
+    {
+        "id": "voice_compat_api_key",
+        "env_key": "VOICE_COMPAT_API_KEY",
+        "name": "Voice Agent — Compatible Gateway API Key",
+        "description": "Server-side key for an OpenAI-compatible gateway (e.g. a local Ollama/LM Studio proxy or internal gateway) used by the voice agent. Optional for local endpoints that need no auth.",
+        "category": "Voice",
+        "url": None,
+        "required": False,
+    },
 ]
 
 ALLOWED_ENV_KEYS = {

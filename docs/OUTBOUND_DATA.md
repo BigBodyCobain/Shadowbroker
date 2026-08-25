@@ -109,6 +109,41 @@ Shadowbroker is **self-hosted**: each install uses its own backend egress IP. Th
 
 ---
 
+## AI Voice Agent (opt-in, off by default)
+
+The operator-console voice agent (NARRATE / ACT) is **disabled by default** behind a
+two-step opt-in (`VOICE_AGENT_OUTBOUND_ENABLE=allow` **and**
+`VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true`). Both flags must be set; either alone keeps
+the feature dark.
+
+- **Destination disclosure:** when enabled, operator speech and typed text are sent to
+  the **operator-configured OpenAI-compatible endpoint** — either
+  `VOICE_OPENAI_BASE_URL` (default `https://api.openai.com`) or a self-selected gateway
+  such as a local Ollama / LM Studio at `VOICE_COMPAT_BASE_URL`. The destination is the
+  operator's own choice per install.
+- **Brokered server-side only:** every provider dial lives in the backend voice broker;
+  the browser never holds a provider key and never connects to the third-party host.
+  Keys are stored in `data/operator_api_keys.env` and disclosed as `is_set` booleans only.
+- **Payload inventory:** per turn, ≤6 KB of structured JSON context about what the
+  operator's console is showing (viewport bounds/zoom, active layer names, entity counts,
+  top correlations, freshness dispositions, verbatim health error text) plus the operator's
+  utterance or typed text. No screenshots, no raw bulk layers, no credentials in payloads.
+- **Retention:** session transcripts are **in-memory only** on the backend (10-minute
+  sliding TTL, hard-capped sessions); nothing conversational is persisted. Daily spend
+  ledgers (`data/voice_cost/<date>.json`) record cost figures, not content.
+- **Attribution:** requests carry this install's per-install User-Agent handle, same as
+  all other backend egress above.
+- **Spend control:** server-authoritative warn/cap latches and a persisted daily budget
+  governor bound total exposure even while the feature is enabled.
+- **SpeechRecognition prohibition:** browser `SpeechRecognition` /
+  `webkitSpeechRecognition` are banned outright (empty allow-list, enforced by CI).
+  Chromium's implementation ships microphone audio unbrokered to Google cloud — it cannot
+  satisfy "every third-party call is brokered server-side". Degraded input is typed text
+  through the composer; the sanctioned future STT path would be a server-brokered
+  endpoint behind the same two-step gate.
+
+---
+
 ## Operator checklist
 
 1. Set `OPERATOR_HANDLE` if you want a recognizable name on upstream logs.
@@ -117,3 +152,6 @@ Shadowbroker is **self-hosted**: each install uses its own backend egress IP. Th
 4. Set `SHADOWBROKER_ENABLE_LIVEUAMAP_SCRAPER=false` to forbid LiveUAMap entirely.
 5. Set `MESHTASTIC_SEND_CALLSIGN_HEADER=true` only if you want callsign sent upstream.
 6. Self-host map tiles if basemap CDN exposure matters.
+7. Leave `VOICE_AGENT_OUTBOUND_ENABLE=block` (default) unless you accept operator
+   speech being sent to your configured voice endpoint; read the AI Voice Agent
+   section above first.
