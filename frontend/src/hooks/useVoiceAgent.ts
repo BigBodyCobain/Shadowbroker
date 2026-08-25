@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
 import { voiceController, type VoiceControllerState } from '@/lib/voiceController';
 import { runDeterministicTurn } from '@/lib/voiceDeterministic';
+import { useVoiceGrounding } from '@/hooks/useVoiceGrounding';
 import type { ClientToolContext } from '@/lib/clientTools';
 import type { VoiceStatusResponse } from '@/lib/voiceTypes';
 
@@ -31,6 +32,11 @@ const STATUS_POLL_MS = 60000;
 
 export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult {
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+
+  // U5 NARRATE grounding composer — ambient briefs, ARM gating, freshness
+  // strip state (flows through voiceController into VoiceHudPanel). Its
+  // requestBrief surface becomes user-reachable with U6's interrogation UX.
+  useVoiceGrounding(bindings);
 
   // Keep the latest page bindings without resubscribing effects per render.
   const bindingsRef = useRef(bindings);

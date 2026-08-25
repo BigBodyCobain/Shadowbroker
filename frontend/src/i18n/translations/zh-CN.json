@@ -372,7 +372,8 @@
       "composerPlaceholder": "试试：fly to Kyiv · zoom in · what changed",
       "close": "关闭语音控制台"
     },
-    "summary": { "prefix": "SYS.NARRATIVE" },
+    "summary": { "prefix": "SYS.NARRATIVE", "empty": "暂无简报 — 开启环境简报以开始。" },
+    "arm": { "on": "环境简报已就绪", "off": "环境简报关闭", "aria": "切换环境态势简报" },
     "freshness": { "fresh": "实时", "stale": "老化", "offline": "过期", "unknown": "未知" },
     "turn": { "you": "操作员", "sys": "系统", "toolOk": "成功", "toolFail": "失败" },
     "states": {

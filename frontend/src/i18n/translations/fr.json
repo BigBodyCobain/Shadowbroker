@@ -372,7 +372,8 @@
       "composerPlaceholder": "Essayez : fly to Kyiv · zoom in · what changed",
       "close": "Fermer la console vocale"
     },
-    "summary": { "prefix": "SYS.NARRATIVE" },
+    "summary": { "prefix": "SYS.NARRATIVE", "empty": "Aucun brief — armez les briefs ambiants pour commencer." },
+    "arm": { "on": "BRIEFS AMBIANTS ARMÉS", "off": "BRIEFS AMBIANTS DÉSARMÉS", "aria": "Basculer les briefs HUD ambiants" },
     "freshness": { "fresh": "direct", "stale": "vieillissant", "offline": "périmé", "unknown": "inconnu" },
     "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "ÉCHEC" },
     "states": {

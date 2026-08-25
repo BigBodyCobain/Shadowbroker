@@ -14,6 +14,20 @@ import type { VoicePhase, VoiceStatusResponse, VoiceTurn, VoiceUsageEvent } from
 
 export const VOICE_DISCONNECT_GRACE_MS = 6000;
 
+export interface VoiceNarration {
+  summary: string;
+  generatedAt: number;
+  /** Verbatim upstream failure reason; null while the last brief is good. */
+  error: string | null;
+}
+
+/** Freshness-strip row (VoiceHudPanel NARRATE provenance, §5.3). */
+export interface FreshnessRow {
+  layer: string;
+  disposition: 'live' | 'aging' | 'stale' | 'unknown';
+  age_s: number | null;
+}
+
 export interface VoiceControllerState {
   phase: VoicePhase;
   pttHeld: boolean;
@@ -27,6 +41,13 @@ export interface VoiceControllerState {
   reasons: string[];
   /** Incremented to ask the panel composer to take focus (mic routing). */
   composerFocusNonce: number;
+  /** Latest NARRATE brief (U5) — hold-last-good on regen failure. */
+  narration: VoiceNarration | null;
+  narrating: boolean;
+  /** Per-layer freshness strip backing the NARRATE block. */
+  freshnessRows: FreshnessRow[];
+  /** Ambient auto-narration ARM toggle — per-page-session, default OFF. */
+  ambientArmed: boolean;
 }
 
 /**
@@ -55,9 +76,15 @@ const INITIAL_STATE: VoiceControllerState = {
   modelLabel: '',
   reasons: [],
   composerFocusNonce: 0,
+  narration: null,
+  narrating: false,
+  freshnessRows: [],
+  ambientArmed: false,
 };
 
 const MAX_TURNS = 200;
+const NARRATION_ROWS_MAX = 22;
+export const ARM_STORAGE_KEY = 'sb_voice_ambient_armed_v1';
 
 let turnSeq = 0;
 
@@ -261,6 +288,46 @@ class VoiceController {
 
   setPanelOpen(open: boolean): void {
     this.set({ panelOpen: open });
+  }
+
+  // ── NARRATE / grounding (U5) ─────────────────────────────────────────────
+
+  setNarration(narration: VoiceNarration | null): void {
+    this.set({ narration, narrating: false });
+  }
+
+  setNarrating(narrating: boolean): void {
+    if (this.state.narrating === narrating) return;
+    this.set({ narrating });
+  }
+
+  setFreshnessRows(rows: FreshnessRow[]): void {
+    this.set({ freshnessRows: rows.slice(0, NARRATION_ROWS_MAX) });
+  }
+
+  /** Ambient ARM is a per-page-session switch persisted in sessionStorage
+   *  (default OFF — disarmed ⇒ zero hud-summary calls, §2.6/#41). */
+  setAmbientArmed(armed: boolean): void {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        if (armed) sessionStorage.setItem(ARM_STORAGE_KEY, '1');
+        else sessionStorage.removeItem(ARM_STORAGE_KEY);
+      }
+    } catch {
+      // storage unavailable (privacy mode) — session-only state still applies
+    }
+    this.set({ ambientArmed: armed });
+  }
+
+  /** Restore the ARM toggle from sessionStorage at mount time. */
+  loadAmbientArm(): void {
+    let armed = false;
+    try {
+      armed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(ARM_STORAGE_KEY) === '1';
+    } catch {
+      armed = false;
+    }
+    this.set({ ambientArmed: armed });
   }
 
   requestComposerFocus(): void {

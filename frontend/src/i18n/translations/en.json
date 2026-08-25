@@ -372,7 +372,8 @@
       "composerPlaceholder": "Try: fly to Kyiv · zoom in · what changed",
       "close": "Close voice console"
     },
-    "summary": { "prefix": "SYS.NARRATIVE" },
+    "summary": { "prefix": "SYS.NARRATIVE", "empty": "No brief yet — arm ambient briefs to start." },
+    "arm": { "on": "AMBIENT ARMED", "off": "AMBIENT OFF", "aria": "Toggle ambient HUD briefs" },
     "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },
     "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED" },
     "states": {

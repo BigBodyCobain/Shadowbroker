@@ -113,6 +113,9 @@ def _server_metadata() -> dict[str, dict[str, Any]]:
 
 
 def _base_server_entry(cmd: str, cmd_type: str) -> dict[str, Any]:
+    # U3-judge advisory (applied U5): destructive members must advertise
+    # requires_confirm=True so models learn the confirm requirement upfront
+    # instead of discovering it at the gate.
     return {
         "name": cmd,
         "type": cmd_type,
@@ -124,7 +127,7 @@ def _base_server_entry(cmd: str, cmd_type: str) -> dict[str, Any]:
         "parameters": {},
         "returns": "{ok, data, version?, format?}",
         "latency_tier_ms": LATENCY_TIER_MS.get(cmd, _FALLBACK_LATENCY_MS),
-        "requires_confirm": False,
+        "requires_confirm": cmd in DESTRUCTIVE_COMMANDS,
     }
 
 

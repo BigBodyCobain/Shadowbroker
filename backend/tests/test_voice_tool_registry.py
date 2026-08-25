@@ -219,6 +219,14 @@ class TestExpensiveGate:
 
 
 class TestDestructiveGate:
+    def test_destructive_manifest_entries_advertise_confirm(self):
+        """U3-judge advisory (applied U5): DESTRUCTIVE_COMMANDS members must
+        advertise requires_confirm=True in the manifest so models learn the
+        confirm requirement upfront instead of discovering it at the gate."""
+        for entry in build_manifest(include_client=False):
+            if entry["name"] in DESTRUCTIVE_COMMANDS:
+                assert entry["requires_confirm"] is True, entry["name"]
+
     def test_destructive_commands_are_manifest_members(self):
         manifest_names = _tool_names(build_manifest())
         # clear_pins is listed per plan but is not a channel command today;

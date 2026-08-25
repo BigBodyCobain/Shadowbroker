@@ -23,6 +23,8 @@ router module somehow loads.
 import json
 import logging
 import os
+import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -61,6 +63,15 @@ else:
         args: dict = Field(default_factory=dict)
         confirm_expensive: bool = False
         confirm: bool = False
+
+    class VoiceHudSummaryRequest(BaseModel):
+        snapshot: dict = Field(default_factory=dict)
+        question: str = ""
+
+    class VoiceTurnRequest(BaseModel):
+        text: str = Field(min_length=1, max_length=2000)
+        snapshot: dict | None = None
+        history: list[dict] = Field(default_factory=list)
 
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
@@ -380,3 +391,108 @@ else:
         from services.openclaw_channel import _dispatch_command
 
         return _dispatch_command(clean_call["tool"], clean_call.get("args") or {})
+
+    # ------------------------------------------------------------------
+    # POST /api/voice/hud-summary — §2.7 NARRATE generation
+    # ------------------------------------------------------------------
+
+    #: 30 s SHA-256 dedupe cache (§2.7): identical snapshot+question inside the
+    #: window returns the cached brief without a second upstream dial.
+    _HUD_DEDUPE_TTL_SECONDS = 30.0
+    _hud_dedupe: dict[str, tuple[float, dict]] = {}
+    _HUD_SNAPSHOT_MAX_BYTES = 6 * 1024  # §2.4 serialization cap
+
+    @router.post("/api/voice/hud-summary", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def voice_hud_summary(request: Request, body: VoiceHudSummaryRequest):
+        from services.voice_broker import (
+            GROUNDING_SCHEMA_ID,
+            chat_completion,
+            resolve_provider,
+            validate_grounding_snapshot,
+        )
+        from services.voice_narration import compose_hud_summary_messages, snapshot_fingerprint
+
+        s = _settings()
+        effective, _state, _flags = _opt_in_state(s)
+        if not effective:
+            # SAR-style disabled payload (§2.7): honest reasons, no partial data.
+            provider_probe = resolve_provider(s)
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "voice_disabled",
+                    "detail": provider_probe["reasons"][0] if provider_probe["reasons"] else "disabled",
+                    "reasons": provider_probe["reasons"],
+                    "mode": _mesh_mode(),
+                },
+            )
+
+        snapshot = validate_grounding_snapshot(body.snapshot)
+        if snapshot is None:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "invalid_snapshot",
+                    "detail": (
+                        f"snapshot must be a ≤{_HUD_SNAPSHOT_MAX_BYTES}B "
+                        f"{GROUNDING_SCHEMA_ID} object"
+                    ),
+                },
+            )
+
+        mode = _mesh_mode()
+        fingerprint = snapshot_fingerprint(snapshot, body.question)
+        now = time.time()
+        for key in [k for k, (stamp, _payload) in _hud_dedupe.items() if now - stamp > _HUD_DEDUPE_TTL_SECONDS]:
+            _hud_dedupe.pop(key, None)
+        cached = _hud_dedupe.get(fingerprint)
+        if cached is not None:
+            return {**cached[1], "deduped": True}
+
+        messages = compose_hud_summary_messages(snapshot, question=str(body.question or "").strip(), mode=mode)
+        result = await chat_completion(messages, settings=s)
+        if not result.get("ok"):
+            if result.get("error") == "chat_unconfigured":
+                return JSONResponse(status_code=503, content={"error": "chat_unconfigured", "mode": mode})
+            # 502 with the verbatim upstream reason (§2.7).
+            return JSONResponse(status_code=502, content={**result, "mode": mode})
+
+        payload = {
+            "ok": True,
+            "summary": str(result.get("reply") or ""),
+            "model": result.get("model"),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "mode": mode,
+            "deduped": False,
+        }
+        _hud_dedupe[fingerprint] = (now, payload)
+        return payload
+
+    # ------------------------------------------------------------------
+    # POST /api/voice/turn — §3.6 picker/orchestrator loop (text mode)
+    # ------------------------------------------------------------------
+
+    @router.post("/api/voice/turn", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def voice_turn(request: Request, body: VoiceTurnRequest):
+        from services.voice_broker import resolve_provider, run_picker_turn
+
+        s = _settings()
+        effective, _state, _flags = _opt_in_state(s)
+        if not effective:
+            provider_probe = resolve_provider(s)
+            return JSONResponse(status_code=409, content=_opt_in_refusal_payload(provider_probe["reasons"]))
+
+        result = await run_picker_turn(
+            body.text,
+            snapshot=body.snapshot,
+            history=body.history,
+            settings=s,
+        )
+        if not result.get("ok"):
+            if result.get("error") == "chat_unconfigured":
+                return JSONResponse(status_code=503, content={"error": "chat_unconfigured"})
+            return JSONResponse(status_code=502, content=result)
+        result["mode"] = _mesh_mode()
+        return result

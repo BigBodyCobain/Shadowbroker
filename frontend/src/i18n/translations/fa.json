@@ -372,7 +372,8 @@
       "composerPlaceholder": "امتحان کنید: fly to Kyiv · zoom in · what changed",
       "close": "بستن کنسول صوتی"
     },
-    "summary": { "prefix": "SYS.NARRATIVE" },
+    "summary": { "prefix": "SYS.NARRATIVE", "empty": "هنوز گزارشی نیست — برای شروع، گزارش محیطی را فعال کنید." },
+    "arm": { "on": "گزارش محیطی فعال", "off": "گزارش محیطی خاموش", "aria": "تغییر وضعیت گزارش‌های محیطی" },
     "freshness": { "fresh": "زنده", "stale": "کهنه", "offline": "منقضی", "unknown": "نامعلوم" },
     "turn": { "you": "اپراتور", "sys": "سیستم", "toolOk": "موفق", "toolFail": "ناموفق" },
     "states": {

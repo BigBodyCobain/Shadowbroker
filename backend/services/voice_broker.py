@@ -445,6 +445,13 @@ def _manifest_tool_defs() -> list[dict[str, Any]]:
         return []
 
 
+def _session_instructions() -> str:
+    """NARRATE/ACT prompt content for the instructions hook (U5, §2.7)."""
+    from services.voice_narration import compose_session_instructions
+
+    return compose_session_instructions()
+
+
 def build_session_config(session: VoiceSession) -> dict[str, Any]:
     """Author the FULL upstream ``session.update`` payload server-side.
 
@@ -457,7 +464,9 @@ def build_session_config(session: VoiceSession) -> dict[str, Any]:
         "type": "session.update",
         "session": {
             "model": session.model_id,
-            "instructions": "",  # NARRATE/ACT prompt content lands here (U5 hook)
+            # U5: the NARRATE verbatim-honesty rules + ACT tool contract are
+            # authored here — the single sanctioned injection point (§4.3).
+            "instructions": _session_instructions(),
             "tools": _manifest_tool_defs(),
             "input_audio_format": {"type": "pcm16", "sample_rate": AUDIO_SAMPLE_RATE},
             "output_audio_format": {"type": "pcm16", "sample_rate": AUDIO_SAMPLE_RATE},
@@ -1053,3 +1062,182 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
         result["usage"] = usage
         _meter_chat_usage(provider["chatModel"], usage)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Picker / orchestrator loop (§3.6 — validate-gate-dispatch-feedback)
+# ---------------------------------------------------------------------------
+
+#: Gate-feedback rounds allowed before the loop gives up and narrates the last
+#: validator envelope verbatim (models self-correct; two is the plan's bound).
+PICKER_MAX_FEEDBACK_ROUNDS = 2
+
+
+def parse_tool_call(reply: str) -> dict[str, Any] | None:
+    """Extract the picker-contract object from a model reply.
+
+    Accepts fenced or bare JSON; returns ``{"tool", "args", "say"}`` normalized
+    (``tool=None`` for plain narration), or None when no JSON object is present.
+    The registry validator remains the authority either way — this only shapes.
+    """
+    text = str(reply or "").strip()
+    if not text:
+        return None
+    candidate = None
+    decoder = json.JSONDecoder()
+    for idx, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            parsed, _end = decoder.raw_decode(text[idx:])
+        except ValueError:
+            continue
+        if isinstance(parsed, dict):
+            candidate = parsed
+            break
+    if candidate is None:
+        return None
+    tool = candidate.get("tool") or candidate.get("cmd") or candidate.get("name")
+    args = candidate.get("args")
+    return {
+        "tool": tool if isinstance(tool, str) and tool.strip() else None,
+        "args": args if isinstance(args, dict) else {},
+        "say": candidate.get("say"),
+    }
+
+
+def _history_messages(history: Any) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    for entry in (history or [])[-8:]:
+        if isinstance(entry, dict) and str(entry.get("role")) in ("user", "assistant"):
+            messages.append(
+                {"role": entry["role"], "content": str(entry.get("content") or "")[:8000]}
+            )
+    return messages
+
+
+async def run_picker_turn(
+    text: str,
+    *,
+    snapshot: Any = None,
+    history: Any = None,
+    access_tier: str | None = None,
+    settings=None,
+) -> dict[str, Any]:
+    """One orchestrator turn: pick → validate/gate → dispatch → feedback.
+
+    The merged §3 manifest drives the model as an instructed-JSON contract;
+    every proposed call passes ``validate_and_gate`` before anything executes.
+    Validator rejections are fed back as tool-role messages carrying the exact
+    error envelope so the model self-corrects (§3.6). Server-surface calls are
+    dispatched through ``openclaw_channel._dispatch_command`` and their
+    envelopes pass through untouched; client-surface calls come back to the
+    browser as ``client_calls`` (the REST analogue of the §3.5 tool_call
+    frame — executed by ``clientTools.ts`` and reported on the next turn).
+
+    Returns ``{"ok": True, "say", "tool_results", "client_calls",
+    "corrections"}`` or a typed error envelope from the chat leg.
+    """
+    from services.openclaw_channel import _dispatch_command
+    from services.voice_narration import (
+        PICKER_CONTRACT_INSTRUCTIONS,
+        build_grounding_header,
+        compose_session_instructions,
+    )
+    from services.voice_tool_registry import build_manifest, get_tool_entry, validate_and_gate
+
+    s = settings or get_settings()
+    if access_tier is None:
+        access_tier = str(getattr(s, "OPENCLAW_ACCESS_TIER", "restricted") or "restricted").strip().lower()
+
+    # Instructed-JSON contract over the merged manifest (native function-calling
+    # defs ride build_session_config for realtime; here the manifest names +
+    # descriptions are listed inline so local models learn the surface too).
+    manifest_lines = []
+    try:
+        for entry in build_manifest(include_client=True):
+            manifest_lines.append(f"- {entry['name']} ({entry['type']}): {entry['description']}")
+    except Exception as exc:  # manifest problems degrade to narration-only
+        logger.warning("picker manifest unavailable: %s", exc)
+    system = compose_session_instructions() + "\n\n" + PICKER_CONTRACT_INSTRUCTIONS
+    if manifest_lines:
+        system += "\n\nAVAILABLE TOOLS:\n" + "\n".join(manifest_lines)
+
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    if snapshot is not None:
+        messages.append({"role": "system", "content": build_grounding_header(snapshot)})
+    messages.extend(_history_messages(history))
+    messages.append({"role": "user", "content": str(text or "")})
+
+    say_parts: list[str] = []
+    tool_results: list[dict[str, Any]] = []
+    client_calls: list[dict[str, Any]] = []
+    corrections = 0
+    max_rounds = 1 + PICKER_MAX_FEEDBACK_ROUNDS
+
+    for round_index in range(max_rounds):
+        leg = await chat_completion(messages, settings=s)
+        if not leg.get("ok"):
+            return dict(leg)  # typed chat-leg error envelope (503/502 surfaces)
+
+        call = parse_tool_call(leg.get("reply"))
+        spoken = str((call or {}).get("say") if call else leg.get("reply")).strip()
+        if spoken:
+            say_parts.append(spoken[:720])
+        if call is None or not call.get("tool"):
+            break  # plain narration — turn complete
+
+        name = call["tool"].strip()
+        original_args = dict(call.get("args") or {})
+        clean_call, error = validate_and_gate({"tool": name, "args": original_args}, access_tier=access_tier)
+        if error is not None:
+            corrections += 1
+            messages.append({"role": "assistant", "content": leg.get("reply") or ""})
+            # Exact envelope, tool-role feedback so the model self-corrects.
+            messages.append({"role": "tool", "content": json.dumps(error, default=str)})
+            continue
+
+        entry = get_tool_entry(clean_call["tool"])
+        if entry is not None and entry.get("surface") == "client":
+            client_calls.append(
+                {
+                    "call_id": f"c{round_index}-{uuid.uuid4().hex[:8]}",
+                    "name": clean_call["tool"],
+                    "args": clean_call.get("args") or {},
+                }
+            )
+            break  # browser executes; results ride the next turn's context
+
+        # U3-judge advisory (carried into U5): validate_and_gate consumes and
+        # STRIPS confirm_expensive/confirm from clean_call.args, but
+        # _dispatch_command re-runs the channel's own expensive gate which only
+        # unlocks when confirm_expensive:true is present IN the args. Forward
+        # the model's ORIGINAL args here — the registry just accepted that
+        # unlock, so stripping it would re-fire the gate and permanently break
+        # the two-turn expensive-command unlock.
+        envelope = _dispatch_command(clean_call["tool"], dict(original_args))
+        result_row: dict[str, Any] = {
+            "tool": clean_call["tool"],
+            "ok": bool(envelope.get("ok")) if isinstance(envelope, dict) else False,
+        }
+        if clean_call.get("ignored_args"):
+            result_row["ignored_args"] = clean_call["ignored_args"]
+        # Server results pass through untouched (§3.6): the model sees the full
+        # envelope next turn and narration asserts only what ok:true shows.
+        result_row["envelope"] = envelope if isinstance(envelope, dict) else {"ok": False}
+        tool_results.append(result_row)
+
+        messages.append({"role": "assistant", "content": leg.get("reply") or ""})
+        messages.append(
+            {"role": "tool", "content": json.dumps(envelope, default=str)[:16000]}
+        )
+        # One more round lets the model narrate the result (or chain one more
+        # gated call); the loop bound keeps total turns finite.
+
+    return {
+        "ok": True,
+        "say": " ".join(part for part in say_parts if part).strip(),
+        "tool_results": tool_results,
+        "client_calls": client_calls,
+        "corrections": corrections,
+    }

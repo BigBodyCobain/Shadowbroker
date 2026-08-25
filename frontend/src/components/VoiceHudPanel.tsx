@@ -11,7 +11,17 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
+import { voiceSpeech } from '@/lib/voiceSpeech';
 import { useTranslation } from '@/i18n';
+import type { FreshnessDisposition } from '@/lib/voiceFreshness';
+
+/** Freshness disposition → status-bar feed-dot class (§5.3 provenance strip). */
+const DISPOSITION_DOT: Record<FreshnessDisposition, string> = {
+  live: 'feed-dot-healthy',
+  aging: 'feed-dot-stale',
+  stale: 'feed-dot-stale',
+  unknown: 'feed-dot-offline',
+};
 
 export default function VoiceHudPanel({
   onSubmit,
@@ -74,6 +84,59 @@ export default function VoiceHudPanel({
         <button type="button" onClick={onClose} aria-label={t('voice.panel.close')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm leading-none">
           ×
         </button>
+      </div>
+
+      {/* NARRATE block (U5) — SYS.ANALYSIS motif; the narrative never
+          outlives its provenance: the freshness strip rides beneath it. */}
+      <div className="px-3 pt-2" data-testid="voice-narrate-block">
+        <div className="p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] font-mono">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-cyan-400 font-bold tracking-widest">{`>_ ${t('voice.summary.prefix')}:`}</span>
+            {state.narrating && <span className="w-[2px] bg-cyan-500 animate-pulse h-3" aria-hidden="true" />}
+            <span className="flex-1" />
+            {/* Ambient ARM chip — always visible (§2.6, R19). */}
+            <button
+              type="button"
+              data-testid="voice-arm-toggle"
+              aria-pressed={state.ambientArmed}
+              aria-label={t('voice.arm.aria')}
+              title={t('voice.arm.aria')}
+              onClick={() => voiceController.setAmbientArmed(!state.ambientArmed)}
+              className={`px-1 py-[1px] text-[8px] font-mono tracking-wider border ${
+                state.ambientArmed
+                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                  : 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)]'
+              }`}
+            >
+              {state.ambientArmed ? t('voice.arm.on') : t('voice.arm.off')}
+            </button>
+          </div>
+          <div className="text-[var(--text-primary)] break-words whitespace-pre-wrap" data-testid="voice-narrate-text">
+            {state.narration?.summary || state.narration?.error
+              ? state.narration?.summary || ''
+              : t('voice.summary.empty')}
+          </div>
+          {state.narration?.error && (
+            <div className="mt-1 text-red-400 text-[10px]" data-testid="voice-narrate-error">
+              {state.narration.error}
+            </div>
+          )}
+          {/* Freshness strip — mirrors status-bar feed dots so the narrative's
+              provenance stays visible (live/aging/stale/unknown). */}
+          {state.freshnessRows.length > 0 && (
+            <div className="mt-2 pt-1 border-t border-cyan-900/40 flex flex-wrap gap-x-3 gap-y-[2px]" data-testid="voice-freshness-strip">
+              {state.freshnessRows.map((row) => (
+                <span key={row.layer} className="text-[9px] text-[var(--text-muted)]" title={`${row.layer} — ${row.disposition}${row.age_s != null ? ` (${row.age_s}s)` : ''}`}>
+                  <span className={`feed-dot ${DISPOSITION_DOT[row.disposition]}`} aria-hidden="true" />
+                  {row.layer} · {t(`voice.freshness.${row.disposition}`)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {voiceSpeech.getState().mode === 'SYNTH' && (
+          <div className="mt-[2px] text-right text-[8px] font-mono text-[var(--text-muted)]">TTS SYNTH</div>
+        )}
       </div>
 
       {/* Transcript */}
