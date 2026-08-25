@@ -48,6 +48,12 @@ export interface VoiceControllerState {
   freshnessRows: FreshnessRow[];
   /** Ambient auto-narration ARM toggle — per-page-session, default OFF. */
   ambientArmed: boolean;
+  /** Today's persisted daily-spend view from /api/voice/status (§4.3) —
+   *  backs the spend chip in VoiceHudPanel (U6). */
+  dailySpend: VoiceStatusResponse['dailySpend'] | null;
+  /** Verbatim reason for the current FAULT (upstream close text, budget
+   *  refusal detail, transport error) — rendered as-is, never softened. */
+  lastFaultReason: string | null;
 }
 
 /**
@@ -80,6 +86,8 @@ const INITIAL_STATE: VoiceControllerState = {
   narrating: false,
   freshnessRows: [],
   ambientArmed: false,
+  dailySpend: null,
+  lastFaultReason: null,
 };
 
 const MAX_TURNS = 200;
@@ -138,6 +146,7 @@ class VoiceController {
           : status.provider.resolved
             ? String(status.provider.resolved)
             : '',
+      dailySpend: status.dailySpend ?? null,
     });
     if (this.state.phase === 'quota-capped') return; // terminal until explicit reset
     if (status.mode === 'mesh_lean') {
@@ -212,31 +221,40 @@ class VoiceController {
   }
 
   fail(message: string): void {
+    const reason = String(message ?? '').trim();
+    if (reason) this.set({ lastFaultReason: reason.slice(0, 300) });
     const wasSet = this.setPhase('error');
     if (wasSet || this.state.phase === 'error') {
       this.pushTurn({
         id: `t${++turnSeq}`,
         role: 'agent',
         kind: 'text',
-        text: message || 'link fault',
+        text: reason || 'link fault',
         ts: Date.now(),
       });
     }
   }
 
-  /** Transport lost — start the disconnect grace window. */
-  markDisconnected(): void {
+  /** Transport lost — start the disconnect grace window. The verbatim
+   *  close/error reason becomes the FAULT text if the blip does not recover. */
+  markDisconnected(reason?: string): void {
     this.clearGrace();
+    if (reason && String(reason).trim()) this.set({ lastFaultReason: String(reason).trim().slice(0, 300) });
     if (this.state.phase === 'quota-capped' || this.state.phase === 'error') return;
     this.graceTimer = setTimeout(() => {
       this.graceTimer = null;
       this.setPhase('error');
+      const fault = this.state.lastFaultReason;
+      if (fault) {
+        this.pushTurn({ id: `t${++turnSeq}`, role: 'agent', kind: 'text', text: fault, ts: Date.now() });
+      }
     }, VOICE_DISCONNECT_GRACE_MS);
   }
 
   /** Transport recovered inside the grace window (or a new session started). */
   markConnected(): void {
     this.clearGrace();
+    this.set({ lastFaultReason: null });
     if (this.state.phase === 'error') this.setPhase('idle');
   }
 
@@ -249,7 +267,7 @@ class VoiceController {
 
   // ── Cost latch (monotonic) ──────────────────────────────────────────────
 
-  applyCost(event: Pick<VoiceUsageEvent, 'total_usd' | 'display' | 'level' | 'note' | 'incomplete'>): void {
+  applyCost(event: Pick<VoiceUsageEvent, 'total_usd' | 'display' | 'level' | 'note'> & Partial<Pick<VoiceUsageEvent, 'incomplete' | 'estimated' | 'ratesRecognized'>>): void {
     const prev = this.state.cost;
     // Level never steps down.
     const rank = { ok: 0, warn: 1, cap: 2 } as const;
@@ -266,7 +284,7 @@ class VoiceController {
   /** Explicit new session after a cap — the only way out of quota-capped. */
   resetForNewSession(): void {
     this.clearGrace();
-    this.set({ cost: null, pttHeld: false });
+    this.set({ cost: null, pttHeld: false, lastFaultReason: null });
     if (this.state.phase === 'quota-capped' || this.state.phase === 'error') this.setPhase('idle');
   }
 

@@ -547,6 +547,9 @@ export default function Dashboard() {
     },
     setFilter: (filterKey, values) => setActiveFilters((prev) => ({ ...prev, [filterKey]: values })),
     setSelectedEntity,
+    // §2.6 selectedEntity regen trigger (U6): page-local selection widened
+    // into the hook bindings; only its identity is read.
+    selectedEntity,
     viewSummary: () => ({
       activeLayers: { ...activeLayers, ...layerOverrides },
       filters: activeFilters,
@@ -881,7 +884,7 @@ export default function Dashboard() {
                   </ErrorBoundary>
                   {voice.state.panelOpen && (
                     <ErrorBoundary name="VoiceHudPanel">
-                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />
+                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} onRequestBrief={voice.requestBrief} />
                     </ErrorBoundary>
                   )}
                 </div>

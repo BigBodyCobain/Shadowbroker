@@ -369,9 +369,14 @@
       "title": "VOICE LINK",
       "costNote": "session spend, metered server-side",
       "textModeChip": "TEXT MODE",
-      "composerPlaceholder": "Try: fly to Kyiv · zoom in · what changed",
-      "close": "Close voice console"
+      "close": "Close voice console",
+      "spendNote": "today's voice spend vs the configured daily budget",
+      "costEstimated": "estimated from audio duration — provider did not report token usage",
+      "costWorstCase": "rate table not recognized — billed at worst-case rates",
+      "costIncomplete": "session torn down mid-response — no fabricated tokens"
     },
+    "composer": { "placeholder": "Try: fly to Kyiv · zoom in · what changed" },
+    "brief": { "now": "BRIEF NOW", "aria": "Request an immediate HUD brief" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "No brief yet — arm ambient briefs to start." },
     "arm": { "on": "AMBIENT ARMED", "off": "AMBIENT OFF", "aria": "Toggle ambient HUD briefs" },
     "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },

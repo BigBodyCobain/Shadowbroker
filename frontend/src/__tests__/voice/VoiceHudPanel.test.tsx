@@ -167,3 +167,117 @@ describe('honesty eval smoke (#33) — deterministic loop with ok:false envelope
     expect(outcome.steps.every((s) => s.ok)).toBe(true);
   });
 });
+
+describe('U6 cost/quota UX surfaces', () => {
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus({
+      ok: true,
+      effectiveEnable: false,
+      opt_in_state: 'not_requested',
+      flags: { enableSet: false, acknowledgeSet: false },
+      provider: { resolved: null, requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: false, chatModelConfigured: false },
+      degradedReason: 'voice disabled',
+      reasons: ['blocked'],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 'off' },
+      dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    });
+  });
+
+  afterEach(() => cleanup());
+
+  it('estimated + worst-case-rate snapshots surface both disclosures and the asterisk', () => {
+    voiceController.applyCost({
+      total_usd: 0.9,
+      display: '~$0.90',
+      level: 'ok',
+      note: null,
+      estimated: true,
+      ratesRecognized: false,
+    });
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    const chip = screen.getByTestId('voice-cost-chip');
+    expect(chip.textContent).toBe('~$0.90*');
+    expect(chip.getAttribute('title')).toContain('estimated from audio duration');
+    expect(chip.getAttribute('title')).toContain('worst-case rates');
+  });
+
+  it('daily spend chip renders against the budget only when one is configured', () => {
+    voiceController.applyStatus({
+      ok: true,
+      effectiveEnable: false,
+      opt_in_state: 'not_requested',
+      flags: { enableSet: false, acknowledgeSet: false },
+      provider: { resolved: null, requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: false, chatModelConfigured: false },
+      degradedReason: null,
+      reasons: [],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 5 },
+      dailySpend: { date: '2026-08-26', usdSpent: 1.25, budgetUsd: 5, remainingUsd: 3.75, ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    });
+    const { rerender } = render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    const chip = screen.getByTestId('voice-spend-chip');
+    expect(chip.textContent).toBe('$1.25/$5.00');
+
+    // Over budget ⇒ chip goes red; budget off ⇒ no chip at all.
+    voiceController.applyStatus({
+      ok: true,
+      effectiveEnable: false,
+      opt_in_state: 'not_requested',
+      flags: { enableSet: false, acknowledgeSet: false },
+      provider: { resolved: null, requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: false, chatModelConfigured: false },
+      degradedReason: null,
+      reasons: [],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 5 },
+      dailySpend: { date: '2026-08-26', usdSpent: 5.4, budgetUsd: 5, remainingUsd: 0, ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    });
+    rerender(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByTestId('voice-spend-chip').className).toContain('red-500');
+  });
+
+  it('BRIEF NOW invokes the manual request; disabled while narrating or unbound', () => {
+    // BRIEF NOW is reachable whenever voice is reachable — move off the
+    // opt-in-required policy phase first.
+    voiceController.applyStatus({
+      ok: true,
+      effectiveEnable: true,
+      opt_in_state: 'enabled',
+      flags: { enableSet: true, acknowledgeSet: true },
+      provider: { resolved: 'local_text', requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: true, chatModelConfigured: true },
+      degradedReason: null,
+      reasons: [],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 'off' },
+      dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    });
+    const onRequestBrief = vi.fn();
+    const { rerender } = render(
+      <VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} onRequestBrief={onRequestBrief} />,
+    );
+    const button = screen.getByTestId('voice-brief-now') as HTMLButtonElement;
+    expect(button.textContent.length).toBeGreaterThan(0);
+    fireEvent.click(button);
+    expect(onRequestBrief).toHaveBeenCalledTimes(1);
+
+    // Narrating disables the affordance.
+    voiceController.setNarrating(true);
+    rerender(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} onRequestBrief={onRequestBrief} />);
+    expect((screen.getByTestId('voice-brief-now') as HTMLButtonElement).disabled).toBe(true);
+    voiceController.setNarrating(false);
+
+    // Unbound handler renders the button disabled rather than dead.
+    rerender(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    expect((screen.getByTestId('voice-brief-now') as HTMLButtonElement).disabled).toBe(true);
+  });
+});

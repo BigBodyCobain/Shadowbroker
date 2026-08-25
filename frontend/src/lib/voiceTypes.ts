@@ -86,4 +86,8 @@ export interface VoiceUsageEvent {
   level: 'ok' | 'warn' | 'cap';
   note: string | null;
   incomplete?: boolean;
+  /** Tier-2 estimate: provider did not report usage — billed from audio seconds. */
+  estimated?: boolean;
+  /** False ⇒ worst-case rate table billed; surfaces the `*` + tooltip (§5.5). */
+  ratesRecognized?: boolean;
 }

@@ -263,7 +263,11 @@ describe('page.tsx decomposition — voice console wrap', () => {
   });
 
   it('mounts VoiceHudPanel inside the mic row while open', () => {
-    expect(page).toContain('<VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />');
+    // U6 widened the mount with the manual BRIEF NOW surface — still a single
+    // controller-driven wiring point, never an ad-hoc second pipeline.
+    expect(page).toContain(
+      '<VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} onRequestBrief={voice.requestBrief} />',
+    );
   });
 
   it('wires useVoiceAgent as the single client-tool binding site', () => {

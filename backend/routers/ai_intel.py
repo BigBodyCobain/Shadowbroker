@@ -3527,6 +3527,17 @@ async def broadcast_to_agents(msg: dict[str, Any]):
 
     Called by watchdog, correlation engine, or operator actions.
     """
+    # Voice-agent §3.8: voice CONSUMES already-broadcast alert payloads as
+    # read-only context events ({"type":"watchdog_alert","alert":…}). Best
+    # effort; voice owns no evaluation loop and this stays wire-format only.
+    if isinstance(msg, dict) and msg.get("type") == "alert":
+        try:
+            from services.voice_broker import publish_watchdog_alert
+
+            publish_watchdog_alert(msg.get("alert"))
+        except Exception:
+            pass
+
     # Push to WebSocket clients
     async with _ws_clients_lock:
         clients = list(_ws_clients)

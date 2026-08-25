@@ -369,9 +369,14 @@
       "title": "LIAISON VOCALE",
       "costNote": "coût de session, mesuré côté serveur",
       "textModeChip": "MODE TEXTE",
-      "composerPlaceholder": "Essayez : fly to Kyiv · zoom in · what changed",
-      "close": "Fermer la console vocale"
+      "close": "Fermer la console vocale",
+      "spendNote": "dépense vocale du jour par rapport au budget quotidien configuré",
+      "costEstimated": "estimé à partir de la durée audio — le fournisseur n'a pas signalé l'utilisation de jetons",
+      "costWorstCase": "barème de tarifs non reconnu — facturé aux pires tarifs",
+      "costIncomplete": "session interrompue en pleine réponse — aucun jeton fabriqué"
     },
+    "composer": { "placeholder": "Essayez : fly to Kyiv · zoom in · what changed" },
+    "brief": { "now": "BRIEF MAINTENANT", "aria": "Demander un brief HUD immédiat" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "Aucun brief — armez les briefs ambiants pour commencer." },
     "arm": { "on": "BRIEFS AMBIANTS ARMÉS", "off": "BRIEFS AMBIANTS DÉSARMÉS", "aria": "Basculer les briefs HUD ambiants" },
     "freshness": { "fresh": "direct", "stale": "vieillissant", "offline": "périmé", "unknown": "inconnu" },

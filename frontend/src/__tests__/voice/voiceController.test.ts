@@ -211,4 +211,44 @@ describe('voiceController behavior', () => {
     expect(voiceController.getState().pttHeld).toBe(false);
     expect(voiceController.getState().phase).toBe('idle');
   });
+
+  // ── U6: verbatim FAULT reasons + cost disclosure passthrough ────────────
+
+  it('grace expiry surfaces the verbatim close reason as the FAULT', () => {
+    voiceController.markDisconnected('upstream closed: server overload (code 1013)');
+    vi.advanceTimersByTime(VOICE_DISCONNECT_GRACE_MS);
+    const state = voiceController.getState();
+    expect(state.phase).toBe('error');
+    expect(state.lastFaultReason).toBe('upstream closed: server overload (code 1013)');
+    // The reason is quoted verbatim in the transcript, never softened.
+    const fault = state.turns[state.turns.length - 1];
+    expect(fault.text).toBe('upstream closed: server overload (code 1013)');
+
+    // Recovery clears it; a new session starts clean.
+    voiceController.markConnected();
+    expect(voiceController.getState().lastFaultReason).toBeNull();
+
+    // A grace-window blip without a reason still faults with no fabricated text.
+    voiceController.resetForNewSession();
+    voiceController.applyStatus(ENABLED_STATUS);
+    voiceController.markDisconnected();
+    vi.advanceTimersByTime(VOICE_DISCONNECT_GRACE_MS);
+    expect(voiceController.getState().phase).toBe('error');
+    expect(voiceController.getState().lastFaultReason).toBeNull();
+  });
+
+  it('applyCost passes through estimated / ratesRecognized disclosures', () => {
+    voiceController.applyCost({
+      total_usd: 0.9,
+      display: '~$0.90',
+      level: 'ok',
+      note: null,
+      estimated: true,
+      ratesRecognized: false,
+    });
+    const cost = voiceController.getState().cost;
+    expect(cost?.estimated).toBe(true);
+    expect(cost?.ratesRecognized).toBe(false);
+    expect(cost?.incomplete).toBeUndefined();
+  });
 });

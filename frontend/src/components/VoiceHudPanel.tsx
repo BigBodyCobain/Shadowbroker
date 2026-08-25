@@ -26,9 +26,13 @@ const DISPOSITION_DOT: Record<FreshnessDisposition, string> = {
 export default function VoiceHudPanel({
   onSubmit,
   onClose,
+  onRequestBrief,
 }: {
   onSubmit: (text: string) => Promise<void> | void;
   onClose: () => void;
+  /** Manual "BRIEF NOW" (U6) — explicit operator request bypassing only the
+   *  ambient ARM switch (§2.6). */
+  onRequestBrief?: () => void;
 }) {
   const { t } = useTranslation();
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
@@ -55,6 +59,22 @@ export default function VoiceHudPanel({
     if (el) el.scrollTop = el.scrollHeight;
   }, [state.turns.length]);
 
+  // §4.6/§5.5 honesty tooltips: estimated / worst-case-rate / incomplete each
+  // get their own verbatim-honest disclosure on the spend chip.
+  const cost = state.cost;
+  const costParts: string[] = [];
+  if (cost) {
+    costParts.push(t('voice.panel.costNote'));
+    if (cost.note) costParts.push(cost.note);
+    if (cost.estimated) costParts.push(t('voice.panel.costEstimated'));
+    if (cost.ratesRecognized === false) costParts.push(t('voice.panel.costWorstCase'));
+    if (cost.incomplete) costParts.push(t('voice.panel.costIncomplete'));
+  }
+  const costTooltip = costParts.join(' — ');
+
+  const briefDisabled =
+    state.narrating || !onRequestBrief || state.phase === 'opt-in-required' || state.phase === 'lean-unavailable';
+
   return (
     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[520px] max-w-[92vw] max-h-[420px] z-[200] bg-[var(--bg-secondary)] border border-violet-500/40 shadow-[0_-8px_30px_rgba(0,0,0,0.4)] flex flex-col" data-testid="voice-hud-panel">
       {/* Header row */}
@@ -66,19 +86,33 @@ export default function VoiceHudPanel({
           </span>
         )}
         <span className="flex-1" />
-        {state.cost && (
+        {/* Daily spend chip (§4.3 dailySpend) — only when a budget is set. */}
+        {state.dailySpend && state.dailySpend.budgetUsd !== 'off' && (
           <span
-            title={`${t('voice.panel.costNote')}${state.cost.note ? ` — ${state.cost.note}` : ''}`}
+            data-testid="voice-spend-chip"
+            title={t('voice.panel.spendNote')}
+            className={`px-1 py-[1px] text-[9px] font-mono border whitespace-nowrap ${
+              state.dailySpend.remainingUsd !== 'off' && typeof state.dailySpend.remainingUsd === 'number' && state.dailySpend.remainingUsd <= 0
+                ? 'bg-red-500/20 border-red-500/40 text-red-300'
+                : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-400'
+            }`}
+          >
+            {`$${state.dailySpend.usdSpent.toFixed(2)}/$${typeof state.dailySpend.budgetUsd === 'number' ? state.dailySpend.budgetUsd.toFixed(2) : state.dailySpend.budgetUsd}`}
+          </span>
+        )}
+        {cost && (
+          <span
+            title={costTooltip}
             data-testid="voice-cost-chip"
             className={`px-1 py-[1px] text-[9px] font-mono border ${
-              state.cost.level === 'cap'
+              cost.level === 'cap'
                 ? 'bg-red-500/20 border-red-500/40 text-red-300'
-                : state.cost.level === 'warn'
+                : cost.level === 'warn'
                   ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300'
                   : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-400'
             }`}
           >
-            {`${state.cost.display}${state.cost.incomplete ? '*' : ''}`}
+            {`${cost.display}${(cost.incomplete || cost.estimated || cost.ratesRecognized === false) ? '*' : ''}`}
           </span>
         )}
         <button type="button" onClick={onClose} aria-label={t('voice.panel.close')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm leading-none">
@@ -94,6 +128,23 @@ export default function VoiceHudPanel({
             <span className="text-cyan-400 font-bold tracking-widest">{`>_ ${t('voice.summary.prefix')}:`}</span>
             {state.narrating && <span className="w-[2px] bg-cyan-500 animate-pulse h-3" aria-hidden="true" />}
             <span className="flex-1" />
+            {/* Manual BRIEF NOW (U6) — explicit operator request bypassing
+                only the ARM switch; ambient gates still apply upstream. */}
+            <button
+              type="button"
+              data-testid="voice-brief-now"
+              aria-label={t('voice.brief.aria')}
+              title={t('voice.brief.aria')}
+              disabled={briefDisabled}
+              onClick={() => onRequestBrief?.()}
+              className={`px-1 py-[1px] text-[8px] font-mono tracking-wider border ${
+                briefDisabled
+                  ? 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)] cursor-not-allowed'
+                  : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-300 hover:border-cyan-500/60'
+              }`}
+            >
+              {t('voice.brief.now')}
+            </button>
             {/* Ambient ARM chip — always visible (§2.6, R19). */}
             <button
               type="button"

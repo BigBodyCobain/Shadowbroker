@@ -16,7 +16,11 @@ import { useVoiceGrounding } from '@/hooks/useVoiceGrounding';
 import type { ClientToolContext } from '@/lib/clientTools';
 import type { VoiceStatusResponse } from '@/lib/voiceTypes';
 
-export type VoiceAgentBindings = ClientToolContext;
+export type VoiceAgentBindings = ClientToolContext & {
+  /** §2.6 selectedEntity regen trigger (U6): the page-local selection rides
+   *  the widened page→hook bindings; only its identity is read. */
+  selectedEntity?: { id: string | number; type: string } | null;
+};
 
 export interface UseVoiceAgentResult {
   state: VoiceControllerState;
@@ -26,6 +30,9 @@ export interface UseVoiceAgentResult {
   cancelActive: () => void;
   openPanel: () => void;
   closePanel: () => void;
+  /** Manual "BRIEF NOW" — explicit operator request bypassing only the ARM
+   *  switch (§2.6); surfaced for the VoiceHudPanel affordance (U6). */
+  requestBrief: () => void;
 }
 
 const STATUS_POLL_MS = 60000;
@@ -34,9 +41,10 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
 
   // U5 NARRATE grounding composer — ambient briefs, ARM gating, freshness
-  // strip state (flows through voiceController into VoiceHudPanel). Its
-  // requestBrief surface becomes user-reachable with U6's interrogation UX.
-  useVoiceGrounding(bindings);
+  // strip state (flows through voiceController into VoiceHudPanel). U6 makes
+  // its requestBrief surface user-reachable ("BRIEF NOW") and feeds it the
+  // page-local selectedEntity for the §2.6 regen trigger.
+  const grounding = useVoiceGrounding(bindings);
 
   // Keep the latest page bindings without resubscribing effects per render.
   const bindingsRef = useRef(bindings);
@@ -103,5 +111,5 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   const openPanel = useCallback(() => voiceController.setPanelOpen(true), []);
   const closePanel = useCallback(() => voiceController.setPanelOpen(false), []);
 
-  return { state, submitText, beginPtt, endPtt, cancelActive, openPanel, closePanel };
+  return { state, submitText, beginPtt, endPtt, cancelActive, openPanel, closePanel, requestBrief: grounding.requestBrief };
 }

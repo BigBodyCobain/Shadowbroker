@@ -108,7 +108,10 @@ export default function VoiceMicButton() {
   const tooltip =
     state.phase === 'opt-in-required' || state.phase === 'lean-unavailable'
       ? state.reasons[0] || t(`voice.states.${state.phase === 'lean-unavailable' ? 'leanMode' : 'optInRequired'}`)
-      : undefined;
+      : state.phase === 'error'
+        ? // Verbatim-honesty FAULT: quote the real close/error reason as-is.
+          state.lastFaultReason || t('voice.micAria.error')
+        : undefined;
 
   const startHold = () => {
     if (!visual.interactive) return;

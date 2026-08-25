@@ -182,6 +182,7 @@ export function groundingFingerprint(snapshot: GroundingSnapshot): string {
     n: snapshot.verdicts.news.map((item) => item.title),
     m: snapshot.session.mode,
     l: snapshot.layers.active,
+    s: snapshot.selection ?? null,
   });
   let hash = 5381;
   for (let i = 0; i < core.length; i++) hash = ((hash << 5) + hash + core.charCodeAt(i)) >>> 0;
@@ -312,6 +313,12 @@ export function useVoiceGrounding(bindings: VoiceAgentBindings): UseVoiceGroundi
         active: Object.keys(activeLayers).filter((key) => activeLayers[key]),
         inactive_count: Object.keys(activeLayers).filter((key) => !activeLayers[key]).length,
       },
+      selection: bindingsRef.current.selectedEntity
+        ? {
+            id: String(bindingsRef.current.selectedEntity.id).slice(0, 64),
+            type: String(bindingsRef.current.selectedEntity.type).slice(0, 32),
+          }
+        : null,
       counts: composeCounts(activeLayers),
       entities: composeEntities(),
       correlations: [],
@@ -431,6 +438,16 @@ export function useVoiceGrounding(bindings: VoiceAgentBindings): UseVoiceGroundi
     scheduleRegen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freshnessStamps]);
+
+  // §2.6 selectedEntity regen trigger (U6): selection is page-local React
+  // state, so the page passes it in through the widened bindings and this key
+  // change re-arms the same gated pipeline (fingerprint/min-interval still
+  // decide whether a POST actually happens).
+  const selectedEntityKey = `${bindings.selectedEntity?.type ?? ''}:${bindings.selectedEntity?.id ?? ''}`;
+  useEffect(() => {
+    scheduleRegen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEntityKey]);
 
   const requestBrief = useCallback(() => {
     void postSummary(true); // explicit operator request bypasses only the ARM switch

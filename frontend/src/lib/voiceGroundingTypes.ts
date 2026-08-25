@@ -52,6 +52,10 @@ export interface GroundingSnapshot {
   view: GroundingView;
   session: { mode: string | null };
   layers: { active: string[]; inactive_count: number };
+  /** The operator's current selection (§2.6 selectedEntity trigger, U6) —
+   *  rides the snapshot so a selection change also changes the regen
+   *  fingerprint; null when nothing is selected. */
+  selection?: { id: string; type: string } | null;
   counts: Record<string, number>;
   entities: GroundingEntityRef[];
   correlations: Array<Record<string, unknown>>;

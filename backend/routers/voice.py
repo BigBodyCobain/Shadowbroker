@@ -73,6 +73,12 @@ else:
         snapshot: dict | None = None
         history: list[dict] = Field(default_factory=list)
 
+    class VoiceInterrogateRequest(BaseModel):
+        question: str = Field(min_length=1, max_length=2000)
+        target: dict | None = None
+        snapshot: dict | None = None
+        sessionId: str = ""
+
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
     # ------------------------------------------------------------------
@@ -519,6 +525,52 @@ else:
         if not result.get("ok"):
             if result.get("error") == "chat_unconfigured":
                 return JSONResponse(status_code=503, content={"error": "chat_unconfigured"})
+            return JSONResponse(status_code=502, content=result)
+        result["mode"] = _mesh_mode()
+        return result
+
+    # ------------------------------------------------------------------
+    # POST /api/voice/interrogate — §2.7 interrogation relay
+    # ------------------------------------------------------------------
+
+    @router.post("/api/voice/interrogate", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def voice_interrogate(request: Request, body: VoiceInterrogateRequest):
+        """Interrogation relay (§2.7): local target resolution →
+        correlate_entity / get_entity_profile / gt_dossier through the EXISTING
+        dispatcher → evidence pack as second user message → narrated answer.
+        Tier gating is inherited via validate_and_gate; per-session memory is
+        capped at 2 exchanges inside services.voice_interrogation."""
+        from services.voice_broker import resolve_provider
+        from services.voice_interrogation import run_interrogation_turn
+
+        s = _settings()
+        effective, _state, _flags = _opt_in_state(s)
+        if not effective:
+            provider_probe = resolve_provider(s)
+            return JSONResponse(status_code=409, content=_opt_in_refusal_payload(provider_probe["reasons"]))
+
+        # Gate 3 — persisted daily-budget cap: interrogation turns dial the
+        # chat model, so the same latched cap governs this surface.
+        budget_refusal, _gate = _budget_gate(s)
+        if budget_refusal is not None:
+            return budget_refusal
+
+        result = await run_interrogation_turn(
+            body.question,
+            target=body.target,
+            snapshot=body.snapshot,
+            session_key=str(body.sessionId or "").strip()[:64] or "default",
+            settings=s,
+        )
+        if not result.get("ok"):
+            error = str(result.get("error") or "")
+            if error == "chat_unconfigured":
+                return JSONResponse(status_code=503, content={"error": "chat_unconfigured"})
+            if error in ("no_target", "empty_question"):
+                return JSONResponse(status_code=400, content=result)
+            if error in ("gate_blocked",):
+                return JSONResponse(status_code=400, content={"ok": False, **result})
             return JSONResponse(status_code=502, content=result)
         result["mode"] = _mesh_mode()
         return result

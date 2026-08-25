@@ -36,6 +36,7 @@ import os
 import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -835,6 +836,75 @@ def _decode_audio_payload(payload: Any) -> bytes | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Watchdog alert context events (§3.8 — voice CONSUMES wire-format payloads)
+#
+# The watchdog stays the only proactive-alert engine (R21): this module never
+# imports ``services.openclaw_watchdog`` and owns no evaluation loop. Producers
+# hand already-broadcast alert payloads to ``publish_watchdog_alert``; every
+# live relay re-emits them to its client once as a read-only
+# ``{"type":"watchdog_alert","alert":{…}}`` context frame.
+# ---------------------------------------------------------------------------
+
+_WATCHDOG_ALERT_TAP_MAX = 16
+
+
+class _WatchdogAlertTap:
+    """Per-relay bounded alert buffer, safe for cross-thread producers."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending: deque[dict[str, Any]] = deque(maxlen=_WATCHDOG_ALERT_TAP_MAX)
+
+    def publish(self, alert: dict[str, Any]) -> bool:
+        with self._lock:
+            was_full = len(self._pending) == self._pending.maxlen
+            self._pending.append(alert)
+        return not was_full
+
+    def drain(self) -> list[dict[str, Any]]:
+        with self._lock:
+            items = list(self._pending)
+            self._pending.clear()
+        return items
+
+
+_relay_taps: set[_WatchdogAlertTap] = set()
+_relay_taps_lock = threading.Lock()
+
+
+def publish_watchdog_alert(alert: Any) -> int:
+    """Fan one watchdog alert payload to every connected voice session.
+
+    Called from the existing fan-out points (§3.8); returns the number of
+    relays that buffered it.
+    """
+    if not isinstance(alert, dict):
+        alert = {"alert": str(alert)}
+    with _relay_taps_lock:
+        taps = list(_relay_taps)
+    delivered = 0
+    for tap in taps:
+        try:
+            tap.publish(alert)
+            delivered += 1
+        except Exception:  # pragma: no cover - defensive
+            pass
+    return delivered
+
+
+async def _pump_watchdog_alerts(client_ws: Any, state: _RelayState, tap: _WatchdogAlertTap) -> None:
+    """Forward buffered alerts as SB→client context frames until the relay ends."""
+    while not state.session.closed and not state.cap_sent:
+        await asyncio.sleep(_TERMINATION_POLL_SECONDS)
+        for alert in tap.drain():
+            await state.send_json(client_ws, {"type": "watchdog_alert", "alert": alert})
+    # Final drain so an alert racing session teardown is not silently lost.
+    for alert in tap.drain():
+        if not state.session.closed and not state.cap_sent:
+            await state.send_json(client_ws, {"type": "watchdog_alert", "alert": alert})
+
+
 async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=None) -> None:
     """Run one realtime session: connect upstream, author config, translate.
 
@@ -902,6 +972,11 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
 
     client_task = asyncio.ensure_future(pump_client_to_upstream(client_ws, state))
     upstream_task = asyncio.ensure_future(pump_upstream_to_client(client_ws, state))
+    # §3.8 watchdog alert context events: one bounded tap + pump per relay.
+    alert_tap = _WatchdogAlertTap()
+    with _relay_taps_lock:
+        _relay_taps.add(alert_tap)
+    alerts_task = asyncio.ensure_future(_pump_watchdog_alerts(client_ws, state, alert_tap))
     try:
         done, pending = await asyncio.wait(
             {client_task, upstream_task}, return_when=asyncio.FIRST_COMPLETED
@@ -937,7 +1012,9 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
             reason = "capped" if capped else "terminated" if terminated else "completed"
             await _teardown(client_ws, state, reason)
     finally:
-        for task in (client_task, upstream_task):
+        with _relay_taps_lock:
+            _relay_taps.discard(alert_tap)
+        for task in (client_task, upstream_task, alerts_task):
             if not task.done():
                 task.cancel()
 
