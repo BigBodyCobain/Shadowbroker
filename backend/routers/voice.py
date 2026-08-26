@@ -79,6 +79,15 @@ else:
         snapshot: dict | None = None
         sessionId: str = ""
 
+    class VoiceOptInRequest(BaseModel):
+        enable: bool
+
+    class VoiceProviderRequest(BaseModel):
+        provider: str  # "openai" | "gemini" | "compat"
+        apiKey: str | None = None
+        baseUrl: str | None = None
+        model: str | None = None  # gemini only: optional VOICE_GEMINI_MODEL
+
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
     # ------------------------------------------------------------------
@@ -221,6 +230,146 @@ else:
                 "activeSessions": 0,
                 "maxConcurrent": 1,
             }
+
+    # ------------------------------------------------------------------
+    # POST /api/voice/opt-in + POST /api/voice/provider — first-class
+    # enablement API (pressable buttons in the UI). Both persist through the
+    # sanctioned operator-keys writer and preserve the two-step semantics:
+    # a real process environment variable ALWAYS wins over the persisted
+    # file row, and that fact is reported verbatim-honestly.
+    # ------------------------------------------------------------------
+
+    def _persist_voice_env(updates: dict[str, str]) -> tuple[bool, list[str]]:
+        """Persist voice settings via the sanctioned writer and sync live env.
+
+        Mirrors the env-var-wins contract of load_persisted_api_keys_into_environ:
+        if a key already has a real process-env value that did NOT come from the
+        persisted file (env value differs from the file's previous row), the file
+        write cannot win in this process — that key is left untouched and reported.
+        Returns ``(written, externally_managed_keys)``.
+        """
+        from services.api_settings import (
+            OPERATOR_KEYS_ENV_PATH,
+            _parse_env_file,
+            _write_env_values,
+        )
+
+        previous_rows = _parse_env_file(OPERATOR_KEYS_ENV_PATH)
+        try:
+            _write_env_values(OPERATOR_KEYS_ENV_PATH, updates)
+        except OSError:
+            logger.exception("voice setup: failed to persist %s", sorted(updates))
+            return False, []
+        externally_managed: list[str] = []
+        for key, value in updates.items():
+            env_val = str(os.environ.get(key, "") or "")
+            file_val = str(previous_rows.get(key, "") or "")
+            if env_val.strip() and env_val != file_val:
+                externally_managed.append(key)
+                continue
+            os.environ[key] = value
+        return True, externally_managed
+
+    def _fresh_opt_in_payload(managed: list[str]) -> dict:
+        from services.config import get_settings, voice_outbound_effective
+
+        get_settings.cache_clear()
+        payload: dict = {
+            "ok": True,
+            "effectiveEnable": voice_outbound_effective(get_settings()),
+            "managedByEnvironment": bool(managed),
+        }
+        if managed:
+            payload["note"] = (
+                f"A real environment variable controls {', '.join(sorted(managed))}; "
+                "environment variables always win over the persisted operator file "
+                "(data/operator_api_keys.env), so this change cannot take effect for "
+                "those keys until the variable is removed from the container/process "
+                "environment."
+            )
+        return payload
+
+    @router.post("/api/voice/opt-in", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("10/minute")
+    async def voice_opt_in(request: Request, body: VoiceOptInRequest):
+        """Persist one step of the two-step opt-in: ``enable=true`` writes
+        VOICE_AGENT_OUTBOUND_ENABLE=allow AND VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true
+        together (the UI button is the explicit acknowledgment); ``enable=false``
+        writes block/false. Two-step semantics are unchanged: effectiveEnable is
+        recomputed fresh from settings after the persist."""
+        written, managed = _persist_voice_env({
+            "VOICE_AGENT_OUTBOUND_ENABLE": "allow" if body.enable else "block",
+            "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE": "true" if body.enable else "false",
+        })
+        if not written:
+            return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+        return _fresh_opt_in_payload(managed)
+
+    @router.post("/api/voice/provider", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("10/minute")
+    async def voice_provider_save(request: Request, body: VoiceProviderRequest):
+        """Persist provider credentials server-side (the browser never holds a
+        provider key). Responds with is_set booleans only — never echoes the key."""
+        from services.voice_broker import resolve_provider
+
+        provider = str(body.provider or "").strip().lower()
+        api_key = str(body.apiKey or "").strip()
+        base_url = str(body.baseUrl or "").strip()
+
+        updates: dict[str, str] = {}
+        if provider == "openai":
+            if not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "missing_field", "field": "apiKey"},
+                )
+            updates["VOICE_OPENAI_API_KEY"] = api_key
+        elif provider == "gemini":
+            if not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "missing_field", "field": "apiKey"},
+                )
+            updates["VOICE_GEMINI_API_KEY"] = api_key
+            model = str(body.model or "").strip()
+            if model:
+                updates["VOICE_GEMINI_MODEL"] = model
+        elif provider == "compat":
+            if not base_url:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "missing_field", "field": "baseUrl"},
+                )
+            updates["VOICE_COMPAT_BASE_URL"] = base_url
+            if api_key:
+                updates["VOICE_COMPAT_API_KEY"] = api_key
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "unknown_provider", "provider": provider},
+            )
+
+        written, _managed = _persist_voice_env(updates)
+        if not written:
+            return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+
+        from services.config import get_settings
+
+        get_settings.cache_clear()
+        summary = resolve_provider(get_settings())
+        return {
+            "ok": True,
+            "provider": {
+                "resolved": summary["resolved"],
+                "requestedMode": summary["requestedMode"],
+                "openaiKeySet": summary["openaiKeySet"],
+                "compatKeySet": summary["compatKeySet"],
+                "compatBaseUrlSet": summary["compatBaseUrlSet"],
+                "geminiKeySet": bool(summary.get("geminiKeySet", False)),
+                "chatModelConfigured": summary["chatModelConfigured"],
+            },
+            "degradedReason": summary["degradedReason"],
+        }
 
     # ------------------------------------------------------------------
     # POST /api/voice/session — mint one short-lived session grant

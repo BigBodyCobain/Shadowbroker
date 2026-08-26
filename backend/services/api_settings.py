@@ -238,6 +238,15 @@ API_REGISTRY = [
         "required": False,
     },
     {
+        "id": "voice_gemini_api_key",
+        "env_key": "VOICE_GEMINI_API_KEY",
+        "name": "Voice Agent — Gemini Live API Key",
+        "description": "Server-side Google Gemini API key for the Gemini Live realtime voice provider. Used only by the backend voice broker when the voice agent is explicitly enabled; operator speech is sent to Google's Live API (Google's free tier may use uploaded audio for product improvement; paid tiers do not — docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.",
+        "category": "Voice",
+        "url": "https://aistudio.google.com/apikey",
+        "required": False,
+    },
+    {
         "id": "voice_compat_api_key",
         "env_key": "VOICE_COMPAT_API_KEY",
         "name": "Voice Agent — Compatible Gateway API Key",
@@ -248,11 +257,27 @@ API_REGISTRY = [
     },
 ]
 
+# Voice-agent behavioral settings (two-step opt-in switches and provider
+# coordinates) deliberately do NOT get API_REGISTRY rows: the keys panel
+# renders registry rows as credential slots ("CONFIGURED / NOT CONFIGURED"
+# badge for a secret), which would misrepresent consent toggles and base URLs
+# as API keys. They ride ALLOWED_ENV_KEYS via this explicit frozenset union
+# instead — that is what makes them persistable through _write_env_values and
+# loadable by load_persisted_api_keys_into_environ, under the standing rule
+# that real process environment variables always win over persisted file rows
+# (the loader only fills unset/empty vars).
+VOICE_PERSISTED_SETTING_ENV_KEYS = frozenset({
+    "VOICE_AGENT_OUTBOUND_ENABLE",
+    "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE",
+    "VOICE_GEMINI_MODEL",
+    "VOICE_COMPAT_BASE_URL",
+})
+
 ALLOWED_ENV_KEYS = {
     str(api["env_key"])
     for api in API_REGISTRY
     if api.get("env_key")
-}
+} | VOICE_PERSISTED_SETTING_ENV_KEYS
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
