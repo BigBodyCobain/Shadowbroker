@@ -23,6 +23,7 @@ function enabledStatus(overrides: Partial<VoiceStatusResponse> = {}): VoiceStatu
       openaiKeySet: true,
       compatKeySet: false,
       compatBaseUrlSet: false,
+      geminiKeySet: false,
       chatModelConfigured: false,
     },
     degradedReason: null,

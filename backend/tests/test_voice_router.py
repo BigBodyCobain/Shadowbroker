@@ -24,7 +24,9 @@ import services.api_settings as api_settings_mod
 ACK_MISMATCH_STRING = (
     "VOICE_AGENT_OUTBOUND_ENABLE=allow without VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true — "
     "the AI voice agent remains disabled until you explicitly acknowledge that enabling it "
-    "sends operator speech to the configured OpenAI-compatible endpoint (docs/OUTBOUND_DATA.md)."
+    "sends operator speech to the configured realtime provider (OpenAI, an OpenAI-compatible "
+    "gateway, or Google Gemini — Google's free tier may use uploaded audio for product "
+    "improvement; paid tiers do not) (docs/OUTBOUND_DATA.md)."
 )
 
 

@@ -30,6 +30,7 @@ const LOCAL_TEXT_STATUS: VoiceStatusResponse = {
     openaiKeySet: false,
     compatKeySet: false,
     compatBaseUrlSet: true,
+  geminiKeySet: false,
     chatModelConfigured: true,
   },
   degradedReason: null,

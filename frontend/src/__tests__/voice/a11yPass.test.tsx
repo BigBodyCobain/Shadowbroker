@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import VoiceMicButton from '@/components/VoiceMicButton';
 import VoiceHudPanel from '@/components/VoiceHudPanel';
@@ -30,6 +30,7 @@ function enabledStatus(overrides: Partial<VoiceStatusResponse> = {}): VoiceStatu
       openaiKeySet: true,
       compatKeySet: false,
       compatBaseUrlSet: false,
+      geminiKeySet: false,
       chatModelConfigured: false,
     },
     degradedReason: null,
@@ -110,7 +111,7 @@ describe('voice a11y pass (U7)', () => {
   it('VoiceHudPanel renders intact under RTL', () => {
     document.documentElement.dir = 'rtl';
     voiceController.applyStatus(enabledStatus());
-    voiceController.pushTurn({ role: 'agent', kind: 'say', text: 'Brief ready.' });
+    voiceController.pushTurn({ role: 'agent', kind: 'text', text: 'Brief ready.' });
 
     render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByRole('textbox')).not.toBeNull();

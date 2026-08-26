@@ -130,16 +130,22 @@ def resolve_provider(settings=None) -> dict[str, Any]:
     openai_key_set = _flag(env.get("VOICE_OPENAI_API_KEY"))
     compat_key_set = _flag(env.get("VOICE_COMPAT_API_KEY"))
     compat_base_set = _flag(env.get("VOICE_COMPAT_BASE_URL"))
-    openai_base = str(getattr(s, "VOICE_OPENAI_BASE_URL", "") or "").strip() or "https://api.openai.com"
+    gemini_key_set = _flag(env.get("VOICE_GEMINI_API_KEY"))
     compat_base = str(env.get("VOICE_COMPAT_BASE_URL") or "").strip()
+    openai_base = str(getattr(s, "VOICE_OPENAI_BASE_URL", "") or "").strip() or "https://api.openai.com"
+    from services.voice_gemini import GEMINI_DEFAULT_BASE, gemini_model
 
+    gemini_base = str(getattr(s, "VOICE_GEMINI_BASE_URL", "") or "").strip() or GEMINI_DEFAULT_BASE
+    gemini_model_id = gemini_model(s)
+
+    requested_mode = requested_mode  # (kept for readability)
     candidates: list[str] = []
     if requested_mode in ("auto", ""):
-        candidates = ["openai_realtime", "compatible_ws", "local_text"]
-    elif requested_mode in ("openai_realtime", "compatible_ws", "local_text"):
+        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "local_text"]
+    elif requested_mode in ("openai_realtime", "compatible_ws", "gemini_live", "local_text"):
         candidates = [requested_mode]
     else:
-        candidates = ["openai_realtime", "compatible_ws", "local_text"]
+        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "local_text"]
 
     chat_model = str(getattr(s, "VOICE_CHAT_MODEL", "") or "").strip()
     chat_model_configured = _flag(chat_model)
@@ -151,6 +157,9 @@ def resolve_provider(settings=None) -> dict[str, Any]:
             break
         if candidate == "compatible_ws" and compat_base_set:
             resolved = "compatible_ws"
+            break
+        if candidate == "gemini_live" and gemini_key_set:
+            resolved = "gemini_live"
             break
         if candidate == "local_text" and chat_model_configured:
             resolved = "local_text"
@@ -168,15 +177,17 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         reasons.append(
             "VOICE_AGENT_OUTBOUND_ENABLE=allow without VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true — "
             "the AI voice agent remains disabled until you explicitly acknowledge that enabling it "
-            "sends operator speech to the configured OpenAI-compatible endpoint "
-            "(docs/OUTBOUND_DATA.md)."
+            "sends operator speech to the configured realtime provider (OpenAI, an OpenAI-compatible "
+            "gateway, or Google Gemini — Google's free tier may use uploaded audio for product "
+            "improvement; paid tiers do not) (docs/OUTBOUND_DATA.md)."
         )
 
     degraded_reason: str | None = None
     if resolved is None:
         degraded_reason = (
             "No usable voice provider configured — set VOICE_OPENAI_API_KEY, "
-            "VOICE_COMPAT_BASE_URL, or VOICE_CHAT_MODEL (+ VOICE_COMPAT_BASE_URL) for text-only."
+            "VOICE_COMPAT_BASE_URL, VOICE_GEMINI_API_KEY, or VOICE_CHAT_MODEL "
+            "(+ VOICE_COMPAT_BASE_URL) for text-only."
         )
         reasons.append(degraded_reason)
 
@@ -186,14 +197,18 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         "openaiKeySet": openai_key_set,
         "compatKeySet": compat_key_set,
         "compatBaseUrlSet": compat_base_set,
+        "geminiKeySet": gemini_key_set,
         "chatModelConfigured": chat_model_configured,
         "degradedReason": degraded_reason,
         "reasons": reasons,
         # Upstream dial details — server-only; never serialized to clients.
         "openaiBase": openai_base,
         "compatBase": compat_base,
+        "geminiBase": gemini_base,
+        "geminiModel": gemini_model_id,
         "openaiKey": env.get("VOICE_OPENAI_API_KEY", ""),
         "compatKey": env.get("VOICE_COMPAT_API_KEY", ""),
+        "geminiKey": env.get("VOICE_GEMINI_API_KEY", ""),
         "chatModel": chat_model,
     }
 
@@ -524,13 +539,20 @@ def _ws_url_for(provider_info: dict[str, Any], model_id: str) -> tuple[str, dict
         if not url.endswith("/v1"):
             url = f"{url}/v1"
         headers = {"Authorization": f"Bearer {provider_info['openaiKey']}", "OpenAI-Beta": "realtime=v1"}
+    elif provider_info["resolved"] == "gemini_live":
+        # Gemini carries its key in the query (Google's browser-less WS
+        # contract); model rides the setup message, not the URL.
+        from services.voice_gemini import gemini_ws_url
+
+        url = gemini_ws_url(provider_info["geminiBase"], provider_info["geminiKey"], provider_info["geminiModel"])
+        headers = {}
     else:
         base = str(provider_info["compatBase"]).rstrip("/")
         url = base.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
         headers = {}
         if provider_info["compatKey"]:
             headers["Authorization"] = f"Bearer {provider_info['compatKey']}"
-    return f"{url}/realtime?model={model_id}", headers
+    return url, headers
 
 
 async def _connect_upstream(url: str, headers: dict[str, str]):
@@ -696,7 +718,13 @@ async def pump_client_to_upstream(
                 continue
             if state.upstream is not None:
                 try:
-                    await _drain_binary_to_upstream(state, bytes(pcm))
+                    if state.session.provider == "gemini_live":
+                        # Gemini input: 24 kHz wire → 16 kHz realtimeInput.
+                        from services.voice_gemini import client_pcm_to_gemini
+
+                        await state.upstream.send(client_pcm_to_gemini(bytes(pcm)))
+                    else:
+                        await _drain_binary_to_upstream(state, bytes(pcm))
                 except Exception:
                     return "client_disconnected"
             continue
@@ -791,6 +819,32 @@ async def pump_upstream_to_client(client_ws: Any, state: _RelayState) -> str:
             continue
 
         event_type = str(event.get("type") or "")
+
+        if state.session.provider == "gemini_live":
+            # Gemini → OpenAI-style client frames (U8 provider #2).
+            from services.voice_gemini import gemini_event_to_client, gemini_usage_to_tokens
+
+            kind, payload = gemini_event_to_client(event)
+            if kind == "audio":
+                state.output_audio_bytes += len(payload)
+                try:
+                    await client_ws.send_bytes(payload)
+                except Exception:
+                    return "upstream_closed"
+            elif kind == "text":
+                try:
+                    await client_ws.send_text(json.dumps(payload))
+                except Exception:
+                    return "upstream_closed"
+            elif kind == "usage":
+                prompt, completion = gemini_usage_to_tokens(payload)
+                await state.meter_response_done(
+                    client_ws, {"prompt_tokens": prompt, "completion_tokens": completion}
+                )
+                if state.cap_sent:
+                    return "capped"
+            continue
+
         if event_type == "response.audio.delta":
             audio_b64 = event.get("delta")
             pcm = _decode_audio_payload(audio_b64)
@@ -965,7 +1019,21 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
         },
     )
     try:
-        await state.upstream.send(json.dumps(build_session_config(session)))
+        if session.provider == "gemini_live":
+            # Gemini setup: same server-authored content, Gemini wire shape.
+            from services.voice_gemini import gemini_model, gemini_setup_message
+
+            await state.upstream.send(
+                gemini_setup_message(
+                    model=gemini_model(s),
+                    instructions=_session_instructions(),
+                    tool_defs=_manifest_tool_defs(),
+                    voice=str(getattr(s, "VOICE_REALTIME_VOICE", "") or "").strip(),
+                    grounding_snapshot=session.grounding_snapshot,
+                )
+            )
+        else:
+            await state.upstream.send(json.dumps(build_session_config(session)))
     except Exception:
         await _teardown(client_ws, state, "upstream_unavailable")
         return

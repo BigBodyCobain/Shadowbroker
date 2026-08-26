@@ -42,6 +42,7 @@ const ENABLED_STATUS: VoiceStatusResponse = {
     openaiKeySet: false,
     compatKeySet: false,
     compatBaseUrlSet: false,
+  geminiKeySet: false,
     chatModelConfigured: true,
   },
   degradedReason: null,

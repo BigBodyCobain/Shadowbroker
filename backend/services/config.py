@@ -376,9 +376,11 @@ class Settings(BaseSettings):
     VOICE_AGENT_OUTBOUND_ACKNOWLEDGE: bool = False
     # Provider/model resolution. Resolution order matches get_settings():
     # process env → data/operator_api_keys.env rows → pydantic default.
-    VOICE_PROVIDER: str = "auto"        # auto | openai_realtime | compatible_ws | local_text
+    VOICE_PROVIDER: str = "auto"        # auto | openai_realtime | compatible_ws | gemini_live | local_text
     VOICE_OPENAI_BASE_URL: str = "https://api.openai.com"
     VOICE_COMPAT_BASE_URL: str = ""     # e.g. http://127.0.0.1:11434/v1 (Ollama)
+    VOICE_GEMINI_MODEL: str = "gemini-2.0-flash-live-001"   # Gemini Live (U8 provider #2)
+    VOICE_GEMINI_BASE_URL: str = "wss://generativelanguage.googleapis.com/ws"
     VOICE_MODEL_STANDARD: str = "gpt-realtime"
     VOICE_MODEL_MINI: str = ""
     VOICE_CHAT_MODEL: str = ""          # chat-completions model for text fallback / hud-summary on local endpoints
