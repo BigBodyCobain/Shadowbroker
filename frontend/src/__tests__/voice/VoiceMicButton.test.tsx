@@ -116,7 +116,7 @@ describe('VoiceMicButton render matrix', () => {
       if (phase === 'opt-in-required' || phase === 'lean-unavailable') {
         expect(cls).toContain('opacity-50');
       } else if (phase === 'idle') {
-        expect(cls).toContain('border-violet-500/40');
+        expect(cls).toContain('border-cyan-500 bg-cyan-400 text-black');
       } else if (phase === 'error') {
         expect(cls).toContain('border-red-800/70');
       } else if (phase === 'quota-capped') {

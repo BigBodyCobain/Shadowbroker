@@ -33,7 +33,9 @@ const PHASE_MATRIX: Record<VoicePhase, PhaseVisual> = {
     interactive: false,
   },
   idle: {
-    buttonClass: 'border-violet-500/40 text-violet-400 hover:border-violet-400 bg-violet-500/10',
+    // Teal-dominant idle state — filled cyan, black label, matches LOCATE's
+    // family but inverted so the AI console reads as the primary control.
+    buttonClass: 'border-cyan-500 bg-cyan-400 text-black hover:bg-cyan-300 font-bold',
     chip: null,
     interactive: true,
   },
@@ -206,6 +208,14 @@ export default function VoiceMicButton() {
               <span key={i} className="w-[3px] bg-cyan-400 animate-pulse motion-reduce:animate-none" style={{ height: `${4 + i * 3}px` }} />
             ))}
           </span>
+        )}
+
+        {/* Mic glyph — the AI console's identity mark */}
+        {state.phase === 'idle' && (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+            <path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          </svg>
         )}
 
         <span>{t('voice.label')}</span>

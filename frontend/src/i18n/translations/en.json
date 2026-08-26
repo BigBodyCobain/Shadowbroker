@@ -352,7 +352,7 @@
     "showTranslation": "SHOW TRANSLATION"
   },
   "voice": {
-    "label": "VOICE",
+    "label": "AI VOICE",
     "micAria": {
       "opt-in-required": "Voice is off — click to set it up",
       "lean-unavailable": "Voice unavailable in mesh lean mode",
