@@ -378,7 +378,8 @@
       "spendNote": "today's voice spend vs the configured daily budget",
       "costEstimated": "estimated from audio duration — provider did not report token usage",
       "costWorstCase": "rate table not recognized — billed at worst-case rates",
-      "costIncomplete": "session torn down mid-response — no fabricated tokens"
+      "costIncomplete": "session torn down mid-response — no fabricated tokens",
+      "changeModel": "Change model"
     },
     "composer": { "placeholder": "Type a command, or hold V to talk" },
     "tooltip": { "optInRequired": "Click to set up voice." },
@@ -408,11 +409,9 @@
       "keyConfiguredNote": "Key saved — entering a new one replaces it.",
       "clearKey": "Clear saved key",
       "cleared": "Saved key cleared.",
+      "currentProvider": "Active:",
       "done": "Voice is on — hold V and talk."
     },
-    "brief": { "now": "BRIEF NOW", "aria": "Request an immediate HUD brief" },
-    "summary": { "prefix": "SYS.NARRATIVE", "empty": "No brief yet — arm ambient briefs to start." },
-    "arm": { "on": "AMBIENT ARMED", "off": "AMBIENT OFF", "aria": "Toggle ambient HUD briefs" },
     "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },
     "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED", "faultLeadIn": "Voice hit a problem:" },
     "states": {

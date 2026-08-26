@@ -49,7 +49,7 @@ function ConsoleHarness({ ctx }: { ctx: ClientToolContext }) {
     <>
       <VoiceMicButton />
       {voice.state.panelOpen && (
-        <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} onRequestBrief={voice.requestBrief} />
+        <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />
       )}
     </>
   );

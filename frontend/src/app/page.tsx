@@ -884,7 +884,7 @@ export default function Dashboard() {
                   </ErrorBoundary>
                   {voice.state.panelOpen && (
                     <ErrorBoundary name="VoiceHudPanel">
-                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} onRequestBrief={voice.requestBrief} />
+                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />
                     </ErrorBoundary>
                   )}
                 </div>

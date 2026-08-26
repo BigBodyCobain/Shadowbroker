@@ -216,12 +216,11 @@ describe('connect section in enabled-but-unconfigured states (no stranded limbo)
   it('panel renders the connect section first when providerResolved is local_text', () => {
     render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
     const card = screen.getByTestId('voice-setup-card');
-    const narrate = screen.getByTestId('voice-narrate-block');
+    const transcript = screen.getByTestId('voice-transcript');
     // The connect card is the first thing the eye lands on…
-    expect(card.compareDocumentPosition(narrate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(transcript) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Connect a model')).not.toBeNull();
     // …and the deterministic console still works below it.
-    expect(screen.getByTestId('voice-transcript')).not.toBeNull();
     expect(screen.getByTestId('voice-composer')).not.toBeNull();
   });
 

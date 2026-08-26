@@ -5,6 +5,9 @@
  * Rendered by VoiceHudPanel whenever the console has no usable AI: the
  * `opt-in-required` phase, or enabled-but-unconnected (providerResolved null
  * or local_text) where it leads the panel as a "Connect a model" section.
+ * Also mounted on demand from the panel's persistent "Change model"
+ * affordance — it then shows the currently active provider and lands
+ * directly on the provider step; saving another provider/key upserts.
  * One primary button enables voice (POST /api/voice/opt-in), then a compact
  * provider step saves the chosen provider/key/model (POST /api/voice/provider).
  * Provider presets: OpenAI, Gemini, Anthropic, OpenRouter, Local/Ollama and
@@ -342,6 +345,19 @@ export default function VoiceSetupCard() {
     <div className="mx-3 mt-2 p-3 bg-black/60 border border-violet-500/40 rounded-sm" data-testid="voice-setup-card">
       <div className="text-violet-300 font-bold text-sm font-mono mb-1">{t(titleKey)}</div>
       <p className="text-xs font-mono text-[var(--text-secondary)] mb-2">{t('voice.setup.explainer')}</p>
+
+      {/* Currently active provider (Change-model path): honest armed state —
+          resolved provider id + its model label — before any replacement. */}
+      {(state.providerResolved || state.modelLabel) && (
+        <div
+          className="mb-2 text-xs font-mono text-cyan-300 break-words"
+          data-testid="voice-setup-current-provider"
+        >
+          {t('voice.setup.currentProvider')}{' '}
+          {state.providerResolved || '—'}
+          {state.modelLabel ? ` · ${state.modelLabel}` : ''}
+        </div>
+      )}
 
       {/* Step 1 — enable */}
       {optIn !== 'done' ? (

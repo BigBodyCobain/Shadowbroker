@@ -255,15 +255,14 @@ describe('U6 cost/quota UX surfaces', () => {
     expect(screen.getByTestId('voice-spend-chip').className).toContain('red-500');
   });
 
-  it('BRIEF NOW invokes the manual request; disabled while narrating or unbound', () => {
-    // BRIEF NOW is reachable whenever voice is reachable — move off the
-    // opt-in-required policy phase first.
+  it('"Change model" is visible when providerResolved is gemini_live and toggles the setup card', () => {
+    // A configured realtime provider must never lock the operator in.
     voiceController.applyStatus({
       ok: true,
       effectiveEnable: true,
       opt_in_state: 'enabled',
       flags: { enableSet: true, acknowledgeSet: true },
-      provider: { resolved: 'local_text', requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: true, geminiKeySet: false, chatModelConfigured: true },
+      provider: { resolved: 'gemini_live', requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: false, geminiKeySet: true, chatModelConfigured: true },
       degradedReason: null,
       reasons: [],
       mode: 'full',
@@ -272,23 +271,61 @@ describe('U6 cost/quota UX surfaces', () => {
       activeSessions: 0,
       maxConcurrent: 1,
     });
-    const onRequestBrief = vi.fn();
-    const { rerender } = render(
-      <VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} onRequestBrief={onRequestBrief} />,
-    );
-    const button = screen.getByTestId('voice-brief-now') as HTMLButtonElement;
-    expect(button.textContent.length).toBeGreaterThan(0);
-    fireEvent.click(button);
-    expect(onRequestBrief).toHaveBeenCalledTimes(1);
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
 
-    // Narrating disables the affordance.
-    voiceController.setNarrating(true);
-    rerender(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} onRequestBrief={onRequestBrief} />);
-    expect((screen.getByTestId('voice-brief-now') as HTMLButtonElement).disabled).toBe(true);
-    voiceController.setNarrating(false);
+    // No setup card while a provider is armed — but the affordance is there.
+    expect(screen.queryByTestId('voice-setup-card')).toBeNull();
+    const toggle = screen.getByTestId('voice-change-model');
+    expect(toggle.textContent).toBe('Change model');
 
-    // Unbound handler renders the button disabled rather than dead.
+    // One click opens the card on the provider step, showing the active
+    // provider; saving another provider/key upserts server-side.
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('voice-setup-card')).not.toBeNull();
+    expect(screen.getByTestId('voice-setup-current-provider').textContent).toContain('gemini_live');
+    expect(screen.getByTestId('voice-setup-optin-done')).not.toBeNull();
+    expect(screen.queryByTestId('voice-setup-turn-on')).toBeNull();
+    expect(screen.getByTestId('voice-setup-save-provider')).not.toBeNull();
+
+    // Toggling again closes it.
+    fireEvent.click(screen.getByTestId('voice-change-model'));
+    expect(screen.queryByTestId('voice-setup-card')).toBeNull();
+  });
+
+  it('narrative chrome is gone; narration text still renders when a brief exists', () => {
+    voiceController.applyStatus({
+      ok: true,
+      effectiveEnable: true,
+      opt_in_state: 'enabled',
+      flags: { enableSet: true, acknowledgeSet: true },
+      provider: { resolved: 'gemini_live', requestedMode: 'auto', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: false, geminiKeySet: true, chatModelConfigured: true },
+      degradedReason: null,
+      reasons: [],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 'off' },
+      dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    });
+    const { rerender } = render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+
+    // No narrative chrome at all — header, buttons, placeholder, TTS label.
+    expect(screen.queryByTestId('voice-brief-now')).toBeNull();
+    expect(screen.queryByTestId('voice-arm-toggle')).toBeNull();
+    expect(screen.queryByTestId('voice-narrate-block')).toBeNull();
+    expect(screen.queryByText(/SYS\.NARRATIVE/)).toBeNull();
+    expect(screen.queryByText(/TTS SYNTH/)).toBeNull();
+    expect(screen.queryByText(/No brief yet/)).toBeNull();
+
+    // An actual brief renders verbatim, hold-last-good intact.
+    voiceController.setNarration({
+      summary: 'Two convoys shifted south of the river since the last sweep.',
+      generatedAt: Date.now(),
+      error: null,
+    });
     rerender(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
-    expect((screen.getByTestId('voice-brief-now') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('voice-narrate-text').textContent).toContain(
+      'Two convoys shifted south of the river',
+    );
   });
 });

@@ -378,7 +378,8 @@
       "spendNote": "今日语音支出与已配置的每日预算对比",
       "costEstimated": "按音频时长估算 — 服务提供方未报告令牌用量",
       "costWorstCase": "费率表未识别 — 按最坏情况费率计费",
-      "costIncomplete": "会话在响应中途被中断 — 未捏造令牌用量"
+      "costIncomplete": "会话在响应中途被中断 — 未捏造令牌用量",
+      "changeModel": "更换模型"
     },
     "composer": { "placeholder": "输入指令，或按住 V 讲话" },
     "tooltip": { "optInRequired": "点击设置语音。" },
@@ -408,11 +409,9 @@
       "keyConfiguredNote": "密钥已保存——输入新密钥将替换它。",
       "clearKey": "清除已保存的密钥",
       "cleared": "已清除保存的密钥。",
+      "currentProvider": "当前使用：",
       "done": "语音已开启——按住 V 说话。"
     },
-    "brief": { "now": "立即简报", "aria": "请求即时态势简报" },
-    "summary": { "prefix": "SYS.NARRATIVE", "empty": "暂无简报 — 开启环境简报以开始。" },
-    "arm": { "on": "环境简报已就绪", "off": "环境简报关闭", "aria": "切换环境态势简报" },
     "freshness": { "fresh": "实时", "stale": "老化", "offline": "过期", "unknown": "未知" },
     "turn": { "you": "操作员", "sys": "系统", "toolOk": "成功", "toolFail": "失败", "faultLeadIn": "语音遇到问题：" },
     "states": {

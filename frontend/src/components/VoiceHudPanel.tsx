@@ -11,7 +11,6 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
-import { voiceSpeech } from '@/lib/voiceSpeech';
 import VoiceSetupCard from '@/components/VoiceSetupCard';
 import { useTranslation } from '@/i18n';
 import type { FreshnessDisposition } from '@/lib/voiceFreshness';
@@ -27,17 +26,16 @@ const DISPOSITION_DOT: Record<FreshnessDisposition, string> = {
 export default function VoiceHudPanel({
   onSubmit,
   onClose,
-  onRequestBrief,
 }: {
   onSubmit: (text: string) => Promise<void> | void;
   onClose: () => void;
-  /** Manual "BRIEF NOW" (U6) — explicit operator request bypassing only the
-   *  ambient ARM switch (§2.6). */
-  onRequestBrief?: () => void;
 }) {
   const { t } = useTranslation();
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
   const [value, setValue] = useState('');
+  // "Change model" toggle — reopens the setup card on demand even after a
+  // provider is already configured (saving a different provider/key upserts).
+  const [setupOpen, setSetupOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus management: open → composer; also when the mic routes here (§3.7).
@@ -72,9 +70,6 @@ export default function VoiceHudPanel({
     if (cost.incomplete) costParts.push(t('voice.panel.costIncomplete'));
   }
   const costTooltip = costParts.join(' — ');
-
-  const briefDisabled =
-    state.narrating || !onRequestBrief || state.phase === 'opt-in-required' || state.phase === 'lean-unavailable';
 
   return (
     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[520px] max-w-[92vw] max-h-[420px] z-[200] bg-[var(--bg-secondary)] border border-violet-500/40 shadow-[0_-8px_30px_rgba(0,0,0,0.4)] flex flex-col" data-testid="voice-hud-panel">
@@ -116,68 +111,56 @@ export default function VoiceHudPanel({
             {`${cost.display}${(cost.incomplete || cost.estimated || cost.ratesRecognized === false) ? '*' : ''}`}
           </span>
         )}
+        {/* Persistent model-switch affordance: visible in every non-lean
+            state once the console exists (the first-run card already owns the
+            opt-in-required phase, so the toggle only matters afterwards). */}
+        {state.phase !== 'lean-unavailable' && state.phase !== 'opt-in-required' && (
+          <button
+            type="button"
+            data-testid="voice-change-model"
+            aria-pressed={setupOpen}
+            aria-label={t('voice.panel.changeModel')}
+            title={t('voice.panel.changeModel')}
+            onClick={() => setSetupOpen((v) => !v)}
+            className={`px-1 py-[1px] text-[11px] font-mono tracking-wide border whitespace-nowrap ${
+              setupOpen
+                ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+                : 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)] hover:border-violet-500/50 hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            {t('voice.panel.changeModel')}
+          </button>
+        )}
         <button type="button" onClick={onClose} aria-label={t('voice.panel.close')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm leading-none">
           ×
         </button>
       </div>
 
       {/* Disabled state → plain SETUP CARD (UX pass): while voice is off,
-          the NARRATE chrome yields to a first-run card that turns voice on
+          the setup card yields to a first-run card that turns voice on
           and saves the provider. Enabled but with no usable AI (unconnected
           or local_text/degraded) → the connect card leads and the live
-          console stays below it. Every other phase keeps NARRATE only. */}
+          console stays below it. Any configured provider keeps the card one
+          "Change model" click away. */}
       {state.phase === 'opt-in-required' ? (
         <VoiceSetupCard />
       ) : (
       <>
       {state.phase !== 'lean-unavailable' &&
-        (state.providerResolved === null || state.providerResolved === 'local_text') && (
+        (setupOpen || state.providerResolved === null || state.providerResolved === 'local_text') && (
           <VoiceSetupCard />
         )}
+      {/* Narration renders ONLY when an actual brief exists — no placeholder
+          chrome. Ambient briefs stay controller-gated (default OFF) with no
+          panel chrome; hold-last-good lives in the controller. */}
+      {(state.narration?.summary || state.narration?.error) && (
       <div className="px-3 pt-2" data-testid="voice-narrate-block">
         <div className="p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] font-mono">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-cyan-400 font-bold tracking-widest">{`>_ ${t('voice.summary.prefix')}:`}</span>
             {state.narrating && <span className="w-[2px] bg-cyan-500 animate-pulse h-3" aria-hidden="true" />}
-            <span className="flex-1" />
-            {/* Manual BRIEF NOW (U6) — explicit operator request bypassing
-                only the ARM switch; ambient gates still apply upstream. */}
-            <button
-              type="button"
-              data-testid="voice-brief-now"
-              aria-label={t('voice.brief.aria')}
-              title={t('voice.brief.aria')}
-              disabled={briefDisabled}
-              onClick={() => onRequestBrief?.()}
-              className={`px-1 py-[1px] text-[11px] font-mono tracking-wide border ${
-                briefDisabled
-                  ? 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)] cursor-not-allowed'
-                  : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-300 hover:border-cyan-500/60'
-              }`}
-            >
-              {t('voice.brief.now')}
-            </button>
-            {/* Ambient ARM chip — always visible (§2.6, R19). */}
-            <button
-              type="button"
-              data-testid="voice-arm-toggle"
-              aria-pressed={state.ambientArmed}
-              aria-label={t('voice.arm.aria')}
-              title={t('voice.arm.aria')}
-              onClick={() => voiceController.setAmbientArmed(!state.ambientArmed)}
-              className={`px-1 py-[1px] text-[11px] font-mono tracking-wide border ${
-                state.ambientArmed
-                  ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
-                  : 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)]'
-              }`}
-            >
-              {state.ambientArmed ? t('voice.arm.on') : t('voice.arm.off')}
-            </button>
           </div>
           <div className="text-[var(--text-primary)] break-words whitespace-pre-wrap" data-testid="voice-narrate-text">
-            {state.narration?.summary || state.narration?.error
-              ? state.narration?.summary || ''
-              : t('voice.summary.empty')}
+            {state.narration?.summary || ''}
           </div>
           {state.narration?.error && (
             <div className="mt-1 text-red-400 text-xs" data-testid="voice-narrate-error">
@@ -197,10 +180,8 @@ export default function VoiceHudPanel({
             </div>
           )}
         </div>
-        {voiceSpeech.getState().mode === 'SYNTH' && (
-          <div className="mt-[2px] text-right text-[11px] font-mono text-[var(--text-muted)]">TTS SYNTH</div>
-        )}
       </div>
+      )}
       </>
       )}
 
