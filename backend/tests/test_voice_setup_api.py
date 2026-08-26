@@ -292,3 +292,97 @@ class TestMeshOnlyGuard:
             sys.modules.pop("routers.voice", None)
             if saved is not None:
                 importlib.import_module("routers.voice")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/voice/models — model discovery for the setup card dropdown
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, payload=None):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else {"data": []}
+
+    def json(self):
+        return self._payload
+
+
+class _FakeAsyncClient:
+    """Duck-typed httpx.AsyncClient — records requested URLs, returns queued
+    responses per call."""
+
+    requested: list = []
+    responses: list = []
+
+    def __init__(self, *a, **kw):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, headers=None):
+        type(self).requested.append(url)
+        idx = min(len(type(self).requested) - 1, len(type(self).responses) - 1)
+        return type(self).responses[idx]
+
+
+def _patch_httpx(monkeypatch, responses):
+    import httpx
+
+    _FakeAsyncClient.requested = []
+    _FakeAsyncClient.responses = responses
+    monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
+
+
+class TestVoiceModels:
+    def test_curated_list_for_openai(self, loopback):
+        body = loopback.get("/api/voice/models?provider=openai_realtime").json()
+        assert body["ok"] is True
+        assert body["curated"] is True
+        ids = [m["id"] for m in body["models"]]
+        assert "gpt-realtime" in ids
+
+    def test_curated_list_for_gemini(self, loopback):
+        body = loopback.get("/api/voice/models?provider=gemini_live").json()
+        assert body["curated"] is True
+        assert any("gemini" in m["id"] for m in body["models"])
+
+    def test_compat_queries_gateway_live_then_v1_fallback(self, loopback, monkeypatch):
+        _patch_httpx(
+            monkeypatch,
+            [
+                _FakeResponse(404, {"error": "not found"}),
+                _FakeResponse(200, {"data": [{"id": "z-model"}, {"id": "a-model"}, {"nope": 1}]}),
+            ],
+        )
+        body = loopback.get(
+            "/api/voice/models?provider=compat&baseUrl=http://gw.test/v1&apiKey=k-1"
+        ).json()
+        # First probe hits {base}/models, fallback adds /v1 (no double-v1).
+        assert "http://gw.test/v1/models" in _FakeAsyncClient.requested[0]
+        assert "http://gw.test/v1/v1/models" not in _FakeAsyncClient.requested[1]
+        assert body["ok"] is True
+        assert [m["id"] for m in body["models"]] == ["a-model", "z-model"]
+
+    def test_compat_failure_is_honest_not_fabricated(self, loopback, monkeypatch):
+        _patch_httpx(monkeypatch, [_FakeResponse(503, {}), _FakeResponse(503, {})])
+        body = loopback.get("/api/voice/models?provider=compat&baseUrl=http://gw.test").json()
+        assert body["ok"] is False
+        assert body["error"] == "models_unavailable"
+        assert "503" in body["detail"]
+
+    def test_unconfigured_returns_empty_with_note(self, loopback):
+        body = loopback.get("/api/voice/models").json()
+        assert body["ok"] is True
+        assert body["models"] == []
+        assert "note" in body
+
+    def test_models_list_capped_at_100(self, loopback, monkeypatch):
+        big = {"data": [{"id": f"m{i:03d}"} for i in range(250)]}
+        _patch_httpx(monkeypatch, [_FakeResponse(200, big)])
+        body = loopback.get("/api/voice/models?provider=compat&baseUrl=http://gw.test").json()
+        assert len(body["models"]) == 100

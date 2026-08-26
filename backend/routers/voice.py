@@ -86,7 +86,7 @@ else:
         provider: str  # "openai" | "gemini" | "compat"
         apiKey: str | None = None
         baseUrl: str | None = None
-        model: str | None = None  # gemini only: optional VOICE_GEMINI_MODEL
+        model: str | None = None  # gemini: VOICE_GEMINI_MODEL; compat: VOICE_CHAT_MODEL
 
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
@@ -343,6 +343,11 @@ else:
             updates["VOICE_COMPAT_BASE_URL"] = base_url
             if api_key:
                 updates["VOICE_COMPAT_API_KEY"] = api_key
+            # Persist the chat-model row too (setup card's model field) so
+            # local_text/chat resolution survives restarts.
+            model = str(body.model or "").strip()
+            if model:
+                updates["VOICE_CHAT_MODEL"] = model
         else:
             return JSONResponse(
                 status_code=400,
@@ -538,6 +543,80 @@ else:
         from services.voice_tool_registry import build_manifest
 
         return {"ok": True, "tools": build_manifest(include_client=True)}
+
+    @router.get("/api/voice/models", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def voice_models(
+        request: Request,
+        provider: str = Query(None),
+        baseUrl: str = Query(None),
+        apiKey: str = Query(None),
+    ):
+        """List selectable model ids for the setup card's dropdown.
+
+        Compat gateways (OpenRouter, Ollama, …) are queried LIVE server-side
+        ({base}/models, OpenAI list shape) so the operator picks from what
+        the gateway actually offers. OpenAI/Gemini have no guaranteed list
+        endpoint — curated static lists, marked curated:true. Unconfigured
+        degrades honestly; this endpoint never 500s and never fabricates a
+        gateway list.
+        """
+        from services.voice_broker import resolve_provider
+
+        s = _settings()
+        info = resolve_provider(s)
+        resolved = str(provider or "").strip().lower() or info["resolved"]
+
+        if resolved == "openai_realtime":
+            curated = ["gpt-realtime", "gpt-realtime-mini", "gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"]
+            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
+        if resolved == "gemini_live":
+            curated = [
+                "gemini-2.0-flash-live-001",
+                "gemini-2.5-flash-preview-native-audio-dialog",
+                "gemini-2.5-flash-preview-flash-live",
+            ]
+            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
+
+        if resolved in ("compatible_ws", "compat"):
+            base = str(baseUrl or info.get("compatBase") or "").strip().rstrip("/")
+            key = str(apiKey or info.get("compatKey") or "").strip()
+            if not base:
+                return {"ok": True, "models": [], "note": "save a provider first"}
+            import httpx
+
+            headers = {"Authorization": f"Bearer {key}"} if key else {}
+            last_detail = ""
+            base_root = base[:-3] if base.endswith("/v1") else base  # no double-/v1
+            for url in (f"{base}/models", f"{base_root}/v1/models"):
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as ac:
+                        resp = await ac.get(url, headers=headers)
+                except Exception as exc:
+                    last_detail = f"{type(exc).__name__}: {exc}"
+                    continue
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                    except ValueError:
+                        last_detail = f"non-JSON model list from {url}"
+                        continue
+                    ids = sorted(
+                        {
+                            str(m.get("id"))
+                            for m in (data.get("data") or [])
+                            if isinstance(m, dict) and m.get("id")
+                        }
+                    )[:100]
+                    return {"ok": True, "models": [{"id": i} for i in ids]}
+                last_detail = f"HTTP {resp.status_code} from {url}"
+            return JSONResponse(
+                status_code=200,
+                content={"ok": False, "error": "models_unavailable", "detail": last_detail},
+            )
+
+        # local_text / unconfigured — honest empty, never a fabricated list.
+        return {"ok": True, "models": [], "note": "save a provider first"}
 
     @router.post("/api/voice/tool", dependencies=[Depends(require_local_operator)])
     @limiter.limit("60/minute")
