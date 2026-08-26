@@ -80,6 +80,7 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
       onPhase: (phase: VoiceAudioPhase) => {
         if (phase === 'listening') voiceController.markListening();
         else if (phase === 'speaking') voiceController.markSpeaking();
+        else if (phase === 'idle') voiceController.backToIdle();
       },
       onFault: (reason) => voiceController.fail(reason),
       onFrame: (frame) => {

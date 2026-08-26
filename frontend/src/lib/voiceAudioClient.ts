@@ -184,9 +184,18 @@ export class VoiceAudioClient {
       return;
     }
     this.sessionId = grant.sessionId;
+    // Released before the chain finished opening — tear down, never open.
+    if (this.stopping) {
+      await this.teardown('ptt_release');
+      return;
+    }
 
     try {
       await this.openAudioGraph();
+      if (this.stopping) {
+        await this.teardown('ptt_release');
+        return;
+      }
       this.openSocket(grant);
     } catch (err) {
       this.fail(err);
@@ -261,6 +270,13 @@ export class VoiceAudioClient {
     this.ws = ws;
 
     ws.onopen = () => {
+      if (this.stopping) {
+        // Released while the handshake was in flight — do not go live.
+        try {
+          ws.close();
+        } catch { /* already closing */ }
+        return;
+      }
       // Flush anything the worklet captured before the socket opened.
       const held = this.batcher.drain();
       if (held && ws.readyState === WS_OPEN) ws.send(held.buffer as ArrayBuffer);
