@@ -352,11 +352,11 @@
     "showTranslation": "SHOW TRANSLATION"
   },
   "voice": {
-    "label": "AI VOICE",
+    "label": "AI/VOICE",
     "micAria": {
       "opt-in-required": "Voice is off — click to set it up",
       "lean-unavailable": "Voice unavailable in mesh lean mode",
-      "idle": "Voice console — hold V to talk or click to open",
+      "idle": "Voice console — hold Ctrl to talk or click to open",
       "connecting": "Connecting voice link",
       "listening": "Listening — release V to send",
       "thinking": "Processing request",
@@ -381,7 +381,7 @@
       "costIncomplete": "session torn down mid-response — no fabricated tokens",
       "changeModel": "Change model"
     },
-    "composer": { "placeholder": "Type a command, or hold V to talk" },
+    "composer": { "placeholder": "Type a command, or hold Ctrl to talk" },
     "tooltip": { "optInRequired": "Click to set up voice." },
     "setup": {
       "title": "Set up voice",
@@ -410,7 +410,7 @@
       "clearKey": "Clear saved key",
       "cleared": "Saved key cleared.",
       "currentProvider": "Active:",
-      "done": "Voice is on — hold V and talk."
+      "done": "Voice is on — hold Ctrl and talk."
     },
     "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },
     "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED", "faultLeadIn": "Voice hit a problem:" },

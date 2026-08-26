@@ -96,24 +96,50 @@ export function useKeyboardShortcuts(actions: ShortcutActions) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Voice PTT: guarded keydown+keyup pair on V (§5.4). e.repeat ignored;
-  // window blur force-releases a stuck hold. Keydown-only legacy builds
-  // (no voicePtt action) are untouched.
+  // Voice PTT: hold Ctrl (works everywhere — Ctrl produces no characters, so
+  // it never leaks keystrokes into the composer). Any other key pressed while
+  // Ctrl is held cancels the hold (Ctrl+C/V/X are clipboard combos, not
+  // speech). V remains the shortcut OUTSIDE text fields (guarded above):
+  // keydown begins via the intercept, keyup ends here. Window blur
+  // force-releases a stuck hold.
   const voicePtt = actions.voicePtt;
   useEffect(() => {
     if (!voicePtt) return;
-    const isVoiceKey = (e: KeyboardEvent) => shortcutTargetGuarded(e) && e.key.toLowerCase() === 'v';
+    let ctrlHeld = false;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Control' && !e.repeat && !e.shiftKey && !e.altKey && !e.metaKey) {
+        if (ctrlHeld) return;
+        ctrlHeld = true;
+        voicePtt.begin();
+        return;
+      }
+      if (ctrlHeld && e.key !== 'Control') {
+        // Combo (Ctrl+C, Ctrl+V, …) — release without transmitting.
+        ctrlHeld = false;
+        voicePtt.end();
+      }
+    };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (!isVoiceKey(e)) return;
-      e.preventDefault();
-      voicePtt.end();
+      if (e.key === 'Control' && ctrlHeld) {
+        ctrlHeld = false;
+        voicePtt.end();
+        return;
+      }
+      // V keyup ends the hold started by the V keydown intercept (outside
+      // inputs only — the intercept's guard already scoped it).
+      if (e.key.toLowerCase() === 'v' && shortcutTargetGuarded(e)) {
+        voicePtt.end();
+      }
     };
     const handleBlur = () => {
+      ctrlHeld = false;
       voicePtt.end();
     };
+    document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', handleBlur);
     return () => {
+      document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };

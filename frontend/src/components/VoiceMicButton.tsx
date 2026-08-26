@@ -174,7 +174,7 @@ export default function VoiceMicButton() {
         title={tooltip}
         aria-label={t(`voice.micAria.${state.phase}`)}
         aria-disabled={!visual.interactive}
-        className={`flex items-center gap-2 border px-5 py-2.5 min-h-[40px] text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
+        className={`flex items-center gap-2 border px-5 py-2 text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
       >
         {/* Slash icon for opt-in-required */}
         {state.phase === 'opt-in-required' && (
@@ -212,7 +212,7 @@ export default function VoiceMicButton() {
 
         {/* Mic glyph — the AI console's identity mark */}
         {state.phase === 'idle' && (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
             <path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
             <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
           </svg>
