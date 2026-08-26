@@ -138,7 +138,6 @@ def resolve_provider(settings=None) -> dict[str, Any]:
     gemini_base = str(getattr(s, "VOICE_GEMINI_BASE_URL", "") or "").strip() or GEMINI_DEFAULT_BASE
     gemini_model_id = gemini_model(s)
 
-    requested_mode = requested_mode  # (kept for readability)
     candidates: list[str] = []
     if requested_mode in ("auto", ""):
         candidates = ["openai_realtime", "compatible_ws", "gemini_live", "local_text"]

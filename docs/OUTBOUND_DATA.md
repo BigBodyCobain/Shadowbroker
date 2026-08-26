@@ -117,10 +117,15 @@ two-step opt-in (`VOICE_AGENT_OUTBOUND_ENABLE=allow` **and**
 the feature dark.
 
 - **Destination disclosure:** when enabled, operator speech and typed text are sent to
-  the **operator-configured OpenAI-compatible endpoint** — either
-  `VOICE_OPENAI_BASE_URL` (default `https://api.openai.com`) or a self-selected gateway
-  such as a local Ollama / LM Studio at `VOICE_COMPAT_BASE_URL`. The destination is the
-  operator's own choice per install.
+  the **operator-configured realtime provider** — one of:
+  `VOICE_OPENAI_BASE_URL` (default `https://api.openai.com`), a self-selected gateway
+  such as a local Ollama / LM Studio at `VOICE_COMPAT_BASE_URL`, or **Google Gemini
+  Live** (`VOICE_GEMINI_API_KEY`, default model `gemini-2.0-flash-live-001`,
+  endpoint `VOICE_GEMINI_BASE_URL`, default `wss://generativelanguage.googleapis.com/ws`).
+  The destination is the operator's own choice per install. **Google-specific
+  disclosure:** on Gemini's free tier Google may use uploaded audio for product
+  improvement; paid tiers do not. Audio still reaches Google only through this
+  install's backend broker — the browser never dials Google directly.
 - **Brokered server-side only:** every provider dial lives in the backend voice broker;
   the browser never holds a provider key and never connects to the third-party host.
   Keys are stored in `data/operator_api_keys.env` and disclosed as `is_set` booleans only.
