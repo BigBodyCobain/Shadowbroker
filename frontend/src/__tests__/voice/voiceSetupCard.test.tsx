@@ -70,6 +70,16 @@ function stubFetch(overrides: { optIn?: Record<string, unknown>; provider?: Reco
         { status: 200 },
       );
     }
+    if (url.includes('/api/voice/models')) {
+      // Curated Anthropic list shape from GET /api/voice/models?provider=anthropic.
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          models: [{ id: 'claude-sonnet-4-5' }, { id: 'claude-opus-4-1' }, { id: 'claude-3-5-haiku-latest' }],
+        }),
+        { status: 200 },
+      );
+    }
     if (url.includes('/api/voice/status')) {
       return new Response(JSON.stringify(disabledStatus()), { status: 200 });
     }
@@ -313,5 +323,82 @@ describe('OpenRouter preset + live model dropdown (GET /api/voice/models)', () =
     const modelInput = screen.getByTestId('voice-setup-model') as HTMLInputElement;
     fireEvent.change(modelInput, { target: { value: 'my-custom-model-id' } });
     expect(modelInput.value).toBe('my-custom-model-id');
+  });
+});
+
+describe('Anthropic + Custom endpoint presets', () => {
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(disabledStatus());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
+  });
+
+  it('renders both new presets alongside the existing ones', async () => {
+    stubFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    // The provider step is revealed once voice is on.
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    expect(screen.getByTestId('voice-setup-provider-anthropic')).not.toBeNull();
+    expect(screen.getByTestId('voice-setup-provider-custom')).not.toBeNull();
+    expect(screen.getByTestId('voice-setup-provider-openai')).not.toBeNull();
+  });
+
+  it('Anthropic preset shows the text-only label and saves the anthropic wire shape', async () => {
+    const calls = stubFetch({ provider: { ok: true, resolved: 'anthropic_text', degradedReason: null } });
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+
+    fireEvent.click(screen.getByTestId('voice-setup-provider-anthropic'));
+    // Honesty label: Claude is TEXT-ONLY — typed console + briefs, no voice.
+    expect(screen.getByTestId('voice-setup-anthropic-note').textContent).toContain('Text-only');
+
+    // Model dropdown fed by GET /api/voice/models?provider=anthropic.
+    const select = (await screen.findByTestId('voice-setup-model-select', {}, { timeout: 3000 })) as HTMLSelectElement;
+    const modelsCall = calls.find((c) => c.url.includes('/api/voice/models?provider=anthropic'));
+    expect(modelsCall).toBeTruthy();
+
+    fireEvent.change(select, { target: { value: 'claude-sonnet-4-5' } });
+    fireEvent.change(screen.getByTestId('voice-setup-api-key'), { target: { value: 'sk-ant-1' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+
+    const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
+    expect(provCalls[0].body).toEqual({ provider: 'anthropic', apiKey: 'sk-ant-1', model: 'claude-sonnet-4-5' });
+    expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('anthropic_text');
+  });
+
+  it('Custom endpoint is a compat alias with an example placeholder', async () => {
+    const calls = stubFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+
+    fireEvent.click(screen.getByTestId('voice-setup-provider-custom'));
+    const baseUrlInput = screen.getByTestId('voice-setup-base-url') as HTMLInputElement;
+    expect(baseUrlInput.placeholder).toBe('https://your-gateway.example/v1');
+
+    fireEvent.change(baseUrlInput, { target: { value: 'https://gw.corp.example/v1' } });
+    fireEvent.change(screen.getByTestId('voice-setup-api-key'), { target: { value: 'gw-key-9' } });
+    fireEvent.change(screen.getByTestId('voice-setup-model'), { target: { value: 'my-model' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+
+    const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
+    expect(provCalls[0].body).toEqual({
+      provider: 'compat',
+      baseUrl: 'https://gw.corp.example/v1',
+      apiKey: 'gw-key-9',
+      model: 'my-model',
+    });
   });
 });

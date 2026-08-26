@@ -367,7 +367,8 @@
     "hint": { "ptt": "برای صحبت V را نگه دارید · برای کنسول کلیک کنید" },
     "badge": {
       "txtTitle": "حالت متنی — بدون سرویس‌دهنده صوتی",
-      "noAiTitle": "هیچ هوش مصنوعی‌ای متصل نیست — برای راه‌اندازی روی صدا کلیک کنید"
+      "noAiTitle": "هیچ هوش مصنوعی‌ای متصل نیست — برای راه‌اندازی روی صدا کلیک کنید",
+      "anthropicTxtTitle": "کلود فقط متنی است — دستورات را تایپ کنید"
     },
     "panel": {
       "title": "پیوند صوتی",
@@ -388,8 +389,11 @@
       "providerLabel": "سرویس‌دهنده صدا را انتخاب کنید",
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
+      "providerAnthropic": "Anthropic (Claude)",
       "providerCompat": "محلی (Ollama)",
       "providerOpenrouter": "OpenRouter",
+      "providerCustom": "نقطه پایانی سفارشی",
+      "anthropicTextOnly": "فقط متن — بدون صدا: کنسول تایپی و خلاصه‌ها",
       "modelLabel": "مدل",
       "modelPlaceholder": "شناسه مدل (مقدار سفارشی مجاز است)",
       "modelDropdownAria": "یک مدل پیشنهادی را انتخاب کنید",

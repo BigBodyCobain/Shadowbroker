@@ -247,6 +247,15 @@ API_REGISTRY = [
         "required": False,
     },
     {
+        "id": "voice_anthropic_api_key",
+        "env_key": "VOICE_ANTHROPIC_API_KEY",
+        "name": "Voice Agent — Anthropic API Key",
+        "description": "Server-side Anthropic API key for the voice agent's Claude TEXT leg. Anthropic has no realtime speech API — this enables the typed console and HUD briefs only; the microphone/realtime path stays closed. Used only by the backend voice broker when the voice agent is explicitly enabled (docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.",
+        "category": "Voice",
+        "url": "https://console.anthropic.com/settings/keys",
+        "required": False,
+    },
+    {
         "id": "voice_compat_api_key",
         "env_key": "VOICE_COMPAT_API_KEY",
         "name": "Voice Agent — Compatible Gateway API Key",

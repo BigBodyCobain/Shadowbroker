@@ -25,7 +25,7 @@ export interface VoiceStatusResponse {
   opt_in_state: 'not_requested' | 'requested_not_acknowledged' | 'enabled';
   flags: { enableSet: boolean; acknowledgeSet: boolean };
   provider: {
-    resolved: 'openai_realtime' | 'compatible_ws' | 'gemini_live' | 'local_text' | null;
+    resolved: 'openai_realtime' | 'compatible_ws' | 'gemini_live' | 'anthropic_text' | 'local_text' | null;
     requestedMode: string;
     openaiKeySet: boolean;
     compatKeySet: boolean;

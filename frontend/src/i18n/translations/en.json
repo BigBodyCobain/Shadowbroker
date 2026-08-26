@@ -367,7 +367,8 @@
     "hint": { "ptt": "HOLD V TO SPEAK · CLICK FOR CONSOLE" },
     "badge": {
       "txtTitle": "Text mode — no voice provider",
-      "noAiTitle": "No AI connected — click VOICE to set up"
+      "noAiTitle": "No AI connected — click VOICE to set up",
+      "anthropicTxtTitle": "Claude is text-only — type commands"
     },
     "panel": {
       "title": "VOICE LINK",
@@ -388,8 +389,11 @@
       "providerLabel": "Choose a speech provider",
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
+      "providerAnthropic": "Anthropic (Claude)",
       "providerCompat": "Local (Ollama)",
       "providerOpenrouter": "OpenRouter",
+      "providerCustom": "Custom endpoint",
+      "anthropicTextOnly": "Text-only — no voice: typed console + briefs",
       "modelLabel": "Model",
       "modelPlaceholder": "Model ID (custom values allowed)",
       "modelDropdownAria": "Pick a suggested model",

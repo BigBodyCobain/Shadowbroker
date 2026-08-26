@@ -131,20 +131,34 @@ def resolve_provider(settings=None) -> dict[str, Any]:
     compat_key_set = _flag(env.get("VOICE_COMPAT_API_KEY"))
     compat_base_set = _flag(env.get("VOICE_COMPAT_BASE_URL"))
     gemini_key_set = _flag(env.get("VOICE_GEMINI_API_KEY"))
+    anthropic_key_set = _flag(env.get("VOICE_ANTHROPIC_API_KEY"))
     compat_base = str(env.get("VOICE_COMPAT_BASE_URL") or "").strip()
     openai_base = str(getattr(s, "VOICE_OPENAI_BASE_URL", "") or "").strip() or "https://api.openai.com"
     from services.voice_gemini import GEMINI_DEFAULT_BASE, gemini_model
 
     gemini_base = str(getattr(s, "VOICE_GEMINI_BASE_URL", "") or "").strip() or GEMINI_DEFAULT_BASE
     gemini_model_id = gemini_model(s)
+    anthropic_base = (
+        str(getattr(s, "VOICE_ANTHROPIC_BASE_URL", "") or "").strip() or "https://api.anthropic.com"
+    )
 
+    # Auto resolution prefers realtime speech providers; ``anthropic_text``
+    # sits after them but before ``local_text`` — Anthropic has NO realtime
+    # speech API (Claude is text-in/text-out), so it must never resolve as a
+    # realtime provider: the WS relay and PTT gate treat it like local_text.
     candidates: list[str] = []
     if requested_mode in ("auto", ""):
-        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "local_text"]
-    elif requested_mode in ("openai_realtime", "compatible_ws", "gemini_live", "local_text"):
+        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "anthropic_text", "local_text"]
+    elif requested_mode in (
+        "openai_realtime",
+        "compatible_ws",
+        "gemini_live",
+        "anthropic_text",
+        "local_text",
+    ):
         candidates = [requested_mode]
     else:
-        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "local_text"]
+        candidates = ["openai_realtime", "compatible_ws", "gemini_live", "anthropic_text", "local_text"]
 
     chat_model = str(getattr(s, "VOICE_CHAT_MODEL", "") or "").strip()
     chat_model_configured = _flag(chat_model)
@@ -159,6 +173,9 @@ def resolve_provider(settings=None) -> dict[str, Any]:
             break
         if candidate == "gemini_live" and gemini_key_set:
             resolved = "gemini_live"
+            break
+        if candidate == "anthropic_text" and anthropic_key_set:
+            resolved = "anthropic_text"
             break
         if candidate == "local_text" and chat_model_configured:
             resolved = "local_text"
@@ -185,8 +202,8 @@ def resolve_provider(settings=None) -> dict[str, Any]:
     if resolved is None:
         degraded_reason = (
             "No usable voice provider configured — set VOICE_OPENAI_API_KEY, "
-            "VOICE_COMPAT_BASE_URL, VOICE_GEMINI_API_KEY, or VOICE_CHAT_MODEL "
-            "(+ VOICE_COMPAT_BASE_URL) for text-only."
+            "VOICE_COMPAT_BASE_URL, VOICE_GEMINI_API_KEY, VOICE_ANTHROPIC_API_KEY "
+            "(text-only), or VOICE_CHAT_MODEL (+ VOICE_COMPAT_BASE_URL) for text-only."
         )
         reasons.append(degraded_reason)
 
@@ -197,6 +214,7 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         "compatKeySet": compat_key_set,
         "compatBaseUrlSet": compat_base_set,
         "geminiKeySet": gemini_key_set,
+        "anthropicKeySet": anthropic_key_set,
         "chatModelConfigured": chat_model_configured,
         "degradedReason": degraded_reason,
         "reasons": reasons,
@@ -205,9 +223,11 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         "compatBase": compat_base,
         "geminiBase": gemini_base,
         "geminiModel": gemini_model_id,
+        "anthropicBase": anthropic_base,
         "openaiKey": env.get("VOICE_OPENAI_API_KEY", ""),
         "compatKey": env.get("VOICE_COMPAT_API_KEY", ""),
         "geminiKey": env.get("VOICE_GEMINI_API_KEY", ""),
+        "anthropicKey": env.get("VOICE_ANTHROPIC_API_KEY", ""),
         "chatModel": chat_model,
     }
 
@@ -994,6 +1014,22 @@ async def run_realtime_relay(client_ws: Any, session: VoiceSession, settings=Non
         await state.send_json(client_ws, {"type": "closed", "reason": "unconfigured"})
         return
 
+    # Text-only providers are CHAT-ONLY (§4.3 degraded leg): ``local_text`` and
+    # ``anthropic_text`` never open the realtime media pipe — Anthropic has no
+    # realtime speech API at all, and a typed-chat endpoint cannot speak PCM.
+    if provider_info["resolved"] in ("local_text", "anthropic_text"):
+        detail = (
+            f"{provider_info['resolved']} is a text-only provider — no realtime speech "
+            "session exists; use the typed console."
+        )
+        end_session(session.session_id, "text_only_provider")
+        await state.send_json(
+            client_ws,
+            {"type": "upstream.error", "status": 400, "detail": detail},
+        )
+        await state.send_json(client_ws, {"type": "closed", "reason": "text_only_provider"})
+        return
+
     url, headers = _ws_url_for(provider_info, session.model_id)
     try:
         state.upstream = await _connect_upstream(url, headers)
@@ -1184,22 +1220,55 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
     """
     s = settings or get_settings()
     provider = resolve_provider(s)
-    if not provider["chatModelConfigured"]:
-        return {"ok": False, "error": "chat_unconfigured"}
-
-    base = provider["compatBase"] or provider["openaiBase"]
-    base = str(base).rstrip("/")
-    api_key = provider["compatKey"] or provider["openaiKey"]
+    if provider["resolved"] == "anthropic_text":
+        # Anthropic branch (text-only): Claude is text-in/text-out — there is
+        # NO separate Anthropic voice model, so the VOICE_CHAT_MODEL setting
+        # doubles as the Anthropic model id; the curated-list head is the
+        # fallback when the operator never picked one.
+        model_id = provider["chatModel"] or "claude-sonnet-4-5"
+        base = str(provider["anthropicBase"]).rstrip("/")
+        api_key = provider["anthropicKey"]
+    else:
+        if not provider["chatModelConfigured"]:
+            return {"ok": False, "error": "chat_unconfigured"}
+        model_id = provider["chatModel"]
+        base = str(provider["compatBase"] or provider["openaiBase"]).rstrip("/")
+        api_key = provider["compatKey"] or provider["openaiKey"]
 
     import httpx
 
-    payload = {"model": provider["chatModel"], "messages": messages}
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if provider["resolved"] == "anthropic_text":
+        # Messages API contract: system content collapses into a single
+        # ``system`` string and the ``messages`` array excludes it.
+        system_parts = [str(m.get("content") or "") for m in messages if m.get("role") == "system"]
+        chat_messages = [
+            {"role": m["role"], "content": str(m.get("content") or "")}
+            for m in messages
+            if m.get("role") != "system"
+        ]
+        payload = {
+            "model": model_id,
+            # The OpenAI leg sends no explicit token cap, so use the API
+            # default equivalent (1024) here.
+            "max_tokens": 1024,
+            "system": "\n\n".join(part for part in system_parts if part),
+            "messages": chat_messages,
+        }
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        url = f"{base}/v1/messages"
+    else:
+        payload = {"model": model_id, "messages": messages}
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        url = f"{base}/chat/completions"
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(f"{base}/chat/completions", json=payload, headers=headers)
+            response = await client.post(url, json=payload, headers=headers)
     except httpx.HTTPError as exc:
         return {"ok": False, "error": "upstream_unreachable", "detail": type(exc).__name__}
 
@@ -1212,14 +1281,39 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
         }
     try:
         body = response.json()
+    except ValueError:
+        return {"ok": False, "error": "upstream_malformed_response"}
+    result: dict[str, Any] = {"ok": True, "reply": None, "model": model_id}
+    if provider["resolved"] == "anthropic_text":
+        try:
+            reply = "".join(
+                str(block.get("text") or "")
+                for block in body["content"]
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        except (KeyError, TypeError):
+            return {"ok": False, "error": "upstream_malformed_response"}
+        result["reply"] = reply
+        usage = body.get("usage")
+        if isinstance(usage, dict):
+            # Map {input_tokens, output_tokens} into the same metering shape
+            # the OpenAI leg bills through (_meter_chat_usage reads both).
+            mapped_usage = {
+                "input_tokens": _usage_token(usage, ("input_tokens",)),
+                "output_tokens": _usage_token(usage, ("output_tokens",)),
+            }
+            result["usage"] = mapped_usage
+            _meter_chat_usage(model_id, mapped_usage)
+        return result
+    try:
         reply = body["choices"][0]["message"]["content"]
     except (ValueError, KeyError, IndexError, TypeError):
         return {"ok": False, "error": "upstream_malformed_response"}
-    result: dict[str, Any] = {"ok": True, "reply": reply, "model": provider["chatModel"]}
+    result["reply"] = reply
     usage = body.get("usage")
     if isinstance(usage, dict):
         result["usage"] = usage
-        _meter_chat_usage(provider["chatModel"], usage)
+        _meter_chat_usage(model_id, usage)
     return result
 
 

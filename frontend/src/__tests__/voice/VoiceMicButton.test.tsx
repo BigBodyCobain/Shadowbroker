@@ -171,6 +171,25 @@ describe('VoiceMicButton render matrix', () => {
     expect(screen.queryByTestId('voice-txt-badge')).toBeNull();
   });
 
+  it('shows the TXT badge with the Claude text-only tooltip for anthropic_text', () => {
+    // Anthropic has NO realtime speech API — anthropic_text is text mode.
+    voiceController.applyStatus(enabledStatus({
+      provider: {
+        resolved: 'anthropic_text',
+        requestedMode: 'auto',
+        openaiKeySet: false,
+        compatKeySet: false,
+        compatBaseUrlSet: false,
+        geminiKeySet: false,
+        chatModelConfigured: true,
+      },
+    }));
+    render(<VoiceMicButton />);
+    const badge = screen.getByTestId('voice-txt-badge');
+    expect(badge.textContent).toBe('TXT');
+    expect(badge.getAttribute('title')).toContain('Claude is text-only');
+  });
+
   it('animated elements carry reduced-motion opt-out classes', () => {
     drive('listening');
     render(<VoiceMicButton />);

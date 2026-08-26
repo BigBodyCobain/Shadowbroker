@@ -367,7 +367,8 @@
     "hint": { "ptt": "MAINTENEZ V POUR PARLER · CLIQUEZ POUR LA CONSOLE" },
     "badge": {
       "txtTitle": "Mode texte — aucun fournisseur vocal",
-      "noAiTitle": "Aucune IA connectée — cliquez sur VOIX pour la configurer"
+      "noAiTitle": "Aucune IA connectée — cliquez sur VOIX pour la configurer",
+      "anthropicTxtTitle": "Claude est en texte seul — tapez vos commandes"
     },
     "panel": {
       "title": "LIAISON VOCALE",
@@ -388,8 +389,11 @@
       "providerLabel": "Choisissez un fournisseur vocal",
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
+      "providerAnthropic": "Anthropic (Claude)",
       "providerCompat": "Local (Ollama)",
       "providerOpenrouter": "OpenRouter",
+      "providerCustom": "Endpoint personnalisé",
+      "anthropicTextOnly": "Texte seul — pas de voix : console saisie + briefs",
       "modelLabel": "Modèle",
       "modelPlaceholder": "ID de modèle (valeurs personnalisées acceptées)",
       "modelDropdownAria": "Choisir un modèle suggéré",

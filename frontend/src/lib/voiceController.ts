@@ -143,7 +143,14 @@ class VoiceController {
   applyStatus(status: VoiceStatusResponse): void {
     this.set({
       reasons: Array.isArray(status.reasons) ? status.reasons.slice(0, 4) : [],
-      degraded: !status.effectiveEnable || status.provider.resolved === null || status.provider.resolved === 'local_text',
+      // Text-only providers (local chat endpoints and Anthropic's Claude —
+      // which has no realtime speech API) keep the console in degraded
+      // text mode: TXT badge, mic routes to the composer, no audio session.
+      degraded:
+        !status.effectiveEnable ||
+        status.provider.resolved === null ||
+        status.provider.resolved === 'local_text' ||
+        status.provider.resolved === 'anthropic_text',
       providerResolved: status.provider.resolved ?? null,
       modelLabel:
         status.mode === 'mesh_lean'

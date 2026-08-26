@@ -7,12 +7,14 @@
  * or local_text) where it leads the panel as a "Connect a model" section.
  * One primary button enables voice (POST /api/voice/opt-in), then a compact
  * provider step saves the chosen provider/key/model (POST /api/voice/provider).
- * Provider presets: OpenAI, Gemini, OpenRouter and Local/Ollama (the latter
- * two are presets of the `compat` provider). Compat presets get a live model
- * dropdown fed by GET /api/voice/models plus an always-usable free-text
- * fallback; endpoint errors stay verbatim behind a short human lead-in (§5.5
- * honesty). All inputs opt out of browser autofill — a stray saved credential
- * must never land in a console field.
+ * Provider presets: OpenAI, Gemini, Anthropic, OpenRouter, Local/Ollama and
+ * Custom endpoint (the latter three are presets of the `compat` provider;
+ * Anthropic is TEXT-ONLY — Claude has no realtime speech API, so it feeds the
+ * typed console + briefs leg and never opens the mic path). Compat presets
+ * get a live model dropdown fed by GET /api/voice/models plus an
+ * always-usable free-text fallback; endpoint errors stay verbatim behind a
+ * short human lead-in (§5.5 honesty). All inputs opt out of browser autofill
+ * — a stray saved credential must never land in a console field.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
@@ -20,24 +22,27 @@ import { voiceController } from '@/lib/voiceController';
 import { useTranslation } from '@/i18n';
 
 type SetupStep = 'idle' | 'pending' | 'done';
-/** UI preset — openrouter/local both POST as the `compat` provider. */
-type ProviderPreset = 'openai' | 'gemini' | 'openrouter' | 'local';
-type WireProvider = 'openai' | 'gemini' | 'compat';
+/** UI preset — openrouter/local/custom all POST as the `compat` provider. */
+type ProviderPreset = 'openai' | 'gemini' | 'openrouter' | 'local' | 'anthropic' | 'custom';
+type WireProvider = 'openai' | 'gemini' | 'compat' | 'anthropic';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const LOCAL_BASE_PLACEHOLDER = 'http://127.0.0.1:11434/v1';
+const CUSTOM_BASE_PLACEHOLDER = 'https://your-gateway.example/v1';
 const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash-live-001';
 const MODELS_FETCH_DEBOUNCE_MS = 300;
 
 const PROVIDER_PRESETS: Array<{ id: ProviderPreset; labelKey: string }> = [
   { id: 'openai', labelKey: 'voice.setup.providerOpenai' },
   { id: 'gemini', labelKey: 'voice.setup.providerGemini' },
+  { id: 'anthropic', labelKey: 'voice.setup.providerAnthropic' },
   { id: 'openrouter', labelKey: 'voice.setup.providerOpenrouter' },
   { id: 'local', labelKey: 'voice.setup.providerCompat' },
+  { id: 'custom', labelKey: 'voice.setup.providerCustom' },
 ];
 
 function wireProviderFor(preset: ProviderPreset): WireProvider {
-  return preset === 'openrouter' || preset === 'local' ? 'compat' : preset;
+  return preset === 'openrouter' || preset === 'local' || preset === 'custom' ? 'compat' : preset;
 }
 
 /** Shared autofill-hygiene attrs (C3): no saved tokens in console fields. */
@@ -102,11 +107,19 @@ export default function VoiceSetupCard() {
     else if (next === 'openai') setModel('');
   };
 
-  // Live model list for compat gateways (OpenRouter/Ollama): debounced fetch
-  // whenever a base URL is present. Free text stays authoritative — the
-  // dropdown is only a convenience, and failures never block typing.
+  // Live model list: Anthropic gets its curated list from
+  // /api/voice/models?provider=anthropic; compat gateways (OpenRouter,
+  // Ollama, custom endpoints) are queried per base URL. Free text stays
+  // authoritative — the dropdown is only a convenience, and failures never
+  // block typing.
   useEffect(() => {
-    if (!needsBaseUrl || !baseUrl.trim()) {
+    let query: string | null = null;
+    if (preset === 'anthropic') {
+      query = `${API_BASE}/api/voice/models?provider=anthropic`;
+    } else if (needsBaseUrl && baseUrl.trim()) {
+      query = `${API_BASE}/api/voice/models?provider=compat&baseUrl=${encodeURIComponent(baseUrl.trim())}`;
+    }
+    if (!query) {
       setModels([]);
       setModelsError(null);
       return;
@@ -114,9 +127,7 @@ export default function VoiceSetupCard() {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/voice/models?provider=compat&baseUrl=${encodeURIComponent(baseUrl.trim())}`,
-        );
+        const res = await fetch(query);
         const json = (await res.json()) as {
           ok?: boolean;
           models?: Array<{ id?: unknown }>;
@@ -143,7 +154,7 @@ export default function VoiceSetupCard() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [needsBaseUrl, baseUrl]);
+  }, [preset, needsBaseUrl, baseUrl]);
 
   const turnOn = async () => {
     setOptIn('pending');
@@ -301,6 +312,15 @@ export default function VoiceSetupCard() {
           </div>
 
           <div className="mt-2 flex flex-col gap-1">
+            {/* Anthropic honesty label: Claude is text-in/text-out — no voice. */}
+            {preset === 'anthropic' && (
+              <div
+                className="text-[11px] font-mono text-cyan-300 break-words"
+                data-testid="voice-setup-anthropic-note"
+              >
+                {t('voice.setup.anthropicTextOnly')}
+              </div>
+            )}
             <div className="relative">
               <input
                 value={apiKey}
@@ -329,7 +349,13 @@ export default function VoiceSetupCard() {
               <input
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder={preset === 'local' ? LOCAL_BASE_PLACEHOLDER : t('voice.setup.baseUrlPlaceholder')}
+                placeholder={
+                  preset === 'local'
+                    ? LOCAL_BASE_PLACEHOLDER
+                    : preset === 'custom'
+                      ? CUSTOM_BASE_PLACEHOLDER
+                      : t('voice.setup.baseUrlPlaceholder')
+                }
                 aria-label={t('voice.setup.baseUrlPlaceholder')}
                 type="text"
                 name="voice-provider-base-url"

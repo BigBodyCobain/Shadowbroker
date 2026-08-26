@@ -17,6 +17,9 @@ describe('useVoiceAgent realtime provider gate', () => {
 
   it('stays closed for text-only and unresolved providers', () => {
     expect(isRealtimeProvider('local_text')).toBe(false);
+    // Anthropic has NO realtime speech API — Claude is text-in/text-out, so
+    // anthropic_text must never open the PTT/audio path.
+    expect(isRealtimeProvider('anthropic_text')).toBe(false);
     expect(isRealtimeProvider(null)).toBe(false);
     expect(isRealtimeProvider(undefined)).toBe(false);
     expect(isRealtimeProvider('')).toBe(false);

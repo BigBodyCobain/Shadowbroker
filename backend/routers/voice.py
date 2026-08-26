@@ -83,10 +83,10 @@ else:
         enable: bool
 
     class VoiceProviderRequest(BaseModel):
-        provider: str  # "openai" | "gemini" | "compat"
+        provider: str  # "openai" | "gemini" | "anthropic" | "compat"
         apiKey: str | None = None
         baseUrl: str | None = None
-        model: str | None = None  # gemini: VOICE_GEMINI_MODEL; compat: VOICE_CHAT_MODEL
+        model: str | None = None  # gemini: VOICE_GEMINI_MODEL; compat/anthropic: VOICE_CHAT_MODEL
 
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
@@ -184,6 +184,7 @@ else:
                     "compatKeySet": provider["compatKeySet"],
                     "compatBaseUrlSet": provider["compatBaseUrlSet"],
                     "geminiKeySet": bool(provider.get("geminiKeySet", False)),
+                    "anthropicKeySet": bool(provider.get("anthropicKeySet", False)),
                     "chatModelConfigured": provider["chatModelConfigured"],
                 },
                 "degradedReason": provider["degradedReason"],
@@ -214,6 +215,7 @@ else:
                     "compatKeySet": False,
                     "compatBaseUrlSet": False,
                     "geminiKeySet": False,
+                    "anthropicKeySet": False,
                     "chatModelConfigured": False,
                 },
                 "degradedReason": f"status unavailable: {type(exc).__name__}",
@@ -334,6 +336,18 @@ else:
             model = str(body.model or "").strip()
             if model:
                 updates["VOICE_GEMINI_MODEL"] = model
+        elif provider == "anthropic":
+            # Anthropic is TEXT-ONLY (no realtime speech API exists): the key
+            # enables the typed console + HUD briefs leg, never the mic path.
+            if not api_key:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "missing_field", "field": "apiKey"},
+                )
+            updates["VOICE_ANTHROPIC_API_KEY"] = api_key
+            model = str(body.model or "").strip()
+            if model:
+                updates["VOICE_CHAT_MODEL"] = model
         elif provider == "compat":
             if not base_url:
                 return JSONResponse(
@@ -371,6 +385,7 @@ else:
                 "compatKeySet": summary["compatKeySet"],
                 "compatBaseUrlSet": summary["compatBaseUrlSet"],
                 "geminiKeySet": bool(summary.get("geminiKeySet", False)),
+                "anthropicKeySet": bool(summary.get("anthropicKeySet", False)),
                 "chatModelConfigured": summary["chatModelConfigured"],
             },
             "degradedReason": summary["degradedReason"],
@@ -570,12 +585,18 @@ else:
         if resolved == "openai_realtime":
             curated = ["gpt-realtime", "gpt-realtime-mini", "gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"]
             return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
-        if resolved == "gemini_live":
+        if resolved in ("gemini_live", "gemini"):
             curated = [
                 "gemini-2.0-flash-live-001",
                 "gemini-2.5-flash-preview-native-audio-dialog",
                 "gemini-2.5-flash-preview-flash-live",
             ]
+            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
+
+        # Anthropic has no list endpoint either — curated static Claude ids.
+        # Text-only: these models serve the typed console / briefs leg only.
+        if resolved in ("anthropic_text", "anthropic"):
+            curated = ["claude-sonnet-4-5", "claude-opus-4-1", "claude-3-5-haiku-latest"]
             return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
 
         if resolved in ("compatible_ws", "compat"):

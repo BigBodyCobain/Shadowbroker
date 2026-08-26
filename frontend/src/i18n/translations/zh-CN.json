@@ -367,7 +367,8 @@
     "hint": { "ptt": "按住 V 说话 · 点击打开控制台" },
     "badge": {
       "txtTitle": "文本模式 — 未连接语音服务商",
-      "noAiTitle": "未连接任何 AI — 点击“语音”进行设置"
+      "noAiTitle": "未连接任何 AI — 点击“语音”进行设置",
+      "anthropicTxtTitle": "Claude 仅支持文本 — 请输入指令"
     },
     "panel": {
       "title": "语音链路",
@@ -388,8 +389,11 @@
       "providerLabel": "选择语音服务商",
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
+      "providerAnthropic": "Anthropic（Claude）",
       "providerCompat": "本地（Ollama）",
       "providerOpenrouter": "OpenRouter",
+      "providerCustom": "自定义接口",
+      "anthropicTextOnly": "仅文本 — 无语音：键入控制台与简报",
       "modelLabel": "模型",
       "modelPlaceholder": "模型 ID（可输入自定义值）",
       "modelDropdownAria": "选择推荐的模型",
