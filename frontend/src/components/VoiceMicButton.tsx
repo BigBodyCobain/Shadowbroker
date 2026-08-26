@@ -75,7 +75,7 @@ const PTT_HOLD_MS = 250;
 
 export default function VoiceMicButton() {
   const { t } = useTranslation();
-  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState, voiceController.getState);
   const visual = PHASE_MATRIX[state.phase];
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // True only once a press crossed the hold threshold. Consumed (reset) by

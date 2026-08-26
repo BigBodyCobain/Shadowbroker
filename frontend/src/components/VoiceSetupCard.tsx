@@ -93,7 +93,7 @@ function isProviderConfigured(wire: WireProvider, flags: ProviderFlags | null): 
 
 export default function VoiceSetupCard() {
   const { t } = useTranslation();
-  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState, voiceController.getState);
 
   // Mounted while voice is already enabled but unconnected? Then opt-in
   // succeeded earlier — land directly on the provider step instead of asking

@@ -31,7 +31,7 @@ export default function VoiceHudPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState, voiceController.getState);
   const [value, setValue] = useState('');
   // "Change model" toggle — reopens the setup card on demand even after a
   // provider is already configured (saving a different provider/key upserts).

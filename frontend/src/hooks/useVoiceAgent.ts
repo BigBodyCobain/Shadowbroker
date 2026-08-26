@@ -53,7 +53,7 @@ function costFromFrame(frame: Record<string, unknown>, level: 'ok' | 'warn' | 'c
 }
 
 export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult {
-  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
+  const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState, voiceController.getState);
 
   // U5 NARRATE grounding composer — ambient briefs, ARM gating, freshness
   // strip state (flows through voiceController into VoiceHudPanel). U6 makes
