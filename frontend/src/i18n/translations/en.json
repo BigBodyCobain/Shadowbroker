@@ -365,6 +365,10 @@
       "quota-capped": "Session cost cap reached"
     },
     "hint": { "ptt": "HOLD V TO SPEAK · CLICK FOR CONSOLE" },
+    "badge": {
+      "txtTitle": "Text mode — no voice provider",
+      "noAiTitle": "No AI connected — click VOICE to set up"
+    },
     "panel": {
       "title": "VOICE LINK",
       "costNote": "session spend, metered server-side",
@@ -385,6 +389,14 @@
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
       "providerCompat": "Local (Ollama)",
+      "providerOpenrouter": "OpenRouter",
+      "modelLabel": "Model",
+      "modelPlaceholder": "Model ID (custom values allowed)",
+      "modelDropdownAria": "Pick a suggested model",
+      "modelDropdownPrompt": "Suggested models…",
+      "showKey": "SHOW",
+      "hideKey": "HIDE",
+      "connectTitle": "Connect a model",
       "apiKeyPlaceholder": "API key",
       "baseUrlPlaceholder": "Base URL (optional)",
       "saveCheck": "Save & check",

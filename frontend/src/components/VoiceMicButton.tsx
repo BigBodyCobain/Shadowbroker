@@ -226,14 +226,19 @@ export default function VoiceMicButton() {
           </span>
         )}
 
-        {/* Degraded corner badge */}
+        {/* Degraded corner badge — "NO AI" when nothing usable is connected;
+            "TXT" only for a configured chat model without realtime voice. */}
         {state.degraded && (
           <span
             data-testid="voice-txt-badge"
-            title={t('voice.panel.textModeChip')}
+            title={
+              state.providerResolved === 'local_text'
+                ? t('voice.badge.txtTitle')
+                : t('voice.badge.noAiTitle')
+            }
             className="absolute -top-1.5 -right-1.5 px-1 text-[11px] font-mono font-bold bg-[var(--bg-primary)] border border-cyan-800/60 text-cyan-400"
           >
-            TXT
+            {state.providerResolved === 'local_text' ? 'TXT' : 'NO AI'}
           </span>
         )}
       </button>

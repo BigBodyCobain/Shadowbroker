@@ -365,6 +365,10 @@
       "quota-capped": "已达会话费用上限"
     },
     "hint": { "ptt": "按住 V 说话 · 点击打开控制台" },
+    "badge": {
+      "txtTitle": "文本模式 — 未连接语音服务商",
+      "noAiTitle": "未连接任何 AI — 点击“语音”进行设置"
+    },
     "panel": {
       "title": "语音链路",
       "costNote": "会话费用，由服务端计量",
@@ -385,6 +389,14 @@
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
       "providerCompat": "本地（Ollama）",
+      "providerOpenrouter": "OpenRouter",
+      "modelLabel": "模型",
+      "modelPlaceholder": "模型 ID（可输入自定义值）",
+      "modelDropdownAria": "选择推荐的模型",
+      "modelDropdownPrompt": "推荐模型…",
+      "showKey": "显示",
+      "hideKey": "隐藏",
+      "connectTitle": "连接模型",
       "apiKeyPlaceholder": "API 密钥",
       "baseUrlPlaceholder": "接口地址（可选）",
       "saveCheck": "保存并检测",

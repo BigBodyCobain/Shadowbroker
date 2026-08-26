@@ -365,6 +365,10 @@
       "quota-capped": "Plafond de coût de session atteint"
     },
     "hint": { "ptt": "MAINTENEZ V POUR PARLER · CLIQUEZ POUR LA CONSOLE" },
+    "badge": {
+      "txtTitle": "Mode texte — aucun fournisseur vocal",
+      "noAiTitle": "Aucune IA connectée — cliquez sur VOIX pour la configurer"
+    },
     "panel": {
       "title": "LIAISON VOCALE",
       "costNote": "coût de session, mesuré côté serveur",
@@ -385,6 +389,14 @@
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
       "providerCompat": "Local (Ollama)",
+      "providerOpenrouter": "OpenRouter",
+      "modelLabel": "Modèle",
+      "modelPlaceholder": "ID de modèle (valeurs personnalisées acceptées)",
+      "modelDropdownAria": "Choisir un modèle suggéré",
+      "modelDropdownPrompt": "Modèles suggérés…",
+      "showKey": "AFFICHER",
+      "hideKey": "MASQUER",
+      "connectTitle": "Connecter un modèle",
       "apiKeyPlaceholder": "Clé API",
       "baseUrlPlaceholder": "URL de base (facultatif)",
       "saveCheck": "Enregistrer et vérifier",

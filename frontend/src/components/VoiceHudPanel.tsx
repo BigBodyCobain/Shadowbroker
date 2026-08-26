@@ -123,10 +123,17 @@ export default function VoiceHudPanel({
 
       {/* Disabled state → plain SETUP CARD (UX pass): while voice is off,
           the NARRATE chrome yields to a first-run card that turns voice on
-          and saves the provider. Every other phase keeps NARRATE. */}
+          and saves the provider. Enabled but with no usable AI (unconnected
+          or local_text/degraded) → the connect card leads and the live
+          console stays below it. Every other phase keeps NARRATE only. */}
       {state.phase === 'opt-in-required' ? (
         <VoiceSetupCard />
       ) : (
+      <>
+      {state.phase !== 'lean-unavailable' &&
+        (state.providerResolved === null || state.providerResolved === 'local_text') && (
+          <VoiceSetupCard />
+        )}
       <div className="px-3 pt-2" data-testid="voice-narrate-block">
         <div className="p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] font-mono">
           <div className="flex items-center gap-2 mb-1">
@@ -194,6 +201,7 @@ export default function VoiceHudPanel({
           <div className="mt-[2px] text-right text-[11px] font-mono text-[var(--text-muted)]">TTS SYNTH</div>
         )}
       </div>
+      </>
       )}
 
       {/* Transcript */}
@@ -263,6 +271,10 @@ export default function VoiceHudPanel({
           }}
           placeholder={t('voice.composer.placeholder')}
           aria-label={t('voice.composer.placeholder')}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           className="flex-1 bg-transparent text-[12px] text-[var(--text-primary)] font-mono outline-none placeholder:text-[var(--text-muted)] focus-visible:outline-none"
         />
       </div>

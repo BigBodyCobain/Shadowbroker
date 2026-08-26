@@ -93,6 +93,15 @@ describe('VoiceHudPanel', () => {
     expect(chip.getAttribute('title')).toContain('provider did not report token usage');
   });
 
+  it('composer opts out of browser autofill (no stray saved tokens)', () => {
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    const input = screen.getByTestId('voice-composer');
+    expect(input.getAttribute('autocomplete')).toBe('off');
+    expect(input.getAttribute('autocorrect')).toBe('off');
+    expect(input.getAttribute('autocapitalize')).toBe('off');
+    expect(input.getAttribute('spellcheck')).toBe('false');
+  });
+
   it('transcript container exposes log semantics for captions', () => {
     render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
     const log = screen.getByTestId('voice-transcript');

@@ -127,7 +127,8 @@ describe('VoiceSetupCard (panel disabled state)', () => {
 
     const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
     expect(provCalls).toHaveLength(1);
-    expect(provCalls[0].body).toEqual({ provider: 'gemini', apiKey: 'gm-key-1' });
+    // Gemini prefills its Live model id — persisted server-side as VOICE_GEMINI_MODEL.
+    expect(provCalls[0].body).toEqual({ provider: 'gemini', apiKey: 'gm-key-1', model: 'gemini-2.0-flash-live-001' });
 
     // Resolved provider echoed back honestly.
     expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('gemini_live');
@@ -160,5 +161,157 @@ describe('VoiceSetupCard (panel disabled state)', () => {
     fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
     const err = await screen.findByTestId('voice-setup-optin-error');
     expect(err.textContent).toContain('local operator token required'); // verbatim detail
+  });
+});
+
+/** Enabled but nothing usable connected — local_text/degraded resting state. */
+function localTextStatus(): VoiceStatusResponse {
+  return {
+    ok: true,
+    effectiveEnable: true,
+    opt_in_state: 'enabled',
+    flags: { enableSet: true, acknowledgeSet: true },
+    provider: {
+      resolved: 'local_text',
+      requestedMode: 'auto',
+      openaiKeySet: false,
+      compatKeySet: false,
+      compatBaseUrlSet: true,
+      geminiKeySet: false,
+      chatModelConfigured: true,
+    },
+    degradedReason: null,
+    reasons: [],
+    mode: 'full',
+    costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 'off' },
+    dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+    activeSessions: 0,
+    maxConcurrent: 1,
+  };
+}
+
+describe('connect section in enabled-but-unconfigured states (no stranded limbo)', () => {
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(localTextStatus());
+  });
+
+  afterEach(() => {
+    cleanup();
+    voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
+  });
+
+  it('panel renders the connect section first when providerResolved is local_text', () => {
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    const card = screen.getByTestId('voice-setup-card');
+    const narrate = screen.getByTestId('voice-narrate-block');
+    // The connect card is the first thing the eye lands on…
+    expect(card.compareDocumentPosition(narrate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Connect a model')).not.toBeNull();
+    // …and the deterministic console still works below it.
+    expect(screen.getByTestId('voice-transcript')).not.toBeNull();
+    expect(screen.getByTestId('voice-composer')).not.toBeNull();
+  });
+
+  it('lands directly on the provider step (opt-in already done)', () => {
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByTestId('voice-setup-optin-done')).not.toBeNull();
+    expect(screen.queryByTestId('voice-setup-turn-on')).toBeNull();
+    expect(screen.getByTestId('voice-setup-save-provider')).not.toBeNull();
+  });
+});
+
+/** Fetch stub covering setup + status + the models-list endpoint. */
+function stubSetupFetch(modelsResponse?: Record<string, unknown>): CapturedCall[] {
+  const calls: CapturedCall[] = [];
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+    calls.push({ url, body });
+    if (url.includes('/api/voice/opt-in')) {
+      return new Response(JSON.stringify({ ok: true, effectiveEnable: true, managedByEnvironment: false }), { status: 200 });
+    }
+    if (url.includes('/api/voice/provider')) {
+      return new Response(JSON.stringify({ ok: true, resolved: 'compatible_ws', degradedReason: null }), { status: 200 });
+    }
+    if (url.includes('/api/voice/models')) {
+      return new Response(
+        JSON.stringify(
+          modelsResponse ?? { ok: true, models: [{ id: 'qwen/qwen3-235b' }, { id: 'meta-llama/llama-3.3-70b' }] },
+        ),
+        { status: 200 },
+      );
+    }
+    if (url.includes('/api/voice/status')) {
+      return new Response(JSON.stringify(disabledStatus()), { status: 200 });
+    }
+    throw new Error(`unexpected fetch ${url}`);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return calls;
+}
+
+describe('OpenRouter preset + live model dropdown (GET /api/voice/models)', () => {
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(disabledStatus());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
+  });
+
+  it('prefills the OpenRouter baseUrl and feeds the dropdown from /api/voice/models', async () => {
+    const calls = stubSetupFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+
+    fireEvent.click(screen.getByTestId('voice-setup-provider-openrouter'));
+    const baseUrlInput = screen.getByTestId('voice-setup-base-url') as HTMLInputElement;
+    expect(baseUrlInput.value).toBe('https://openrouter.ai/api/v1');
+
+    // Debounced models fetch resolves into a dropdown of gateway model ids.
+    const select = (await screen.findByTestId('voice-setup-model-select', {}, { timeout: 3000 })) as HTMLSelectElement;
+    expect(calls.some((c) => c.url.includes('/api/voice/models'))).toBe(true);
+    expect(select.textContent).toContain('qwen/qwen3-235b');
+
+    // Picking from the dropdown fills the always-present free-text field.
+    fireEvent.change(select, { target: { value: 'qwen/qwen3-235b' } });
+    expect((screen.getByTestId('voice-setup-model') as HTMLInputElement).value).toBe('qwen/qwen3-235b');
+
+    // Save posts the compat wire shape incl. the model row.
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+    const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
+    expect(provCalls[0].body).toEqual({
+      provider: 'compat',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'qwen/qwen3-235b',
+    });
+  });
+
+  it('models fetch failure shows the verbatim detail; free text stays usable', async () => {
+    stubSetupFetch({ ok: false, error: 'models_unavailable', detail: 'HTTP 401 from https://openrouter.ai/api/v1/models' });
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-openrouter'));
+
+    const err = await screen.findByTestId('voice-setup-models-error', {}, { timeout: 3000 });
+    expect(err.textContent).toContain('HTTP 401 from https://openrouter.ai/api/v1/models'); // verbatim
+    expect(screen.queryByTestId('voice-setup-model-select')).toBeNull();
+
+    // Custom model ids are always allowed.
+    const modelInput = screen.getByTestId('voice-setup-model') as HTMLInputElement;
+    fireEvent.change(modelInput, { target: { value: 'my-custom-model-id' } });
+    expect(modelInput.value).toBe('my-custom-model-id');
   });
 });

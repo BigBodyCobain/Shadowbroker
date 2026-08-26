@@ -365,6 +365,10 @@
       "quota-capped": "سقف هزینه نشست به پایان رسید"
     },
     "hint": { "ptt": "برای صحبت V را نگه دارید · برای کنسول کلیک کنید" },
+    "badge": {
+      "txtTitle": "حالت متنی — بدون سرویس‌دهنده صوتی",
+      "noAiTitle": "هیچ هوش مصنوعی‌ای متصل نیست — برای راه‌اندازی روی صدا کلیک کنید"
+    },
     "panel": {
       "title": "پیوند صوتی",
       "costNote": "هزینه نشست، اندازه‌گیری‌شده در سرویس‌دهنده",
@@ -385,6 +389,14 @@
       "providerOpenai": "OpenAI",
       "providerGemini": "Gemini",
       "providerCompat": "محلی (Ollama)",
+      "providerOpenrouter": "OpenRouter",
+      "modelLabel": "مدل",
+      "modelPlaceholder": "شناسه مدل (مقدار سفارشی مجاز است)",
+      "modelDropdownAria": "یک مدل پیشنهادی را انتخاب کنید",
+      "modelDropdownPrompt": "مدل‌های پیشنهادی…",
+      "showKey": "نمایش",
+      "hideKey": "پنهان",
+      "connectTitle": "اتصال یک مدل",
       "apiKeyPlaceholder": "کلید API",
       "baseUrlPlaceholder": "نشانی پایه (اختیاری)",
       "saveCheck": "ذخیره و بررسی",

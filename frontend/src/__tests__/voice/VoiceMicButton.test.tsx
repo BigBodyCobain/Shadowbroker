@@ -139,10 +139,30 @@ describe('VoiceMicButton render matrix', () => {
     });
   }
 
-  it('shows the TXT corner badge in degraded mode', () => {
-    drive('opt-in-required');
+  it('shows the NO AI corner badge when nothing is connected', () => {
+    drive('opt-in-required'); // unconfigured ⇒ degraded with providerResolved null
     render(<VoiceMicButton />);
-    expect(screen.getByTestId('voice-txt-badge')).not.toBeNull();
+    const badge = screen.getByTestId('voice-txt-badge');
+    expect(badge.textContent).toBe('NO AI');
+    expect(badge.getAttribute('title')).toContain('No AI connected');
+  });
+
+  it('keeps the TXT badge only for text mode with a chat model connected', () => {
+    voiceController.applyStatus(enabledStatus({
+      provider: {
+        resolved: 'local_text',
+        requestedMode: 'auto',
+        openaiKeySet: false,
+        compatKeySet: false,
+        compatBaseUrlSet: true,
+        geminiKeySet: false,
+        chatModelConfigured: true,
+      },
+    }));
+    render(<VoiceMicButton />);
+    const badge = screen.getByTestId('voice-txt-badge');
+    expect(badge.textContent).toBe('TXT');
+    expect(badge.getAttribute('title')).toContain('Text mode');
   });
 
   it('hides the TXT corner badge when fully enabled', () => {

@@ -108,7 +108,9 @@ describe('text_only E2E — zero realtime model, composer-only console', () => {
     expect(panel).toBeTruthy();
 
     // Typed text drives the identical deterministic pipeline end-to-end.
-    const input = screen.getByRole('textbox') as HTMLInputElement;
+    // (The connect-a-model card now leads the panel in local_text mode and
+    // adds its own inputs — target the composer by its stable test id.)
+    const input = screen.getByTestId('voice-composer') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'fly to Kyiv' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     // Flush the deterministic turn (geocode → map_fly_to → transcript).
