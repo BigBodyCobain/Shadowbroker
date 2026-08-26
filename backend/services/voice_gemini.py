@@ -4,11 +4,16 @@ Translates between Shadowbroker's OpenAI-style realtime wire contract
 (plan §4.3) and Google's Gemini Live API WebSocket protocol so the U8
 client and relay machinery work unchanged.
 
-Protocol facts this module encodes (documented at implementation time;
-the endpoint stays configurable for API drift):
-  - Dial: wss://<base>/google.ai.generativelanguage.v1beta.GenerativeService.BidiSetup?key=<KEY>
+Protocol facts this module encodes (verified LIVE against the real endpoint
+2026-02; the endpoint stays configurable for API drift):
+  - Dial: wss://<base>/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=<KEY>
+    (the old ``…BidiSetup`` path 404s; a ``&model=`` query param is REJECTED
+    with 1007 "Unknown name \"model\": Cannot bind query parameter").
   - First upstream message: {"setup": {...}} authored SERVER-SIDE from the
     same session config data as OpenAI (§4.3 — single injection point).
+    Schema notes verified live: responseModalities AND speechConfig live
+    UNDER generationConfig (top-level copies are rejected 1007); systemInstruction
+    accepts {"parts":[{"text":…}]}; input/outputAudioTranscription are top-level.
   - Mic audio in:  {"realtimeInput": {"mediaChunks": [{"mimeType":
     "audio/pcm;rate=16000", "data": <b64>}]}} — Gemini wants 16 kHz input,
     so the broker downsamples the client's 24 kHz wire frames here.
@@ -38,7 +43,7 @@ GEMINI_INPUT_RATE = 16000
 GEMINI_OUTPUT_RATE = 24000
 GEMINI_DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 GEMINI_DEFAULT_BASE = "wss://generativelanguage.googleapis.com/ws"
-_GEMINI_SETUP_PATH = "google.ai.generativelanguage.v1beta.GenerativeService.BidiSetup"
+_GEMINI_SETUP_PATH = "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
 
 def gemini_model(settings: Any = None) -> str:
@@ -50,14 +55,15 @@ def gemini_model(settings: Any = None) -> str:
 
 
 def gemini_ws_url(base: str, api_key: str, model: str) -> str:
-    """Build the BidiSetup dial URL. Key travels in the query per Google's
-    browser-less WS contract (never logged — caller owns redaction); the
-    model is mirrored in the query for drift tolerance AND authored into the
-    server-side setup message, which stays authoritative."""
+    """Build the BidiGenerateContent dial URL. Key travels in the query per
+    Google's browser-less WS contract (never logged — caller owns redaction).
+    The model is NOT mirrored in the query: the endpoint rejects unknown
+    query parameters (verified live 1007) — ``model`` stays in the signature
+    for call-site stability and is authored into the setup message instead."""
     base = str(base or GEMINI_DEFAULT_BASE).rstrip("/")
     if "/ws" not in base:
         base = f"{base}/ws"
-    return f"{base}/{_GEMINI_SETUP_PATH}?key={api_key}&model={model}"
+    return f"{base}/{_GEMINI_SETUP_PATH}?key={api_key}"
 
 
 def _b64(data: bytes) -> str:
@@ -130,6 +136,8 @@ def gemini_setup_message(
     setup: dict[str, Any] = {
         "setup": {
             "model": f"models/{model}" if not str(model).startswith("models/") else model,
+            # Verified live: responseModalities AND speechConfig must live
+            # UNDER generationConfig — top-level copies are rejected (1007).
             "generationConfig": {"responseModalities": ["AUDIO"]},
             "systemInstruction": {"parts": [{"text": system_text}]},
             "inputAudioTranscription": {},
@@ -148,7 +156,7 @@ def gemini_setup_message(
     if declarations:
         setup["setup"]["tools"] = [{"functionDeclarations": declarations}]
     if voice:
-        setup["setup"]["speechConfig"] = {
+        setup["setup"]["generationConfig"]["speechConfig"] = {
             "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}
         }
     return json.dumps(setup)

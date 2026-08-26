@@ -561,8 +561,8 @@ def _ws_url_for(provider_info: dict[str, Any], model_id: str) -> tuple[str, dict
         url = f"{url}/realtime?model={model_id}"
     elif provider_info["resolved"] == "gemini_live":
         # Gemini carries its key in the query (Google's browser-less WS
-        # contract); the model is mirrored in the query AND authored into the
-        # server-side setup message (drift tolerance).
+        # contract); the model is authored ONLY into the server-side setup
+        # message — a &model= query param is rejected by the endpoint.
         from services.voice_gemini import gemini_ws_url
 
         url = gemini_ws_url(provider_info["geminiBase"], provider_info["geminiKey"], provider_info["geminiModel"])

@@ -42,10 +42,16 @@ class TestGeminiSetup:
         setup = msg["setup"]
         assert setup["model"] == "models/gemini-2.0-flash-live-001"
         assert setup["generationConfig"]["responseModalities"] == ["AUDIO"]
+        assert "responseModalities" not in setup  # top-level copy rejected live (1007)
         assert setup["systemInstruction"]["parts"][0]["text"] == "VERBATIM RULES"
         assert setup["tools"][0]["functionDeclarations"][0]["name"] == "get_telemetry"
         assert len(setup["tools"][0]["functionDeclarations"]) == 1  # nameless dropped
-        assert setup["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"] == "kore"
+        # speechConfig lives UNDER generationConfig on the raw WS endpoint.
+        assert (
+            setup["generationConfig"]["speechConfig"]["voiceConfig"]["prebuiltVoiceConfig"]["voiceName"]
+            == "kore"
+        )
+        assert "speechConfig" not in setup
 
     def test_grounding_snapshot_rides_system_instruction_as_data(self):
         from services.voice_gemini import gemini_setup_message
@@ -231,13 +237,16 @@ class TestGeminiProviderResolution:
 
 
 class TestGeminiDialUrl:
-    def test_url_carries_bidi_setup_path_and_key(self):
+    def test_url_carries_bidi_generate_content_path_key_and_no_model_query(self):
         from services.voice_gemini import gemini_ws_url
 
-        url = gemini_ws_url("wss://generativelanguage.googleapis.com/ws", "secret", "gemini-2.0-flash-live-001")
-        assert "BidiSetup" in url
+        url = gemini_ws_url("wss://generativelanguage.googleapis.com/ws", "secret", "gemini-3.1-flash-live-preview")
+        # The old …BidiSetup path 404s; BidiGenerateContent is the live contract.
+        assert "BidiGenerateContent" in url
+        assert "BidiSetup" not in url
         assert "key=secret" in url
-        assert "model=gemini-2.0-flash-live-001" in url
+        # A &model= query param is rejected live (1007 unknown query parameter).
+        assert "model=" not in url
 
     def test_base_without_ws_suffix_gets_one(self):
         from services.voice_gemini import gemini_ws_url
@@ -259,7 +268,7 @@ class TestGeminiDialUrl:
             },
             "ignored",
         )
-        assert "BidiSetup" in url
+        assert "BidiGenerateContent" in url
         assert headers == {}
 
 

@@ -335,7 +335,7 @@ class TestUpstreamDialUrl:
         assert url == "wss://gw.example.com/v1/realtime?model=compat-model-x"
         assert headers == {}
 
-    def test_gemini_branch_keeps_bidi_setup_url_without_realtime_suffix(self, voice_env):
+    def test_gemini_branch_keeps_bidi_generate_content_url_without_realtime_suffix(self, voice_env):
         from services.voice_broker import _ws_url_for
 
         url, headers = _ws_url_for(
@@ -343,11 +343,11 @@ class TestUpstreamDialUrl:
                 "resolved": "gemini_live",
                 "geminiBase": "wss://generativelanguage.googleapis.com/ws",
                 "geminiKey": "g-key",
-                "geminiModel": "gemini-2.0-flash-live-001",
+                "geminiModel": "gemini-3.1-flash-live-preview",
             },
             "ignored",
         )
-        assert "BidiSetup" in url
+        assert "BidiGenerateContent" in url
         assert "/realtime?" not in url
         assert headers == {}
 
