@@ -4,9 +4,11 @@
  */
 import React from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { voiceController } from '@/lib/voiceController';
+import type { VoiceStatusResponse } from '@/lib/voiceTypes';
 
 type Actions = Parameters<typeof useKeyboardShortcuts>[0];
 
@@ -122,5 +124,121 @@ describe('useKeyboardShortcuts voicePtt (V)', () => {
     expect(begin).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
     expect(end).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * PTT latch-leak regression (field bug: hold = violet, release stayed violet,
+ * next press recovered). Drives real Ctrl keydown/keyup through the hook,
+ * wired to the REAL voiceController singleton with the useVoiceAgent client
+ * contract mirrored onto a controllable fake audio client.
+ */
+const ENABLED_REALTIME_STATUS: VoiceStatusResponse = {
+  ok: true,
+  effectiveEnable: true,
+  opt_in_state: 'enabled',
+  flags: { enableSet: true, acknowledgeSet: true },
+  provider: {
+    resolved: 'openai_realtime',
+    requestedMode: 'auto',
+    openaiKeySet: true,
+    compatKeySet: false,
+    compatBaseUrlSet: false,
+    geminiKeySet: false,
+    chatModelConfigured: false,
+  },
+  degradedReason: null,
+  reasons: [],
+  mode: 'full',
+  costDefaults: { warnUsd: 2, capUsd: 5, dailyBudgetUsd: 'off' },
+  dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+  activeSessions: 0,
+  maxConcurrent: 1,
+};
+
+describe('Ctrl PTT hold-release invariant (real controller)', () => {
+  const stop = vi.fn();
+  /** Fake VoiceAudioClient slot — stays 'connecting' unless a test moves it. */
+  const clientRef: { current: { currentPhase: string; stop: (r: string) => void } | null } = {
+    current: null,
+  };
+
+  function wirePtt(): Actions['voicePtt'] {
+    return {
+      // Mirrors the FIXED useVoiceAgent.beginPtt contract.
+      begin: () => {
+        const stale = clientRef.current;
+        if (stale && stale.currentPhase !== 'idle') stale.stop('ptt_restart');
+        clientRef.current = null;
+        voiceController.beginPtt();
+        clientRef.current = { currentPhase: 'connecting', stop };
+      },
+      // Mirrors the FIXED useVoiceAgent.endPtt contract: unconditional idle.
+      end: () => {
+        const client = clientRef.current;
+        const hadHold =
+          voiceController.getState().pttHeld || (client !== null && client.currentPhase !== 'idle');
+        if (client && client.currentPhase !== 'idle') {
+          client.stop('ptt_release');
+          clientRef.current = null;
+        }
+        if (!hadHold) return;
+        voiceController.endPtt(true);
+        const phase = voiceController.getState().phase;
+        if (phase !== 'idle' && phase !== 'quota-capped') voiceController.backToIdle();
+      },
+    };
+  }
+
+  beforeEach(() => {
+    stop.mockClear();
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(ENABLED_REALTIME_STATUS);
+  });
+
+  afterEach(() => {
+    voiceController.resetForNewSession();
+  });
+
+  it('hold → violet LINK, release → teal idle, every time', () => {
+    render(<Harness actions={baseActions({ voicePtt: wirePtt() })} />);
+    for (let round = 0; round < 3; round++) {
+      fireEvent.keyDown(document, { key: 'Control' });
+      expect(voiceController.getState().pttHeld, `round ${round} hold`).toBe(true);
+      expect(voiceController.getState().phase, `round ${round} phase`).toBe('connecting');
+      fireEvent.keyUp(document, { key: 'Control' });
+      expect(voiceController.getState().pttHeld, `round ${round} release pttHeld`).toBe(false);
+      expect(voiceController.getState().phase, `round ${round} release phase`).toBe('idle');
+    }
+  });
+
+  it('begin→(client stuck connecting)→end→begin→end twice: idle after every keyup', () => {
+    render(<Harness actions={baseActions({ voicePtt: wirePtt() })} />);
+    for (let round = 0; round < 2; round++) {
+      fireEvent.keyDown(document, { key: 'Control' }); // begin — client stuck connecting
+      expect(clientRef.current?.currentPhase).toBe('connecting');
+      expect(stop).not.toHaveBeenCalled(); // fresh session opened, none torn down
+      fireEvent.keyUp(document, { key: 'Control' }); // end
+      expect(stop).toHaveBeenCalledWith('ptt_release');
+      expect(voiceController.getState().pttHeld).toBe(false);
+      expect(voiceController.getState().phase).toBe('idle');
+      stop.mockClear();
+    }
+  });
+
+  it('a latched dead hold does not swallow the next Ctrl press', () => {
+    render(<Harness actions={baseActions({ voicePtt: wirePtt() })} />);
+    fireEvent.keyDown(document, { key: 'Control' });
+    fireEvent.keyDown(document, { key: 'c', ctrlKey: true }); // combo cancels via end
+    expect(voiceController.getState().pttHeld).toBe(false);
+    expect(voiceController.getState().phase).toBe('idle');
+    fireEvent.keyUp(document, { key: 'Control' }); // stray keyup after combo
+    fireEvent.keyDown(document, { key: 'Control' }); // next press must still work
+    expect(voiceController.getState().pttHeld).toBe(true);
+    expect(voiceController.getState().phase).toBe('connecting');
+    fireEvent.keyUp(document, { key: 'Control' });
+    expect(voiceController.getState().pttHeld).toBe(false);
+    expect(voiceController.getState().phase).toBe('idle');
   });
 });

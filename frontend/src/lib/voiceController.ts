@@ -182,7 +182,15 @@ class VoiceController {
   // ── Push-to-talk ────────────────────────────────────────────────────────
 
   beginPtt(): void {
-    if (this.state.pttHeld) return;
+    // A dead hold can leave pttHeld latched while the UI shows LINK
+    // (connecting) — e.g. a release path that stopped only the audio client.
+    // A fresh keydown must never be swallowed: recover the stale latch and
+    // let the new hold proceed. Healthy holds (listening/speaking) still
+    // early-return so an active hold is not double-begun.
+    if (this.state.pttHeld) {
+      if (this.state.phase !== 'connecting') return;
+      this.set({ pttHeld: false });
+    }
     if (
       this.state.phase === 'opt-in-required' ||
       this.state.phase === 'lean-unavailable' ||

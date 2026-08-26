@@ -213,6 +213,46 @@ describe('voiceController behavior', () => {
     expect(voiceController.getState().phase).toBe('idle');
   });
 
+  // ── PTT latch-leak regression: a fresh keydown must never be swallowed ──
+
+  it('a keydown during a stuck connecting hold restarts cleanly, not swallowed', () => {
+    // Dead hold: pttHeld latched true while the UI shows LINK (connecting) —
+    // previously beginPtt() early-returned here and only keyup recovered.
+    voiceController.beginPtt();
+    expect(voiceController.getState().pttHeld).toBe(true);
+    voiceController.beginPtt();
+    expect(voiceController.getState().pttHeld).toBe(true);
+    expect(voiceController.getState().phase).toBe('connecting');
+    voiceController.endPtt();
+    expect(voiceController.getState().pttHeld).toBe(false);
+    expect(voiceController.getState().phase).toBe('idle');
+  });
+
+  it('release lands idle+unheld even when a client-branch stop leaked the latch', () => {
+    voiceController.beginPtt();
+    // Legacy client-branch release shape: phase reset without touching pttHeld.
+    voiceController.backToIdle();
+    const leaked = voiceController.getState();
+    expect(leaked.pttHeld).toBe(true);
+    expect(leaked.phase).toBe('idle');
+    // The hook now force-releases on every real keyup:
+    voiceController.endPtt(true);
+    expect(voiceController.getState().pttHeld).toBe(false);
+    expect(voiceController.getState().phase).toBe('idle');
+  });
+
+  it('begin→stuck-connecting→end→begin→end twice: idle after every keyup', () => {
+    for (let round = 0; round < 2; round++) {
+      voiceController.beginPtt(); // hold — stuck in connecting (client never ready)
+      voiceController.beginPtt(); // re-press during the dead hold
+      expect(voiceController.getState().pttHeld).toBe(true);
+      expect(voiceController.getState().phase).toBe('connecting');
+      voiceController.endPtt(); // keyup
+      expect(voiceController.getState().pttHeld, `round ${round} pttHeld`).toBe(false);
+      expect(voiceController.getState().phase, `round ${round} phase`).toBe('idle');
+    }
+  });
+
   // ── U6: verbatim FAULT reasons + cost disclosure passthrough ────────────
 
   it('grace expiry surfaces the verbatim close reason as the FAULT', () => {

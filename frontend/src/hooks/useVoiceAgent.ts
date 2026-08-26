@@ -72,15 +72,23 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   const realtimeActive = isRealtimeProvider(state.providerResolved);
 
   const beginPtt = useCallback(() => {
+    // A fresh keydown always wins: any previous client is torn down and its
+    // ref cleared BEFORE the new hold opens — a stale ref in any phase must
+    // never block or swallow a new session.
+    const stale = audioClientRef.current;
+    if (stale && stale.currentPhase !== 'idle') stale.stop('ptt_restart');
+    audioClientRef.current = null;
     voiceController.beginPtt();
-    if (!realtimeActive || audioClientRef.current?.currentPhase !== 'idle') return;
+    if (!realtimeActive) return;
     // Barge-in path: a fresh hold while the agent is speaking starts a new
     // session; the client flushes stale playback on speech_started/cap.
     const client = new VoiceAudioClient({
       onPhase: (phase: VoiceAudioPhase) => {
         if (phase === 'listening') voiceController.markListening();
         else if (phase === 'speaking') voiceController.markSpeaking();
-        else if (phase === 'idle') voiceController.backToIdle();
+        // An async teardown reaching idle must never yank an ACTIVE hold out
+        // of its phase — only settle the console when nothing is held.
+        else if (phase === 'idle' && !voiceController.getState().pttHeld) voiceController.backToIdle();
       },
       onFault: (reason) => voiceController.fail(reason),
       onFrame: (frame) => {
@@ -99,21 +107,34 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
       },
     });
     audioClientRef.current = client;
-    void client.start().then((/* ready frame already drove markListening */) => {
-      if (client.currentPhase === 'idle') audioClientRef.current = null;
+    void client.start().then(() => {
+      // Clear only if this client is still the live one — a newer hold may
+      // have replaced it while start() was settling.
+      if (client.currentPhase === 'idle' && audioClientRef.current === client) {
+        audioClientRef.current = null;
+      }
     });
   }, [realtimeActive]);
 
   const endPtt = useCallback(() => {
     const client = audioClientRef.current;
+    const hadHold =
+      voiceController.getState().pttHeld || (client !== null && client.currentPhase !== 'idle');
     if (client && client.currentPhase !== 'idle') {
       // §4.3 stop frame = honest relay termination; teardown returns to idle.
       client.stop('ptt_release');
       audioClientRef.current = null;
-      voiceController.backToIdle();
-      return;
     }
-    voiceController.endPtt();
+    // Invariant: after a real hold's release the console ALWAYS lands at
+    // idle within this call — endPtt(force) clears pttHeld even when the
+    // client branch already ran (the leak that turned PTT into a toggle),
+    // and any residual session phase falls back to idle. quota-capped stays
+    // terminal by design ("until explicit reset"). Stray keyups/blurs with
+    // no hold and no client change nothing.
+    if (!hadHold) return;
+    voiceController.endPtt(true);
+    const phase = voiceController.getState().phase;
+    if (phase !== 'idle' && phase !== 'quota-capped') voiceController.backToIdle();
   }, []);
 
   useEffect(() => {
