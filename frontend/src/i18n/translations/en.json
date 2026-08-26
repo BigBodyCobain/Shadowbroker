@@ -394,6 +394,7 @@
       "providerOpenrouter": "OpenRouter",
       "providerCustom": "Custom endpoint",
       "anthropicTextOnly": "Text-only — no voice: typed console + briefs",
+      "geminiFreeKey": "No key yet? Get a free Gemini key (no card needed)",
       "modelLabel": "Model",
       "modelPlaceholder": "Model ID (custom values allowed)",
       "modelDropdownAria": "Pick a suggested model",

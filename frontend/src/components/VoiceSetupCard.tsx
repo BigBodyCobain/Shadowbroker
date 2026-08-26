@@ -321,6 +321,18 @@ export default function VoiceSetupCard() {
                 {t('voice.setup.anthropicTextOnly')}
               </div>
             )}
+            {/* Gemini free tier: the fastest no-card path — link straight to it. */}
+            {preset === 'gemini' && (
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] font-mono text-cyan-300 underline decoration-cyan-700 hover:text-cyan-200 break-words"
+                data-testid="voice-setup-gemini-free-key"
+              >
+                {t('voice.setup.geminiFreeKey')}
+              </a>
+            )}
             <div className="relative">
               <input
                 value={apiKey}

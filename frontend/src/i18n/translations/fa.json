@@ -394,6 +394,7 @@
       "providerOpenrouter": "OpenRouter",
       "providerCustom": "نقطه پایانی سفارشی",
       "anthropicTextOnly": "فقط متن — بدون صدا: کنسول تایپی و خلاصه‌ها",
+      "geminiFreeKey": "کلید ندارید؟ کلید رایگان Gemini بگیرید (بدون کارت)",
       "modelLabel": "مدل",
       "modelPlaceholder": "شناسه مدل (مقدار سفارشی مجاز است)",
       "modelDropdownAria": "یک مدل پیشنهادی را انتخاب کنید",

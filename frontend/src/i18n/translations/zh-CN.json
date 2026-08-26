@@ -394,6 +394,7 @@
       "providerOpenrouter": "OpenRouter",
       "providerCustom": "自定义接口",
       "anthropicTextOnly": "仅文本 — 无语音：键入控制台与简报",
+      "geminiFreeKey": "还没有密钥？免费获取 Gemini 密钥（无需绑卡）",
       "modelLabel": "模型",
       "modelPlaceholder": "模型 ID（可输入自定义值）",
       "modelDropdownAria": "选择推荐的模型",
