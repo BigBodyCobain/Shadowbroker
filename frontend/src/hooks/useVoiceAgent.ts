@@ -4,14 +4,16 @@
  * Subscribes to the framework-free `voiceController` singleton via
  * useSyncExternalStore (same pattern as useDataStore), polls GET /api/voice/
  * status at a rate under its 10/min limiter, and drives the deterministic
- * zero-model loop (§3.7) from typed composer text. Realtime session lifecycle
- * and tool-frame correlation over the voice WebSocket land with U5/U8; this
- * hook is their single wiring point.
+ * zero-model loop (§3.7) from typed composer text. U8: when the provider is
+ * realtime-capable, each PTT hold opens a VoiceAudioClient session — mic
+ * PCM16 → broker relay → provider audio playback — with barge-in flush on
+ * the server-VAD speech_started signal.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
 import { voiceController, type VoiceControllerState } from '@/lib/voiceController';
 import { runDeterministicTurn } from '@/lib/voiceDeterministic';
+import { VoiceAudioClient, type VoiceAudioPhase } from '@/lib/voiceAudioClient';
 import { useVoiceGrounding } from '@/hooks/useVoiceGrounding';
 import type { ClientToolContext } from '@/lib/clientTools';
 import type { VoiceStatusResponse } from '@/lib/voiceTypes';
@@ -37,6 +39,19 @@ export interface UseVoiceAgentResult {
 
 const STATUS_POLL_MS = 60000;
 
+/** Providers that speak the §4.3 realtime wire protocol (binary PCM16 relay). */
+function isRealtimeProvider(resolved: string | null | undefined): boolean {
+  return resolved === 'openai_realtime' || resolved === 'compatible_ws';
+}
+
+/** Broker cost snapshot → controller applyCost shape (defensive mapping). */
+function costFromFrame(frame: Record<string, unknown>, level: 'ok' | 'warn' | 'cap') {
+  const snap = (frame.snapshot ?? frame) as Record<string, unknown>;
+  const total = Number(snap.totalUsd ?? snap.total_usd ?? 0);
+  const display = typeof snap.display === 'string' ? snap.display : `~$${total.toFixed(2)}`;
+  voiceController.applyCost({ total_usd: total, display, level, note: null });
+}
+
 export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult {
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
 
@@ -49,6 +64,56 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   // Keep the latest page bindings without resubscribing effects per render.
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
+
+  // U8 realtime speech-to-speech: one audio session per PTT hold. The client
+  // is controller-free (testable); this hook is its single wiring point.
+  const audioClientRef = useRef<VoiceAudioClient | null>(null);
+
+  const realtimeActive = isRealtimeProvider(state.providerResolved);
+
+  const beginPtt = useCallback(() => {
+    voiceController.beginPtt();
+    if (!realtimeActive || audioClientRef.current?.currentPhase !== 'idle') return;
+    // Barge-in path: a fresh hold while the agent is speaking starts a new
+    // session; the client flushes stale playback on speech_started/cap.
+    const client = new VoiceAudioClient({
+      onPhase: (phase: VoiceAudioPhase) => {
+        if (phase === 'listening') voiceController.markListening();
+        else if (phase === 'speaking') voiceController.markSpeaking();
+      },
+      onFault: (reason) => voiceController.fail(reason),
+      onFrame: (frame) => {
+        const type = String(frame.type ?? '');
+        if (type === 'cost') costFromFrame(frame, 'ok');
+        else if (type === 'warn') costFromFrame(frame, 'warn');
+        else if (type === 'cap') {
+          costFromFrame(frame, 'cap');
+          voiceController.applyCost({
+            total_usd: Number((frame.snapshot as Record<string, unknown>)?.totalUsd ?? 0),
+            display: `$${String(frame.totalUsd ?? '')} CAP`,
+            level: 'cap',
+            note: typeof frame.reason === 'string' ? frame.reason : null,
+          });
+        }
+      },
+    });
+    audioClientRef.current = client;
+    void client.start().then((/* ready frame already drove markListening */) => {
+      if (client.currentPhase === 'idle') audioClientRef.current = null;
+    });
+  }, [realtimeActive]);
+
+  const endPtt = useCallback(() => {
+    const client = audioClientRef.current;
+    if (client && client.currentPhase !== 'idle') {
+      // §4.3 stop frame = honest relay termination; teardown returns to idle.
+      client.stop('ptt_release');
+      audioClientRef.current = null;
+      voiceController.backToIdle();
+      return;
+    }
+    voiceController.endPtt();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,9 +170,16 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
     }
   }, []);
 
-  const beginPtt = useCallback(() => voiceController.beginPtt(), []);
-  const endPtt = useCallback(() => voiceController.endPtt(), []);
-  const cancelActive = useCallback(() => voiceController.escape(), []);
+  const cancelActive = useCallback(() => {
+    // Esc cancels an open mic or aborts a thinking turn — an active audio
+    // session is terminated the same honest way as a PTT release.
+    const client = audioClientRef.current;
+    if (client && client.currentPhase !== 'idle') {
+      client.stop('operator_cancel');
+      audioClientRef.current = null;
+    }
+    voiceController.escape();
+  }, []);
   const openPanel = useCallback(() => voiceController.setPanelOpen(true), []);
   const closePanel = useCallback(() => voiceController.setPanelOpen(false), []);
 

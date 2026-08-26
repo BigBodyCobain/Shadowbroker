@@ -54,6 +54,9 @@ export interface VoiceControllerState {
   /** Verbatim reason for the current FAULT (upstream close text, budget
    *  refusal detail, transport error) — rendered as-is, never softened. */
   lastFaultReason: string | null;
+  /** Resolved provider id from the last status poll (U8): realtime-capable
+   *  providers ('openai_realtime'|'compatible_ws') gate PTT audio capture. */
+  providerResolved: string | null;
 }
 
 /**
@@ -88,6 +91,7 @@ const INITIAL_STATE: VoiceControllerState = {
   ambientArmed: false,
   dailySpend: null,
   lastFaultReason: null,
+  providerResolved: null,
 };
 
 const MAX_TURNS = 200;
@@ -140,6 +144,7 @@ class VoiceController {
     this.set({
       reasons: Array.isArray(status.reasons) ? status.reasons.slice(0, 4) : [],
       degraded: !status.effectiveEnable || status.provider.resolved === null || status.provider.resolved === 'local_text',
+      providerResolved: status.provider.resolved ?? null,
       modelLabel:
         status.mode === 'mesh_lean'
           ? ''
