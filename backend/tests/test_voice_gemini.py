@@ -278,3 +278,147 @@ class TestStatusContract:
         # The router serializes this exact field (routers/voice.py status).
         assert "geminiKeySet" in provider
         assert provider["geminiKeySet"] is True
+
+
+# ---------------------------------------------------------------------------
+# chat_completion — gemini-only text leg dials Google's OpenAI-compat endpoint
+# ---------------------------------------------------------------------------
+
+
+class _CaptureCompatAsyncClient:
+    """Duck-typed httpx.AsyncClient that records the POST contract."""
+
+    captured: dict = {}
+    response: object = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, json=None, headers=None):
+        type(self).captured = {"url": url, "json": json, "headers": dict(headers or {})}
+        return type(self).response
+
+
+class _FakeCompatResponse:
+    def __init__(self, payload, status_code=200):
+        self._payload = payload
+        self.status_code = status_code
+        self.text = "" if status_code < 400 else "upstream said no"
+
+    def json(self):
+        return self._payload
+
+
+def _patch_compat_httpx(monkeypatch, payload, status_code=200):
+    import httpx
+
+    _CaptureCompatAsyncClient.captured = {}
+    _CaptureCompatAsyncClient.response = _FakeCompatResponse(payload, status_code)
+    monkeypatch.setattr(httpx, "AsyncClient", _CaptureCompatAsyncClient)
+
+
+class TestGeminiTextChatFallback:
+    MESSAGES = [
+        {"role": "system", "content": "You are the operator console."},
+        {"role": "user", "content": "sitrep?"},
+    ]
+    OPENAI_SHAPE_BODY = {
+        "choices": [{"message": {"content": "All quiet."}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+    }
+
+    def _enable(self, monkeypatch, **extra):
+        monkeypatch.setenv("VOICE_AGENT_OUTBOUND_ENABLE", "allow")
+        monkeypatch.setenv("VOICE_AGENT_OUTBOUND_ACKNOWLEDGE", "true")
+        for key, value in extra.items():
+            monkeypatch.setenv(key, value)
+
+    def _run(self, monkeypatch, body=None, status_code=200):
+        self._enable(monkeypatch, VOICE_GEMINI_API_KEY="g-chat-key")
+        _patch_compat_httpx(monkeypatch, body or self.OPENAI_SHAPE_BODY, status_code)
+        import asyncio
+
+        from services.voice_broker import chat_completion
+
+        config_mod.get_settings.cache_clear()
+        return asyncio.new_event_loop().run_until_complete(
+            chat_completion(self.MESSAGES, settings=config_mod.get_settings())
+        )
+
+    def test_gemini_only_config_dials_openai_compat_with_bearer_gemini_key(
+        self, voice_env, monkeypatch
+    ):
+        result = self._run(monkeypatch)
+        captured = _CaptureCompatAsyncClient.captured
+        # Google's OpenAI-COMPATIBLE text endpoint, standard /chat/completions.
+        assert (
+            captured["url"]
+            == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        )
+        assert captured["headers"]["Authorization"] == "Bearer g-chat-key"
+        # OpenAI wire shape is kept verbatim.
+        assert captured["json"]["messages"] == self.MESSAGES
+        # Default chat model when neither VOICE_CHAT_MODEL nor
+        # VOICE_GEMINI_CHAT_MODEL is set.
+        assert captured["json"]["model"] == "gemini-2.5-flash"
+        assert result["ok"] is True
+        assert result["reply"] == "All quiet."
+        assert result["model"] == "gemini-2.5-flash"
+        assert result["usage"]["prompt_tokens"] == 10
+
+    def test_voice_gemini_chat_model_setting_overrides_the_default(
+        self, voice_env, monkeypatch
+    ):
+        self._run(monkeypatch)
+        monkeypatch.setenv("VOICE_GEMINI_CHAT_MODEL", "gemini-2.0-flash")
+        import asyncio
+
+        from services.voice_broker import chat_completion
+
+        config_mod.get_settings.cache_clear()
+        asyncio.new_event_loop().run_until_complete(
+            chat_completion(self.MESSAGES, settings=config_mod.get_settings())
+        )
+        assert _CaptureCompatAsyncClient.captured["json"]["model"] == "gemini-2.0-flash"
+
+    def test_explicit_chat_model_still_wins_over_the_compat_fallback(
+        self, voice_env, monkeypatch
+    ):
+        # VOICE_CHAT_MODEL set → the pre-existing OpenAI/compat branch runs;
+        # no compat base and no OpenAI key means an api.openai.com dial with a
+        # Bearer-less header — NOT the Gemini compat endpoint.
+        import httpx as _httpx
+
+        class _MustNotDial:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                raise AssertionError("compat dial must not run when VOICE_CHAT_MODEL is set")
+
+            async def __aexit__(self, *exc):
+                return False
+
+        self._enable(monkeypatch, VOICE_GEMINI_API_KEY="g-chat-key", VOICE_CHAT_MODEL="some-model")
+        monkeypatch.setattr(_httpx, "AsyncClient", _MustNotDial)
+        import asyncio
+
+        from services.voice_broker import chat_completion
+
+        config_mod.get_settings.cache_clear()
+        with pytest.raises(AssertionError, match="must not run"):
+            asyncio.new_event_loop().run_until_complete(
+                chat_completion(self.MESSAGES, settings=config_mod.get_settings())
+            )
+
+    def test_upstream_error_returns_typed_envelope(self, voice_env, monkeypatch):
+        result = self._run(monkeypatch, {"error": "nope"}, status_code=403)
+        assert result["ok"] is False
+        assert result["error"] == "upstream_error"
+        assert result["status"] == 403

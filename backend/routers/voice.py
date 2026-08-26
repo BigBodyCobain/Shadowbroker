@@ -87,6 +87,9 @@ else:
         apiKey: str | None = None
         baseUrl: str | None = None
         model: str | None = None  # gemini: VOICE_GEMINI_MODEL; compat/anthropic: VOICE_CHAT_MODEL
+        # clear=true removes the provider's persisted rows (its key + the model
+        # rows it owns) instead of saving — the documented removal path.
+        clear: bool = False
 
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
@@ -291,6 +294,47 @@ else:
             )
         return payload
 
+    #: Rows each wire provider owns — the clear path removes exactly these
+    #: (key + the model/URL rows saved alongside it). VOICE_CHAT_MODEL is NOT
+    #: removed for anthropic/compat: it is shared by both providers' text legs
+    #: and clearing one must not silently break the other.
+    _PROVIDER_CLEAR_KEYS: dict[str, tuple[str, ...]] = {
+        "openai": ("VOICE_OPENAI_API_KEY",),
+        "gemini": ("VOICE_GEMINI_API_KEY", "VOICE_GEMINI_MODEL"),
+        "anthropic": ("VOICE_ANTHROPIC_API_KEY",),
+        "compat": ("VOICE_COMPAT_BASE_URL", "VOICE_COMPAT_API_KEY"),
+    }
+
+    def _remove_voice_env(keys: tuple[str, ...]) -> tuple[bool, list[str]]:
+        """Remove provider rows via the sanctioned writer and sync live env.
+
+        Mirrors _persist_voice_env's env-var-wins honesty: a key whose real
+        process-env value did NOT come from the persisted file cannot be
+        cleared from this process — it is left in place and reported so the
+        response can say so verbatim. Returns ``(removed, externally_managed)``.
+        """
+        from services.api_settings import (
+            OPERATOR_KEYS_ENV_PATH,
+            _parse_env_file,
+            _remove_env_values,
+        )
+
+        previous_rows = _parse_env_file(OPERATOR_KEYS_ENV_PATH)
+        try:
+            _remove_env_values(OPERATOR_KEYS_ENV_PATH, set(keys))
+        except OSError:
+            logger.exception("voice setup: failed to remove %s", sorted(keys))
+            return False, []
+        externally_managed: list[str] = []
+        for key in keys:
+            env_val = str(os.environ.get(key, "") or "")
+            file_val = str(previous_rows.get(key, "") or "")
+            if env_val.strip() and env_val != file_val:
+                externally_managed.append(key)
+                continue
+            os.environ.pop(key, None)
+        return True, externally_managed
+
     @router.post("/api/voice/opt-in", dependencies=[Depends(require_local_operator)])
     @limiter.limit("10/minute")
     async def voice_opt_in(request: Request, body: VoiceOptInRequest):
@@ -317,6 +361,49 @@ else:
         provider = str(body.provider or "").strip().lower()
         api_key = str(body.apiKey or "").strip()
         base_url = str(body.baseUrl or "").strip()
+
+        # ── clear variant: remove the provider's rows, respond with the same
+        # fresh status shape as a save (plus managedByEnvironment honesty when
+        # a real env var kept a key alive). Saving again afterwards simply
+        # re-persists (upsert replaces the old row).
+        if body.clear:
+            keys = _PROVIDER_CLEAR_KEYS.get(provider)
+            if keys is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "unknown_provider", "provider": provider},
+                )
+            removed, managed = _remove_voice_env(keys)
+            if not removed:
+                return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+            from services.config import get_settings
+
+            get_settings.cache_clear()
+            summary = resolve_provider(get_settings())
+            payload: dict = {
+                "ok": True,
+                "cleared": True,
+                "provider": {
+                    "resolved": summary["resolved"],
+                    "requestedMode": summary["requestedMode"],
+                    "openaiKeySet": summary["openaiKeySet"],
+                    "compatKeySet": summary["compatKeySet"],
+                    "compatBaseUrlSet": summary["compatBaseUrlSet"],
+                    "geminiKeySet": bool(summary.get("geminiKeySet", False)),
+                    "anthropicKeySet": bool(summary.get("anthropicKeySet", False)),
+                    "chatModelConfigured": summary["chatModelConfigured"],
+                },
+                "degradedReason": summary["degradedReason"],
+                "managedByEnvironment": bool(managed),
+            }
+            if managed:
+                payload["note"] = (
+                    f"A real environment variable controls {', '.join(sorted(managed))}; "
+                    "environment variables always win over the persisted operator file "
+                    "(data/operator_api_keys.env), so those keys remain active until "
+                    "the variable is removed from the container/process environment."
+                )
+            return payload
 
         updates: dict[str, str] = {}
         if provider == "openai":
@@ -587,9 +674,9 @@ else:
             return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
         if resolved in ("gemini_live", "gemini"):
             curated = [
+                "gemini-3.1-flash-live-preview",
                 "gemini-2.0-flash-live-001",
-                "gemini-2.5-flash-preview-native-audio-dialog",
-                "gemini-2.5-flash-preview-flash-live",
+                "gemini-3.5-live-translate-preview",
             ]
             return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
 

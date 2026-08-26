@@ -36,7 +36,7 @@ from typing import Any
 #: Gemini Live input rate (16 kHz) — differs from our 24 kHz wire format.
 GEMINI_INPUT_RATE = 16000
 GEMINI_OUTPUT_RATE = 24000
-GEMINI_DEFAULT_MODEL = "gemini-2.0-flash-live-001"
+GEMINI_DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 GEMINI_DEFAULT_BASE = "wss://generativelanguage.googleapis.com/ws"
 _GEMINI_SETUP_PATH = "google.ai.generativelanguage.v1beta.GenerativeService.BidiSetup"
 

@@ -13,6 +13,7 @@ import {
   getPendingConfirmation,
   runDeterministicTurn,
 } from '@/lib/voiceDeterministic';
+import { voiceController } from '@/lib/voiceController';
 import type { ClientToolContext } from '@/lib/clientTools';
 
 function baseCtx(overrides: Partial<ClientToolContext> = {}): ClientToolContext {
@@ -230,5 +231,80 @@ describe('§3.7 item 2 — gated route_query recommendation awaits confirmation'
     await runDeterministicTurn('confirm', baseCtx());
     const retry = calls.filter((c) => c.body.tool === 'delete_analysis_zone').at(-1);
     expect(retry?.body.confirm).toBe(true);
+  });
+});
+
+describe('degraded-mode honesty — realtime provider armed vs nothing configured', () => {
+  beforeEach(() => clearPendingConfirmation());
+  afterEach(() => {
+    clearPendingConfirmation();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    // Restore the unconfigured resting state for later suites.
+    voiceController.resetForNewSession();
+    voiceController.applyStatus(unconfiguredStatus());
+  });
+
+  function unconfiguredStatus() {
+    return {
+      ok: true,
+      effectiveEnable: false,
+      opt_in_state: 'not_requested',
+      flags: { enableSet: false, acknowledgeSet: false },
+      provider: {
+        resolved: null,
+        requestedMode: 'auto',
+        openaiKeySet: false,
+        compatKeySet: false,
+        compatBaseUrlSet: false,
+        geminiKeySet: false,
+        chatModelConfigured: false,
+      },
+      degradedReason: 'voice disabled',
+      reasons: [],
+      mode: 'full',
+      costDefaults: { warnUsd: 'off', capUsd: 'off', dailyBudgetUsd: 'off' },
+      dailySpend: { date: '', usdSpent: 0, budgetUsd: 'off', remainingUsd: 'off', ledgerQuarantined: false },
+      activeSessions: 0,
+      maxConcurrent: 1,
+    } as Parameters<typeof voiceController.applyStatus>[0];
+  }
+
+  function stubRouteQueryWithoutCommand() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ ok: true, data: { intent: 'discovery' } }), { status: 200 }),
+      ),
+    );
+  }
+
+  it('a gemini_live badge must not read "No model configured" — name the armed provider', async () => {
+    const base = unconfiguredStatus();
+    voiceController.applyStatus({
+      ...base,
+      effectiveEnable: true,
+      opt_in_state: 'enabled',
+      flags: { enableSet: true, acknowledgeSet: true },
+      provider: {
+        ...base.provider,
+        resolved: 'gemini_live',
+        geminiKeySet: true,
+      },
+    });
+    expect(voiceController.getState().providerResolved).toBe('gemini_live');
+    stubRouteQueryWithoutCommand();
+    const outcome = await runDeterministicTurn('what changed', baseCtx());
+    expect(outcome.reply).toBe(
+      "Voice provider armed (gemini_live) — text chat unavailable right now. Try: 'fly to Kyiv', 'what changed', 'news on Ukraine'.",
+    );
+  });
+
+  it('nothing configured keeps the original deterministic wording', async () => {
+    stubRouteQueryWithoutCommand();
+    const outcome = await runDeterministicTurn('what changed', baseCtx());
+    expect(outcome.reply).toBe(
+      "No model configured — running deterministic mode. Try: 'fly to Kyiv', 'what changed', 'news on Ukraine'.",
+    );
   });
 });

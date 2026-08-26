@@ -405,6 +405,9 @@
       "apiKeyPlaceholder": "Clé API",
       "baseUrlPlaceholder": "URL de base (facultatif)",
       "saveCheck": "Enregistrer et vérifier",
+      "keyConfiguredNote": "Clé enregistrée — en saisir une nouvelle la remplace.",
+      "clearKey": "Effacer la clé enregistrée",
+      "cleared": "Clé enregistrée effacée.",
       "done": "La voix est activée — maintenez V et parlez."
     },
     "brief": { "now": "BRIEF MAINTENANT", "aria": "Demander un brief HUD immédiat" },

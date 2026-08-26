@@ -29,7 +29,7 @@ type WireProvider = 'openai' | 'gemini' | 'compat' | 'anthropic';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const LOCAL_BASE_PLACEHOLDER = 'http://127.0.0.1:11434/v1';
 const CUSTOM_BASE_PLACEHOLDER = 'https://your-gateway.example/v1';
-const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash-live-001';
+const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const MODELS_FETCH_DEBOUNCE_MS = 300;
 
 const PROVIDER_PRESETS: Array<{ id: ProviderPreset; labelKey: string }> = [
@@ -57,6 +57,37 @@ const NO_AUTOFILL = {
  *  yields to the live console (status refresh flips the phase). */
 const DONE_LINGER_MS = 2500;
 
+/** Per-provider keySet flags from GET /api/voice/status — drives the
+ *  "Replace key / clear" affordances for an already-configured provider. */
+interface ProviderFlags {
+  openaiKeySet: boolean;
+  compatKeySet: boolean;
+  compatBaseUrlSet: boolean;
+  geminiKeySet: boolean;
+  anthropicKeySet: boolean;
+}
+
+function readProviderFlags(status: unknown): ProviderFlags | null {
+  const provider = (status as { provider?: Record<string, unknown> } | null)?.provider;
+  if (!provider || typeof provider !== 'object') return null;
+  const bool = (v: unknown) => v === true;
+  return {
+    openaiKeySet: bool(provider.openaiKeySet),
+    compatKeySet: bool(provider.compatKeySet),
+    compatBaseUrlSet: bool(provider.compatBaseUrlSet),
+    geminiKeySet: bool(provider.geminiKeySet),
+    anthropicKeySet: bool(provider.anthropicKeySet),
+  };
+}
+
+function isProviderConfigured(wire: WireProvider, flags: ProviderFlags | null): boolean {
+  if (!flags) return false;
+  if (wire === 'openai') return flags.openaiKeySet;
+  if (wire === 'gemini') return flags.geminiKeySet;
+  if (wire === 'anthropic') return flags.anthropicKeySet;
+  return flags.compatBaseUrlSet || flags.compatKeySet;
+}
+
 export default function VoiceSetupCard() {
   const { t } = useTranslation();
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState);
@@ -79,6 +110,8 @@ export default function VoiceSetupCard() {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [provSave, setProvSave] = useState<SetupStep>('idle');
   const [provMessage, setProvMessage] = useState<string | null>(null);
+  const [providerFlags, setProviderFlags] = useState<ProviderFlags | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   const wireProvider = wireProviderFor(preset);
   const needsBaseUrl = wireProvider === 'compat';
@@ -155,6 +188,62 @@ export default function VoiceSetupCard() {
       clearTimeout(timer);
     };
   }, [preset, needsBaseUrl, baseUrl]);
+
+  // Key-management affordances need the current keySet flags — poll status
+  // once when the provider step is visible (and again after any save/clear).
+  useEffect(() => {
+    if (optIn !== 'done') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/voice/status`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setProviderFlags(readProviderFlags(json));
+      } catch {
+        // Flags stay null → no clear button; saving still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [optIn, provSave]);
+
+  /** POST the documented clear variant — removes this provider's persisted
+   *  key (+ its model row) server-side; a fresh status poll updates flags. */
+  const clearProvider = async () => {
+    setClearing(true);
+    setProvMessage(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/voice/provider`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: wireProvider, clear: true }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        note?: string;
+        error?: string;
+        detail?: string;
+      };
+      if (!res.ok || !json?.ok) {
+        setProvMessage(json?.detail || json?.error || `HTTP ${res.status}`);
+      } else {
+        setProvMessage(json.note ? String(json.note) : t('voice.setup.cleared'));
+        void refreshStatus();
+      }
+    } catch (err) {
+      setProvMessage(err instanceof Error && err.message ? err.message : `HTTP error`);
+    } finally {
+      setClearing(false);
+      try {
+        const res = await fetch(`${API_BASE}/api/voice/status`);
+        if (res.ok) setProviderFlags(readProviderFlags(await res.json()));
+      } catch {
+        // keep last-known flags
+      }
+    }
+  };
 
   const turnOn = async () => {
     setOptIn('pending');
@@ -415,6 +504,32 @@ export default function VoiceSetupCard() {
               </>
             )}
           </div>
+
+          {/* Already-configured provider: replace/clear affordances. Saving
+              again simply overwrites (upsert); Clear removes the rows. */}
+          {isProviderConfigured(wireProvider, providerFlags) && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div
+                className="text-[11px] font-mono text-cyan-300 break-words"
+                data-testid="voice-setup-key-configured-note"
+              >
+                {t('voice.setup.keyConfiguredNote')}
+              </div>
+              <button
+                type="button"
+                data-testid="voice-setup-clear-provider"
+                disabled={clearing}
+                onClick={() => void clearProvider()}
+                className={`shrink-0 px-2 py-1 text-xs font-mono border transition-colors ${
+                  clearing
+                    ? 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)] cursor-wait'
+                    : 'bg-transparent border-red-700/60 text-red-300 hover:border-red-500/60 focus-visible:outline focus-visible:outline-red-400'
+                }`}
+              >
+                {t('voice.setup.clearKey')}
+              </button>
+            </div>
+          )}
 
           <button
             type="button"

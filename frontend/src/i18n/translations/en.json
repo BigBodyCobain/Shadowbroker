@@ -405,6 +405,9 @@
       "apiKeyPlaceholder": "API key",
       "baseUrlPlaceholder": "Base URL (optional)",
       "saveCheck": "Save & check",
+      "keyConfiguredNote": "Key saved — entering a new one replaces it.",
+      "clearKey": "Clear saved key",
+      "cleared": "Saved key cleared.",
       "done": "Voice is on — hold V and talk."
     },
     "brief": { "now": "BRIEF NOW", "aria": "Request an immediate HUD brief" },

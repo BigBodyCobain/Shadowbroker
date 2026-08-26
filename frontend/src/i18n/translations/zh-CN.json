@@ -405,6 +405,9 @@
       "apiKeyPlaceholder": "API 密钥",
       "baseUrlPlaceholder": "接口地址（可选）",
       "saveCheck": "保存并检测",
+      "keyConfiguredNote": "密钥已保存——输入新密钥将替换它。",
+      "clearKey": "清除已保存的密钥",
+      "cleared": "已清除保存的密钥。",
       "done": "语音已开启——按住 V 说话。"
     },
     "brief": { "now": "立即简报", "aria": "请求即时态势简报" },

@@ -137,8 +137,8 @@ describe('VoiceSetupCard (panel disabled state)', () => {
 
     const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
     expect(provCalls).toHaveLength(1);
-    // Gemini prefills its Live model id — persisted server-side as VOICE_GEMINI_MODEL.
-    expect(provCalls[0].body).toEqual({ provider: 'gemini', apiKey: 'gm-key-1', model: 'gemini-2.0-flash-live-001' });
+    // Gemini prefills its current Live model id — persisted server-side as VOICE_GEMINI_MODEL.
+    expect(provCalls[0].body).toEqual({ provider: 'gemini', apiKey: 'gm-key-1', model: 'gemini-3.1-flash-live-preview' });
 
     // Resolved provider echoed back honestly.
     expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('gemini_live');
@@ -399,6 +399,153 @@ describe('Anthropic + Custom endpoint presets', () => {
       baseUrl: 'https://gw.corp.example/v1',
       apiKey: 'gw-key-9',
       model: 'my-model',
+    });
+  });
+});
+
+describe('key management — Replace key / clear affordances for a configured provider', () => {
+  /** Resting state that mounts the connect card (enabled, text mode)… */
+  function textModeStatus(): VoiceStatusResponse {
+    return {
+      ...disabledStatus(),
+      effectiveEnable: true,
+      opt_in_state: 'enabled',
+      flags: { enableSet: true, acknowledgeSet: true },
+      provider: {
+        resolved: 'local_text',
+        requestedMode: 'auto',
+        openaiKeySet: false,
+        compatKeySet: false,
+        compatBaseUrlSet: true,
+        geminiKeySet: false,
+        chatModelConfigured: true,
+      },
+      degradedReason: null,
+      reasons: [],
+    };
+  }
+
+  /** …while the card's own status poll reports the Gemini key already saved. */
+  function geminiKeySavedStatus(): VoiceStatusResponse {
+    return {
+      ...textModeStatus(),
+      provider: {
+        ...textModeStatus().provider,
+        compatBaseUrlSet: false,
+        compatKeySet: false,
+        chatModelConfigured: false,
+        geminiKeySet: true,
+      },
+    };
+  }
+
+  function stubWithGeminiConfigured(): CapturedCall[] {
+    const calls: CapturedCall[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+      calls.push({ url, body });
+      if (url.includes('/api/voice/opt-in')) {
+        return new Response(JSON.stringify({ ok: true, effectiveEnable: true, managedByEnvironment: false }), { status: 200 });
+      }
+      if (url.includes('/api/voice/provider')) {
+        if (body?.clear === true) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              cleared: true,
+              provider: { resolved: null, geminiKeySet: false },
+              degradedReason: 'No usable voice provider configured',
+              managedByEnvironment: false,
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ ok: true, resolved: 'gemini_live', degradedReason: null }), { status: 200 });
+      }
+      if (url.includes('/api/voice/status')) {
+        // First poll: configured; after the clear POST: nothing saved (still
+        // enabled/text-mode so the connect card stays mounted).
+        const cleared = calls.some((c) => c.url.includes('/api/voice/provider') && c.body?.clear === true);
+        return new Response(JSON.stringify(cleared ? textModeStatus() : geminiKeySavedStatus()), { status: 200 });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return calls;
+  }
+
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(textModeStatus());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    voiceController.resetForNewSession();
+    voiceController.setPanelOpen(false);
+  });
+
+  it('a configured provider shows the replace note + Clear button', async () => {
+    stubWithGeminiConfigured();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    // Enabled-but-text-mode mounts the connect card directly on the provider step.
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-gemini'));
+
+    expect(await screen.findByTestId('voice-setup-key-configured-note')).not.toBeNull();
+    expect(screen.getByTestId('voice-setup-clear-provider').textContent).toContain('Clear saved key');
+  });
+
+  it('an unconfigured provider shows no Clear button', async () => {
+    stubFetch(); // status → disabledStatus(): nothing configured
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-gemini'));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(screen.queryByTestId('voice-setup-clear-provider')).toBeNull();
+    expect(screen.queryByTestId('voice-setup-key-configured-note')).toBeNull();
+  });
+
+  it('Clear POSTs the clear variant and refreshes status afterwards', async () => {
+    const calls = stubWithGeminiConfigured();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-gemini'));
+
+    fireEvent.click(await screen.findByTestId('voice-setup-clear-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+
+    const clearCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
+    expect(clearCalls[0].body).toEqual({ provider: 'gemini', clear: true });
+    // The clear response's honest confirmation is surfaced.
+    expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('cleared');
+    // A fresh /api/voice/status poll followed the clear.
+    expect(calls.some((c) => c.url.includes('/api/voice/status'))).toBe(true);
+  });
+
+  it('saving again simply overwrites (no clear flag on the save body)', async () => {
+    const calls = stubWithGeminiConfigured();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-gemini'));
+    await screen.findByTestId('voice-setup-clear-provider');
+
+    fireEvent.change(screen.getByTestId('voice-setup-api-key'), { target: { value: 'gm-replacement' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+
+    const saveCall = calls.find(
+      (c) => c.url.includes('/api/voice/provider') && c.body && c.body.clear === undefined,
+    );
+    expect(saveCall?.body).toEqual({
+      provider: 'gemini',
+      apiKey: 'gm-replacement',
+      model: 'gemini-3.1-flash-live-preview',
     });
   });
 });

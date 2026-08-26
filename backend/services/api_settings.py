@@ -318,6 +318,25 @@ def _quote_env_value(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _atomic_replace_env_file(path: Path, lines: list[str]) -> None:
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.tmp.", text=True)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("\n".join(lines).rstrip() + "\n")
+        if os.name != "nt":
+            os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, path)
+        if os.name != "nt":
+            os.chmod(path, 0o600)
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
+
+
 def _write_env_values(path: Path, updates: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
@@ -338,22 +357,32 @@ def _write_env_values(path: Path, updates: dict[str, str]) -> None:
         if key not in seen:
             next_lines.append(f"{key}={_quote_env_value(value)}")
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.tmp.", text=True)
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("\n".join(next_lines).rstrip() + "\n")
-        if os.name != "nt":
-            os.chmod(tmp_path, 0o600)
-        os.replace(tmp_path, path)
-        if os.name != "nt":
-            os.chmod(path, 0o600)
-    finally:
-        try:
-            if tmp_path.exists():
-                tmp_path.unlink()
-        except OSError:
-            pass
+    # Upsert semantics: an existing row for a key is REPLACED in place (the
+    # loop above rewrites it and marks it seen) — saving a new key over an old
+    # one therefore replaces the stored value instead of appending a duplicate.
+    _atomic_replace_env_file(path, next_lines)
+
+
+def _remove_env_values(path: Path, keys: set[str]) -> None:
+    """Drop every matching ``KEY=...`` row from the env file (upsert's inverse).
+
+    Idempotent: removing keys that are absent succeeds without touching the
+    file. Comments, blank lines, and unrelated rows are preserved verbatim.
+    """
+    key_set = {str(k).strip().upper() for k in keys if str(k or "").strip()}
+    if not path.exists() or not key_set:
+        return
+    kept: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if (
+            "=" in stripped
+            and not stripped.startswith("#")
+            and stripped.split("=", 1)[0].strip() in key_set
+        ):
+            continue
+        kept.append(raw_line)
+    _atomic_replace_env_file(path, kept)
 
 
 def load_persisted_api_keys_into_environ() -> None:

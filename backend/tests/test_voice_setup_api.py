@@ -203,6 +203,106 @@ class TestProviderSaveEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/voice/provider — clear variant + replace-key upsert semantics
+# ---------------------------------------------------------------------------
+
+
+class TestProviderClearAndReplace:
+    def _operator_rows(self):
+        return api_settings_mod._parse_env_file(api_settings_mod.OPERATOR_KEYS_ENV_PATH)
+
+    def test_clear_removes_gemini_key_and_model_rows(self, loopback, voice_env):
+        loopback.post("/api/voice/opt-in", json={"enable": True})
+        saved = loopback.post(
+            "/api/voice/provider",
+            json={"provider": "gemini", "apiKey": "g-secret-clear-1", "model": "gemini-3.1-flash-live-preview"},
+        )
+        assert saved.json()["provider"]["resolved"] == "gemini_live"
+        rows = self._operator_rows()
+        assert rows["VOICE_GEMINI_API_KEY"] == "g-secret-clear-1"
+        assert rows["VOICE_GEMINI_MODEL"] == "gemini-3.1-flash-live-preview"
+
+        cleared = loopback.post("/api/voice/provider", json={"provider": "gemini", "clear": True})
+        assert cleared.status_code == 200, cleared.text
+        body = cleared.json()
+        assert body["ok"] is True
+        assert body["cleared"] is True
+        # Fresh status shape: nothing resolves anymore.
+        assert body["provider"]["resolved"] is None
+        assert body["provider"]["geminiKeySet"] is False
+
+        # File re-read: the key AND its model row are gone.
+        rows = self._operator_rows()
+        assert "VOICE_GEMINI_API_KEY" not in rows
+        assert "VOICE_GEMINI_MODEL" not in rows
+        # Live env was synced too — the provider stays de-armed in-process.
+        import os as _os
+
+        assert not _os.environ.get("VOICE_GEMINI_API_KEY")
+        status = loopback.get("/api/voice/status").json()
+        assert status["provider"]["geminiKeySet"] is False
+
+    def test_clear_is_idempotent_for_unknown_provider_rows(self, loopback, voice_env):
+        loopback.post("/api/voice/opt-in", json={"enable": True})
+        cleared = loopback.post(
+            "/api/voice/provider", json={"provider": "openai", "clear": True}
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["ok"] is True
+
+    def test_clear_unknown_provider_is_400(self, loopback, voice_env):
+        response = loopback.post(
+            "/api/voice/provider", json={"provider": "elevenlabs", "clear": True}
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "unknown_provider"
+
+    def test_saving_a_new_gemini_key_replaces_the_old_row_upsert(self, loopback, voice_env):
+        loopback.post("/api/voice/opt-in", json={"enable": True})
+        first = loopback.post(
+            "/api/voice/provider",
+            json={"provider": "gemini", "apiKey": "g-old-key", "model": "gemini-2.0-flash-live-001"},
+        )
+        assert first.status_code == 200
+
+        second = loopback.post(
+            "/api/voice/provider",
+            json={"provider": "gemini", "apiKey": "g-new-key", "model": "gemini-3.1-flash-live-preview"},
+        )
+        assert second.status_code == 200
+        assert second.json()["provider"]["geminiKeySet"] is True
+
+        rows = self._operator_rows()
+        # Upsert replaced both values; no duplicate KEY= rows lingered.
+        assert rows["VOICE_GEMINI_API_KEY"] == "g-new-key"
+        assert rows["VOICE_GEMINI_MODEL"] == "gemini-3.1-flash-live-preview"
+        raw_text = api_settings_mod.OPERATOR_KEYS_ENV_PATH.read_text(encoding="utf-8")
+        assert raw_text.count("VOICE_GEMINI_API_KEY=") == 1
+        assert raw_text.count("VOICE_GEMINI_MODEL=") == 1
+        assert "g-old-key" not in raw_text
+
+    def test_remove_env_values_helper_drops_only_matching_rows(self, tmp_path):
+        target = tmp_path / "keys.env"
+        target.write_text(
+            "# comment\n"
+            "A_KEY=\"keep\"\n"
+            "DROP_ME=\"gone\"\n"
+            "\n"
+            "OTHER=\"also keep\"\n",
+            encoding="utf-8",
+        )
+        api_settings_mod._remove_env_values(target, {"drop_me"})
+        text = target.read_text(encoding="utf-8")
+        assert "DROP_ME" not in text
+        assert 'A_KEY="keep"' in text
+        assert 'OTHER="also keep"' in text
+        assert "# comment" in text
+        # Idempotent: removing an absent key leaves the file untouched-but-valid.
+        api_settings_mod._remove_env_values(target, {"ABSENT_KEY"})
+        assert len(api_settings_mod._parse_env_file(target)) == 2
+
+
+# ---------------------------------------------------------------------------
 # Env-var-wins honesty contract
 # ---------------------------------------------------------------------------
 
@@ -349,7 +449,11 @@ class TestVoiceModels:
     def test_curated_list_for_gemini(self, loopback):
         body = loopback.get("/api/voice/models?provider=gemini_live").json()
         assert body["curated"] is True
-        assert any("gemini" in m["id"] for m in body["models"])
+        ids = [m["id"] for m in body["models"]]
+        # Current Live lineup leads; the retired 2.0 id stays as secondary.
+        assert ids[0] == "gemini-3.1-flash-live-preview"
+        assert "gemini-2.0-flash-live-001" in ids
+        assert "gemini-3.5-live-translate-preview" in ids
 
     def test_compat_queries_gateway_live_then_v1_fallback(self, loopback, monkeypatch):
         _patch_httpx(

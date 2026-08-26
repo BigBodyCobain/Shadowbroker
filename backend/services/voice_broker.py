@@ -1172,6 +1172,11 @@ async def _teardown(
 
 CHAT_CONTEXT_MAX_BYTES = 32 * 1024
 
+#: Google's OpenAI-compatible text endpoint (docs /gemini-api/docs/openai):
+#: Bearer-key auth + standard ``/chat/completions`` shape — the gemini-only
+#: text chat leg dials this when no OpenAI-shaped chat model is configured.
+GEMINI_OPENAI_COMPAT_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+
 
 def _usage_token(usage: Any, keys: tuple[str, ...]) -> float:
     """First positive value among ``keys`` on a chat-completions usage dict."""
@@ -1228,6 +1233,18 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
         model_id = provider["chatModel"] or "claude-sonnet-4-5"
         base = str(provider["anthropicBase"]).rstrip("/")
         api_key = provider["anthropicKey"]
+    elif provider["resolved"] == "gemini_live" and not provider["chatModelConfigured"]:
+        # Gemini-only config: the realtime leg is armed but no OpenAI-shaped
+        # chat endpoint exists — dial Google's OpenAI-COMPATIBLE text endpoint
+        # (https://generativelanguage.googleapis.com/v1beta/openai, Bearer-key
+        # auth, standard /chat/completions shape) with the Gemini key instead
+        # of failing chat_unconfigured. The wire handling below is unchanged:
+        # this endpoint speaks the exact OpenAI chat-completions contract.
+        model_id = str(getattr(s, "VOICE_GEMINI_CHAT_MODEL", "") or "").strip() or "gemini-2.5-flash"
+        base = GEMINI_OPENAI_COMPAT_BASE
+        api_key = provider["geminiKey"]
+        if not api_key:
+            return {"ok": False, "error": "chat_unconfigured"}
     else:
         if not provider["chatModelConfigured"]:
             return {"ok": False, "error": "chat_unconfigured"}

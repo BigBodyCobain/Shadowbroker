@@ -10,6 +10,7 @@
  */
 import { API_BASE } from '@/lib/api';
 import { executeClientVerb, type ClientToolContext, type ToolResult } from './clientTools';
+import { voiceController } from './voiceController';
 
 export interface TurnStep {
   tool: string | null;
@@ -64,6 +65,19 @@ const RE_TM_CONTROL =
 // §3.7 item 2 — the operator's unlock word for a gated recommendation.
 const RE_CONFIRM =
   /^\s*(?:confirm(?:\s+(?:it|the\s+\S+))?|yes|yeah|yep|y|go\s+ahead|do\s+it|run\s+it)\s*[.!]?\s*$/i;
+
+/** Providers whose realtime path can be armed even while the typed-text chat
+ *  leg is unavailable — the deterministic fallback must never claim "no model
+ *  configured" when one of these is armed (honesty: name the real state). */
+const REALTIME_PROVIDERS = new Set(['openai_realtime', 'compatible_ws', 'gemini_live']);
+
+function degradedModeReply(examples: string): string {
+  const resolved = voiceController.getState().providerResolved;
+  if (resolved && REALTIME_PROVIDERS.has(resolved)) {
+    return `Voice provider armed (${resolved}) — text chat unavailable right now. Try: ${examples}`;
+  }
+  return `No model configured — running deterministic mode. Try: ${examples}`;
+}
 
 function matchLayerKey(phrase: string, ctx: ClientToolContext): string | null {
   const wanted = phrase.trim().toLowerCase().replace(/\s+/g, '_');
@@ -317,7 +331,7 @@ export async function runDeterministicTurn(
     steps.push({ tool: 'route_query', argsSummary: '', ok: false, detail: 'no recommended command' });
     return {
       steps,
-      reply: "No model configured — running deterministic mode. Try: 'fly to Kyiv', 'what changed', 'news on Ukraine'.",
+      reply: degradedModeReply("'fly to Kyiv', 'what changed', 'news on Ukraine'."),
     };
   }
   if (intent === 'discovery') {
@@ -325,7 +339,7 @@ export async function runDeterministicTurn(
     steps.push({ tool: 'route_query', argsSummary: '', ok: true, detail: `intent=${intent}` });
     return {
       steps,
-      reply: "No model configured — running deterministic mode. Try: 'fly to Kyiv', 'what changed', 'toggle flights layer'.",
+      reply: degradedModeReply("'fly to Kyiv', 'what changed', 'toggle flights layer'."),
     };
   }
 
