@@ -106,12 +106,16 @@ export default function VoiceMicButton() {
   );
 
   const tooltip =
-    state.phase === 'opt-in-required' || state.phase === 'lean-unavailable'
-      ? state.reasons[0] || t(`voice.states.${state.phase === 'lean-unavailable' ? 'leanMode' : 'optInRequired'}`)
-      : state.phase === 'error'
-        ? // Verbatim-honesty FAULT: quote the real close/error reason as-is.
-          state.lastFaultReason || t('voice.micAria.error')
-        : undefined;
+    state.phase === 'opt-in-required'
+      ? // Plain one-liner — the long verbatim reasons live in the panel's
+        // setup card instead of a hover tooltip nobody can read.
+        t('voice.tooltip.optInRequired')
+      : state.phase === 'lean-unavailable'
+        ? state.reasons[0] || t('voice.states.leanMode')
+        : state.phase === 'error'
+          ? // Verbatim-honesty FAULT: quote the real close/error reason as-is.
+            state.lastFaultReason || t('voice.micAria.error')
+          : undefined;
 
   const startHold = () => {
     if (!visual.interactive) return;
@@ -154,7 +158,7 @@ export default function VoiceMicButton() {
   return (
     <div className="relative" data-testid="voice-mic-button">
       {showHint && (
-        <div data-testid="voice-hint-chip" className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--bg-primary)]/90 border border-violet-500/40 px-2 py-1 text-[9px] font-mono tracking-widest text-violet-300">
+        <div data-testid="voice-hint-chip" className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--bg-primary)]/90 border border-violet-500/40 px-2 py-1 text-[11px] font-mono tracking-wide text-violet-300">
           {t('voice.hint.ptt')}
         </div>
       )}
@@ -168,7 +172,7 @@ export default function VoiceMicButton() {
         title={tooltip}
         aria-label={t(`voice.micAria.${state.phase}`)}
         aria-disabled={!visual.interactive}
-        className={`flex items-center gap-2 border px-5 py-2 text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
+        className={`flex items-center gap-2 border px-5 py-2.5 min-h-[40px] text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
       >
         {/* Slash icon for opt-in-required */}
         {state.phase === 'opt-in-required' && (
@@ -210,7 +214,7 @@ export default function VoiceMicButton() {
         {visual.chip && (
           <span
             data-testid="voice-phase-chip"
-            className={`px-1 py-[1px] text-[9px] font-bold tracking-widest rounded-sm ${
+            className={`px-1 py-[1px] text-[11px] font-bold tracking-wide rounded-sm ${
               state.phase === 'error'
                 ? 'bg-red-500/20 border border-red-500/40 text-red-300'
                 : state.phase === 'quota-capped'
@@ -227,7 +231,7 @@ export default function VoiceMicButton() {
           <span
             data-testid="voice-txt-badge"
             title={t('voice.panel.textModeChip')}
-            className="absolute -top-1 -right-1 px-1 text-[8px] font-mono font-bold bg-[var(--bg-primary)] border border-cyan-800/60 text-cyan-400"
+            className="absolute -top-1.5 -right-1.5 px-1 text-[11px] font-mono font-bold bg-[var(--bg-primary)] border border-cyan-800/60 text-cyan-400"
           >
             TXT
           </span>

@@ -354,7 +354,7 @@
   "voice": {
     "label": "VOICE",
     "micAria": {
-      "opt-in-required": "Voice link disabled — operator opt-in required",
+      "opt-in-required": "Voice is off — click to set it up",
       "lean-unavailable": "Voice unavailable in mesh lean mode",
       "idle": "Voice console — hold V to talk or click to open",
       "connecting": "Connecting voice link",
@@ -375,14 +375,28 @@
       "costWorstCase": "rate table not recognized — billed at worst-case rates",
       "costIncomplete": "session torn down mid-response — no fabricated tokens"
     },
-    "composer": { "placeholder": "Try: fly to Kyiv · zoom in · what changed" },
+    "composer": { "placeholder": "Type a command, or hold V to talk" },
+    "tooltip": { "optInRequired": "Click to set up voice." },
+    "setup": {
+      "title": "Set up voice",
+      "explainer": "Voice runs on your machine and sends speech only to the provider you choose.",
+      "turnOn": "Turn on voice",
+      "providerLabel": "Choose a speech provider",
+      "providerOpenai": "OpenAI",
+      "providerGemini": "Gemini",
+      "providerCompat": "Local (Ollama)",
+      "apiKeyPlaceholder": "API key",
+      "baseUrlPlaceholder": "Base URL (optional)",
+      "saveCheck": "Save & check",
+      "done": "Voice is on — hold V and talk."
+    },
     "brief": { "now": "BRIEF NOW", "aria": "Request an immediate HUD brief" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "No brief yet — arm ambient briefs to start." },
     "arm": { "on": "AMBIENT ARMED", "off": "AMBIENT OFF", "aria": "Toggle ambient HUD briefs" },
     "freshness": { "fresh": "live", "stale": "aging", "offline": "stale", "unknown": "unknown" },
-    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED" },
+    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "FAILED", "faultLeadIn": "Voice hit a problem:" },
     "states": {
-      "optInRequired": "OPT-IN REQUIRED",
+      "optInRequired": "VOICE OFF",
       "leanMode": "LEAN MODE",
       "error": "FAULT",
       "quotaCapped": "$ CAP"

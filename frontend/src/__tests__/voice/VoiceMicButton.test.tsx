@@ -94,7 +94,7 @@ describe('VoiceMicButton render matrix', () => {
   });
 
   const CASES: Array<[VoicePhase, string | null]> = [
-    ['opt-in-required', 'OPT-IN REQUIRED'],
+    ['opt-in-required', 'VOICE OFF'],
     ['lean-unavailable', 'LEAN MODE'],
     ['idle', null],
     ['connecting', 'LINK…'],

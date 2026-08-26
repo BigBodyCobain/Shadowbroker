@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
 import { voiceSpeech } from '@/lib/voiceSpeech';
+import VoiceSetupCard from '@/components/VoiceSetupCard';
 import { useTranslation } from '@/i18n';
 import type { FreshnessDisposition } from '@/lib/voiceFreshness';
 
@@ -81,7 +82,7 @@ export default function VoiceHudPanel({
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-primary)]">
         <span className="text-[11px] text-violet-400 font-mono font-bold tracking-widest">{`>_ ${t('voice.panel.title')}`}</span>
         {state.modelLabel && (
-          <span className="px-1 py-[1px] text-[9px] font-mono bg-violet-500/20 border border-violet-500/40 text-violet-300 tracking-wider">
+          <span className="px-1 py-[1px] text-[11px] font-mono bg-violet-500/20 border border-violet-500/40 text-violet-300 tracking-wide">
             {state.modelLabel}
           </span>
         )}
@@ -91,7 +92,7 @@ export default function VoiceHudPanel({
           <span
             data-testid="voice-spend-chip"
             title={t('voice.panel.spendNote')}
-            className={`px-1 py-[1px] text-[9px] font-mono border whitespace-nowrap ${
+            className={`px-1 py-[1px] text-[11px] font-mono border whitespace-nowrap ${
               state.dailySpend.remainingUsd !== 'off' && typeof state.dailySpend.remainingUsd === 'number' && state.dailySpend.remainingUsd <= 0
                 ? 'bg-red-500/20 border-red-500/40 text-red-300'
                 : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-400'
@@ -104,7 +105,7 @@ export default function VoiceHudPanel({
           <span
             title={costTooltip}
             data-testid="voice-cost-chip"
-            className={`px-1 py-[1px] text-[9px] font-mono border ${
+            className={`px-1 py-[1px] text-[11px] font-mono border ${
               cost.level === 'cap'
                 ? 'bg-red-500/20 border-red-500/40 text-red-300'
                 : cost.level === 'warn'
@@ -120,8 +121,12 @@ export default function VoiceHudPanel({
         </button>
       </div>
 
-      {/* NARRATE block (U5) — SYS.ANALYSIS motif; the narrative never
-          outlives its provenance: the freshness strip rides beneath it. */}
+      {/* Disabled state → plain SETUP CARD (UX pass): while voice is off,
+          the NARRATE chrome yields to a first-run card that turns voice on
+          and saves the provider. Every other phase keeps NARRATE. */}
+      {state.phase === 'opt-in-required' ? (
+        <VoiceSetupCard />
+      ) : (
       <div className="px-3 pt-2" data-testid="voice-narrate-block">
         <div className="p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] font-mono">
           <div className="flex items-center gap-2 mb-1">
@@ -137,7 +142,7 @@ export default function VoiceHudPanel({
               title={t('voice.brief.aria')}
               disabled={briefDisabled}
               onClick={() => onRequestBrief?.()}
-              className={`px-1 py-[1px] text-[8px] font-mono tracking-wider border ${
+              className={`px-1 py-[1px] text-[11px] font-mono tracking-wide border ${
                 briefDisabled
                   ? 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)] cursor-not-allowed'
                   : 'bg-cyan-500/10 border-cyan-800/50 text-cyan-300 hover:border-cyan-500/60'
@@ -153,7 +158,7 @@ export default function VoiceHudPanel({
               aria-label={t('voice.arm.aria')}
               title={t('voice.arm.aria')}
               onClick={() => voiceController.setAmbientArmed(!state.ambientArmed)}
-              className={`px-1 py-[1px] text-[8px] font-mono tracking-wider border ${
+              className={`px-1 py-[1px] text-[11px] font-mono tracking-wide border ${
                 state.ambientArmed
                   ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
                   : 'bg-transparent border-[var(--border-primary)] text-[var(--text-muted)]'
@@ -168,8 +173,8 @@ export default function VoiceHudPanel({
               : t('voice.summary.empty')}
           </div>
           {state.narration?.error && (
-            <div className="mt-1 text-red-400 text-[10px]" data-testid="voice-narrate-error">
-              {state.narration.error}
+            <div className="mt-1 text-red-400 text-xs" data-testid="voice-narrate-error">
+              {t('voice.turn.faultLeadIn')} {state.narration.error}
             </div>
           )}
           {/* Freshness strip — mirrors status-bar feed dots so the narrative's
@@ -177,7 +182,7 @@ export default function VoiceHudPanel({
           {state.freshnessRows.length > 0 && (
             <div className="mt-2 pt-1 border-t border-cyan-900/40 flex flex-wrap gap-x-3 gap-y-[2px]" data-testid="voice-freshness-strip">
               {state.freshnessRows.map((row) => (
-                <span key={row.layer} className="text-[9px] text-[var(--text-muted)]" title={`${row.layer} — ${row.disposition}${row.age_s != null ? ` (${row.age_s}s)` : ''}`}>
+                <span key={row.layer} className="text-[11px] text-[var(--text-muted)]" title={`${row.layer} — ${row.disposition}${row.age_s != null ? ` (${row.age_s}s)` : ''}`}>
                   <span className={`feed-dot ${DISPOSITION_DOT[row.disposition]}`} aria-hidden="true" />
                   {row.layer} · {t(`voice.freshness.${row.disposition}`)}
                 </span>
@@ -186,9 +191,10 @@ export default function VoiceHudPanel({
           )}
         </div>
         {voiceSpeech.getState().mode === 'SYNTH' && (
-          <div className="mt-[2px] text-right text-[8px] font-mono text-[var(--text-muted)]">TTS SYNTH</div>
+          <div className="mt-[2px] text-right text-[11px] font-mono text-[var(--text-muted)]">TTS SYNTH</div>
         )}
       </div>
+      )}
 
       {/* Transcript */}
       <div
@@ -200,11 +206,11 @@ export default function VoiceHudPanel({
         data-testid="voice-transcript"
       >
         {state.turns.length === 0 && (
-          <div className="text-[10px] font-mono text-[var(--text-muted)]">{t('voice.composer.placeholder')}</div>
+          <div className="text-xs font-mono text-[var(--text-muted)]">{t('voice.composer.placeholder')}</div>
         )}
         {state.turns.map((turn) =>
           turn.kind === 'tool' && turn.tool ? (
-            <div key={turn.id} className="font-mono text-[10px]" data-testid="voice-tool-row">
+            <div key={turn.id} className="font-mono text-xs" data-testid="voice-tool-row">
               <span className="text-cyan-600">▸ </span>
               <span className="text-[var(--text-secondary)]">
                 {turn.tool.name}
@@ -220,11 +226,17 @@ export default function VoiceHudPanel({
               )}
             </div>
           ) : (
-            <div key={turn.id} className="font-mono text-[11px]">
+            <div key={turn.id} className="font-mono text-xs">
               <span className={turn.role === 'operator' ? 'text-cyan-400 font-bold' : 'text-violet-400 font-bold'}>
                 {turn.role === 'operator' ? t('voice.turn.you') : t('voice.turn.sys')}
               </span>{' '}
-              <span className="text-[var(--text-primary)] break-words">{turn.text}</span>
+              <span className="text-[var(--text-primary)] break-words">
+                {/* Human lead-in on FAULT turns; the reason itself stays verbatim. */}
+                {turn.role === 'agent' && turn.kind === 'text' && state.phase === 'error' && turn.text === state.lastFaultReason
+                  ? `${t('voice.turn.faultLeadIn')} `
+                  : ''}
+                {turn.text}
+              </span>
             </div>
           ),
         )}
@@ -233,12 +245,13 @@ export default function VoiceHudPanel({
       {/* Composer — always present; typed text drives the identical pipeline */}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-[var(--border-primary)]">
         {state.degraded && (
-          <span className="px-1 py-[1px] text-[8px] font-mono bg-cyan-500/10 border border-cyan-800/50 text-cyan-400 whitespace-nowrap" data-testid="voice-text-mode-chip">
+          <span className="px-1 py-[1px] text-[11px] font-mono bg-cyan-500/10 border border-cyan-800/50 text-cyan-400 whitespace-nowrap" data-testid="voice-text-mode-chip">
             {t('voice.panel.textModeChip')}
           </span>
         )}
         <input
           ref={inputRef}
+          data-testid="voice-composer"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {

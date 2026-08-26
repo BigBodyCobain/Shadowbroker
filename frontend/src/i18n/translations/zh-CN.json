@@ -354,7 +354,7 @@
   "voice": {
     "label": "语音",
     "micAria": {
-      "opt-in-required": "语音链路已停用 — 需要操作员确认启用",
+      "opt-in-required": "语音未开启 — 点击进行设置",
       "lean-unavailable": "精简模式下语音不可用",
       "idle": "语音控制台 — 按住 V 说话，或点击打开",
       "connecting": "正在连接语音链路",
@@ -375,14 +375,28 @@
       "costWorstCase": "费率表未识别 — 按最坏情况费率计费",
       "costIncomplete": "会话在响应中途被中断 — 未捏造令牌用量"
     },
-    "composer": { "placeholder": "试试：fly to Kyiv · zoom in · what changed" },
+    "composer": { "placeholder": "输入指令，或按住 V 讲话" },
+    "tooltip": { "optInRequired": "点击设置语音。" },
+    "setup": {
+      "title": "设置语音",
+      "explainer": "语音在你的电脑上运行，只把讲话内容发送给你选择的服务商。",
+      "turnOn": "开启语音",
+      "providerLabel": "选择语音服务商",
+      "providerOpenai": "OpenAI",
+      "providerGemini": "Gemini",
+      "providerCompat": "本地（Ollama）",
+      "apiKeyPlaceholder": "API 密钥",
+      "baseUrlPlaceholder": "接口地址（可选）",
+      "saveCheck": "保存并检测",
+      "done": "语音已开启——按住 V 说话。"
+    },
     "brief": { "now": "立即简报", "aria": "请求即时态势简报" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "暂无简报 — 开启环境简报以开始。" },
     "arm": { "on": "环境简报已就绪", "off": "环境简报关闭", "aria": "切换环境态势简报" },
     "freshness": { "fresh": "实时", "stale": "老化", "offline": "过期", "unknown": "未知" },
-    "turn": { "you": "操作员", "sys": "系统", "toolOk": "成功", "toolFail": "失败" },
+    "turn": { "you": "操作员", "sys": "系统", "toolOk": "成功", "toolFail": "失败", "faultLeadIn": "语音遇到问题：" },
     "states": {
-      "optInRequired": "需确认启用",
+      "optInRequired": "语音未开启",
       "leanMode": "精简模式",
       "error": "故障",
       "quotaCapped": "$ 上限"

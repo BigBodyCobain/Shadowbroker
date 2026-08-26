@@ -77,7 +77,9 @@ describe('VoiceHudPanel', () => {
   it('composer Enter routes through the same controller path (onSubmit)', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<VoiceHudPanel onSubmit={onSubmit} onClose={vi.fn()} />);
-    const input = screen.getByRole('textbox') as HTMLInputElement;
+    // The disabled-phase setup card adds its own inputs — target the
+    // composer by its stable test id, not by role.
+    const input = screen.getByTestId('voice-composer') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'fly to Kyiv' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSubmit).toHaveBeenCalledWith('fly to Kyiv');

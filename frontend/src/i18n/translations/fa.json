@@ -354,7 +354,7 @@
   "voice": {
     "label": "صدا",
     "micAria": {
-      "opt-in-required": "پیوند صوتی غیرفعال است — تأیید اپراتور لازم است",
+      "opt-in-required": "صدا خاموش است — برای راه‌اندازی کلیک کنید",
       "lean-unavailable": "صدا در حالت سبک در دسترس نیست",
       "idle": "کنسول صوتی — برای صحبت V را نگه دارید یا برای باز کردن کلیک کنید",
       "connecting": "در حال برقراری پیوند صوتی",
@@ -375,14 +375,28 @@
       "costWorstCase": "جدول نرخ‌ها شناسایی نشد — با بدترین نرخ‌ها محاسبه شد",
       "costIncomplete": "نشست میانه پاسخ قطع شد — هیچ توکنی جعل نشد"
     },
-    "composer": { "placeholder": "امتحان کنید: fly to Kyiv · zoom in · what changed" },
+    "composer": { "placeholder": "فرمان را تایپ کنید، یا V را نگه دارید و صحبت کنید" },
+    "tooltip": { "optInRequired": "برای راه‌اندازی صدا کلیک کنید." },
+    "setup": {
+      "title": "راه‌اندازی صدا",
+      "explainer": "صدا روی دستگاه شما اجرا می‌شود و گفتار فقط به سرویس‌دهنده‌ای فرستاده می‌شود که انتخاب می‌کنید.",
+      "turnOn": "روشن کردن صدا",
+      "providerLabel": "سرویس‌دهنده صدا را انتخاب کنید",
+      "providerOpenai": "OpenAI",
+      "providerGemini": "Gemini",
+      "providerCompat": "محلی (Ollama)",
+      "apiKeyPlaceholder": "کلید API",
+      "baseUrlPlaceholder": "نشانی پایه (اختیاری)",
+      "saveCheck": "ذخیره و بررسی",
+      "done": "صدا روشن است — V را نگه دارید و صحبت کنید."
+    },
     "brief": { "now": "همین حالا گزارش بده", "aria": "درخواست گزارش فوری وضعیت" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "هنوز گزارشی نیست — برای شروع، گزارش محیطی را فعال کنید." },
     "arm": { "on": "گزارش محیطی فعال", "off": "گزارش محیطی خاموش", "aria": "تغییر وضعیت گزارش‌های محیطی" },
     "freshness": { "fresh": "زنده", "stale": "کهنه", "offline": "منقضی", "unknown": "نامعلوم" },
-    "turn": { "you": "اپراتور", "sys": "سیستم", "toolOk": "موفق", "toolFail": "ناموفق" },
+    "turn": { "you": "اپراتور", "sys": "سیستم", "toolOk": "موفق", "toolFail": "ناموفق", "faultLeadIn": "صدا با مشکل روبه‌رو شد:" },
     "states": {
-      "optInRequired": "تأیید لازم است",
+      "optInRequired": "صدا خاموش است",
       "leanMode": "حالت سبک",
       "error": "خطا",
       "quotaCapped": "$ سقف"

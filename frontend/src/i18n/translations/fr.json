@@ -354,7 +354,7 @@
   "voice": {
     "label": "VOIX",
     "micAria": {
-      "opt-in-required": "Liaison vocale désactivée — activation de l'opérateur requise",
+      "opt-in-required": "La voix est désactivée — cliquez pour la configurer",
       "lean-unavailable": "Voix indisponible en mode allégé",
       "idle": "Console vocale — maintenez V pour parler ou cliquez pour ouvrir",
       "connecting": "Connexion de la liaison vocale",
@@ -375,14 +375,28 @@
       "costWorstCase": "barème de tarifs non reconnu — facturé aux pires tarifs",
       "costIncomplete": "session interrompue en pleine réponse — aucun jeton fabriqué"
     },
-    "composer": { "placeholder": "Essayez : fly to Kyiv · zoom in · what changed" },
+    "composer": { "placeholder": "Tapez une commande, ou maintenez V pour parler" },
+    "tooltip": { "optInRequired": "Cliquez pour configurer la voix." },
+    "setup": {
+      "title": "Configurer la voix",
+      "explainer": "La voix fonctionne sur votre machine et n'envoie la parole qu'au fournisseur que vous choisissez.",
+      "turnOn": "Activer la voix",
+      "providerLabel": "Choisissez un fournisseur vocal",
+      "providerOpenai": "OpenAI",
+      "providerGemini": "Gemini",
+      "providerCompat": "Local (Ollama)",
+      "apiKeyPlaceholder": "Clé API",
+      "baseUrlPlaceholder": "URL de base (facultatif)",
+      "saveCheck": "Enregistrer et vérifier",
+      "done": "La voix est activée — maintenez V et parlez."
+    },
     "brief": { "now": "BRIEF MAINTENANT", "aria": "Demander un brief HUD immédiat" },
     "summary": { "prefix": "SYS.NARRATIVE", "empty": "Aucun brief — armez les briefs ambiants pour commencer." },
     "arm": { "on": "BRIEFS AMBIANTS ARMÉS", "off": "BRIEFS AMBIANTS DÉSARMÉS", "aria": "Basculer les briefs HUD ambiants" },
     "freshness": { "fresh": "direct", "stale": "vieillissant", "offline": "périmé", "unknown": "inconnu" },
-    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "ÉCHEC" },
+    "turn": { "you": "OP", "sys": "SYS", "toolOk": "OK", "toolFail": "ÉCHEC", "faultLeadIn": "La voix a rencontré un problème :" },
     "states": {
-      "optInRequired": "ACTIVATION REQUISE",
+      "optInRequired": "VOIX DÉSACTIVÉE",
       "leanMode": "MODE ALLÉGÉ",
       "error": "DÉFAILLANCE",
       "quotaCapped": "$ PLAFOND"
