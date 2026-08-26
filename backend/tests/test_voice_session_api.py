@@ -286,6 +286,73 @@ class TestTokenTtlAndSessionBinding:
 
 
 # ---------------------------------------------------------------------------
+# Upstream dial URL — regression pin (U8 judge): the shared
+# ``/realtime?model=`` suffix must survive on BOTH non-Gemini branches;
+# 1fb3ecf silently dropped it and no relay test inspected the dialed URL.
+# ---------------------------------------------------------------------------
+
+
+class TestUpstreamDialUrl:
+    def test_openai_realtime_dial_carries_realtime_path_and_model(self, voice_env):
+        from services.voice_broker import _ws_url_for
+
+        url, headers = _ws_url_for(
+            {
+                "resolved": "openai_realtime",
+                "openaiBase": "https://api.openai.test",
+                "openaiKey": "o-key",
+            },
+            "gpt-realtime",
+        )
+        assert url == "wss://api.openai.test/v1/realtime?model=gpt-realtime"
+        assert headers["Authorization"] == "Bearer o-key"
+        assert headers["OpenAI-Beta"] == "realtime=v1"
+
+    def test_openai_base_already_ending_in_v1_is_not_suffixed_twice(self, voice_env):
+        from services.voice_broker import _ws_url_for
+
+        url, _headers = _ws_url_for(
+            {
+                "resolved": "openai_realtime",
+                "openaiBase": "https://api.openai.com/v1",
+                "openaiKey": "o-key",
+            },
+            "m",
+        )
+        assert url == "wss://api.openai.com/v1/realtime?model=m"
+
+    def test_compatible_ws_dial_carries_realtime_path_and_model(self, voice_env):
+        from services.voice_broker import _ws_url_for
+
+        url, headers = _ws_url_for(
+            {
+                "resolved": "compatible_ws",
+                "compatBase": "https://gw.example.com/v1",
+                "compatKey": "",
+            },
+            "compat-model-x",
+        )
+        assert url == "wss://gw.example.com/v1/realtime?model=compat-model-x"
+        assert headers == {}
+
+    def test_gemini_branch_keeps_bidi_setup_url_without_realtime_suffix(self, voice_env):
+        from services.voice_broker import _ws_url_for
+
+        url, headers = _ws_url_for(
+            {
+                "resolved": "gemini_live",
+                "geminiBase": "wss://generativelanguage.googleapis.com/ws",
+                "geminiKey": "g-key",
+                "geminiModel": "gemini-2.0-flash-live-001",
+            },
+            "ignored",
+        )
+        assert "BidiSetup" in url
+        assert "/realtime?" not in url
+        assert headers == {}
+
+
+# ---------------------------------------------------------------------------
 # Item 23 — metering tap, warn/cap push, broker-side cap enforcement
 # ---------------------------------------------------------------------------
 

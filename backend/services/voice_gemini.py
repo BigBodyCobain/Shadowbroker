@@ -51,7 +51,9 @@ def gemini_model(settings: Any = None) -> str:
 
 def gemini_ws_url(base: str, api_key: str, model: str) -> str:
     """Build the BidiSetup dial URL. Key travels in the query per Google's
-    browser-less WS contract; never logged (caller owns redaction)."""
+    browser-less WS contract (never logged — caller owns redaction); the
+    model is mirrored in the query for drift tolerance AND authored into the
+    server-side setup message, which stays authoritative."""
     base = str(base or GEMINI_DEFAULT_BASE).rstrip("/")
     if "/ws" not in base:
         base = f"{base}/ws"
@@ -158,18 +160,18 @@ def gemini_event_to_client(event: dict[str, Any]) -> tuple[str, Any]:
     Returns ``(kind, payload)`` where kind is:
       ``audio``  — payload is RAW PCM16 LE bytes (24 kHz) → send as binary
       ``text``   — payload is an OpenAI-style JSON frame → forward verbatim
-      ``usage``  — payload is a usage dict → metering tap
       ``none``   — nothing to forward
+
+    Content translates FIRST: Gemini commonly attaches ``usageMetadata`` to
+    ordinary content messages (e.g. turnComplete), so an exclusive usage
+    branch would drop the response.done and strand the client in 'speaking'.
+    The relay meters directly from the raw event's usageMetadata instead.
     """
     if not isinstance(event, dict):
         return ("none", None)
 
     if "setupComplete" in event:
         return ("text", {"type": "ready"})
-
-    usage = event.get("usageMetadata")
-    if isinstance(usage, dict) and usage:
-        return ("usage", usage)
 
     server = event.get("serverContent")
     if isinstance(server, dict):

@@ -539,9 +539,11 @@ def _ws_url_for(provider_info: dict[str, Any], model_id: str) -> tuple[str, dict
         if not url.endswith("/v1"):
             url = f"{url}/v1"
         headers = {"Authorization": f"Bearer {provider_info['openaiKey']}", "OpenAI-Beta": "realtime=v1"}
+        url = f"{url}/realtime?model={model_id}"
     elif provider_info["resolved"] == "gemini_live":
         # Gemini carries its key in the query (Google's browser-less WS
-        # contract); model rides the setup message, not the URL.
+        # contract); the model is mirrored in the query AND authored into the
+        # server-side setup message (drift tolerance).
         from services.voice_gemini import gemini_ws_url
 
         url = gemini_ws_url(provider_info["geminiBase"], provider_info["geminiKey"], provider_info["geminiModel"])
@@ -552,6 +554,7 @@ def _ws_url_for(provider_info: dict[str, Any], model_id: str) -> tuple[str, dict
         headers = {}
         if provider_info["compatKey"]:
             headers["Authorization"] = f"Bearer {provider_info['compatKey']}"
+        url = f"{url}/realtime?model={model_id}"
     return url, headers
 
 
@@ -761,7 +764,13 @@ async def pump_client_to_upstream(
                     client_ws,
                     {"type": "error", "code": "patch_rejected", "keys": sorted(rejected)},
                 )
-            if state.upstream is not None and accepted:
+            if (
+                state.upstream is not None
+                and accepted
+                # build_session_config is OpenAI-style wire JSON — a protocol
+                # error on a Gemini socket, whose setup is server-authored.
+                and state.session.provider != "gemini_live"
+            ):
                 try:
                     await state.upstream.send(json.dumps(build_session_config(state.session)))
                 except Exception:
@@ -836,8 +845,14 @@ async def pump_upstream_to_client(client_ws: Any, state: _RelayState) -> str:
                     await client_ws.send_text(json.dumps(payload))
                 except Exception:
                     return "upstream_closed"
-            elif kind == "usage":
-                prompt, completion = gemini_usage_to_tokens(payload)
+            # Metering rides the RAW event, not an exclusive translation
+            # branch: Gemini commonly attaches usageMetadata to ordinary
+            # content messages (e.g. turnComplete), so translating usage
+            # first would drop the response.done and strand the client in
+            # 'speaking'. Forward content, then bill.
+            usage = event.get("usageMetadata")
+            if isinstance(usage, dict) and usage:
+                prompt, completion = gemini_usage_to_tokens(usage)
                 await state.meter_response_done(
                     client_ws, {"prompt_tokens": prompt, "completion_tokens": completion}
                 )

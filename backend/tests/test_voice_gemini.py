@@ -143,16 +143,28 @@ class TestGeminiEventTranslation:
         assert payload["name"] == "map_fly_to"
         assert payload["args"] == {"lat": 1.0}
 
-    def test_usage_metadata_routes_to_metering(self):
-        from services.voice_gemini import gemini_event_to_client
+    def test_usage_metadata_does_not_drop_translated_content(self):
+        """Gemini attaches usageMetadata to ordinary content messages (e.g.
+        turnComplete). Content must translate FIRST — an exclusive usage
+        branch dropped the response.done and stranded the client 'speaking';
+        the relay meters from the raw event instead."""
+        from services.voice_gemini import gemini_event_to_client, gemini_usage_to_tokens
 
-        kind, payload = gemini_event_to_client(
-            {"usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5}}
-        )
-        assert kind == "usage"
-        from services.voice_gemini import gemini_usage_to_tokens
+        event = {
+            "serverContent": {"turnComplete": True},
+            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5},
+        }
+        assert gemini_event_to_client(event) == ("text", {"type": "response.done"})
+        assert gemini_usage_to_tokens(event["usageMetadata"]) == (10, 5)
 
-        assert gemini_usage_to_tokens(payload) == (10, 5)
+    def test_usage_only_event_still_yields_metering_shape_via_relay_path(self):
+        """Usage-only events carry no content; the relay meters straight off
+        ``event['usageMetadata']`` — no dedicated translation branch needed."""
+        from services.voice_gemini import gemini_event_to_client, gemini_usage_to_tokens
+
+        event = {"usageMetadata": {"promptTokenCount": 7, "responseTokenCount": 3}}
+        assert gemini_event_to_client(event) == ("none", None)
+        assert gemini_usage_to_tokens(event["usageMetadata"]) == (7, 3)
 
     def test_hostile_events_degrade_to_none(self):
         from services.voice_gemini import gemini_event_to_client

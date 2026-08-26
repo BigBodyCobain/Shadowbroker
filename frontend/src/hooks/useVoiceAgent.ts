@@ -40,8 +40,8 @@ export interface UseVoiceAgentResult {
 const STATUS_POLL_MS = 60000;
 
 /** Providers that speak the §4.3 realtime wire protocol (binary PCM16 relay). */
-function isRealtimeProvider(resolved: string | null | undefined): boolean {
-  return resolved === 'openai_realtime' || resolved === 'compatible_ws';
+export function isRealtimeProvider(resolved: string | null | undefined): boolean {
+  return resolved === 'openai_realtime' || resolved === 'compatible_ws' || resolved === 'gemini_live';
 }
 
 /** Broker cost snapshot → controller applyCost shape (defensive mapping). */
