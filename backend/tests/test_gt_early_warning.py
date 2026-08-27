@@ -88,6 +88,23 @@ def test_heatmap_returns_geojson_features(engine: GT_EarlyWarning) -> None:
     assert feature["geometry"]["type"] == "Point"
 
 
+def test_heatmap_keeps_geolocated_items_without_costly_signal(engine: GT_EarlyWarning) -> None:
+    """Coordinates must survive even when the item only contributes baseline risk."""
+    engine.process_feed_item(
+        {
+            "id": "geo-baseline-1",
+            "text": "Routine regional update.",
+            "source": "news",
+            "region": "lisbon",
+            "coords": [38.72, -9.14],
+        }
+    )
+
+    features = engine.get_risk_heatmap()["features"]
+    assert features
+    assert features[0]["geometry"]["coordinates"] == [-9.14, 38.72]
+
+
 def test_dossier_includes_recent_signals(engine: GT_EarlyWarning) -> None:
     engine.process_feed_item(
         {

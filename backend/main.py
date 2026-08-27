@@ -2760,13 +2760,15 @@ async def lifespan(app: FastAPI):
         # in _scheduler_loop, so we do NOT call it again in the preload thread.
         start_carrier_tracker()
 
-        # Start SIGINT grid eagerly â€” APRS-IS TCP + Meshtastic MQTT connections
-        # take a few seconds to handshake and start receiving packets. By starting
-        # now, the bridges are already accumulating signals by the time the first
-        # fetch_sigint() reads them during the preload cycle.
-        from services.sigint_bridge import sigint_grid
+        # Route startup through the bounded production APRS bridge. The old
+        # SIGINTGrid.start() also opened an unbounded public APRS-IS feed.
+        from services.fetchers._store import is_any_active
+        from services.fetchers.sigint import _reconcile_sigint_bridges
 
-        sigint_grid.start()
+        _reconcile_sigint_bridges(
+            aprs_requested=is_any_active("sigint_aprs"),
+            mesh_requested=is_any_active("sigint_meshtastic"),
+        )
 
     # Start Reticulum bridge (optional)
     try:
@@ -2898,7 +2900,11 @@ async def lifespan(app: FastAPI):
         stop_scheduler()
         stop_carrier_tracker()
         try:
+            from services.aprs_is_bridge import aprs_is_bridge
+            from services.sigint_bridge import sigint_grid
+
             sigint_grid.stop()
+            aprs_is_bridge.stop()
         except Exception:
             pass
     if not _MESH_ONLY:
@@ -4028,6 +4034,7 @@ async def update_layers(update: LayerUpdate, request: Request):
 
     # Start/stop SIGINT bridges on transition
     from services.sigint_bridge import sigint_grid
+    from services.aprs_is_bridge import aprs_is_bridge
 
     if old_mesh and not new_mesh:
         try:
@@ -4058,15 +4065,20 @@ async def update_layers(update: LayerUpdate, request: Request):
             )
 
     if old_aprs and not new_aprs:
-        sigint_grid.aprs.stop()
-        logger.info("APRS bridge stopped (layer disabled)")
+        aprs_is_bridge.reconcile(False)
+        logger.info("Bounded APRS-IS bridge stopped (layer disabled)")
     elif not old_aprs and new_aprs:
-        sigint_grid.aprs.start()
-        logger.info("APRS bridge started (layer enabled)")
+        aprs_is_bridge.reconcile(True)
+        logger.info("Bounded APRS-IS bridge reconciled (layer enabled)")
 
     if not old_viirs and new_viirs:
         _queue_viirs_change_refresh()
         logger.info("VIIRS change refresh queued (layer enabled)")
+
+    if old_mesh != new_mesh or old_aprs != new_aprs:
+        from services.fetchers.sigint import fetch_sigint
+
+        threading.Thread(target=fetch_sigint, daemon=True, name="sigint-layer-refresh").start()
 
     refresh_newly_enabled_layers(layers_before)
 

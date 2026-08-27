@@ -18,6 +18,7 @@ import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import ShodanPanel from '@/components/ShodanPanel';
 import ReconPanel from '@/components/ReconPanel';
 import ScmPanel from '@/components/ScmPanel';
+import CyberThreatPanel from '@/components/CyberThreatPanel';
 import EntityGraphPanel from '@/components/EntityGraphPanel';
 import { isEntityGraphEligible } from '@/lib/entityGraph';
 import AIIntelPanel from '@/components/AIIntelPanel';
@@ -700,6 +701,7 @@ export default function Dashboard() {
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <ReconPanel />
                   <ScmPanel layerEnabled={activeLayers.scm_suppliers} />
+                  <CyberThreatPanel layerEnabled={activeLayers.cyber_threats} />
                 </div>
               )}
 

@@ -88,6 +88,19 @@ describe('MaplibreViewer behavior — CCTV proxy wiring', () => {
   });
 });
 
+describe('MaplibreViewer behavior — Telegram visibility fallback', () => {
+  const viewer = fs.readFileSync(path.join(COMP_DIR, 'MaplibreViewer.tsx'), 'utf-8');
+
+  it('keeps a visible MapLibre fallback while HTML pins are temporarily hidden', () => {
+    const telegramSection = viewer.slice(
+      viewer.indexOf('<Source id="telegram-osint-source"'),
+      viewer.indexOf('</Source>', viewer.indexOf('<Source id="telegram-osint-source"')) + '</Source>'.length,
+    );
+    expect(telegramSection).toContain('minzoom={2}');
+    expect(telegramSection).toContain("'circle-opacity': 0.65");
+  });
+});
+
 // ─── Popup subscription isolation ─────────────────────────────────────────
 
 describe('MaplibreViewer behavior — popup components have no keyed subscriptions', () => {
