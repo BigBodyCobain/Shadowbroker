@@ -1,5 +1,7 @@
+import asyncio
 import json
 
+from routers import sar as sar_router
 from services import qazlake_shadow_feed as feed
 
 
@@ -423,3 +425,80 @@ def test_weather_alert_projection_preserves_shape_and_filters_expired() -> None:
     assert current["event"] == "Special Weather Statement"
     assert current["expires"] == "2099-08-28T12:00:00Z"
     assert current["geometry"]["type"] == "Polygon"
+
+
+def test_sar_projection_preserves_legacy_shape_with_exact_public_geometry() -> None:
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[[76.0, 43.0], [77.4, 43.2], [77.0, 44.1], [76.0, 43.0]]],
+    }
+    item = feed._public_item(
+        {
+            "external_id": "S1C_EXAMPLE",
+            "entity_id": "sar_scene:S1C_EXAMPLE",
+            "provider_id": "asf-daac",
+            "source_id": "asf-sentinel1-metadata",
+            "geometry": geometry,
+            "observed_at": "2026-08-28T02:08:49Z",
+            "properties": {
+                "layer_family": "visual_reference",
+                "layer_key": "sar_scenes",
+                "aoi_id": "public-kz-canary",
+                "platform": "Sentinel-1C",
+                "beam_mode": "IW",
+                "processing_level": "SLC",
+                "relative_orbit": 166,
+                "flight_direction": "DESCENDING",
+                "polarization": "VV+VH",
+                "acquisition_start_at": "2026-08-28T02:08:49Z",
+                "acquisition_stop_at": "2026-08-28T02:09:17Z",
+                "download_url": "https://internal.invalid/product.zip",
+                "raw_provider_id": "private-id",
+            },
+        }
+    )
+
+    assert item["scene_id"] == "S1C_EXAMPLE"
+    assert item["mode"] == "IW"
+    assert item["level"] == "SLC"
+    assert item["time"] == "2026-08-28T02:08:49Z"
+    assert item["geometry"] == geometry
+    assert item["bbox"] == [76.0, 43.0, 77.4, 44.1]
+    assert item["download_url"] == ""
+    assert item["provider"] == "QazLake"
+    assert {"provider_id", "source_id", "raw_provider_id"}.isdisjoint(item)
+
+
+def test_visual_reference_family_includes_sar_scene_cutover() -> None:
+    assert feed.DEFAULT_FAMILY_LAYER_KEYS["visual_reference"] == (
+        "cctv",
+        "sar_scenes",
+    )
+
+
+def test_sar_route_uses_projected_catalog_and_exposes_stale_state(monkeypatch) -> None:
+    monkeypatch.setattr(
+        sar_router,
+        "get_latest_data_subset_refs",
+        lambda *_: {"sar_scenes": [{"scene_id": "local", "aoi_id": "other"}]},
+    )
+    monkeypatch.setattr(
+        sar_router,
+        "apply_layer_source_modes",
+        lambda payload, endpoint: {
+            "sar_scenes": [
+                {"scene_id": "lake-1", "aoi_id": "public-kz-canary"},
+                {"scene_id": "lake-2", "aoi_id": "other"},
+            ],
+            "qazpipe_state": {"status": "stale"},
+        },
+    )
+    monkeypatch.setattr(sar_router, "catalog_enabled", lambda: False)
+
+    response = asyncio.run(
+        sar_router.sar_scenes.__wrapped__(None, "public-kz-canary", 200)
+    )
+
+    assert response["scenes"] == [{"scene_id": "lake-1", "aoi_id": "public-kz-canary"}]
+    assert response["count"] == 1
+    assert response["qazpipe_state"] == {"status": "stale"}

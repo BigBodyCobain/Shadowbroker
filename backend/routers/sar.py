@@ -16,12 +16,12 @@ so the frontend can render in-app links to the free signup pages instead of
 making the user hunt around.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
-
 from auth import require_local_operator
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from limiter import limiter
+from pydantic import BaseModel, Field
 from services.fetchers._store import get_latest_data_subset_refs
+from services.qazlake_shadow_feed import apply_layer_source_modes
 from services.sar.sar_aoi import (
     SarAoi,
     add_aoi,
@@ -110,17 +110,23 @@ async def sar_scenes(
 ) -> dict:
     """Return the latest cached scene catalog (Mode A)."""
     snap = get_latest_data_subset_refs("sar_scenes")
-    items = list(snap.get("sar_scenes") or [])
+    projected = apply_layer_source_modes(
+        {"sar_scenes": list(snap.get("sar_scenes") or [])}, endpoint="sar-scenes"
+    )
+    items = list(projected.get("sar_scenes") or [])
     if aoi_id:
         aoi_id = aoi_id.strip().lower()
         items = [s for s in items if (s.get("aoi_id") or "").lower() == aoi_id]
     items = items[:limit]
-    return {
+    response = {
         "ok": True,
         "count": len(items),
         "scenes": items,
         "catalog_enabled": catalog_enabled(),
     }
+    if isinstance(projected.get("qazpipe_state"), dict):
+        response["qazpipe_state"] = projected["qazpipe_state"]
+    return response
 
 
 @router.get("/api/sar/coverage")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -21,6 +22,22 @@ UTC = timezone.utc
 
 SCHEMA_VERSION = "qazlake.shadow-observations-feed/v1"
 VALID_MODES = frozenset({"local", "compare", "qazpipe"})
+FORBIDDEN_PUBLIC_PROPERTY_KEYS = frozenset(
+    {
+        "provider_id",
+        "source_id",
+        "collection_receipt_id",
+        "payload_hash_sha256",
+        "raw_payload",
+        "raw_provider_id",
+        "source_url",
+        "download_url",
+        "url",
+        "s3Urls",
+        "topology",
+        "credentials",
+    }
+)
 DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "aviation_public": ("commercial_flights", "military_flights"),
     "orbital_public": (
@@ -35,7 +52,7 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "network_observability": ("internet_outages",),
     "events_media": ("gdelt", "news", "telegram_osint"),
     "radio_public": ("kiwisdr", "psk_reporter"),
-    "visual_reference": ("cctv",),
+    "visual_reference": ("cctv", "sar_scenes"),
     "cyber_public": ("cyber_threats",),
 }
 _lock = threading.RLock()
@@ -255,7 +272,11 @@ def stop_shadow_feed_sync() -> None:
 
 
 def _public_item(item: dict[str, Any]) -> dict[str, Any]:
-    properties = dict(item.get("properties") or {})
+    properties = {
+        key: value
+        for key, value in dict(item.get("properties") or {}).items()
+        if key not in FORBIDDEN_PUBLIC_PROPERTY_KEYS
+    }
     entity_id = str(item.get("entity_id") or "")
     result = {"id": entity_id, "entity_id": entity_id, **properties}
     if item.get("latitude") is not None:
@@ -323,7 +344,54 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
             result["id"] = properties["alert_id"]
         if properties.get("expires_at") is not None:
             result["expires"] = properties["expires_at"]
+    elif layer_key == "sar_scenes":
+        scene_id = str(item.get("external_id") or entity_id.removeprefix("sar_scene:"))
+        result["scene_id"] = scene_id
+        result["mode"] = properties.get("beam_mode") or ""
+        result["level"] = properties.get("processing_level") or ""
+        result["time"] = properties.get("acquisition_start_at") or item.get(
+            "observed_at"
+        )
+        result["bbox"] = _geometry_bbox(item.get("geometry")) or []
+        # Keep the legacy public shape without reintroducing product downloads
+        # or provider-specific identifiers into the QazLake projection.
+        result["download_url"] = ""
+        result["provider"] = "QazLake"
     return result
+
+
+def _geometry_bbox(value: object) -> list[float] | None:
+    if not isinstance(value, dict) or not isinstance(value.get("coordinates"), list):
+        return None
+    points: list[tuple[float, float]] = []
+
+    def visit(coordinates: object) -> None:
+        if not isinstance(coordinates, list):
+            return
+        if len(coordinates) >= 2 and all(
+            isinstance(coordinates[index], (int, float))
+            and not isinstance(coordinates[index], bool)
+            for index in (0, 1)
+        ):
+            longitude = float(coordinates[0])
+            latitude = float(coordinates[1])
+            if (
+                math.isfinite(longitude)
+                and math.isfinite(latitude)
+                and -180 <= longitude <= 180
+                and -90 <= latitude <= 90
+            ):
+                points.append((longitude, latitude))
+            return
+        for child in coordinates:
+            visit(child)
+
+    visit(value["coordinates"])
+    if not points:
+        return None
+    longitudes = [point[0] for point in points]
+    latitudes = [point[1] for point in points]
+    return [min(longitudes), min(latitudes), max(longitudes), max(latitudes)]
 
 
 def _latest_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -356,7 +424,10 @@ def _public_layer_value(layer_key: str, items: list[dict[str, Any]]) -> Any:
             if added >= cutoff:
                 recent.append(item)
         recent.sort(
-            key=lambda item: (str(item.get("date_added") or ""), str(item.get("id") or "")),
+            key=lambda item: (
+                str(item.get("date_added") or ""),
+                str(item.get("id") or ""),
+            ),
             reverse=True,
         )
         recent = recent[:10]
@@ -476,8 +547,12 @@ def _comparison_rows(layer_key: str, value: Any) -> list[dict[str, Any]]:
         normalized["id"] = layer_key
         return [normalized]
     if layer_key == "cyber_threats":
-        projected = _public_layer_value(layer_key, value) if isinstance(value, list) else value
-        if not isinstance(projected, dict) or not isinstance(projected.get("threats"), list):
+        projected = (
+            _public_layer_value(layer_key, value) if isinstance(value, list) else value
+        )
+        if not isinstance(projected, dict) or not isinstance(
+            projected.get("threats"), list
+        ):
             return []
         return [item for item in projected["threats"] if isinstance(item, dict)]
     if isinstance(value, list):
