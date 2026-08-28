@@ -205,3 +205,84 @@ def test_public_projection_preserves_air_quality_shape() -> None:
     assert item["country"] == "KZ"
     assert item["pm25"] == 18.4
     assert item["aqi"] == 63
+
+
+def test_public_projection_preserves_space_weather_singleton_shape() -> None:
+    older = feed._public_item(
+        {
+            "entity_id": "space_weather",
+            "properties": {
+                "layer_family": "weather_environment",
+                "layer_key": "space_weather",
+                "category": "quiet",
+                "kp_index": 2.0,
+            },
+            "observed_at": "2026-08-28T06:00:00Z",
+        }
+    )
+    latest = feed._public_item(
+        {
+            "entity_id": "space_weather",
+            "properties": {
+                "layer_family": "weather_environment",
+                "layer_key": "space_weather",
+                "category": "g1_minor",
+                "kp_index": 5.0,
+            },
+            "observed_at": "2026-08-28T09:00:00Z",
+        }
+    )
+
+    projected = feed._public_layer_value("space_weather", [older, latest])
+
+    assert projected["kp_index"] == 5.0
+    assert projected["kp_text"] == "STORM G1"
+    assert projected["events"] == []
+    assert isinstance(projected, dict)
+
+
+def test_space_weather_compare_uses_stable_singleton_identity(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"weather_environment": "compare"})
+    )
+    monkeypatch.setenv(
+        "SHADOW_LAYER_FAMILY_KEYS",
+        json.dumps({"weather_environment": ["space_weather"]}),
+    )
+    monkeypatch.setenv(
+        "SHADOW_COMPARE_FAMILY_KINDS",
+        json.dumps({"weather_environment": "deterministic"}),
+    )
+    monkeypatch.setenv(
+        "SHADOW_QAZPIPE_COMPARE_RECEIPT_PATH", str(tmp_path / "receipt.jsonl")
+    )
+    candidate = {
+        "id": "space_weather",
+        "kp_index": 5.0,
+        "observed_at": "2026-08-28T09:00:00Z",
+    }
+    monkeypatch.setattr(
+        feed,
+        "_items_by_family",
+        lambda: {"weather_environment": {"space_weather": [candidate]}},
+    )
+    with feed._lock:
+        feed._state.update(
+            {
+                "entities": {"space_weather": {}},
+                "stale": False,
+                "watermark": {"cursor": 9},
+            }
+        )
+    local = {"kp_index": 5.0, "observed_at": "2026-08-28T09:00:00Z"}
+
+    payload = feed.apply_layer_source_modes({"space_weather": local}, endpoint="fast")
+
+    assert payload == {"space_weather": local}
+    receipt = json.loads((tmp_path / "receipt.jsonl").read_text().strip())
+    assert receipt["canonical_ids_exact"] is True
+    assert receipt["local_count"] == 1
+    assert receipt["qazlake_count"] == 1
+    assert receipt["accepted"] is True

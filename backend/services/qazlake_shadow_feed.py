@@ -281,7 +281,41 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
             result["name"] = properties["name"]
         if properties.get("country_code") is not None:
             result["country"] = properties["country_code"]
+    elif layer_key == "space_weather":
+        if properties.get("kp_index") is not None:
+            result["kp_index"] = properties["kp_index"]
+        category = str(properties.get("category") or "").lower()
+        if category.startswith("g"):
+            result["kp_text"] = f"STORM {category.split('_', 1)[0].upper()}"
+        elif category == "active":
+            result["kp_text"] = "ACTIVE"
+        elif properties.get("kp_index") is not None and properties["kp_index"] >= 3:
+            result["kp_text"] = "UNSETTLED"
+        else:
+            result["kp_text"] = "QUIET"
+        result["events"] = []
     return result
+
+
+def _latest_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    def observed_at(item: dict[str, Any]) -> datetime:
+        raw = str(item.get("observed_at") or "").replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return datetime.min.replace(tzinfo=UTC)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+
+    return max(items, key=observed_at) if items else None
+
+
+def _public_layer_value(layer_key: str, items: list[dict[str, Any]]) -> Any:
+    """Keep public singleton layers shape-compatible after QazLake cutover."""
+    if layer_key == "space_weather":
+        return _latest_item(items)
+    return items
 
 
 def _items_by_family() -> dict[str, dict[str, list[dict[str, Any]]]]:
@@ -327,6 +361,22 @@ def _canonical_ids(items: Any) -> set[str]:
         if identity is not None:
             ids.add(str(identity))
     return ids
+
+
+def _comparison_rows(layer_key: str, value: Any) -> list[dict[str, Any]]:
+    """Normalize public singleton and collection shapes for comparison only."""
+    if layer_key == "space_weather":
+        item = _latest_item(value) if isinstance(value, list) else value
+        if not isinstance(item, dict):
+            return []
+        normalized = dict(item)
+        # The legacy singleton has no public ID. Its layer identity is stable
+        # and must compare with the QazLake current-entity projection.
+        normalized["id"] = layer_key
+        return [normalized]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return []
 
 
 def _json_mapping(name: str) -> dict[str, Any]:
@@ -379,10 +429,12 @@ def _write_compare_receipt(
     family: str,
     layer_key: str,
     local: Any,
-    candidate: list[dict[str, Any]],
+    candidate: Any,
 ) -> None:
-    local_ids = _canonical_ids(local)
-    candidate_ids = _canonical_ids(candidate)
+    local_rows = _comparison_rows(layer_key, local)
+    candidate_rows = _comparison_rows(layer_key, candidate)
+    local_ids = _canonical_ids(local_rows)
+    candidate_ids = _canonical_ids(candidate_rows)
     union = local_ids | candidate_ids
     overlap = len(local_ids & candidate_ids) / len(union) if union else 1.0
     comparison_kinds = _json_mapping("SHADOW_COMPARE_FAMILY_KINDS")
@@ -395,16 +447,16 @@ def _write_compare_receipt(
         for field in required_config.get(family, [])
         if isinstance(field, str) and field
     ]
-    local_null_rate = _required_null_rate(local, required_fields)
-    candidate_null_rate = _required_null_rate(candidate, required_fields)
+    local_null_rate = _required_null_rate(local_rows, required_fields)
+    candidate_null_rate = _required_null_rate(candidate_rows, required_fields)
     null_rate_delta = candidate_null_rate - local_null_rate
     cadence_config = _json_mapping("SHADOW_COMPARE_CADENCE_SECONDS")
     try:
         cadence_seconds = max(0, int(cadence_config.get(family, 0)))
     except (TypeError, ValueError):
         cadence_seconds = 0
-    local_latest = _latest_observed_at(local)
-    candidate_latest = _latest_observed_at(candidate)
+    local_latest = _latest_observed_at(local_rows)
+    candidate_latest = _latest_observed_at(candidate_rows)
     freshness_lag_seconds = None
     freshness_ok = True
     if local_latest is not None:
@@ -416,7 +468,9 @@ def _write_compare_receipt(
         freshness_ok = (
             candidate_latest is not None and freshness_lag_seconds <= cadence_seconds
         )
-    deterministic_ok = local_ids == candidate_ids and len(local or []) == len(candidate)
+    deterministic_ok = local_ids == candidate_ids and len(local_rows) == len(
+        candidate_rows
+    )
     identity_ok = (
         deterministic_ok if comparison_kind == "deterministic" else overlap >= 0.90
     )
@@ -441,10 +495,8 @@ def _write_compare_receipt(
         "layer_family": family,
         "layer_key": layer_key,
         "comparison_kind": comparison_kind,
-        "local_count": len(local)
-        if isinstance(local, list)
-        else int(local is not None),
-        "qazlake_count": len(candidate),
+        "local_count": len(local_rows),
+        "qazlake_count": len(candidate_rows),
         "id_overlap": overlap,
         "canonical_ids_exact": local_ids == candidate_ids,
         "required_fields": required_fields,
@@ -530,7 +582,7 @@ def apply_layer_source_modes(
             elif mode == "qazpipe":
                 # Fail visibly: an unavailable feed projects an empty layer and
                 # explicit stale state; it never falls back to the local collector.
-                payload[layer_key] = candidate
+                payload[layer_key] = _public_layer_value(layer_key, candidate)
     if "qazpipe" in modes.values():
         status = shadow_feed_status()
         payload["qazpipe_state"] = {
