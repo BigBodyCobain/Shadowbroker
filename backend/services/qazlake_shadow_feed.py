@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -36,6 +36,7 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "events_media": ("gdelt", "news", "telegram_osint"),
     "radio_public": ("kiwisdr", "psk_reporter"),
     "visual_reference": ("cctv",),
+    "cyber_public": ("cyber_threats",),
 }
 _lock = threading.RLock()
 _receipt_lock = threading.Lock()
@@ -310,6 +311,13 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
             result["end"] = properties["ended_at"]
         if properties.get("frequency_hz") is not None:
             result["frequency"] = properties["frequency_hz"]
+    elif layer_key == "cyber_threats":
+        if properties.get("cve_id") is not None:
+            result["id"] = properties["cve_id"]
+        if properties.get("date_added") is not None:
+            result["date"] = properties["date_added"]
+        if properties.get("due_date") is not None:
+            result["due"] = properties["due_date"]
     return result
 
 
@@ -331,6 +339,61 @@ def _public_layer_value(layer_key: str, items: list[dict[str, Any]]) -> Any:
     """Keep public singleton layers shape-compatible after QazLake cutover."""
     if layer_key == "space_weather":
         return _latest_item(items)
+    if layer_key == "cyber_threats":
+        cutoff = datetime.now(UTC) - timedelta(days=30)
+        recent: list[dict[str, Any]] = []
+        for item in items:
+            raw_date = item.get("date_added") or item.get("date")
+            try:
+                added = datetime.fromisoformat(str(raw_date)).replace(tzinfo=UTC)
+            except (TypeError, ValueError):
+                continue
+            if added >= cutoff:
+                recent.append(item)
+        recent.sort(
+            key=lambda item: (str(item.get("date_added") or ""), str(item.get("id") or "")),
+            reverse=True,
+        )
+        recent = recent[:10]
+        threats = [
+            {
+                "id": item.get("cve_id") or item.get("id"),
+                "name": item.get("name"),
+                "vendor": item.get("vendor"),
+                "product": item.get("product"),
+                "severity": "CRITICAL",
+                "date": item.get("date_added") or item.get("date"),
+                "due": item.get("due_date") or item.get("due"),
+                "source": "CISA KEV",
+            }
+            for item in recent
+        ]
+        catalog_counts = [
+            item.get("catalog_count")
+            for item in items
+            if isinstance(item.get("catalog_count"), int)
+        ]
+        release_dates = [
+            str(item.get("catalog_released_at"))
+            for item in items
+            if item.get("catalog_released_at")
+        ]
+        active_count = len(threats)
+        return {
+            "threats": threats,
+            "stats": {
+                "cisa_total": max(catalog_counts, default=len(items)),
+                "active_cves": active_count,
+                "threat_level": (
+                    "CRITICAL"
+                    if active_count >= 8
+                    else "HIGH"
+                    if active_count >= 4
+                    else "ELEVATED"
+                ),
+            },
+            "timestamp": max(release_dates, default=None),
+        }
     return items
 
 
@@ -390,6 +453,11 @@ def _comparison_rows(layer_key: str, value: Any) -> list[dict[str, Any]]:
         # and must compare with the QazLake current-entity projection.
         normalized["id"] = layer_key
         return [normalized]
+    if layer_key == "cyber_threats":
+        projected = _public_layer_value(layer_key, value) if isinstance(value, list) else value
+        if not isinstance(projected, dict) or not isinstance(projected.get("threats"), list):
+            return []
+        return [item for item in projected["threats"] if isinstance(item, dict)]
     if isinstance(value, list):
         return [item for item in value if isinstance(item, dict)]
     return []

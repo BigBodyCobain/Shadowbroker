@@ -337,3 +337,53 @@ def test_satnogs_projection_preserves_public_shape_without_media_urls() -> None:
     assert observation["frequency"] == 145800000
     assert "waterfall" not in observation
     assert "audio" not in observation
+
+
+def test_cisa_projection_preserves_public_shape_and_keeps_risk_derived() -> None:
+    item = feed._public_item(
+        {
+            "entity_id": "known_exploited_vulnerability:CVE-2026-12345",
+            "observed_at": "2026-08-27T00:00:00Z",
+            "properties": {
+                "layer_family": "cyber_public",
+                "layer_key": "cyber_threats",
+                "entity_type": "known_exploited_vulnerability",
+                "status": "catalogued",
+                "cve_id": "CVE-2026-12345",
+                "name": "Example Vulnerability",
+                "vendor": "Example Vendor",
+                "product": "Example Product",
+                "date_added": "2026-08-27",
+                "due_date": "2026-09-10",
+                "known_ransomware_use": "Unknown",
+                "catalog_version": "2026.08.27",
+                "catalog_released_at": "2026-08-27T17:00:36+00:00",
+                "catalog_count": 1685,
+            },
+        }
+    )
+
+    projected = feed._public_layer_value("cyber_threats", [item])
+
+    assert projected == {
+        "threats": [
+            {
+                "id": "CVE-2026-12345",
+                "name": "Example Vulnerability",
+                "vendor": "Example Vendor",
+                "product": "Example Product",
+                "severity": "CRITICAL",
+                "date": "2026-08-27",
+                "due": "2026-09-10",
+                "source": "CISA KEV",
+            }
+        ],
+        "stats": {
+            "cisa_total": 1685,
+            "active_cves": 1,
+            "threat_level": "ELEVATED",
+        },
+        "timestamp": "2026-08-27T17:00:36+00:00",
+    }
+    assert "severity" not in item
+    assert "threat_level" not in item
