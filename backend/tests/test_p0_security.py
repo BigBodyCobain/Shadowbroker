@@ -149,16 +149,13 @@ class TestValidatePeerPushSecret:
         with patch("main.get_settings", return_value=mock_settings):
             return _validate_peer_push_secret
 
-    def test_known_default_auto_generates_replacement(self):
+    def test_known_default_is_rejected(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
         mock_settings.MESH_PEER_PUSH_SECRET = _KNOWN_COMPROMISED
 
-        with (
-            patch("auth.get_settings", return_value=mock_settings),
-            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
-        ):
+        with patch("auth.get_settings", return_value=mock_settings), pytest.raises(SystemExit):
             _validate_peer_push_secret()
 
     def test_empty_secret_does_not_exit_without_peers(self):
@@ -173,7 +170,7 @@ class TestValidatePeerPushSecret:
         with patch("auth.get_settings", return_value=mock_settings):
             _validate_peer_push_secret()  # no exception = pass
 
-    def test_empty_secret_with_peers_auto_generates_replacement(self):
+    def test_empty_secret_with_peers_is_rejected(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
@@ -182,13 +179,10 @@ class TestValidatePeerPushSecret:
         mock_settings.MESH_RNS_PEERS = ""
         mock_settings.MESH_RNS_ENABLED = False
 
-        with (
-            patch("auth.get_settings", return_value=mock_settings),
-            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
-        ):
+        with patch("auth.get_settings", return_value=mock_settings), pytest.raises(SystemExit):
             _validate_peer_push_secret()
 
-    def test_short_secret_with_peers_auto_generates_replacement(self):
+    def test_short_secret_with_peers_is_rejected(self):
         from auth import _validate_peer_push_secret
 
         mock_settings = MagicMock()
@@ -197,10 +191,7 @@ class TestValidatePeerPushSecret:
         mock_settings.MESH_RNS_PEERS = ""
         mock_settings.MESH_RNS_ENABLED = False
 
-        with (
-            patch("auth.get_settings", return_value=mock_settings),
-            patch("auth._auto_generate_peer_push_secret", return_value="replacement-secret-value"),
-        ):
+        with patch("auth.get_settings", return_value=mock_settings), pytest.raises(SystemExit):
             _validate_peer_push_secret()
 
     def test_valid_secret_passes(self):
@@ -214,6 +205,32 @@ class TestValidatePeerPushSecret:
 
         with patch("auth.get_settings", return_value=mock_settings):
             _validate_peer_push_secret()  # no exception = pass
+
+    def test_valid_rotation_previous_passes(self):
+        from auth import _validate_peer_push_secret
+
+        mock_settings = MagicMock()
+        mock_settings.MESH_PEER_PUSH_SECRET = "new-primary-secret-value-12345"
+        mock_settings.MESH_PEER_PUSH_SECRET_PREVIOUS = "old-previous-secret-value-67890"
+        mock_settings.MESH_RELAY_PEERS = "https://peer.example"
+        mock_settings.MESH_RNS_PEERS = ""
+        mock_settings.MESH_RNS_ENABLED = False
+
+        with patch("auth.get_settings", return_value=mock_settings):
+            _validate_peer_push_secret()
+
+    def test_rotation_previous_must_differ_from_primary(self):
+        from auth import _validate_peer_push_secret
+
+        mock_settings = MagicMock()
+        mock_settings.MESH_PEER_PUSH_SECRET = "same-strong-secret-value-12345"
+        mock_settings.MESH_PEER_PUSH_SECRET_PREVIOUS = "same-strong-secret-value-12345"
+        mock_settings.MESH_RELAY_PEERS = "https://peer.example"
+        mock_settings.MESH_RNS_PEERS = ""
+        mock_settings.MESH_RNS_ENABLED = False
+
+        with patch("auth.get_settings", return_value=mock_settings), pytest.raises(SystemExit):
+            _validate_peer_push_secret()
 
     def test_whitespace_only_treated_as_empty(self):
         from auth import _validate_peer_push_secret

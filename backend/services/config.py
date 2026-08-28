@@ -56,7 +56,8 @@ class Settings(BaseSettings):
         "ul1d0kj/ODPIp0OhHzX8eLAVXzJ3CVvzW1vn2IC6q3I="
     )
     MESH_BOOTSTRAP_SIGNER_PRIVATE_KEY: str = ""
-    # When true, empty MESH_PEER_PUSH_SECRET uses the public fleet HMAC for seed join/announce.
+    # Fleet discovery never supplies transport credentials. Operators must inject
+    # MESH_PEER_PUSH_SECRET through protected environment when peer auth is enabled.
     MESH_INFONET_FLEET_JOIN: bool = True
     MESH_INFONET_FLEET_JOIN_DISABLED: bool = False
     # Headless relay/seed compose: auto-enable Tor wormhole on startup so
@@ -79,6 +80,9 @@ class Settings(BaseSettings):
     MESH_RELAY_FAILURE_COOLDOWN_S: int = 120
     MESH_BOOTSTRAP_SEED_FAILURE_COOLDOWN_S: int = 15
     MESH_PEER_PUSH_SECRET: str = ""
+    # Temporary receive-only fallback for rolling rotation. Outbound requests are
+    # always signed with MESH_PEER_PUSH_SECRET. Remove this after every node has moved.
+    MESH_PEER_PUSH_SECRET_PREVIOUS: str = ""
     # Issue #256 (tg12): optional per-peer HMAC secret map. Comma-separated
     # `url=secret` pairs. When a peer URL appears here, only that per-peer
     # secret is accepted for it — the global MESH_PEER_PUSH_SECRET above is

@@ -108,7 +108,8 @@ function Write-NodeRunner(
   [string]$BackendDir,
   [string]$Python,
   [int]$Port,
-  [int]$PeerPort
+  [int]$PeerPort,
+  [string]$PeerPushSecret
 ) {
   $nodeRoot = Split-Path $BackendDir -Parent
   $logPath = Join-Path $nodeRoot "backend-$Port.log"
@@ -127,7 +128,7 @@ set SB_TEST_NODE_NAME=$NodeName
 set SB_TEST_NODE_URL=http://127.0.0.1:$Port
 set ADMIN_KEY=dm-test-node-local-admin-key-00000001
 set MESH_SELF_PEER_URL=http://127.0.0.1:$Port
-set MESH_PEER_PUSH_SECRET=dm-test-two-node-peer-push-secret-00000001
+set MESH_PEER_PUSH_SECRET=$PeerPushSecret
 set MESH_ONLY=true
 set MESH_NODE_MODE=participant
 set MESH_BOOTSTRAP_DISABLED=true
@@ -147,10 +148,16 @@ cd /d "$BackendDir"
   return @{ Runner = $runner; Log = $logPath }
 }
 
-function Start-TestNode([string]$NodeName, [int]$Port, [int]$PeerPort, [string]$Python) {
+function Start-TestNode(
+  [string]$NodeName,
+  [int]$Port,
+  [int]$PeerPort,
+  [string]$Python,
+  [string]$PeerPushSecret
+) {
   Stop-PortIfListening $Port
   $backendDir = Sync-RuntimeBackend $NodeName
-  $runnerInfo = Write-NodeRunner $NodeName $backendDir $Python $Port $PeerPort
+  $runnerInfo = Write-NodeRunner $NodeName $backendDir $Python $Port $PeerPort $PeerPushSecret
   $cmd = "/c `"`"$($runnerInfo.Runner)`" > `"$($runnerInfo.Log)`" 2>&1`""
   $process = Start-Process -FilePath "cmd.exe" -ArgumentList $cmd -PassThru -WindowStyle Minimized
   return @{
@@ -166,10 +173,18 @@ function Start-TestNode([string]$NodeName, [int]$Port, [int]$PeerPort, [string]$
 
 New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 $python = Resolve-SharedPython
+$peerSecretBytes = New-Object byte[] 32
+$peerSecretGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+  $peerSecretGenerator.GetBytes($peerSecretBytes)
+} finally {
+  $peerSecretGenerator.Dispose()
+}
+$peerPushSecret = [Convert]::ToBase64String($peerSecretBytes)
 
 $nodes = @(
-  Start-TestNode "node-a" $NodeAPort $NodeBPort $python
-  Start-TestNode "node-b" $NodeBPort $NodeAPort $python
+  Start-TestNode "node-a" $NodeAPort $NodeBPort $python $peerPushSecret
+  Start-TestNode "node-b" $NodeBPort $NodeAPort $python $peerPushSecret
 )
 
 $payload = @{

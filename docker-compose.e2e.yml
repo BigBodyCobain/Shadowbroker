@@ -1,5 +1,5 @@
 # Lean local backend for live DM E2E — Infonet swarm + wormhole without OSINT fetchers.
-# Pair with docker-compose.override.yml (local build + fleet secrets).
+# Pair with docker-compose.override.yml (local build + operator-provided secrets).
 services:
   backend:
     environment:

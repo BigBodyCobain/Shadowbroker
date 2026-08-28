@@ -133,11 +133,12 @@ class TestResolvePeerKeyForUrl:
         mesh_crypto._PEER_SECRETS_CACHE = {}
         mesh_crypto._PEER_SECRETS_CACHE_RAW = ""
 
-    def _fake_settings(self, global_secret: str):
+    def _fake_settings(self, global_secret: str, previous_secret: str = ""):
         from unittest.mock import MagicMock
 
         s = MagicMock()
         s.MESH_PEER_PUSH_SECRET = global_secret
+        s.MESH_PEER_PUSH_SECRET_PREVIOUS = previous_secret
         return s
 
     def test_falls_back_to_global_when_no_per_peer_entry(self, monkeypatch):
@@ -230,6 +231,74 @@ class TestResolvePeerKeyForUrl:
             assert resolve_peer_key_for_url("") == b""
             assert resolve_peer_key_for_url("not-a-url") == b""
             assert resolve_peer_key_for_url(None) == b""
+
+    def test_rotation_candidates_accept_primary_then_previous(self, monkeypatch):
+        from services.mesh.mesh_crypto import (
+            _derive_peer_key,
+            resolve_peer_key_candidates_for_url,
+            resolve_peer_key_for_url,
+        )
+
+        peer_url = "https://peer.example"
+        monkeypatch.delenv("MESH_PEER_SECRETS", raising=False)
+        with monkeypatch.context() as m:
+            m.setattr(
+                "services.config.get_settings",
+                lambda: self._fake_settings("new-primary-secret", "old-previous-secret"),
+            )
+            assert resolve_peer_key_for_url(peer_url) == _derive_peer_key(
+                "new-primary-secret", peer_url
+            )
+            assert resolve_peer_key_candidates_for_url(peer_url) == (
+                _derive_peer_key("new-primary-secret", peer_url),
+                _derive_peer_key("old-previous-secret", peer_url),
+            )
+
+    def test_rotation_previous_is_not_allowed_for_per_peer_identity(self, monkeypatch):
+        from services.mesh.mesh_crypto import (
+            _derive_peer_key,
+            resolve_peer_key_candidates_for_url,
+        )
+
+        peer_url = "https://peer.example"
+        monkeypatch.setenv("MESH_PEER_SECRETS", f"{peer_url}=peer-specific-secret")
+        with monkeypatch.context() as m:
+            m.setattr(
+                "services.config.get_settings",
+                lambda: self._fake_settings("new-primary-secret", "old-previous-secret"),
+            )
+            assert resolve_peer_key_candidates_for_url(peer_url) == (
+                _derive_peer_key("peer-specific-secret", peer_url),
+            )
+
+    def test_previous_verifies_inbound_only_until_removed(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from auth import _verify_peer_transport_hmac
+        from services.mesh.mesh_crypto import _derive_peer_key
+
+        peer_url = "https://peer.example"
+        body = b'{"events":[]}'
+        previous_key = _derive_peer_key("old-previous-secret", peer_url)
+        signature = hmac.new(previous_key, body, hashlib.sha256).hexdigest()
+        request = SimpleNamespace(
+            headers={"x-peer-url": peer_url, "x-peer-hmac": signature},
+        )
+
+        monkeypatch.delenv("MESH_PEER_SECRETS", raising=False)
+        with monkeypatch.context() as m:
+            m.setattr(
+                "services.config.get_settings",
+                lambda: self._fake_settings("new-primary-secret", "old-previous-secret"),
+            )
+            assert _verify_peer_transport_hmac(request, body) is True
+
+        with monkeypatch.context() as m:
+            m.setattr(
+                "services.config.get_settings",
+                lambda: self._fake_settings("new-primary-secret", ""),
+            )
+            assert _verify_peer_transport_hmac(request, body) is False
 
 
 # ---------------------------------------------------------------------------
