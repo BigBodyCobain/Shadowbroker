@@ -20,6 +20,7 @@ class HealthResponse(BaseModel):
     # expired. Empty dict / null means no status reported yet.
     ais_proxy: Optional[Dict[str, Any]] = None
     runtime: Optional[Dict[str, Any]] = None
+    qazpipe: Optional[Dict[str, Any]] = None
 
 
 class RefreshResponse(BaseModel):

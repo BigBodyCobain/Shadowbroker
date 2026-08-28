@@ -22,6 +22,13 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
+ARG SHADOWBROKER_SOURCE_REVISION=unknown
+ARG SHADOWBROKER_SOURCE_DIRTY=true
+ARG SHADOWBROKER_RUNTIME_REVISION=""
+ENV SHADOWBROKER_SOURCE_REVISION=$SHADOWBROKER_SOURCE_REVISION
+ENV SHADOWBROKER_SOURCE_DIRTY=$SHADOWBROKER_SOURCE_DIRTY
+ENV SHADOWBROKER_RUNTIME_REVISION=$SHADOWBROKER_RUNTIME_REVISION
+
 # Install Node.js (for AIS WebSocket proxy), curl (for network fallback), and
 # Tor (for Wormhole/remote-agent .onion transport).
 RUN apt-get update && apt-get install -y --no-install-recommends \

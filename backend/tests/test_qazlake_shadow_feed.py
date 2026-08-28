@@ -1,6 +1,9 @@
 import asyncio
 import json
 
+from starlette.requests import Request
+
+from routers import health as health_router
 from routers import sar as sar_router
 from services import qazlake_shadow_feed as feed
 
@@ -17,6 +20,29 @@ def test_qazpipe_mode_never_falls_back_to_local(monkeypatch) -> None:
     )
     assert payload["earthquakes"] == []
     assert payload["qazpipe_state"]["status"] == "stale"
+
+
+def test_qazpipe_mode_does_not_reenable_disabled_layer(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"aviation_public": "qazpipe"})
+    )
+    monkeypatch.setattr(
+        feed,
+        "_items_by_family",
+        lambda: {
+            "aviation_public": {
+                "commercial_flights": [{"id": "qazlake-flight"}],
+            }
+        },
+    )
+
+    payload = feed.apply_layer_source_modes(
+        {"commercial_flights": []},
+        endpoint="fast",
+        enabled_layers={"flights": False},
+    )
+
+    assert payload["commercial_flights"] == []
 
 
 def test_compare_preserves_public_payload_and_records_receipt(
@@ -357,6 +383,78 @@ def test_public_projection_preserves_space_weather_singleton_shape() -> None:
     assert projected["kp_text"] == "STORM G1"
     assert projected["events"] == []
     assert isinstance(projected, dict)
+
+
+def test_public_projection_preserves_empty_space_weather_shape() -> None:
+    assert feed._public_layer_value("space_weather", []) == {
+        "kp_index": None,
+        "kp_text": "QUIET",
+        "events": [],
+    }
+
+
+def test_public_projection_preserves_telegram_aggregate_shape() -> None:
+    items = [
+        {"id": "post-1", "lat": 43.2, "lng": 76.9},
+        {"id": "post-2", "lat": None, "lng": None},
+    ]
+
+    assert feed._public_layer_value("telegram_osint", items) == {
+        "posts": items,
+        "total": 2,
+        "geolocated": 1,
+    }
+
+
+def test_health_escalates_when_qazpipe_feed_is_unavailable(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"geohazards": "qazpipe"})
+    )
+    monkeypatch.setattr(
+        feed,
+        "shadow_feed_status",
+        lambda: {
+            "available": False,
+            "stale": True,
+            "watermark": None,
+            "refreshed_at": None,
+            "error": "feed_unavailable",
+        },
+    )
+    monkeypatch.setattr(
+        health_router,
+        "_health_data_snapshot",
+        lambda: {"last_updated": None},
+    )
+    monkeypatch.setattr(health_router, "_get_start_time", lambda: 0.0)
+
+    from services import slo
+    from services.fetchers import _store
+
+    monkeypatch.setattr(_store, "effective_layers", dict)
+    monkeypatch.setattr(_store, "get_source_timestamps_snapshot", dict)
+    monkeypatch.setattr(slo, "compute_all_statuses", lambda *_args: {})
+    monkeypatch.setattr(
+        slo,
+        "summarise_statuses",
+        lambda _statuses: {"green": 0, "yellow": 0, "red": 0},
+    )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/health",
+            "headers": [],
+            "client": ("127.0.0.1", 1),
+            "server": ("test", 80),
+            "scheme": "http",
+        }
+    )
+    response = asyncio.run(health_router.health_check(request))
+
+    assert response["status"] == "error"
+    assert response["qazpipe"]["error"] == "feed_unavailable"
 
 
 def test_space_weather_compare_uses_stable_singleton_identity(

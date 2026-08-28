@@ -29,8 +29,24 @@ jobs:
         include:
           - platform: linux/amd64
             runner: ubuntu-latest
+            variant: operator
+            image_suffix: frontend
+            public_read_only: "false"
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
+            variant: operator
+            image_suffix: frontend
+            public_read_only: "false"
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            variant: public
+            image_suffix: frontend-public
+            public_read_only: "true"
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            variant: public
+            image_suffix: frontend-public
+            public_read_only: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Lowercase image name
@@ -46,31 +62,34 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5.0.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image_suffix }}
       - id: build
         uses: docker/build-push-action@v5.0.0
         with:
           context: .
           file: ./frontend/Dockerfile
           build-args: |
-            NEXT_PUBLIC_PUBLIC_READ_ONLY=true
+            NEXT_PUBLIC_PUBLIC_READ_ONLY=${{ matrix.public_read_only }}
+            SHADOWBROKER_SOURCE_REVISION=${{ github.sha }}
+            SHADOWBROKER_SOURCE_DIRTY=false
+            SHADOWBROKER_RUNTIME_REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=frontend-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=frontend-${{ matrix.platform }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend,push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
+          cache-from: type=gha,scope=frontend-${{ matrix.variant }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ matrix.variant }}-${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image_suffix }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
       - name: Export digest
         if: github.event_name != 'pull_request'
         run: |
-          mkdir -p /tmp/digests/frontend
+          mkdir -p /tmp/digests/frontend-${{ matrix.variant }}
           digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/frontend/${digest#sha256:}"
+          touch "/tmp/digests/frontend-${{ matrix.variant }}/${digest#sha256:}"
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
-          name: digests-frontend-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          path: /tmp/digests/frontend/*
+          name: digests-frontend-${{ matrix.variant }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/frontend-${{ matrix.variant }}/*
           if-no-files-found: error
           retention-days: 1
 
@@ -81,13 +100,21 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: operator
+            image_suffix: frontend
+          - variant: public
+            image_suffix: frontend-public
     steps:
       - name: Lowercase image name
         run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
       - uses: actions/download-artifact@v4
         with:
-          path: /tmp/digests/frontend
-          pattern: digests-frontend-*
+          path: /tmp/digests/frontend-${{ matrix.variant }}
+          pattern: digests-frontend-${{ matrix.variant }}-*
           merge-multiple: true
       - uses: docker/setup-buildx-action@v3.0.0
       - uses: docker/login-action@v3.0.0
@@ -98,18 +125,18 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5.0.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image_suffix }}
           tags: |
             type=sha,format=long
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Create and push manifest
-        working-directory: /tmp/digests/frontend
+        working-directory: /tmp/digests/frontend-${{ matrix.variant }}
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend@sha256:%s ' *)
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image_suffix }}@sha256:%s ' *)
 
   build-backend:
     needs: ci-gate
@@ -147,6 +174,10 @@ jobs:
         with:
           context: .
           file: ./backend/Dockerfile
+          build-args: |
+            SHADOWBROKER_SOURCE_REVISION=${{ github.sha }}
+            SHADOWBROKER_SOURCE_DIRTY=false
+            SHADOWBROKER_RUNTIME_REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}

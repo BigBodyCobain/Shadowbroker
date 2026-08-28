@@ -56,6 +56,13 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "cyber_public": ("cyber_threats",),
     "risk_reference_public": ("sanctions",),
 }
+LAYER_ENABLE_KEYS: dict[str, str] = {
+    "commercial_flights": "flights",
+    "military_flights": "military",
+    "gdelt": "global_incidents",
+    "satnogs_stations": "satnogs",
+    "satnogs_observations": "satnogs",
+}
 _lock = threading.RLock()
 _receipt_lock = threading.Lock()
 _stop = threading.Event()
@@ -506,7 +513,21 @@ def _latest_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
 def _public_layer_value(layer_key: str, items: list[dict[str, Any]]) -> Any:
     """Keep public singleton layers shape-compatible after QazLake cutover."""
     if layer_key == "space_weather":
-        return _latest_item(items)
+        return _latest_item(items) or {
+            "kp_index": None,
+            "kp_text": "QUIET",
+            "events": [],
+        }
+    if layer_key == "telegram_osint":
+        return {
+            "posts": items,
+            "total": len(items),
+            "geolocated": sum(
+                1
+                for item in items
+                if item.get("lat") is not None and item.get("lng") is not None
+            ),
+        }
     if layer_key == "cyber_threats":
         cutoff = datetime.now(UTC) - timedelta(days=30)
         recent: list[dict[str, Any]] = []
@@ -836,7 +857,10 @@ def shadow_feed_etag_suffix() -> str:
 
 
 def apply_layer_source_modes(
-    payload: dict[str, Any], *, endpoint: str
+    payload: dict[str, Any],
+    *,
+    endpoint: str,
+    enabled_layers: dict[str, bool] | None = None,
 ) -> dict[str, Any]:
     modes = configured_modes()
     if not modes:
@@ -845,6 +869,9 @@ def apply_layer_source_modes(
     for family, mode in modes.items():
         for layer_key in _family_layer_keys(family):
             if layer_key not in payload:
+                continue
+            enable_key = LAYER_ENABLE_KEYS.get(layer_key, layer_key)
+            if enabled_layers is not None and not enabled_layers.get(enable_key, True):
                 continue
             candidate = grouped.get(family, {}).get(layer_key, [])
             if mode == "compare":

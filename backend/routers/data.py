@@ -671,10 +671,16 @@ async def live_data(request: Request):
     etag = _current_etag(prefix="live|full|" + shadow_feed_etag_suffix())
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    from services.fetchers._store import get_latest_data_refs_snapshot
+    from services.fetchers._store import effective_layers, get_latest_data_refs_snapshot
+
+    active_layers = effective_layers()
 
     def _build() -> dict:
-        return apply_layer_source_modes(get_latest_data_refs_snapshot(), endpoint="live-data")
+        return apply_layer_source_modes(
+            get_latest_data_refs_snapshot(),
+            endpoint="live-data",
+            enabled_layers=active_layers,
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -746,7 +752,11 @@ async def bootstrap_critical(request: Request):
             "bootstrap_ready": True,
             "bootstrap_payload": True,
         }
-        return apply_layer_source_modes(payload, endpoint="bootstrap-critical")
+        return apply_layer_source_modes(
+            payload,
+            endpoint="bootstrap-critical",
+            enabled_layers=active_layers,
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -976,7 +986,11 @@ async def live_data_fast(
             if _has_full_bbox(s, w, n, e):
                 payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
             payload = _cap_fast_dashboard_payload(payload, s=s, w=w, n=n, e=e)
-        return apply_layer_source_modes(_attach_version_meta(payload), endpoint="fast")
+        return apply_layer_source_modes(
+            _attach_version_meta(payload),
+            endpoint="fast",
+            enabled_layers=active_layers,
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -1092,7 +1106,11 @@ async def live_data_slow(
         # hides the infrastructure overlay the operator already has on screen.
         if _has_full_bbox(s, w, n, e):
             payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
-        return apply_layer_source_modes(payload, endpoint="slow")
+        return apply_layer_source_modes(
+            payload,
+            endpoint="slow",
+            enabled_layers=active_layers,
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),

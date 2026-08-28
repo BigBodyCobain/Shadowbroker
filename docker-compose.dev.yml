@@ -1,5 +1,31 @@
+# Explicit local-development overlay. It is never auto-loaded by the
+# production `docker compose` command.
 services:
   backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
     environment:
-      # Explicit local-development opt-in. Production compose never enables it.
+      # Private Infonet swarm: only the seed onion is required in config.
+      # Other participants are discovered through the signed manifest.
+      MESH_ARTI_ENABLED: "true"
+      MESH_ARTI_SOCKS_PORT: "9050"
+      MESH_SYNC_TIMEOUT_S: "45"
+      MESH_RELAY_PUSH_TIMEOUT_S: "45"
+      MESH_SYNC_MAX_PEERS_PER_CYCLE: "5"
+      MESH_INFONET_ALLOW_CLEARNET_SYNC: "false"
+      MESH_PUBLIC_PEER_URL: ""
+      MESH_BOOTSTRAP_SEED_PEERS: ""
+      MESH_FLEET_SEED_PEERS: "${MESH_FLEET_SEED_PEERS:-}"
+      MESH_RELAY_PEERS: ""
+      MESH_DEFAULT_SYNC_PEERS: ""
+      MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY: "ul1d0kj/ODPIp0OhHzX8eLAVXzJ3CVvzW1vn2IC6q3I="
+      MESH_SWARM_MANIFEST_PULL_INTERVAL_S: "300"
+      MESH_PEER_PUSH_SECRET: ${MESH_PEER_PUSH_SECRET:-}
+      MESH_PEER_PUSH_SECRET_PREVIOUS: ${MESH_PEER_PUSH_SECRET_PREVIOUS:-}
       PRIVACY_CORE_DEV_OVERRIDE: "true"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile

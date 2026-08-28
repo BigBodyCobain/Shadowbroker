@@ -154,10 +154,11 @@ function isPublicReadOnlyRequest(req: NextRequest): boolean {
   );
 }
 
-function isPublicReadOnlyBlockedPath(pathSegments: string[]): boolean {
+function isPublicReadOnlyBlockedPath(pathSegments: string[], method: string): boolean {
   const joined = pathSegments.join('/');
   return (
     isSensitiveProxyPath(pathSegments) ||
+    (pathSegments[0] === 'mesh' && method.toUpperCase() !== 'GET') ||
     pathSegments[0] === 'sar' ||
     joined === 'viewport'
   );
@@ -224,7 +225,7 @@ function canUseEnvAdminKey(req: NextRequest, pathSegments: string[]): boolean {
 
 async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   try {
-    if (isPublicReadOnlyRequest(req) && isPublicReadOnlyBlockedPath(pathSegments)) {
+    if (isPublicReadOnlyRequest(req) && isPublicReadOnlyBlockedPath(pathSegments, req.method)) {
       return NextResponse.json(
         { detail: 'This endpoint is available in the local operator runtime only.' },
         { status: 403, headers: NO_STORE_PROXY_HEADERS },

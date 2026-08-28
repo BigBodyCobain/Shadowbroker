@@ -8,6 +8,11 @@ type HealthSnapshot = {
   status?: 'ok' | 'degraded' | 'error';
   last_updated?: string | null;
   sources?: Record<string, unknown>;
+  qazpipe?: {
+    available?: boolean;
+    stale?: boolean;
+    error?: string | null;
+  } | null;
 };
 
 type StatusState =
@@ -34,21 +39,27 @@ export default function OperationalStatus() {
   useEffect(() => {
     let active = true;
 
-    void fetch(`${API_BASE}/api/health`, { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`health ${response.status}`);
-        return response.json() as Promise<HealthSnapshot>;
-      })
-      .then((health) => {
-        if (active) setState({ kind: 'ready', health });
-      })
-      .catch(() => {
-        if (!active) return;
-        setState({ kind: 'unavailable' });
-      });
+    const refresh = () => {
+      void fetch(`${API_BASE}/api/health`, { cache: 'no-store' })
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`health ${response.status}`);
+          return response.json() as Promise<HealthSnapshot>;
+        })
+        .then((health) => {
+          if (active) setState({ kind: 'ready', health });
+        })
+        .catch(() => {
+          if (!active) return;
+          setState({ kind: 'unavailable' });
+        });
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
 
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -70,7 +81,16 @@ export default function OperationalStatus() {
     );
   }
 
-  const degraded = state.health.status && state.health.status !== 'ok';
+  const feedUnavailable = state.health.qazpipe?.available === false;
+  const feedStale = state.health.qazpipe?.stale === true;
+  const degraded = Boolean(state.health.status && state.health.status !== 'ok') || feedUnavailable || feedStale;
+  const statusLabel = feedUnavailable
+    ? 'Shared data feed unavailable'
+    : feedStale
+      ? 'Shared data feed stale'
+      : degraded
+        ? 'Data service degraded'
+        : 'Data service available';
   const updated = state.health.last_updated
     ? new Date(state.health.last_updated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : 'not reported';
@@ -83,7 +103,7 @@ export default function OperationalStatus() {
     >
       <Activity size={15} aria-hidden="true" />
       <span>
-        {degraded ? 'Data service degraded' : 'Data service available'} · {sourceCount(state.health.sources)} records · updated {updated}
+        {statusLabel} · {sourceCount(state.health.sources)} records · updated {updated}
       </span>
     </div>
   );

@@ -21,6 +21,7 @@ describe('public read-only API boundary', () => {
     ['GET', ['sar', 'status']],
     ['GET', ['ai', 'pins', 'geojson']],
     ['POST', ['viewport']],
+    ['POST', ['mesh', 'vote']],
   ] as const)('rejects public %s /api/%s before forwarding', async (method, path) => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

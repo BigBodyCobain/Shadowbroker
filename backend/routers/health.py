@@ -131,6 +131,19 @@ async def health_check(request: Request):
     ):
         top_status = "degraded"
 
+    qazpipe_status: dict = {}
+    try:
+        from services.qazlake_shadow_feed import shadow_feed_status, uses_qazpipe_mode
+
+        if uses_qazpipe_mode():
+            qazpipe_status = shadow_feed_status()
+            if not qazpipe_status.get("available"):
+                top_status = "error"
+            elif qazpipe_status.get("stale") and top_status == "ok":
+                top_status = "degraded"
+    except Exception:
+        qazpipe_status = {}
+
     runtime: dict = {}
     try:
         from services.runtime_profile import get_runtime_profile
@@ -167,6 +180,7 @@ async def health_check(request: Request):
         "slo_summary": slo_summary,
         "ais_proxy": ais_status,
         "runtime": runtime or None,
+        "qazpipe": qazpipe_status or None,
     }
 
 

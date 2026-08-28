@@ -106,6 +106,15 @@ docker compose -f docker-compose.yml -f docker-compose.gitlab.yml up -d
 
 Both paths produce identical containers — same source, same CI, same images byte-for-byte. Pick whichever ecosystem you already use.
 
+For an explicit local source build, include the development overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+The development overlay enables the local privacy-core override. It is not
+loaded by the production image workflow.
+
 Open `http://localhost:3000` to view the dashboard! *(Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine)*
 
 > **Join the private InfoNet swarm (sb-testnet-0):** Click **NODE** in the dashboard, or run `./meshnode.sh` for a headless participant. No manual peer list — fleet defaults discover the seed and pull the signed manifest automatically. Set `MESH_INFONET_FLEET_JOIN=false` in `.env` for a private solo node.
