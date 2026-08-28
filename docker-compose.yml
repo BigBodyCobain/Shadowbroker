@@ -59,6 +59,10 @@ services:
       - MESH_PUBLIC_PEER_URL=${MESH_PUBLIC_PEER_URL:-}
       # Shared transport auth for operator peer push. Must be set to a unique secret per deployment.
       - MESH_PEER_PUSH_SECRET=${MESH_PEER_PUSH_SECRET:-}
+      # Temporary receiver-only compatibility window for a rolling mesh-secret
+      # rotation. Senders always use the primary above; remove previous after
+      # every node has moved and the old signature is confirmed rejected.
+      - MESH_PEER_PUSH_SECRET_PREVIOUS=${MESH_PEER_PUSH_SECRET_PREVIOUS:-}
       # Issue #256: optional per-peer HMAC secrets. Comma-separated
       # `url=secret` pairs (no spaces). When a peer URL appears here, only
       # the listed per-peer secret is accepted for it — the global
@@ -127,6 +131,15 @@ services:
       - GT_ANALYTICS_HIGH_RISK_THRESHOLD=${GT_ANALYTICS_HIGH_RISK_THRESHOLD:-0.6}
       - GT_ANALYTICS_BASE_PRIOR=${GT_ANALYTICS_BASE_PRIOR:-0.15}
       - GT_ANALYTICS_WATCHED_CHANNELS=${GT_ANALYTICS_WATCHED_CHANNELS:-}
+      # Public recurring collection is owned by QazPipe and projected through
+      # QazLake. These settings stay empty/local until each source family has
+      # passed the bilateral cutover gate. Tokens are separate least-privilege
+      # credentials and must come only from the protected deployment env.
+      - SHADOW_LAYER_SOURCE_MODES=${SHADOW_LAYER_SOURCE_MODES:-}
+      - QAZLAKE_SHADOW_FEED_URL=${QAZLAKE_SHADOW_FEED_URL:-}
+      - QAZLAKE_SHADOW_FEED_TOKEN=${QAZLAKE_SHADOW_FEED_TOKEN:-}
+      - QAZLAKE_SHADOW_POLL_INTERVAL_S=${QAZLAKE_SHADOW_POLL_INTERVAL_S:-30}
+      - SHADOW_DERIVED_SIGNALS_TOKEN=${SHADOW_DERIVED_SIGNALS_TOKEN:-}
       # Optional override. Leave unset and use AI Intel → Connect Agent → Bootstrap
       # instead — the UI persists OPENCLAW_HMAC_SECRET to data/openclaw.env on the
       # backend_data volume so host-side agents can HMAC-auth after container restarts.
