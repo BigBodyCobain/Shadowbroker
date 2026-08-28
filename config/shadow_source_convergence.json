@@ -1,6 +1,8 @@
 {
   "schema_version": "shadow.qazpipe-convergence/v1",
   "target_architecture": "primary-sources -> QazPipe -> QazLake -> ShadowBroker",
+  "terminal_architecture": "primary-sources -> canonical collectors -> QazLake -> successor products; ShadowBroker retired",
+  "shadow_lifecycle": "temporary-compare-consumer-and-organ-donor",
   "collection_owner": "qazpipe",
   "observation_owner": "qazlake",
   "product_owner": "shadowbroker",
@@ -22,8 +24,11 @@
     {"family": "events_media", "layer_keys": ["gdelt", "news", "telegram_osint"], "sources": ["GDELT", "approved RSS", "public Telegram pages"], "owner": "qazpipe", "activation": "per_source_registry_gate"},
     {"family": "radio_public", "layer_keys": ["kiwisdr", "psk_reporter"], "sources": ["KiwiSDR", "PSK Reporter"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
     {"family": "visual_reference", "layer_keys": ["cctv"], "sources": ["public CCTV reference datasets", "ASF SAR metadata"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
-    {"family": "credential_operator", "sources": ["AISStream", "AISHub", "APRS-IS", "Copernicus processing", "Sentinel processing", "SAR products", "Unusual Whales", "private Telegram feeds"], "owner": "shadowbroker", "activation": "local_only"},
+    {"family": "cyber_public", "layer_keys": ["cyber_status", "malware"], "sources": ["CISA KEV", "approved abuse.ch feeds", "approved public threat reference datasets"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "environment_infrastructure_public", "layer_keys": ["emissions", "wastewater", "infrastructure", "trains", "routes"], "sources": ["approved public emissions datasets", "approved public wastewater datasets", "public infrastructure and route reference datasets"], "owner": "qazpipe", "activation": "blocked_pending_dataset_gate"},
+    {"family": "crisis_alerts_public", "layer_keys": ["ukraine_alerts", "fires", "fleet_tracker", "meshtastic_map"], "sources": ["approved public alert feeds", "NASA FIRMS", "USNI fleet tracker", "Meshtastic public map"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "credential_operator", "sources": ["AISStream", "AISHub", "APRS-IS", "Copernicus processing", "Sentinel processing", "SAR products", "private Telegram feeds"], "current_owner": "shadowbroker", "target_owner": "unassigned-protected-operator-runtime", "activation": "blocked_missing_post_shadow_owner"},
     {"family": "finance_prediction", "sources": ["financial data", "prediction markets"], "owner": "qazfin", "activation": "no_qazpipe_collector"},
-    {"family": "shadow_analytics", "sources": ["correlations", "GT analytics", "oracle resolution", "Time Machine", "pruning", "risk decisions"], "owner": "shadowbroker", "activation": "protected_derived_feed"}
+    {"family": "shadow_analytics", "sources": ["correlations", "GT analytics", "oracle resolution", "Time Machine", "pruning", "risk decisions"], "current_owner": "shadowbroker", "target_owner": "qazcompute-qazlake-successor-product", "activation": "blocked_pending_semantic_and_product_owner_gate"}
   ]
 }

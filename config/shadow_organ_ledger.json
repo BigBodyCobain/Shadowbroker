@@ -1,0 +1,261 @@
+{
+  "schema_version": "shadowbroker-organ-ledger/v1",
+  "generated_at": "2026-08-28T09:45:00Z",
+  "donor": {
+    "project_id": "shadowbroker",
+    "revision": "79aff792c4b2780fe7982c297d95190b87f09c5c",
+    "canonical_root": "/Users/belilovsky/Documents/ChatGPT/shadow-qazpipe-convergence-20260828"
+  },
+  "retirement_intent": "Extract or deliberately reject every useful organ, verify canonical replacements, then decommission and delete the exact ShadowBroker product resources.",
+  "rules": {
+    "no_secret_transfer": true,
+    "no_generated_artifact_transfer": true,
+    "no_parallel_canonical_owner": true,
+    "source_activation_gate": ["rights", "identity", "cadence", "retention", "canary_receipt"],
+    "shared_module_gate": ["canonical_owner", "platform_mandate_or_two_consumers", "pilot", "rollback"],
+    "deletion_gate": ["replacement_live", "consumer_parity", "full_cadence", "rollback_receipt", "credential_revocation", "exact_resource_inventory"]
+  },
+  "organs": [
+    {
+      "id": "data.public-flight-observations",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/flight_observations.py", "backend/services/fetchers/flights.py"],
+      "capability": "Recurring anonymous aviation observations and public aircraft reference enrichment.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_source_gate",
+      "acceptance": ["canonical IDs and deterministic counts match where applicable", "streaming ID overlap is at least 0.90", "freshness does not regress by more than one cadence", "required null-rate delta is at most 0.01"]
+    },
+    {
+      "id": "data.public-orbital-radio",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/satellites.py", "backend/services/fetchers/sigint.py"],
+      "capability": "CelesTrak, SatNOGS, TinyGS, KiwiSDR and PSK Reporter public observations.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_source_gate",
+      "acceptance": ["provider identity and rights recorded", "manual canaries succeed", "scheduled cadence and retention are declared"]
+    },
+    {
+      "id": "data.public-hazards-weather-environment",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/geo.py", "backend/services/fetchers/earth_observation.py", "backend/services/fetchers/emissions.py", "backend/services/fetchers/wastewater.py"],
+      "capability": "Earthquakes, volcanoes, weather, space weather, air quality, fires, emissions and wastewater signals.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_source_gate",
+      "acceptance": ["existing QazPipe collectors are extended instead of duplicated", "QazLake provenance is append-only", "one real scheduled window succeeds"]
+    },
+    {
+      "id": "data.public-network-cyber",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/cyber_status.py", "backend/services/fetchers/malware.py"],
+      "capability": "IODA, RIPE Atlas, CISA KEV and approved public malware/threat reference feeds.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_source_gate",
+      "acceptance": ["rights and redistribution scope are explicit per feed", "raw indicators remain protected where required", "dead letters are empty"]
+    },
+    {
+      "id": "data.public-events-media-alerts",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/news.py", "backend/services/fetchers/telegram_osint.py", "backend/services/fetchers/ukraine_alerts.py", "backend/services/fetchers/fimi.py"],
+      "capability": "GDELT, approved RSS, public Telegram pages and public crisis/alert sources.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "per_source_gate",
+      "acceptance": ["public-page status and reuse rights are confirmed", "source locator is retained", "private/operator feeds are excluded"]
+    },
+    {
+      "id": "data.public-reference-geo-infrastructure",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/infrastructure.py", "backend/services/fetchers/route_database.py", "backend/services/fetchers/trains.py", "backend/services/fetchers/usni_fleet_tracker.py", "backend/services/fetchers/meshtastic_map.py"],
+      "capability": "Public infrastructure, route, rail, fleet and radio-mesh reference datasets.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_dataset_review",
+      "acceptance": ["dataset versions and licenses are pinned", "reference refresh cadence is declared", "public projection removes topology-sensitive fields"]
+    },
+    {
+      "id": "data.public-visual-sar-metadata",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/sar_catalog.py", "backend/services/fetchers/road_corridor_sat.py", "backend/services/cctv_fetcher.py"],
+      "capability": "Public CCTV/reference catalogs and ASF/Sentinel metadata only.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "migrate",
+      "status": "blocked_pending_rights_and_precision_review",
+      "acceptance": ["imagery products and credentials are excluded", "camera URLs are not exposed unless licensed", "metadata lineage is preserved"]
+    },
+    {
+      "id": "data.finance-and-prediction",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/fetchers/financial.py", "backend/services/fetchers/prediction_markets.py", "backend/services/fetchers/unusual_whales.py"],
+      "capability": "Financial and prediction-market collection.",
+      "target_owner": "qazfin",
+      "disposition": "route_to_existing_owner",
+      "status": "blocked_pending_qazfin_intake",
+      "acceptance": ["no QazPipe financial collector is created", "provider credentials remain outside Shadow export", "QazFin owns source policy"]
+    },
+    {
+      "id": "data.credential-session-operator-feeds",
+      "plane": "security_privacy_compliance",
+      "donor_refs": ["backend/services/fetchers/aishub_fallback.py", "backend/services/fetchers/sar_products.py", "backend/services/fetchers/telegram_osint.py"],
+      "capability": "AISStream/AISHub, APRS-IS, Copernicus/Sentinel processing, SAR products and private operator feeds.",
+      "target_owner": "unassigned-protected-operator-runtime",
+      "disposition": "blocked",
+      "status": "blocked_missing_canonical_owner",
+      "acceptance": ["a protected owner is named or the feed is intentionally retired", "credentials are rotated or revoked", "no secret is copied through Git"]
+    },
+    {
+      "id": "analytics.feed-cutover-comparison",
+      "plane": "platform_and_shared_services",
+      "donor_refs": ["backend/services/qazlake_shadow_feed.py", "backend/tests/test_qazlake_shadow_feed.py"],
+      "capability": "Provider-neutral deterministic/streaming comparison gates and bounded cutover receipts.",
+      "target_owner": "qazstack.databus",
+      "disposition": "extract_shared",
+      "status": "published_for_review",
+      "acceptance": ["QazStack tests pass", "receipt contains no IDs, URLs, tokens or raw payload", "canonical owner PR is accepted", "at least one consumer adopts the released contract"]
+    },
+    {
+      "id": "analytics.correlation-and-early-warning",
+      "plane": "backend_and_api",
+      "donor_refs": ["backend/services/correlation_engine.py", "backend/analytics"],
+      "capability": "Geotemporal correlation, rolling signals, early warning and backtest scoring.",
+      "target_owner": "qazstack.analytics-and-qazcompute",
+      "disposition": "adapt_to_existing",
+      "status": "deferred_pending_semantic_equivalence",
+      "acceptance": ["neutral algorithms are separated from Shadow weights and cases", "existing QazStack analytics is extended", "QazCompute owns product workloads", "golden fixtures match"]
+    },
+    {
+      "id": "analytics.temporal-snapshots",
+      "plane": "backend_and_api",
+      "donor_refs": ["backend/services/time_machine.py", "frontend/src/components/TimelineScrubber.tsx"],
+      "capability": "Historical snapshots, cursor playback and snapshot differences.",
+      "target_owner": "qazstack.temporal",
+      "disposition": "consume_existing",
+      "status": "selected",
+      "acceptance": ["Shadow-specific stores are mapped to QazStack temporal contracts", "no duplicate temporal primitive is created"]
+    },
+    {
+      "id": "platform.feed-consumer-cache",
+      "plane": "platform_and_shared_services",
+      "donor_refs": ["backend/services/qazlake_shadow_feed.py"],
+      "capability": "Snapshot bootstrap, cursor polling and explicit stale last-valid cache behavior.",
+      "target_owner": "product-runtime-with-qazstack-contracts",
+      "disposition": "adapt_in_consumers",
+      "status": "deferred_until_non_shadow_pilot",
+      "acceptance": ["no hidden fallback", "stale state is public", "cache is atomic", "transport remains product-owned"]
+    },
+    {
+      "id": "platform.mesh-and-infonet",
+      "plane": "platform_and_shared_services",
+      "donor_refs": ["backend/services/mesh", "backend/services/infonet", "privacy-core/src/lib.rs"],
+      "capability": "Experimental mesh cryptography, governance, market/oracle and privacy prototypes.",
+      "target_owner": "none",
+      "disposition": "archive_source_only_then_discard",
+      "status": "rejected_for_shared_production",
+      "acceptance": ["documentation preserves experimental warnings", "no production security claim is made", "secrets and compiled WASM are excluded", "repository archive exists before deletion"]
+    },
+    {
+      "id": "frontend.geospatial-builders-workers",
+      "plane": "frontend_components",
+      "donor_refs": ["frontend/src/lib/geojson", "frontend/src/workers", "frontend/src/components/MaplibreViewer.tsx"],
+      "capability": "GeoJSON projection builders, spatial workers and dense-map performance patterns.",
+      "target_owner": "qazgeo-or-qazstack.geo",
+      "disposition": "adapt_after_duplicate_scan",
+      "status": "deferred_pending_owner_and_second_consumer",
+      "acceptance": ["coordinate precision and privacy rules are explicit", "worker contract is framework-neutral", "two consumers are named", "map semantics remain unchanged"]
+    },
+    {
+      "id": "ux.operational-map-shell",
+      "plane": "ux_and_avds",
+      "donor_refs": ["frontend/src/components/MaplibreViewer.tsx", "frontend/src/components/TimelineScrubber.tsx", "frontend/src/components/OperationalStatus.tsx"],
+      "capability": "Responsive operational map rail/sheet, timeline and degraded/compare state patterns.",
+      "target_owner": "avds",
+      "disposition": "mixed_consume_existing_and_defer",
+      "status": "reviewed",
+      "acceptance": ["reuse AVDS FreshnessLedger, MapLayerToggleGroup and source badges", "prove missing primitive against AVDS 4.8.0", "name two consumers before extraction", "return the released primitive to a pilot product"]
+    },
+    {
+      "id": "ux.shadow-theme-and-infonet-terminal",
+      "plane": "ux_and_avds",
+      "donor_refs": ["frontend/src/app", "frontend/src/components/infonet"],
+      "capability": "Shadow-specific dark shell, terminal metaphors and InfoNet presentation.",
+      "target_owner": "none",
+      "disposition": "inspiration_only",
+      "status": "selected_for_archive",
+      "acceptance": ["no AVDS primitive is created from branding alone", "screenshots may be retained only as design-history evidence"]
+    },
+    {
+      "id": "security.hmac-replay-ssrf",
+      "plane": "security_privacy_compliance",
+      "donor_refs": ["backend/tests/test_mesh_auth.py", "backend/tests/test_ssrf.py", "backend/tests/test_security.py"],
+      "capability": "HMAC body binding, replay rejection, SSRF boundaries and negative security fixtures.",
+      "target_owner": "qazstack-security-platform",
+      "disposition": "adapt_tests_to_existing_owner",
+      "status": "deferred_pending_exact_duplicate_scan",
+      "acceptance": ["tests contain no real secrets or topology", "dual-secret rotation is covered", "old secret is rejected after rotation", "existing security primitives are extended"]
+    },
+    {
+      "id": "product.dossiers-entity-graph-recon",
+      "plane": "product_and_user_value",
+      "donor_refs": ["backend/services/dossiers.py", "backend/services/recon.py", "frontend/src/components"],
+      "capability": "Operator dossiers, entity graph and active reconnaissance workflows.",
+      "target_owner": "none-until-explicit-product-mandate",
+      "disposition": "archive_only",
+      "status": "blocked_sensitive_workflow",
+      "acceptance": ["no protected record is exported", "active scanning is not moved into a shared service", "retention/deletion decision is recorded"]
+    },
+    {
+      "id": "information.layer-taxonomy",
+      "plane": "information_architecture",
+      "donor_refs": ["frontend/src/config/layers.ts", "backend/main.py"],
+      "capability": "Operational layer-family taxonomy and public/private projection boundaries.",
+      "target_owner": "qazlake-feed-contracts-and-consumer-products",
+      "disposition": "adapt_contract_only",
+      "status": "selected",
+      "acceptance": ["provider names are removed from public properties", "family IDs are stable", "private routes remain protected"]
+    },
+    {
+      "id": "content.operator-copy-localization",
+      "plane": "content_and_localization",
+      "donor_refs": ["frontend/src/messages", "README.md", "docs"],
+      "capability": "Layer labels, operational explanations and multilingual terminology.",
+      "target_owner": "consumer-products",
+      "disposition": "adapt_reviewed_terms_only",
+      "status": "deferred_pending_editorial_review",
+      "acceptance": ["RU/KK/EN terminology is reviewed", "security promises are not inherited", "product-specific claims are retired with Shadow"]
+    },
+    {
+      "id": "discovery.public-data-contracts",
+      "plane": "discovery_seo_public_ai",
+      "donor_refs": ["backend/main.py", "docs/OUTBOUND_DATA.md", "frontend/src/app"],
+      "capability": "Public read-only bootstrap/live-data compatibility and machine-readable release identity.",
+      "target_owner": "successor-public-products",
+      "disposition": "adapt_contract_not_routes",
+      "status": "deferred_until_successor_named",
+      "acceptance": ["no Shadow URL becomes a QazPipe input", "public data provenance remains discoverable", "private routes still return 403"]
+    },
+    {
+      "id": "quality.security-resilience-map-tests",
+      "plane": "quality_operations_docs",
+      "donor_refs": ["backend/tests", "frontend/src/**/*.test.ts", "ops/shadow.qdev.run"],
+      "capability": "Security, source resilience, map-worker, viewport privacy, release and rollback test patterns.",
+      "target_owner": "each-canonical-recipient",
+      "disposition": "adapt_fixtures_not_copy_runtime",
+      "status": "selected",
+      "acceptance": ["fixtures are synthetic", "recipient-native gates pass", "release identity and rollback are exact", "no hostnames, cookies or credentials are retained"]
+    }
+  ],
+  "retirement": {
+    "status": "not_ready",
+    "blockers": [
+      "QazLake production feed has not yet completed deployment and live security proof.",
+      "QazPipe schedules remain intentionally inactive pending source gates and canaries.",
+      "Shadow upstream PR 543 is not merged and upstream push permission is unavailable.",
+      "Credential/operator feeds have no post-Shadow canonical owner or explicit retirement decision.",
+      "Three successful comparisons, one scheduled window, 24-hour observation and one full cadence are not yet evidenced."
+    ],
+    "deletion_scope": "Only exact ShadowBroker repository/runtime/container/image/schedule/secret resources listed in a signed retirement receipt; archives and rollback manifests remain outside the deleted runtime."
+  }
+}
