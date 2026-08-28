@@ -147,6 +147,106 @@
       "acceptance": ["no hidden fallback", "stale state is public", "cache is atomic", "transport remains product-owned"]
     },
     {
+      "id": "platform.collection-runtime",
+      "plane": "platform_and_shared_services",
+      "donor_refs": ["backend/services/data_fetcher.py", "backend/services/feed_ingester.py", "backend/services/fetch_health.py", "backend/services/layer_enable_refresh.py", "backend/services/fetchers/retry.py", "backend/services/fetchers/_store.py"],
+      "capability": "Retry, fetch-health, enablement and collector persistence patterns used around recurring sources.",
+      "target_owner": "qazpipe-with-existing-qazstack-resilience-and-databus",
+      "disposition": "consume_existing_and_adapt_tests",
+      "status": "reviewed_no_new_shared_module",
+      "acceptance": ["QazPipe remains schedule and transport owner", "QazStack resilience and DataBus contracts are reused", "QazLake remains DDL owner", "no runtime table creation is copied"]
+    },
+    {
+      "id": "data.public-risk-sanctions-supply-chain",
+      "plane": "data_and_provenance",
+      "donor_refs": ["backend/services/intel_feeds", "backend/services/sanctions", "backend/services/scm", "backend/services/carrier_tracker.py", "backend/services/fetchers/crowdthreat.py", "backend/services/fetchers/military.py"],
+      "capability": "Public country-risk, sanctions, supplier, carrier and defence reference inputs.",
+      "target_owner": "qazpipe-qazlake",
+      "disposition": "per_source_review_then_migrate_or_retire",
+      "status": "blocked_pending_rights_identity_and_precision_review",
+      "acceptance": ["every provider has rights, identity, cadence and retention", "existing sanctions and entity collectors are extended", "sensitive precision and threat indicators are protected", "derived risk judgements are not ingested as facts"]
+    },
+    {
+      "id": "backend.entity-geo-projections",
+      "plane": "backend_and_api",
+      "donor_refs": ["backend/services/entity_profile.py", "backend/services/entity_trail.py", "backend/services/geocode.py", "backend/services/geocode_validate.py", "backend/services/region_dossier.py"],
+      "capability": "Entity profiles, trails, geocoding validation and region projection patterns.",
+      "target_owner": "qazstack.entities-and-qazgeo-consumer-products",
+      "disposition": "consume_existing_and_map_contracts",
+      "status": "deferred_pending_successor_and_golden_fixtures",
+      "acceptance": ["existing QazStack entity and QazGeo contracts are used", "protected dossiers are excluded", "coordinate precision policy is explicit", "golden entity and trail projections match"]
+    },
+    {
+      "id": "compute.ai-oracle-operator-bridges",
+      "plane": "platform_and_shared_services",
+      "donor_refs": ["backend/services/ai_intel_store.py", "backend/services/ai_pin_store.py", "backend/services/openclaw_bridge.py", "backend/services/openclaw_channel.py", "backend/services/openclaw_routing.py", "backend/services/oracle_service.py", "backend/services/telegram_translate.py"],
+      "capability": "Operator AI prompts, pins, routing, translation and oracle-resolution integration.",
+      "target_owner": "qazcompute-and-named-successor-product",
+      "disposition": "adapt_contracts_not_records",
+      "status": "blocked_pending_successor_security_and_semantic_gate",
+      "acceptance": ["no prompt, protected record or provider diagnostic is exported", "QazCompute owns compute execution", "human decision and model judgement remain distinct", "oracle resolution has a named product owner"]
+    },
+    {
+      "id": "security.operator-recon-egress",
+      "plane": "security_privacy_compliance",
+      "donor_refs": ["backend/services/osint", "backend/services/osint_intel", "backend/services/ssrf_guard.py", "backend/services/shodan_connector.py", "backend/services/tor_hidden_service.py", "backend/services/transport_lane_isolation.py"],
+      "capability": "Operator reconnaissance, outbound-target filtering and isolated transport patterns.",
+      "target_owner": "none-until-explicit-protected-product-mandate",
+      "disposition": "archive_tests_and_retire_runtime",
+      "status": "rejected_for_direct_shared_promotion",
+      "acceptance": ["active scanning is not moved into QazStack or QazPipe", "the donor SSRF implementation is not promoted without DNS-rebinding-safe transport binding", "synthetic negative fixtures may be adapted", "Tor and provider credentials are revoked"]
+    },
+    {
+      "id": "platform.runtime-security-observability",
+      "plane": "quality_operations_docs",
+      "donor_refs": ["backend/services/api_settings.py", "backend/services/config.py", "backend/services/env_check.py", "backend/services/logging_setup.py", "backend/services/release_profiles.py", "backend/services/runtime_profile.py", "backend/services/slo.py", "backend/services/telemetry.py", "backend/services/updater.py"],
+      "capability": "Runtime configuration, release identity, health, SLO, logging and telemetry patterns.",
+      "target_owner": "qazstack-security-platform-and-recipient-operations",
+      "disposition": "consume_existing_and_adapt_receipts",
+      "status": "reviewed_no_new_parallel_runtime",
+      "acceptance": ["recipient-native Platform contracts are used", "release identity is exact", "telemetry remains privacy bounded", "self-update behavior is retired"]
+    },
+    {
+      "id": "interop.stix-and-evidence-exports",
+      "plane": "backend_and_api",
+      "donor_refs": ["backend/services/stix_exporter.py", "backend/services/schemas.py", "backend/services/privacy_claims.py"],
+      "capability": "STIX-compatible threat export and privacy-claim projection patterns.",
+      "target_owner": "qazstack.evidence-export-after-schema-review",
+      "disposition": "defer",
+      "status": "deferred_pending_standard_and_privacy_equivalence",
+      "acceptance": ["STIX version and profile are explicit", "identifiers and markings remain stable", "protected indicators are not exposed", "two consuming products or a platform mandate are named"]
+    },
+    {
+      "id": "frontend.resilience-media-privacy-patterns",
+      "plane": "frontend_components",
+      "donor_refs": ["frontend/src/components/ErrorBoundary.tsx", "frontend/src/components/ExternalImage.tsx", "frontend/src/components/HlsVideo.tsx", "frontend/src/components/MotionRoot.tsx", "frontend/src/lib/privacyBrowserStorage.ts", "frontend/src/lib/viewportPrivacy.ts", "frontend/src/lib/motion.tsx"],
+      "capability": "Error containment, external-media handling, reduced-motion and viewport/browser privacy patterns.",
+      "target_owner": "avds-and-qazstack-web-contracts",
+      "disposition": "duplicate_scan_then_adapt_tests_only",
+      "status": "deferred_pending_exact_catalog_gap_and_second_consumer",
+      "acceptance": ["existing AVDS primitives and motion tokens are preferred", "external media has consent and referrer policy", "viewport precision is bounded", "a pilot returns the shared contract to a real product"]
+    },
+    {
+      "id": "product.desktop-native-control",
+      "plane": "product_and_user_value",
+      "donor_refs": ["backend/services/agent_shell_settings.py", "backend/services/agent_shell_ws_token.py", "frontend/src/lib/desktopBridge.ts", "frontend/src/lib/desktopCompanion.ts", "frontend/src/lib/desktopControlContract.ts", "frontend/src/lib/localControlTransport.ts", "frontend/src/lib/nativeProtectedSettings.ts"],
+      "capability": "Shadow desktop companion, agent-shell and native protected-control integrations.",
+      "target_owner": "none-until-named-successor",
+      "disposition": "archive_contract_then_retire",
+      "status": "blocked_pending_live_consumer_inventory",
+      "acceptance": ["all desktop consumers are identified", "session and websocket tokens are revoked", "no native control route remains reachable", "only redacted interface documentation is archived"]
+    },
+    {
+      "id": "product.alert-watchlist-workspace",
+      "plane": "product_and_user_value",
+      "donor_refs": ["frontend/src/components/AlertToast.tsx", "frontend/src/components/WatchlistWidget.tsx", "frontend/src/components/AdvancedFilterModal.tsx", "frontend/src/components/FilterPanel.tsx", "frontend/src/components/SettingsPanel.tsx", "frontend/src/lib/layerPreferences.ts"],
+      "capability": "Operator alerts, watchlists, filters and workspace preferences.",
+      "target_owner": "named-successor-product-with-qazstack-tasks",
+      "disposition": "adapt_behavior_not_shadow_ui",
+      "status": "blocked_pending_successor_and_retention_policy",
+      "acceptance": ["operator records have an explicit retention/deletion decision", "QazStack tasks are reused where semantically equivalent", "AVDS controls replace local primitives", "no protected browser state is silently migrated"]
+    },
+    {
       "id": "platform.mesh-and-infonet",
       "plane": "platform_and_shared_services",
       "donor_refs": ["backend/services/mesh", "backend/services/infonet", "privacy-core/src/lib.rs"],
