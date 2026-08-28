@@ -326,7 +326,7 @@ def lookup_sanctions(query: str, *, schema: str | None = None, limit: int = 25) 
         "schema": schema,
         "total": len(matches),
         "matches": matches,
-        "source": "OpenSanctions / US OFAC SDN",
+        "source": "U.S. Treasury OFAC Sanctions List Service",
         "timestamp": _now_iso(),
     }
 

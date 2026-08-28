@@ -54,6 +54,7 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "radio_public": ("kiwisdr", "psk_reporter"),
     "visual_reference": ("cctv", "sar_scenes"),
     "cyber_public": ("cyber_threats",),
+    "risk_reference_public": ("sanctions",),
 }
 _lock = threading.RLock()
 _receipt_lock = threading.Lock()
@@ -381,6 +382,35 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
         else:
             result["kp_text"] = "QUIET"
         result["events"] = []
+    elif layer_key == "sanctions":
+        external_id = str(
+            item.get("external_id")
+            or entity_id.removeprefix("sanctions:ofac-sdn:")
+        ).strip()
+        listing_type = str(properties.get("listing_type") or "Entity").strip()
+        schema = {
+            "Individual": "Person",
+            "Entity": "LegalEntity",
+            "Vessel": "Vessel",
+            "Aircraft": "Airplane",
+        }.get(listing_type, listing_type or "LegalEntity")
+        aliases = [str(value) for value in properties.get("aliases") or []]
+        countries = [str(value) for value in properties.get("countries") or []]
+        programs = [str(value) for value in properties.get("programs") or []]
+        observed_at = item.get("observed_at")
+        result.update(
+            {
+                "id": external_id or entity_id,
+                "schema": schema,
+                "name": str(properties.get("name") or "").strip(),
+                "aliases": aliases,
+                "countries": countries,
+                "programs": programs,
+                "sanctions": "; ".join(programs),
+                "first_seen": observed_at,
+                "last_seen": observed_at,
+            }
+        )
     elif layer_key == "satnogs_stations":
         if properties.get("altitude_m") is not None:
             result["altitude"] = properties["altitude_m"]

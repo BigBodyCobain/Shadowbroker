@@ -142,6 +142,60 @@ def test_family_mode_maps_to_existing_public_layer_keys(monkeypatch) -> None:
     assert "geohazards" not in payload
 
 
+def test_risk_reference_family_maps_to_sanctions_layer(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES",
+        json.dumps({"risk_reference_public": "qazpipe"}),
+    )
+    monkeypatch.setattr(
+        feed,
+        "_items_by_family",
+        lambda: {
+            "risk_reference_public": {
+                "sanctions": [{"id": "36", "name": "Example Entity"}]
+            }
+        },
+    )
+    with feed._lock:
+        feed._state.update(
+            {"entities": {"36": {}}, "stale": False, "watermark": {"cursor": 9}}
+        )
+
+    payload = feed.apply_layer_source_modes(
+        {"sanctions": [{"id": "local"}]}, endpoint="/api/osint/sanctions"
+    )
+
+    assert payload["sanctions"] == [{"id": "36", "name": "Example Entity"}]
+
+
+def test_public_projection_preserves_sanctions_search_shape() -> None:
+    item = feed._public_item(
+        {
+            "external_id": "36",
+            "entity_id": "sanctions:ofac-sdn:36",
+            "properties": {
+                "layer_family": "risk_reference_public",
+                "layer_key": "sanctions",
+                "name": "Example Entity",
+                "listing_type": "Entity",
+                "aliases": ["Alias Name"],
+                "countries": ["Kazakhstan"],
+                "programs": ["TEST"],
+                "raw_payload": {"private": True},
+            },
+            "observed_at": "2026-08-26T00:00:00Z",
+        }
+    )
+
+    assert item["id"] == "36"
+    assert item["schema"] == "LegalEntity"
+    assert item["aliases"] == ["Alias Name"]
+    assert item["countries"] == ["Kazakhstan"]
+    assert item["programs"] == ["TEST"]
+    assert item["sanctions"] == "TEST"
+    assert "raw_payload" not in item
+
+
 def test_public_projection_does_not_expose_provider_or_receipt() -> None:
     item = feed._public_item(
         {

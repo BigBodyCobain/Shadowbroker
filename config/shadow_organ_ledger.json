@@ -76,11 +76,11 @@
       {"pattern": "backend/services/fetchers/unusual_whales.py", "organ_id": "data.finance-and-prediction", "decision": "route_to_qazfin", "reason": "Credential-backed finance does not enter QazPipe."},
       {"pattern": "backend/services/unusual_whales_connector.py", "organ_id": "data.finance-and-prediction", "decision": "route_to_qazfin", "reason": "Credential-backed finance does not enter QazPipe."},
       {"pattern": "backend/services/prediction_markets_settings.py", "organ_id": "data.finance-and-prediction", "decision": "route_to_qazfin", "reason": "Provider configuration belongs to QazFin."},
-      {"pattern": "backend/services/fetchers/aishub_fallback.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retain_until_owner_or_retire", "reason": "Credential-backed AIS cannot be exported through source code."},
-      {"pattern": "backend/services/fetchers/sar_products.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retain_until_owner_or_retire", "reason": "Protected SAR products require a named operator runtime."},
-      {"pattern": "backend/services/ais_stream.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retain_until_owner_or_retire", "reason": "Session-backed AIS requires a named operator runtime."},
-      {"pattern": "backend/services/aprs_is_bridge.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retain_until_owner_or_retire", "reason": "APRS-IS session and identity stay protected."},
-      {"pattern": "backend/services/sentinel_search.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retain_until_owner_or_retire", "reason": "Copernicus processing credentials stay protected."},
+      {"pattern": "backend/services/fetchers/aishub_fallback.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retire_with_shadow_after_credential_revocation", "reason": "Credential-backed AIS is not transferred; its schedule and access are retired with Shadow."},
+      {"pattern": "backend/services/fetchers/sar_products.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retire_with_shadow_after_credential_revocation", "reason": "Protected SAR products and credentials are not transferred to a new owner."},
+      {"pattern": "backend/services/ais_stream.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retire_with_shadow_after_credential_revocation", "reason": "Session-backed AIS is stopped and its credentials are revoked with Shadow."},
+      {"pattern": "backend/services/aprs_is_bridge.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retire_with_shadow_after_credential_revocation", "reason": "APRS-IS identity and session are revoked rather than copied."},
+      {"pattern": "backend/services/sentinel_search.py", "organ_id": "data.credential-session-operator-feeds", "decision": "retire_with_shadow_after_credential_revocation", "reason": "Copernicus processing credentials are revoked rather than copied."},
       {"pattern": "backend/services/fetchers/flight*.py", "organ_id": "data.public-flight-observations", "decision": "migrate_after_source_gate", "reason": "Anonymous aviation collection belongs to QazPipe."},
       {"pattern": "backend/services/fetchers/air*.py", "organ_id": "data.public-flight-observations", "decision": "migrate_after_source_gate", "reason": "Public aircraft reference data belongs to QazPipe."},
       {"pattern": "backend/services/fetchers/military.py", "organ_id": "data.public-flight-observations", "decision": "migrate_after_precision_gate", "reason": "Public aviation data needs a precision and safety review."},
@@ -113,7 +113,7 @@
       {"pattern": "backend/services/road_corridor_sat/**", "organ_id": "data.public-visual-sar-metadata", "decision": "archive_product_pipeline", "reason": "Processing code remains product-specific and is not promoted as collection."},
       {"pattern": "backend/services/sar/**", "organ_id": "data.public-visual-sar-metadata", "decision": "split_metadata_from_products", "reason": "Catalog contracts may move; product access and signing may not."},
       {"pattern": "backend/services/cctv_pipeline.py", "organ_id": "data.public-visual-sar-metadata", "decision": "migrate_reference_metadata_only", "reason": "Camera URLs and credentials are excluded."},
-      {"pattern": "backend/services/sanctions/**", "organ_id": "data.public-risk-sanctions-supply-chain", "decision": "migrate_after_source_gate", "reason": "Sanctions provenance must be reviewed per source."},
+      {"pattern": "backend/services/sanctions/**", "organ_id": "data.public-risk-sanctions-supply-chain", "decision": "migrate_primary_source_then_retire_adapter", "reason": "Official OFAC SLS is the approved primary source in QazPipe; OpenSanctions remains blocked by bulk-data terms and the Shadow adapter is temporary cutover plumbing."},
       {"pattern": "backend/services/scm/**", "organ_id": "data.public-risk-sanctions-supply-chain", "decision": "migrate_or_retire_per_source", "reason": "Supply-chain data requires identity and precision review."},
       {"pattern": "backend/services/fetchers/plan_vessel_alert.py", "organ_id": "data.public-risk-sanctions-supply-chain", "decision": "migrate_reference_only", "reason": "Only reviewed public watchlist references may move."},
       {"pattern": "backend/services/fetchers/yacht_alert.py", "organ_id": "data.public-risk-sanctions-supply-chain", "decision": "migrate_reference_only", "reason": "Only reviewed public watchlist references may move."},
@@ -334,10 +334,10 @@
       "plane": "security_privacy_compliance",
       "donor_refs": ["backend/services/fetchers/aishub_fallback.py", "backend/services/fetchers/sar_products.py", "backend/services/fetchers/telegram_osint.py"],
       "capability": "AISStream/AISHub, APRS-IS, Copernicus/Sentinel processing, SAR products and private operator feeds.",
-      "target_owner": "unassigned-protected-operator-runtime",
-      "disposition": "blocked",
-      "status": "blocked_missing_canonical_owner",
-      "acceptance": ["a protected owner is named or the feed is intentionally retired", "credentials are rotated or revoked", "no secret is copied through Git"]
+      "target_owner": "none-retire-with-shadow",
+      "disposition": "retire_with_shadow_after_cutover",
+      "status": "selected_for_retirement_pending_credential_inventory",
+      "acceptance": ["an exact protected-feed and schedule inventory is signed", "all schedules are disabled and confirmed stopped", "credentials are rotated or revoked", "no secret or protected record is copied through Git"]
     },
     {
       "id": "analytics.feed-cutover-comparison",
@@ -395,9 +395,9 @@
       "donor_refs": ["backend/services/intel_feeds", "backend/services/sanctions", "backend/services/scm", "backend/services/carrier_tracker.py", "backend/services/fetchers/crowdthreat.py", "backend/services/fetchers/military.py"],
       "capability": "Public country-risk, sanctions, supplier, carrier and defence reference inputs.",
       "target_owner": "qazpipe-qazlake",
-      "disposition": "per_source_review_then_migrate_or_retire",
-      "status": "blocked_pending_rights_identity_and_precision_review",
-      "acceptance": ["every provider has rights, identity, cadence and retention", "existing sanctions and entity collectors are extended", "sensitive precision and threat indicators are protected", "derived risk judgements are not ingested as facts"]
+      "disposition": "ofac_primary_implemented_inactive_then_review_remaining_sources",
+      "status": "partial_ofac_manual_canary_remaining_sources_blocked",
+      "acceptance": ["official OFAC SLS has rights, identity, 24h-on-change cadence and QazLake retention", "OpenSanctions stays blocked without a commercial-use gate", "the Shadow local adapter is disabled in qazpipe mode and retired after live parity", "other providers still require rights, identity, cadence, retention and precision review", "sensitive precision and threat indicators are protected", "derived risk judgements are not ingested as facts"]
     },
     {
       "id": "backend.entity-geo-projections",
@@ -474,9 +474,9 @@
       "plane": "product_and_user_value",
       "donor_refs": ["backend/services/agent_shell_settings.py", "backend/services/agent_shell_ws_token.py", "frontend/src/lib/desktopBridge.ts", "frontend/src/lib/desktopCompanion.ts", "frontend/src/lib/desktopControlContract.ts", "frontend/src/lib/localControlTransport.ts", "frontend/src/lib/nativeProtectedSettings.ts"],
       "capability": "Shadow desktop companion, agent-shell and native protected-control integrations.",
-      "target_owner": "none-until-named-successor",
+      "target_owner": "none-retire-with-shadow",
       "disposition": "archive_contract_then_retire",
-      "status": "blocked_pending_live_consumer_inventory",
+      "status": "selected_for_retirement_pending_live_consumer_inventory",
       "acceptance": ["all desktop consumers are identified", "session and websocket tokens are revoked", "no native control route remains reachable", "only redacted interface documentation is archived"]
     },
     {
@@ -484,10 +484,10 @@
       "plane": "product_and_user_value",
       "donor_refs": ["frontend/src/components/AlertToast.tsx", "frontend/src/components/WatchlistWidget.tsx", "frontend/src/components/AdvancedFilterModal.tsx", "frontend/src/components/FilterPanel.tsx", "frontend/src/components/SettingsPanel.tsx", "frontend/src/lib/layerPreferences.ts"],
       "capability": "Operator alerts, watchlists, filters and workspace preferences.",
-      "target_owner": "named-successor-product-with-qazstack-tasks",
-      "disposition": "adapt_behavior_not_shadow_ui",
-      "status": "blocked_pending_successor_and_retention_policy",
-      "acceptance": ["operator records have an explicit retention/deletion decision", "QazStack tasks are reused where semantically equivalent", "AVDS controls replace local primitives", "no protected browser state is silently migrated"]
+      "target_owner": "none-retire-with-shadow",
+      "disposition": "archive_redacted_behavior_contract_then_retire",
+      "status": "selected_for_retirement_pending_record_retention_decision",
+      "acceptance": ["operator records have an explicit retention or deletion decision", "no protected browser state is silently migrated", "only redacted behavior documentation is archived", "all workspace routes and sessions are disabled"]
     },
     {
       "id": "platform.mesh-and-infonet",
@@ -544,10 +544,10 @@
       "plane": "product_and_user_value",
       "donor_refs": ["backend/services/region_dossier.py", "backend/services/entity_profile.py", "backend/services/osint", "backend/services/osint_intel", "frontend/src/components/EntityGraphPanel.tsx", "frontend/src/components/ReconPanel.tsx"],
       "capability": "Operator dossiers, entity graph and active reconnaissance workflows.",
-      "target_owner": "none-until-explicit-product-mandate",
-      "disposition": "archive_only",
-      "status": "blocked_sensitive_workflow",
-      "acceptance": ["no protected record is exported", "active scanning is not moved into a shared service", "retention/deletion decision is recorded"]
+      "target_owner": "none-retire-with-shadow",
+      "disposition": "archive_redacted_contract_only_then_retire",
+      "status": "selected_for_retirement_pending_record_deletion_evidence",
+      "acceptance": ["no protected record is exported", "active scanning is not moved into a shared service", "retention or deletion decision is recorded", "protected records and credentials have deletion or revocation evidence"]
     },
     {
       "id": "information.layer-taxonomy",
@@ -596,7 +596,7 @@
       "QazLake production feed has not yet completed deployment and live security proof.",
       "QazPipe schedules remain intentionally inactive pending source gates and canaries.",
       "Shadow upstream PR 543 is not merged and upstream push permission is unavailable.",
-      "Credential/operator feeds have no post-Shadow canonical owner or explicit retirement decision.",
+      "Exact credential/operator feed inventory, schedule shutdown and credential revocation evidence are not complete.",
       "Three successful comparisons, one scheduled window, 24-hour observation and one full cadence are not yet evidenced."
     ],
     "deletion_scope": "Only exact ShadowBroker repository/runtime/container/image/schedule/secret resources listed in a signed retirement receipt; archives and rollback manifests remain outside the deleted runtime."

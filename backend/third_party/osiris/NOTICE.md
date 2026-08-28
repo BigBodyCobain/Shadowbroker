@@ -6,9 +6,10 @@ malware feeds, and related UI were adapted from:
 - **OSIRIS** — MIT License — Copyright (c) 2026 simplifaisoul  
   https://github.com/simplifaisoul/osiris
 
-Additional data attribution:
+Historical data attribution:
 
-- **OpenSanctions** `us_ofac_sdn` dataset — CC-BY 4.0  
-  https://www.opensanctions.org/
+- **OpenSanctions** `us_ofac_sdn` dataset was used by the original port. The
+  current implementation reads the official U.S. Treasury OFAC Sanctions List
+  Service publication directly; OpenSanctions is not an active runtime source.
 - **TeleGeography** submarine cable map data (static GeoJSON)
 - **abuse.ch** Feodo Tracker / URLhaus (malware feeds)

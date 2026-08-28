@@ -28,15 +28,20 @@ before backend tests so new Shadow surfaces cannot silently escape disposition.
 - AVDS already owns source health, freshness and map-layer controls. A new
   primitive is allowed only after an exact catalog gap, two consumers, a pilot,
   rollback and return-to-donor evidence.
-- Credential/session/operator sources require a named protected successor or an
-  explicit retirement decision before Shadow deletion.
+- Credential/session/operator sources have no approved post-Shadow owner. The
+  recorded terminal decision is to stop them, revoke their credentials and
+  retire them with Shadow after exact feed and schedule inventory. No source,
+  session, protected record or secret is copied. A separately approved successor
+  before cutover would require a new owner-specific gate and receipt.
 
 The exact reuse scan is recorded in `reuse_decisions` in the organ ledger.
 Only the provider-neutral feed-cutover receipt is a confirmed shared gap.
 QazStack already owns early-warning, temporal and HMAC/replay contracts, while
 AVDS already owns the source-state and map-control primitives. Shadow-specific
 weights, cases, stores, terminal styling and operator workflows therefore do
-not become new platform modules. They move to a named product owner or retire.
+not become new platform modules. Only redacted contracts and synthetic golden
+fixtures may be archived; anything without an approved successor retires with
+Shadow.
 
 ## Retirement sequence
 
@@ -47,9 +52,11 @@ not become new platform modules. They move to a named product owner or retire.
 3. Release extracted shared contracts and adopt them in a non-Shadow consumer.
    Archive rejected experimental code with its warnings, never as a production
    security package.
-4. Inventory exact runtime resources, export only allowed audit/rollback
-   evidence, revoke or rotate every Shadow credential, disable ingress and
-   schedules, and observe one full cadence plus the 24-hour window.
+4. Inventory exact runtime resources and every credential/session/operator
+   feed. Export only allowed audit/rollback evidence; then stop and verify those
+   schedules, revoke or rotate every Shadow credential, disable ingress, and
+   observe one full cadence plus the 24-hour window. Closed feeds and protected
+   records are retired, not transferred.
 5. Delete only the signed exact resource list. Keep immutable release manifests,
    final source archive and rollback evidence outside the retired runtime.
 
