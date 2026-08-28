@@ -28,7 +28,7 @@
       "family": "privacy-bounded-viewport-queries",
       "canonical_owner": "qazstack.geo",
       "owner_baseline": "0b833d5a3b572fc9882f42fb6f239b88bbb8278e",
-      "candidate_revision": "9f08e2529adf772d54cd22d00203229c4cc6839e",
+      "candidate_revision": "a63dda99c8d71816135072ecb981518ac820cbe4",
       "decision": "extract_provider_neutral_math_and_require_consumer_policy",
       "reason": "QazStack Geo had no equivalent outward-coarsening contract. The extracted pure helpers omit Shadow's product radius and UI, fail closed on invalid coordinates, and explicitly describe precision reduction as data minimisation rather than anonymisation."
     },
@@ -467,7 +467,7 @@
       "target_owner": "qazstack.geo",
       "disposition": "extract_shared_math_without_product_defaults",
       "status": "published_for_review_non_shadow_pilot_pending",
-      "acceptance": ["QazStack candidate 9f08e2529adf772d54cd22d00203229c4cc6839e is reviewed and released", "synthetic Shadow golden cases pass in the recipient-native suite", "the contract makes no anonymity claim and rejects non-finite coordinates", "a non-Shadow consumer adopts an explicit precision and retention policy before donor deletion"]
+      "acceptance": ["QazStack candidate a63dda99c8d71816135072ecb981518ac820cbe4 is reviewed and released", "synthetic Shadow golden cases pass in the recipient-native suite", "the contract makes no anonymity claim and rejects non-finite coordinates", "a non-Shadow consumer adopts an explicit precision and retention policy before donor deletion"]
     },
     {
       "id": "product.desktop-native-control",
