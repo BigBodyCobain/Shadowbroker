@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -16,6 +16,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
+
+UTC = timezone.utc
 
 SCHEMA_VERSION = "qazlake.shadow-observations-feed/v1"
 VALID_MODES = frozenset({"local", "compare", "qazpipe"})

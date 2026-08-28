@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Request
 from services.fetchers._store import get_latest_data_subset_refs
 
 router = APIRouter()
+
+UTC = timezone.utc
 
 _EXPORTED_FIELDS = frozenset(
     {
