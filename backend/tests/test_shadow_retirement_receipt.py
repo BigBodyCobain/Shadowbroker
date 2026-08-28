@@ -11,7 +11,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 _SPEC = importlib.util.spec_from_file_location(
     "shadow_retirement_receipt_verifier",
-    Path(__file__).resolve().parents[2] / "scripts" / "verify_shadow_retirement_receipt.py",
+    Path(__file__).resolve().parents[2]
+    / "scripts"
+    / "verify_shadow_retirement_receipt.py",
 )
 assert _SPEC is not None and _SPEC.loader is not None
 _VERIFIER = importlib.util.module_from_spec(_SPEC)
@@ -63,7 +65,11 @@ def _signed_receipt(tmp_path: Path) -> tuple[Path, Path, dict]:
             }
         ],
         "credential_actions": [
-            {"binding_id": "mesh-hmac", "action": "rotated", "evidence": ["receipt:mesh-old-rejected"]}
+            {
+                "binding_id": "mesh-hmac",
+                "action": "rotated",
+                "evidence": ["receipt:mesh-old-rejected"],
+            }
         ],
         "signature": {
             "algorithm": "ed25519",
@@ -71,7 +77,9 @@ def _signed_receipt(tmp_path: Path) -> tuple[Path, Path, dict]:
             "value": "",
         },
     }
-    receipt["signature"]["value"] = base64.b64encode(private_key.sign(_canonical_payload(receipt))).decode()
+    receipt["signature"]["value"] = base64.b64encode(
+        private_key.sign(_canonical_payload(receipt))
+    ).decode()
     receipt_path = tmp_path / "retirement.json"
     receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
     return receipt_path, public_key_path, receipt
@@ -95,3 +103,28 @@ def test_broad_resource_target_is_rejected_before_signature(tmp_path: Path) -> N
     receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
     errors = verify(receipt_path, public_key_path)
     assert "resources[0].exact_locator is broad or ambiguous" in errors
+
+
+def test_broad_retained_artifact_target_is_rejected(tmp_path: Path) -> None:
+    receipt_path, public_key_path, receipt = _signed_receipt(tmp_path)
+    receipt["retained_artifacts"][0]["exact_locator"] = "/var/lib/*"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    errors = verify(receipt_path, public_key_path)
+    assert "retained_artifacts[0].exact_locator is broad or ambiguous" in errors
+
+
+def test_image_requires_digest_identity(tmp_path: Path) -> None:
+    receipt_path, public_key_path, receipt = _signed_receipt(tmp_path)
+    receipt["resources"][0]["kind"] = "image"
+    receipt["resources"][0]["exact_identity"] = "shadowbroker:latest"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    errors = verify(receipt_path, public_key_path)
+    assert "resources[0].exact_identity must be an image digest" in errors
+
+
+def test_credential_action_requires_exact_binding(tmp_path: Path) -> None:
+    receipt_path, public_key_path, receipt = _signed_receipt(tmp_path)
+    del receipt["credential_actions"][0]["binding_id"]
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    errors = verify(receipt_path, public_key_path)
+    assert "credential_actions[0].binding_id is required" in errors

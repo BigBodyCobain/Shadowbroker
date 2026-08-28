@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import fnmatch
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path, PurePosixPath
-
 
 EXPECTED_PLANES = {
     "product_and_user_value",
@@ -39,6 +41,22 @@ REQUIRED_ORGAN_FIELDS = {
     "acceptance",
 }
 FORBIDDEN_REF_PARTS = {".env", "node_modules", ".next", "output", "__pycache__"}
+
+
+def _git_tree_files(repo_root: Path, revision: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", revision],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def _inventory_digest(paths: list[str]) -> str:
+    payload = "".join(f"{path}\n" for path in paths).encode()
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _fail(errors: list[str], message: str) -> None:
@@ -98,10 +116,19 @@ def verify(repo_root: Path) -> list[str]:
     else:
         reuse_families: set[str] = set()
         for index, decision in enumerate(reuse_decisions):
-            required = {"family", "canonical_owner", "owner_baseline", "decision", "reason"}
+            required = {
+                "family",
+                "canonical_owner",
+                "owner_baseline",
+                "decision",
+                "reason",
+            }
             missing = required - set(decision)
             if missing:
-                _fail(errors, f"reuse_decisions[{index}] missing fields: {sorted(missing)}")
+                _fail(
+                    errors,
+                    f"reuse_decisions[{index}] missing fields: {sorted(missing)}",
+                )
                 continue
             family = decision["family"]
             if family in reuse_families:
@@ -109,7 +136,10 @@ def verify(repo_root: Path) -> list[str]:
             reuse_families.add(family)
             for field in required:
                 if not isinstance(decision[field], str) or not decision[field].strip():
-                    _fail(errors, f"reuse_decisions[{index}].{field} must be non-empty text")
+                    _fail(
+                        errors,
+                        f"reuse_decisions[{index}].{field} must be non-empty text",
+                    )
         if reuse_families != EXPECTED_REUSE_FAMILIES:
             _fail(
                 errors,
@@ -144,7 +174,11 @@ def verify(repo_root: Path) -> list[str]:
             _fail(errors, f"{name}: unknown organ ids: {sorted(unknown)}")
         for ref in roots:
             path = PurePosixPath(ref)
-            if path.is_absolute() or ".." in path.parts or not (repo_root / path).exists():
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or not (repo_root / path).exists()
+            ):
                 _fail(errors, f"{name}: missing or unsafe coverage root: {ref}")
 
     rules = data.get("rules", {})
@@ -162,6 +196,74 @@ def verify(repo_root: Path) -> list[str]:
     if retirement.get("status") == "ready" and retirement.get("blockers"):
         _fail(errors, "retirement cannot be ready while blockers remain")
 
+    inventory = data.get("module_inventory")
+    if not isinstance(inventory, dict):
+        _fail(errors, "module_inventory must be an object")
+        return errors
+    revision = inventory.get("source_revision")
+    if revision != data.get("donor", {}).get("revision"):
+        _fail(errors, "module inventory must be bound to the donor revision")
+        return errors
+    try:
+        tracked_files = _git_tree_files(repo_root, revision)
+    except (subprocess.CalledProcessError, OSError) as exc:
+        _fail(errors, f"cannot read donor Git tree: {exc}")
+        return errors
+    if inventory.get("file_count") != len(tracked_files):
+        _fail(errors, "module inventory file_count does not match donor Git tree")
+    if inventory.get("tree_path_sha256") != _inventory_digest(tracked_files):
+        _fail(errors, "module inventory path digest does not match donor Git tree")
+
+    classifications = inventory.get("classifications")
+    if not isinstance(classifications, list) or not classifications:
+        _fail(errors, "module inventory classifications must be a non-empty list")
+        return errors
+    for index, rule in enumerate(classifications):
+        required = {"pattern", "organ_id", "decision", "reason"}
+        missing = required - set(rule)
+        if missing:
+            _fail(
+                errors,
+                f"module classification[{index}] missing fields: {sorted(missing)}",
+            )
+            continue
+        if rule["organ_id"] not in organ_ids:
+            _fail(
+                errors,
+                f"module classification[{index}] has unknown organ: {rule['organ_id']}",
+            )
+        for field in required:
+            if not isinstance(rule[field], str) or not rule[field].strip():
+                _fail(
+                    errors,
+                    f"module classification[{index}].{field} must be non-empty text",
+                )
+
+    unmatched: list[str] = []
+    matched_counts = [0] * len(classifications)
+    for path in tracked_files:
+        matching = [
+            index
+            for index, rule in enumerate(classifications)
+            if fnmatch.fnmatchcase(path, rule.get("pattern", ""))
+        ]
+        if not matching:
+            unmatched.append(path)
+            continue
+        matched_counts[matching[0]] += 1
+    if unmatched:
+        preview = ", ".join(unmatched[:10])
+        _fail(errors, f"unclassified donor files ({len(unmatched)}): {preview}")
+    empty_rules = [
+        classifications[index].get("pattern", "<missing>")
+        for index, count in enumerate(matched_counts)
+        if count == 0
+    ]
+    if empty_rules:
+        _fail(
+            errors, f"module classification rules match no donor files: {empty_rules}"
+        )
+
     return errors
 
 
@@ -172,7 +274,10 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print("Shadow organ ledger: 11/11 planes covered; donor refs and retirement gates valid")
+    print(
+        "Shadow organ ledger: 11/11 planes and exact donor Git tree covered; "
+        "donor refs and retirement gates valid"
+    )
     return 0
 
 

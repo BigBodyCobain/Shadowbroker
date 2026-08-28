@@ -11,9 +11,12 @@ protected records, topology, generated datasets and compiled artifacts are not
 organs and must not be copied through Git.
 
 `python3 scripts/verify_shadow_organ_ledger.py` is the fail-closed coverage
-check. It requires all eleven review planes, verifies every donor locator and
-prevents a `ready` retirement state while blockers remain. CI runs it before
-backend tests so new Shadow surfaces cannot silently escape disposition.
+check. It requires all eleven review planes, verifies every donor locator, and
+classifies every path in the immutable 1,222-file donor Git tree by primary
+organ and disposition. The count and sorted-path SHA-256 are revision-bound, so
+an omitted module, stale inventory or empty classification rule fails the gate.
+It also prevents a `ready` retirement state while blockers remain. CI runs it
+before backend tests so new Shadow surfaces cannot silently escape disposition.
 
 ## Canonical routing
 

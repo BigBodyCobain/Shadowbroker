@@ -46,11 +46,14 @@ FORBIDDEN_EXACT_LOCATORS = {"/", "/etc", "/opt", "/srv", "/var", "/var/lib"}
 FULL_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 FULL_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 WILDCARD_OR_EXPANSION = re.compile(r"[*?\[\]{}]|\$\(|\$\{|`|(^|/)\.\.(/|$)")
+EXACT_IDENTITY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+\-]{7,255}$")
 
 
 def _canonical_payload(receipt: dict[str, Any]) -> bytes:
     payload = {key: value for key, value in receipt.items() if key != "signature"}
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
 
 
 def _timestamp(value: Any, field: str, errors: list[str]) -> None:
@@ -120,12 +123,24 @@ def _verify_structure(receipt: dict[str, Any]) -> list[str]:
                 errors.append(f"resources[{index}].kind is not allowed")
             if not isinstance(locator, str) or not locator.strip():
                 errors.append(f"resources[{index}].exact_locator is required")
-            elif locator.rstrip("/") in FORBIDDEN_EXACT_LOCATORS or WILDCARD_OR_EXPANSION.search(locator):
+            elif locator.rstrip(
+                "/"
+            ) in FORBIDDEN_EXACT_LOCATORS or WILDCARD_OR_EXPANSION.search(locator):
                 errors.append(f"resources[{index}].exact_locator is broad or ambiguous")
-            if not isinstance(identity, str) or not identity.strip():
+            if not isinstance(identity, str) or not EXACT_IDENTITY.fullmatch(identity):
                 errors.append(f"resources[{index}].exact_identity is required")
+            elif kind == "image" and not re.fullmatch(r"sha256:[0-9a-f]{64}", identity):
+                errors.append(
+                    f"resources[{index}].exact_identity must be an image digest"
+                )
+            elif kind == "repository_checkout" and not FULL_GIT_SHA.fullmatch(identity):
+                errors.append(
+                    f"resources[{index}].exact_identity must be an exact Git SHA"
+                )
             if not isinstance(position, int) or position < 1:
-                errors.append(f"resources[{index}].delete_order must be a positive integer")
+                errors.append(
+                    f"resources[{index}].delete_order must be a positive integer"
+                )
             elif position in positions:
                 errors.append(f"duplicate delete_order: {position}")
             else:
@@ -141,8 +156,15 @@ def _verify_structure(receipt: dict[str, Any]) -> list[str]:
             if not isinstance(artifact, dict):
                 errors.append(f"retained_artifacts[{index}] must be an object")
                 continue
-            if not isinstance(artifact.get("exact_locator"), str) or not artifact["exact_locator"].strip():
+            locator = artifact.get("exact_locator")
+            if not isinstance(locator, str) or not locator.strip():
                 errors.append(f"retained_artifacts[{index}].exact_locator is required")
+            elif locator.rstrip(
+                "/"
+            ) in FORBIDDEN_EXACT_LOCATORS or WILDCARD_OR_EXPANSION.search(locator):
+                errors.append(
+                    f"retained_artifacts[{index}].exact_locator is broad or ambiguous"
+                )
             if not FULL_SHA256.fullmatch(str(artifact.get("sha256", ""))):
                 errors.append(f"retained_artifacts[{index}].sha256 must be exact")
 
@@ -151,12 +173,22 @@ def _verify_structure(receipt: dict[str, Any]) -> list[str]:
         errors.append("credential_actions must be non-empty")
     else:
         for index, action in enumerate(credentials):
-            if not isinstance(action, dict) or action.get("action") not in {"revoked", "rotated"}:
+            if not isinstance(action, dict) or action.get("action") not in {
+                "revoked",
+                "rotated",
+            }:
                 errors.append(f"credential_actions[{index}] must be revoked or rotated")
                 continue
             if "secret" in action or "value" in action:
-                errors.append(f"credential_actions[{index}] must not contain secret material")
-            _evidence(action.get("evidence"), f"credential_actions[{index}].evidence", errors)
+                errors.append(
+                    f"credential_actions[{index}] must not contain secret material"
+                )
+            binding_id = action.get("binding_id")
+            if not isinstance(binding_id, str) or not binding_id.strip():
+                errors.append(f"credential_actions[{index}].binding_id is required")
+            _evidence(
+                action.get("evidence"), f"credential_actions[{index}].evidence", errors
+            )
 
     signature = receipt.get("signature")
     if not isinstance(signature, dict) or signature.get("algorithm") != "ed25519":
@@ -195,7 +227,9 @@ def verify(receipt_path: Path, public_key_path: Path) -> list[str]:
     if signature["key_sha256"] != fingerprint:
         return ["signature key fingerprint does not match the trust anchor"]
     try:
-        public_key.verify(base64.b64decode(signature["value"]), _canonical_payload(receipt))
+        public_key.verify(
+            base64.b64decode(signature["value"]), _canonical_payload(receipt)
+        )
     except InvalidSignature:
         return ["receipt signature is invalid"]
     return []
@@ -211,7 +245,9 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print("Shadow retirement receipt: signed exact inventory and all deletion gates valid")
+    print(
+        "Shadow retirement receipt: signed exact inventory and all deletion gates valid"
+    )
     return 0
 
 
