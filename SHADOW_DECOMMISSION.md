@@ -50,6 +50,23 @@ not become new platform modules. They move to a named product owner or retire.
 5. Delete only the signed exact resource list. Keep immutable release manifests,
    final source archive and rollback evidence outside the retired runtime.
 
+The protected retirement receipt uses
+`shadowbroker-retirement-receipt/v1`. Verify it from outside the Shadow runtime
+with an independently retained Ed25519 trust anchor:
+
+```bash
+.venv/bin/python scripts/verify_shadow_retirement_receipt.py \
+  /protected/retirement/shadowbroker.json \
+  --public-key /protected/retirement/shadowbroker-retirement-public.pem
+```
+
+The receipt must enumerate every service, container, image, ingress, checkout,
+schedule, secret binding and volume by exact locator and immutable identity in a
+contiguous deletion order. It also retains hashes for the final release,
+rollback and audit artifacts and records only credential action evidence, never
+secret values. Wildcards, parent traversal, shell expansion and broad paths are
+rejected before signature verification.
+
 Deletion is blocked by any unresolved source right, live consumer, credential,
 dead letter, schema error, stale watermark, public/private contract regression or
 missing exact resource inventory.
