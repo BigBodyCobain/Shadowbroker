@@ -25,6 +25,7 @@ EXPECTED_PLANES = {
 }
 EXPECTED_REUSE_FAMILIES = {
     "provider-neutral-feed-cutover",
+    "privacy-bounded-viewport-queries",
     "correlation-early-warning-backtest",
     "temporal-snapshots-and-diffs",
     "hmac-rotation-replay",

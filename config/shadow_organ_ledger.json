@@ -1,6 +1,6 @@
 {
   "schema_version": "shadowbroker-organ-ledger/v1",
-  "generated_at": "2026-08-28T09:45:00Z",
+  "generated_at": "2026-08-28T12:35:11Z",
   "donor": {
     "project_id": "shadowbroker",
     "revision": "79aff792c4b2780fe7982c297d95190b87f09c5c",
@@ -23,6 +23,14 @@
       "candidate_revision": "0b833d5a3b572fc9882f42fb6f239b88bbb8278e",
       "decision": "extract",
       "reason": "QazStack had no equivalent multiplicity, freshness, null-rate and stale-state cutover receipt; the extracted contract is provider-neutral and contains no record identifiers or payloads."
+    },
+    {
+      "family": "privacy-bounded-viewport-queries",
+      "canonical_owner": "qazstack.geo",
+      "owner_baseline": "0b833d5a3b572fc9882f42fb6f239b88bbb8278e",
+      "candidate_revision": "45abb91079b181418eaa6f41fe3ad09fd3451dd0",
+      "decision": "extract_provider_neutral_math_and_require_consumer_policy",
+      "reason": "QazStack Geo had no equivalent outward-coarsening contract. The extracted pure helpers omit Shadow's product radius and UI, fail closed on invalid coordinates, and explicitly describe precision reduction as data minimisation rather than anonymisation."
     },
     {
       "family": "correlation-early-warning-backtest",
@@ -61,6 +69,7 @@
     "classifications": [
       {"pattern": "backend/tests/**", "organ_id": "quality.security-resilience-map-tests", "decision": "adapt_fixtures_then_archive", "reason": "Tests are evidence inputs for recipient-native suites, not a runtime dependency."},
       {"pattern": "backend/services/infonet/tests/**", "organ_id": "platform.mesh-and-infonet", "decision": "archive_only", "reason": "Experimental Infonet has no approved production owner."},
+      {"pattern": "frontend/src/__tests__/utils/viewportPrivacy.test.ts", "organ_id": "security.viewport-query-data-minimisation", "decision": "adapt_golden_fixtures", "reason": "Synthetic viewport fixtures verify the provider-neutral QazStack Geo contract."},
       {"pattern": "frontend/src/__tests__/**", "organ_id": "quality.security-resilience-map-tests", "decision": "adapt_fixtures_then_archive", "reason": "Frontend fixtures move only with an accepted recipient contract."},
       {"pattern": "backend/services/fetchers/financial.py", "organ_id": "data.finance-and-prediction", "decision": "route_to_qazfin", "reason": "QazFin remains the single financial collection owner."},
       {"pattern": "backend/services/fetchers/prediction_markets.py", "organ_id": "data.finance-and-prediction", "decision": "route_to_qazfin", "reason": "QazFin remains the single prediction-market owner."},
@@ -157,6 +166,7 @@
       {"pattern": "frontend/src/components/ui/**", "organ_id": "ux.operational-map-shell", "decision": "replace_with_avds", "reason": "AVDS owns UI primitives."},
       {"pattern": "frontend/src/components/**", "organ_id": "product.alert-watchlist-workspace", "decision": "adapt_behavior_to_named_successor_or_retire", "reason": "Remaining components are product features, not shared primitives."},
       {"pattern": "frontend/src/hooks/**", "organ_id": "frontend.geospatial-builders-workers", "decision": "adapt_only_with_named_consumer", "reason": "Hooks remain consumer adapters unless a shared owner accepts them."},
+      {"pattern": "frontend/src/lib/viewportPrivacy.ts", "organ_id": "security.viewport-query-data-minimisation", "decision": "extract_provider_neutral_math", "reason": "QazStack Geo owns precision-bounded viewport helpers; Shadow's product preload radius does not transfer."},
       {"pattern": "frontend/src/lib/**", "organ_id": "frontend.geospatial-builders-workers", "decision": "split_contracts_from_product_logic", "reason": "Only provider-neutral builders and workers may move."},
       {"pattern": "frontend/src/mesh/**", "organ_id": "platform.mesh-and-infonet", "decision": "archive_source_then_delete", "reason": "Mesh client is coupled to rejected experimental runtime."},
       {"pattern": "frontend/src/i18n/**", "organ_id": "content.operator-copy-localization", "decision": "review_terms_then_adapt", "reason": "Localization moves only with a successor surface."},
@@ -210,7 +220,7 @@
     {
       "plane": "security_privacy_compliance",
       "roots": ["backend/auth.py", "backend/limiter.py", "backend/services/mesh", "privacy-core"],
-      "organ_ids": ["security.hmac-replay-ssrf", "security.operator-recon-egress", "platform.mesh-and-infonet", "data.credential-session-operator-feeds"]
+      "organ_ids": ["security.hmac-replay-ssrf", "security.viewport-query-data-minimisation", "security.operator-recon-egress", "platform.mesh-and-infonet", "data.credential-session-operator-feeds"]
     },
     {
       "plane": "platform_and_shared_services",
@@ -442,12 +452,22 @@
     {
       "id": "frontend.resilience-media-privacy-patterns",
       "plane": "frontend_components",
-      "donor_refs": ["frontend/src/components/ErrorBoundary.tsx", "frontend/src/components/ExternalImage.tsx", "frontend/src/components/HlsVideo.tsx", "frontend/src/components/MotionRoot.tsx", "frontend/src/lib/privacyBrowserStorage.ts", "frontend/src/lib/viewportPrivacy.ts", "frontend/src/lib/motion.tsx"],
-      "capability": "Error containment, external-media handling, reduced-motion and viewport/browser privacy patterns.",
+      "donor_refs": ["frontend/src/components/ErrorBoundary.tsx", "frontend/src/components/ExternalImage.tsx", "frontend/src/components/HlsVideo.tsx", "frontend/src/components/MotionRoot.tsx", "frontend/src/lib/privacyBrowserStorage.ts", "frontend/src/lib/motion.tsx"],
+      "capability": "Error containment, external-media handling, reduced-motion and browser-storage privacy patterns.",
       "target_owner": "avds-and-qazstack-web-contracts",
       "disposition": "duplicate_scan_then_adapt_tests_only",
       "status": "deferred_pending_exact_catalog_gap_and_second_consumer",
-      "acceptance": ["existing AVDS primitives and motion tokens are preferred", "external media has consent and referrer policy", "viewport precision is bounded", "a pilot returns the shared contract to a real product"]
+      "acceptance": ["existing AVDS primitives and motion tokens are preferred", "external media has consent and referrer policy", "protected browser state is not silently migrated", "a pilot returns any new shared contract to a real product"]
+    },
+    {
+      "id": "security.viewport-query-data-minimisation",
+      "plane": "security_privacy_compliance",
+      "donor_refs": ["frontend/src/lib/viewportPrivacy.ts", "frontend/src/__tests__/utils/viewportPrivacy.test.ts"],
+      "capability": "Provider-neutral longitude normalisation, outward viewport coarsening and explicit-radius expansion for lower-precision upstream geographic requests.",
+      "target_owner": "qazstack.geo",
+      "disposition": "extract_shared_math_without_product_defaults",
+      "status": "published_for_review_non_shadow_pilot_pending",
+      "acceptance": ["QazStack candidate 45abb91079b181418eaa6f41fe3ad09fd3451dd0 is reviewed and released", "synthetic Shadow golden cases pass in the recipient-native suite", "the contract makes no anonymity claim and rejects non-finite coordinates", "a non-Shadow consumer adopts an explicit precision and retention policy before donor deletion"]
     },
     {
       "id": "product.desktop-native-control",
@@ -563,7 +583,7 @@
       "id": "quality.security-resilience-map-tests",
       "plane": "quality_operations_docs",
       "donor_refs": ["backend/tests", "frontend/src/__tests__", "frontend/src/components/map/geoJSONBuilders.test.ts", "frontend/src/utils/alertSpread.test.ts", "ops/shadow.qdev.run"],
-      "capability": "Security, source resilience, map-worker, viewport privacy, release and rollback test patterns.",
+      "capability": "Security, source resilience, map-worker, release and rollback test patterns.",
       "target_owner": "each-canonical-recipient",
       "disposition": "adapt_fixtures_not_copy_runtime",
       "status": "selected",

@@ -1,6 +1,6 @@
 {
   "schema_version": "qdev-cross-project-reuse-ledger-v1",
-  "generated_at": "2026-08-28T09:45:00Z",
+  "generated_at": "2026-08-28T12:35:11Z",
   "request": "Extract reusable provider-neutral organs from ShadowBroker into canonical QazStack while preparing ShadowBroker retirement.",
   "mode": "integrate",
   "authorization": {
@@ -20,7 +20,7 @@
     "canonical_root": "/Users/belilovsky/Documents/ChatGPT/QazStack-shadow-organs-20260828",
     "revision": "081de3852ce0becbbc408272fcaa925fc4cf4117",
     "dirty_state": "clean before target edits",
-    "evidence": ["src/qazstack/databus", "src/qazstack/analytics", "src/qazstack/temporal", "docs/databus.md"]
+    "evidence": ["src/qazstack/databus", "src/qazstack/analytics", "src/qazstack/temporal", "src/qazstack/geo", "docs/databus.md", "docs/geo.md"]
   },
   "target_outcome": {
     "mandate": "QazStack owns neutral, privacy-bounded data interchange and cutover contracts; products own transport, storage, policy and domain logic.",
@@ -34,12 +34,12 @@
     {"plane": "content_and_localization", "status": "not_applicable", "evidence": [], "notes": "No user-facing Shadow copy is transferred to the Python contract."},
     {"plane": "data_and_provenance", "status": "reviewed", "evidence": ["backend/services/qazlake_shadow_feed.py", "src/qazstack/databus/contracts.py"], "notes": "Existing SourceWatermark and bounded metrics are reused."},
     {"plane": "ux_and_avds", "status": "not_applicable", "evidence": [], "notes": "The target change has no rendered UI; AVDS candidates are tracked separately."},
-    {"plane": "frontend_components", "status": "not_applicable", "evidence": [], "notes": "No frontend component is transferred in this target ledger."},
+    {"plane": "frontend_components", "status": "reviewed", "evidence": ["frontend/src/lib/viewportPrivacy.ts", "frontend/src/__tests__/utils/viewportPrivacy.test.ts"], "notes": "No component is transferred; only provider-neutral viewport mathematics moves to QazStack Geo."},
     {"plane": "backend_and_api", "status": "reviewed", "evidence": ["backend/services/qazlake_shadow_feed.py", "src/qazstack/databus/feed_cutover.py"], "notes": "Only a pure evaluator and typed receipt are extracted; transport remains outside QazStack."},
     {"plane": "platform_and_shared_services", "status": "reviewed", "evidence": ["docs/databus.md", "src/qazstack/databus/lake_to_editorial.py", "src/qazstack/databus/lake_to_pssr.py"], "notes": "DataBus is the existing canonical owner and QazLake already serves multiple integrations."},
     {"plane": "discovery_seo_public_ai", "status": "not_applicable", "evidence": [], "notes": "The shared receipt is internal operational evidence, not a public discovery surface."},
-    {"plane": "security_privacy_compliance", "status": "reviewed", "evidence": ["tests/test_databus_feed_cutover.py"], "notes": "The receipt omits identifiers, URLs, credentials and payloads by construction."},
-    {"plane": "quality_operations_docs", "status": "reviewed", "evidence": ["tests/test_databus_feed_cutover.py", "docs/databus.md"], "notes": "Native tests and docs define acceptance and product-owned boundaries."}
+    {"plane": "security_privacy_compliance", "status": "reviewed", "evidence": ["tests/test_databus_feed_cutover.py", "tests/test_geo_privacy.py"], "notes": "The receipt omits sensitive fields and viewport helpers reduce coordinate precision while explicitly avoiding an anonymity claim."},
+    {"plane": "quality_operations_docs", "status": "reviewed", "evidence": ["tests/test_databus_feed_cutover.py", "tests/test_geo_privacy.py", "docs/databus.md", "docs/geo.md"], "notes": "Native tests and docs define acceptance and product-owned boundaries."}
   ],
   "candidates": [
     {
@@ -103,6 +103,26 @@
       "hard_gates": {"target_value": "pass", "semantic_fit": "pass", "canonical_ownership": "pass", "contract_compatibility": "pass", "stack_convergence": "pass", "rights_privacy_security": "pass", "maintainable_update_path": "pass", "testability_rollback": "pass"}
     },
     {
+      "id": "qazstack-geo-viewport-data-minimisation",
+      "name": "Privacy-bounded viewport request helpers",
+      "plane": "security_privacy_compliance",
+      "user_value": "Reduces precision of browser viewport coordinates sent upstream and written to access logs without clipping the requested map.",
+      "rationale": "QazStack Geo had no equivalent contract; Shadow supplied synthetic golden behavior, while its 3000-mile preload default and UI remain product policy.",
+      "decision": "extract_shared",
+      "status": "published_for_review",
+      "priority": "P0",
+      "stack_effect": "reuse_supported",
+      "portfolio_update": "not_applicable",
+      "donor_refs": ["frontend/src/lib/viewportPrivacy.ts", "frontend/src/__tests__/utils/viewportPrivacy.test.ts"],
+      "target_refs": ["src/qazstack/geo/privacy.py", "tests/test_geo_privacy.py", "docs/geo.md"],
+      "adaptation": ["Converted browser-specific ViewBounds to existing QazStack BBox", "Removed Shadow's 3000-mile default and made radius explicit", "Rejected non-finite coordinates instead of silently coercing them", "Used standard west,south,east,north CSV without product query names"],
+      "dependencies": ["QazStack PR 101 review and release", "non-Shadow consumer with explicit precision and retention policy"],
+      "acceptance": ["105 focused geo tests pass", "QazStack full suite passes", "outward coarsening contains original viewport", "contract states data minimisation is not anonymisation"],
+      "rollback": "Revert isolated QazStack commit 45abb91079b181418eaa6f41fe3ad09fd3451dd0 before any consumer adopts it.",
+      "update_path": "QazStack Geo remains canonical; consumers choose product radius and retention policy.",
+      "hard_gates": {"target_value": "pass", "semantic_fit": "pass", "canonical_ownership": "pass", "contract_compatibility": "pass", "stack_convergence": "pass", "rights_privacy_security": "pass", "maintainable_update_path": "pass", "testability_rollback": "pass"}
+    },
+    {
       "id": "shadow-correlation-analytics",
       "name": "Correlation, early-warning and backtest algorithms",
       "plane": "backend_and_api",
@@ -145,13 +165,13 @@
   ],
   "implementation": {
     "status": "partial",
-    "target_changes": ["Added provider-neutral feed cutover policy, receipt and evaluator to qazstack.databus", "Added focused tests and DataBus documentation"],
-    "checks": ["QazStack full suite: 1911 passed and 19 skipped", "QazStack native quality gate passed", "ruff check passed", "ruff format check passed", "git diff --check passed"],
-    "remaining": ["Review and merge QazStack PR 101", "Release the QazStack contract", "Adopt the released contract in a non-Shadow consumer before donor deletion"]
+    "target_changes": ["Added provider-neutral feed cutover policy, receipt and evaluator to qazstack.databus", "Added provider-neutral viewport data-minimisation helpers to qazstack.geo", "Added focused tests and DataBus/Geo documentation"],
+    "checks": ["QazStack full suite: 1934 passed and 19 skipped", "QazStack focused Geo suite: 105 passed", "QazStack native quality gate passed", "ruff check passed", "ruff format check passed", "git diff --check passed"],
+    "remaining": ["Review and merge QazStack PR 101", "Release the QazStack contracts", "Adopt the released contracts in non-Shadow consumers before donor deletion", "Run a non-Shadow viewport privacy pilot with explicit precision and retention policy"]
   },
   "release": {
     "status": "not_requested",
-    "evidence": ["QazStack commit 6f5cbb2", "https://github.com/belilovsky/qazstack/pull/101"]
+    "evidence": ["QazStack commit 6f5cbb2", "QazStack commit 45abb91079b181418eaa6f41fe3ad09fd3451dd0", "https://github.com/belilovsky/qazstack/pull/101"]
   },
   "blockers": ["QazStack PR 101 has not been reviewed, merged or released", "No non-Shadow pilot has adopted it yet", "Shadow retirement gates remain open"]
 }
