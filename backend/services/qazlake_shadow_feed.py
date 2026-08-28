@@ -289,7 +289,72 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
         result["geometry"] = item["geometry"]
     result["observed_at"] = item.get("observed_at")
     layer_key = str(properties.get("layer_key") or "")
-    if layer_key == "earthquakes":
+    if layer_key in {"commercial_flights", "military_flights"}:
+        external_id = str(
+            item.get("external_id") or entity_id.removeprefix("aircraft:")
+        ).lower()
+        altitude_m = properties.get("altitude_m")
+        speed_mps = properties.get("speed_mps")
+        model = str(properties.get("aircraft_model") or "").strip().upper()
+        category = str(properties.get("aircraft_category") or "").strip().upper()
+        result.update(
+            {
+                "id": external_id or entity_id,
+                "icao24": external_id,
+                "callsign": properties.get("callsign")
+                or external_id.upper()
+                or "UNKNOWN",
+                "alt": (
+                    round(float(altitude_m) / 0.3048)
+                    if isinstance(altitude_m, (int, float))
+                    else None
+                ),
+                "heading": properties.get("heading_deg") or 0,
+                "speed_knots": (
+                    round(float(speed_mps) / 0.514444, 1)
+                    if isinstance(speed_mps, (int, float))
+                    else None
+                ),
+                "registration": properties.get("registration") or "N/A",
+                "model": model or "Unknown",
+                "squawk": properties.get("squawk") or None,
+                "aircraft_category": "heli" if category == "A7" else "plane",
+                # QazLake stays provider-neutral; the product projection carries
+                # the attribution required when ADSB.lol data is shown publicly.
+                "source": "ADSB.lol contributors",
+            }
+        )
+        if layer_key == "military_flights":
+            from services.fetchers.military import (
+                _classify_military_type,
+                _enrich_country,
+            )
+
+            country, force = _enrich_country(external_id, "")
+            result.update(
+                {
+                    "type": "military_flight",
+                    "country": country,
+                    "force": force,
+                    "military_type": _classify_military_type(model),
+                    "origin_loc": None,
+                    "dest_loc": None,
+                    "origin_name": "UNKNOWN",
+                    "dest_name": "UNKNOWN",
+                }
+            )
+        else:
+            result.update(
+                {
+                    "type": "commercial_flight",
+                    "country": "N/A",
+                    "origin_loc": None,
+                    "dest_loc": None,
+                    "origin_name": "UNKNOWN",
+                    "dest_name": "UNKNOWN",
+                }
+            )
+    elif layer_key == "earthquakes":
         if properties.get("magnitude") is not None:
             result["mag"] = properties["magnitude"]
         if properties.get("place") is not None:

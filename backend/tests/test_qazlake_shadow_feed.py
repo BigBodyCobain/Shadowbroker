@@ -186,6 +186,68 @@ def test_public_projection_preserves_earthquake_shape() -> None:
     assert item["lng"] == 76.9
 
 
+def test_public_projection_preserves_commercial_flight_shape_and_attribution() -> None:
+    item = feed._public_item(
+        {
+            "external_id": "4ca123",
+            "entity_id": "aircraft:4ca123",
+            "provider_id": "adsb-lol",
+            "source_id": "adsb-lol-aircraft",
+            "properties": {
+                "layer_family": "aviation_public",
+                "layer_key": "commercial_flights",
+                "callsign": "RYR123",
+                "altitude_m": 10668.0,
+                "speed_mps": 231.5,
+                "heading_deg": 275.4,
+                "registration": "EI-TEST",
+                "aircraft_model": "B738",
+                "aircraft_category": "A3",
+                "squawk": "1234",
+                "raw_payload": {"private": True},
+            },
+            "latitude": 50.1,
+            "longitude": 8.6,
+            "observed_at": "2026-08-28T12:00:00Z",
+        }
+    )
+
+    assert item["id"] == "4ca123"
+    assert item["icao24"] == "4ca123"
+    assert item["callsign"] == "RYR123"
+    assert item["alt"] == 35000
+    assert item["speed_knots"] == 450.0
+    assert item["type"] == "commercial_flight"
+    assert item["source"] == "ADSB.lol contributors"
+    assert item["aircraft_category"] == "plane"
+    assert {"provider_id", "source_id", "raw_payload"}.isdisjoint(item)
+
+
+def test_public_projection_keeps_military_classification_in_shadow() -> None:
+    item = feed._public_item(
+        {
+            "external_id": "150001",
+            "entity_id": "aircraft:150001",
+            "properties": {
+                "layer_family": "aviation_public",
+                "layer_key": "military_flights",
+                "callsign": "TEST01",
+                "aircraft_model": "SU-35",
+                "aircraft_category": "A3",
+            },
+            "latitude": 50.1,
+            "longitude": 8.6,
+            "observed_at": "2026-08-28T12:00:00Z",
+        }
+    )
+
+    assert item["type"] == "military_flight"
+    assert item["military_type"] == "fighter"
+    assert item["country"] == "Russia"
+    assert item["force"] == "VKS"
+    assert item["source"] == "ADSB.lol contributors"
+
+
 def test_public_projection_preserves_air_quality_shape() -> None:
     item = feed._public_item(
         {
