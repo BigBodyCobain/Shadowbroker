@@ -57,6 +57,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run secret scan
         run: bash backend/scripts/scan-secrets.sh --all
+      - name: Verify Shadow organ and retirement coverage
+        run: python3 scripts/verify_shadow_organ_ledger.py
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:

@@ -15,6 +15,63 @@
     "shared_module_gate": ["canonical_owner", "platform_mandate_or_two_consumers", "pilot", "rollback"],
     "deletion_gate": ["replacement_live", "consumer_parity", "full_cadence", "rollback_receipt", "credential_revocation", "exact_resource_inventory"]
   },
+  "coverage_planes": [
+    {
+      "plane": "product_and_user_value",
+      "roots": ["README.md", "frontend/src/app", "frontend/src/components", "desktop-shell"],
+      "organ_ids": ["product.desktop-native-control", "product.alert-watchlist-workspace", "product.dossiers-entity-graph-recon"]
+    },
+    {
+      "plane": "data_and_provenance",
+      "roots": ["DATA-ATTRIBUTION.md", "backend/config", "backend/services/fetchers"],
+      "organ_ids": ["data.public-flight-observations", "data.public-orbital-radio", "data.public-hazards-weather-environment", "data.public-network-cyber", "data.public-events-media-alerts", "data.public-reference-geo-infrastructure", "data.public-visual-sar-metadata", "data.public-risk-sanctions-supply-chain", "data.finance-and-prediction", "data.credential-session-operator-feeds"]
+    },
+    {
+      "plane": "backend_and_api",
+      "roots": ["backend/main.py", "backend/routers", "backend/services", "backend/analytics"],
+      "organ_ids": ["analytics.correlation-and-early-warning", "analytics.temporal-snapshots", "backend.entity-geo-projections", "interop.stix-and-evidence-exports"]
+    },
+    {
+      "plane": "frontend_components",
+      "roots": ["frontend/src/components", "frontend/src/hooks", "frontend/src/lib", "frontend/src/mesh"],
+      "organ_ids": ["frontend.geospatial-builders-workers", "frontend.resilience-media-privacy-patterns", "platform.feed-consumer-cache"]
+    },
+    {
+      "plane": "ux_and_avds",
+      "roots": ["frontend/src/app/globals.css", "frontend/src/components/ui", "frontend/src/components/MaplibreViewer.tsx"],
+      "organ_ids": ["ux.operational-map-shell", "ux.shadow-theme-and-infonet-terminal", "frontend.resilience-media-privacy-patterns"]
+    },
+    {
+      "plane": "security_privacy_compliance",
+      "roots": ["backend/auth.py", "backend/limiter.py", "backend/services/mesh", "privacy-core"],
+      "organ_ids": ["security.hmac-replay-ssrf", "security.operator-recon-egress", "platform.mesh-and-infonet", "data.credential-session-operator-feeds"]
+    },
+    {
+      "plane": "platform_and_shared_services",
+      "roots": ["backend/services/infonet", "backend/services/qazlake_shadow_feed.py", "openclaw-skills", "docker-compose.yml"],
+      "organ_ids": ["analytics.feed-cutover-comparison", "platform.collection-runtime", "platform.feed-consumer-cache", "platform.mesh-and-infonet", "compute.ai-oracle-operator-bridges"]
+    },
+    {
+      "plane": "information_architecture",
+      "roots": ["frontend/src/lib/constants.ts", "frontend/src/app/page.tsx", "backend/main.py"],
+      "organ_ids": ["information.layer-taxonomy"]
+    },
+    {
+      "plane": "content_and_localization",
+      "roots": ["frontend/src/i18n", "README.md", "docs"],
+      "organ_ids": ["content.operator-copy-localization", "ux.shadow-theme-and-infonet-terminal"]
+    },
+    {
+      "plane": "discovery_seo_public_ai",
+      "roots": ["frontend/src/app", "backend/routers/data.py", "backend/routers/ai_intel.py"],
+      "organ_ids": ["discovery.public-data-contracts", "compute.ai-oracle-operator-bridges"]
+    },
+    {
+      "plane": "quality_operations_docs",
+      "roots": [".github/workflows", "backend/tests", "frontend/src/__tests__", "helm", "ops", "scripts", "docs"],
+      "organ_ids": ["quality.security-resilience-map-tests", "platform.runtime-security-observability"]
+    }
+  ],
   "organs": [
     {
       "id": "data.public-flight-observations",
@@ -79,7 +136,7 @@
     {
       "id": "data.public-visual-sar-metadata",
       "plane": "data_and_provenance",
-      "donor_refs": ["backend/services/fetchers/sar_catalog.py", "backend/services/fetchers/road_corridor_sat.py", "backend/services/cctv_fetcher.py"],
+      "donor_refs": ["backend/services/fetchers/sar_catalog.py", "backend/services/fetchers/road_corridor_sat.py", "backend/services/cctv_pipeline.py", "backend/routers/cctv.py"],
       "capability": "Public CCTV/reference catalogs and ASF/Sentinel metadata only.",
       "target_owner": "qazpipe-qazlake",
       "disposition": "migrate",
@@ -129,7 +186,7 @@
     {
       "id": "analytics.temporal-snapshots",
       "plane": "backend_and_api",
-      "donor_refs": ["backend/services/time_machine.py", "frontend/src/components/TimelineScrubber.tsx"],
+      "donor_refs": ["backend/routers/ai_intel.py", "backend/services/data_fetcher.py", "frontend/src/hooks/useTimeMachine.ts", "frontend/src/components/TimelineScrubber.tsx"],
       "capability": "Historical snapshots, cursor playback and snapshot differences.",
       "target_owner": "qazstack.temporal",
       "disposition": "consume_existing",
@@ -259,7 +316,7 @@
     {
       "id": "frontend.geospatial-builders-workers",
       "plane": "frontend_components",
-      "donor_refs": ["frontend/src/lib/geojson", "frontend/src/workers", "frontend/src/components/MaplibreViewer.tsx"],
+      "donor_refs": ["frontend/src/components/map/geoJSONBuilders.ts", "frontend/src/components/map/dynamicMapLayers.worker.ts", "frontend/src/components/map/staticMapLayers.worker.ts", "frontend/src/components/MaplibreViewer.tsx"],
       "capability": "GeoJSON projection builders, spatial workers and dense-map performance patterns.",
       "target_owner": "qazgeo-or-qazstack.geo",
       "disposition": "adapt_after_duplicate_scan",
@@ -279,7 +336,7 @@
     {
       "id": "ux.shadow-theme-and-infonet-terminal",
       "plane": "ux_and_avds",
-      "donor_refs": ["frontend/src/app", "frontend/src/components/infonet"],
+      "donor_refs": ["frontend/src/app", "frontend/src/components/InfonetTerminal"],
       "capability": "Shadow-specific dark shell, terminal metaphors and InfoNet presentation.",
       "target_owner": "none",
       "disposition": "inspiration_only",
@@ -289,7 +346,7 @@
     {
       "id": "security.hmac-replay-ssrf",
       "plane": "security_privacy_compliance",
-      "donor_refs": ["backend/tests/test_mesh_auth.py", "backend/tests/test_ssrf.py", "backend/tests/test_security.py"],
+      "donor_refs": ["backend/tests/mesh/test_gate_envelope_authenticity.py", "backend/tests/mesh/test_mesh_env_security_audit.py", "backend/tests/test_cctv_redirect_ssrf.py", "backend/tests/test_openmhz_redirect_ssrf.py", "backend/tests/test_p0_security.py", "backend/tests/test_security_hardening_2026_08.py"],
       "capability": "HMAC body binding, replay rejection, SSRF boundaries and negative security fixtures.",
       "target_owner": "qazstack-security-platform",
       "disposition": "adapt_tests_to_existing_owner",
@@ -299,7 +356,7 @@
     {
       "id": "product.dossiers-entity-graph-recon",
       "plane": "product_and_user_value",
-      "donor_refs": ["backend/services/dossiers.py", "backend/services/recon.py", "frontend/src/components"],
+      "donor_refs": ["backend/services/region_dossier.py", "backend/services/entity_profile.py", "backend/services/osint", "backend/services/osint_intel", "frontend/src/components/EntityGraphPanel.tsx", "frontend/src/components/ReconPanel.tsx"],
       "capability": "Operator dossiers, entity graph and active reconnaissance workflows.",
       "target_owner": "none-until-explicit-product-mandate",
       "disposition": "archive_only",
@@ -309,7 +366,7 @@
     {
       "id": "information.layer-taxonomy",
       "plane": "information_architecture",
-      "donor_refs": ["frontend/src/config/layers.ts", "backend/main.py"],
+      "donor_refs": ["frontend/src/lib/constants.ts", "frontend/src/app/page.tsx", "backend/main.py"],
       "capability": "Operational layer-family taxonomy and public/private projection boundaries.",
       "target_owner": "qazlake-feed-contracts-and-consumer-products",
       "disposition": "adapt_contract_only",
@@ -319,7 +376,7 @@
     {
       "id": "content.operator-copy-localization",
       "plane": "content_and_localization",
-      "donor_refs": ["frontend/src/messages", "README.md", "docs"],
+      "donor_refs": ["frontend/src/i18n/translations", "frontend/src/i18n/index.tsx", "README.md", "docs"],
       "capability": "Layer labels, operational explanations and multilingual terminology.",
       "target_owner": "consumer-products",
       "disposition": "adapt_reviewed_terms_only",
@@ -339,7 +396,7 @@
     {
       "id": "quality.security-resilience-map-tests",
       "plane": "quality_operations_docs",
-      "donor_refs": ["backend/tests", "frontend/src/**/*.test.ts", "ops/shadow.qdev.run"],
+      "donor_refs": ["backend/tests", "frontend/src/__tests__", "frontend/src/components/map/geoJSONBuilders.test.ts", "frontend/src/utils/alertSpread.test.ts", "ops/shadow.qdev.run"],
       "capability": "Security, source resilience, map-worker, viewport privacy, release and rollback test patterns.",
       "target_owner": "each-canonical-recipient",
       "disposition": "adapt_fixtures_not_copy_runtime",
