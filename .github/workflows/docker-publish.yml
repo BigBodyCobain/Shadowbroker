@@ -50,7 +50,8 @@ jobs:
       - id: build
         uses: docker/build-push-action@v5.0.0
         with:
-          context: ./frontend
+          context: .
+          file: ./frontend/Dockerfile
           build-args: |
             NEXT_PUBLIC_PUBLIC_READ_ONLY=true
           platforms: ${{ matrix.platform }}
