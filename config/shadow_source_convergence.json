@@ -1,0 +1,29 @@
+{
+  "schema_version": "shadow.qazpipe-convergence/v1",
+  "target_architecture": "primary-sources -> QazPipe -> QazLake -> ShadowBroker",
+  "collection_owner": "qazpipe",
+  "observation_owner": "qazlake",
+  "product_owner": "shadowbroker",
+  "activation_gate": ["rights", "identity", "cadence", "retention", "canary_receipt"],
+  "feed_contract": {
+    "schema_version": "qazlake.shadow-observations-feed/v1",
+    "snapshot": "/api/internal/v1/feeds/shadow/snapshot",
+    "events": "/api/internal/v1/feeds/shadow/events",
+    "modes": ["local", "compare", "qazpipe"],
+    "fallback": "last_valid_snapshot_with_explicit_stale_state"
+  },
+  "families": [
+    {"family": "aviation_public", "layer_keys": ["commercial_flights", "military_flights"], "sources": ["ADSB.lol", "airplanes.live"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "orbital_public", "layer_keys": ["satellites", "satnogs_stations", "satnogs_observations", "tinygs_satellites"], "sources": ["CelesTrak", "SatNOGS", "TinyGS"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "geohazards", "layer_keys": ["earthquakes", "volcanoes"], "sources": ["USGS earthquakes", "Smithsonian volcanoes"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "weather_environment", "layer_keys": ["space_weather", "weather_alerts", "air_quality"], "sources": ["NOAA SWPC", "weather.gov", "OpenMeteo", "OpenAQ"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "uap_public", "layer_keys": ["uap_sightings"], "sources": ["NUFORC"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "network_observability", "layer_keys": ["internet_outages"], "sources": ["IODA", "RIPE Atlas"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "events_media", "layer_keys": ["gdelt", "news", "telegram_osint"], "sources": ["GDELT", "approved RSS", "public Telegram pages"], "owner": "qazpipe", "activation": "per_source_registry_gate"},
+    {"family": "radio_public", "layer_keys": ["kiwisdr", "psk_reporter"], "sources": ["KiwiSDR", "PSK Reporter"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "visual_reference", "layer_keys": ["cctv"], "sources": ["public CCTV reference datasets", "ASF SAR metadata"], "owner": "qazpipe", "activation": "blocked_pending_source_gate"},
+    {"family": "credential_operator", "sources": ["AISStream", "AISHub", "APRS-IS", "Copernicus processing", "Sentinel processing", "SAR products", "Unusual Whales", "private Telegram feeds"], "owner": "shadowbroker", "activation": "local_only"},
+    {"family": "finance_prediction", "sources": ["financial data", "prediction markets"], "owner": "qazfin", "activation": "no_qazpipe_collector"},
+    {"family": "shadow_analytics", "sources": ["correlations", "GT analytics", "oracle resolution", "Time Machine", "pruning", "risk decisions"], "owner": "shadowbroker", "activation": "protected_derived_feed"}
+  ]
+}

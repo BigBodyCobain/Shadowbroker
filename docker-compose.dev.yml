@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      # Explicit local-development opt-in. Production compose never enables it.
+      PRIVACY_CORE_DEV_OVERRIDE: "true"

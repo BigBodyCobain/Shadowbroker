@@ -12,6 +12,11 @@ from pydantic import BaseModel
 from limiter import limiter
 from auth import require_admin, require_local_operator
 from services.data_fetcher import update_all_data
+from services.qazlake_shadow_feed import (
+    apply_layer_source_modes,
+    shadow_feed_etag_suffix,
+    uses_qazpipe_mode,
+)
 import orjson
 import json as json_mod
 
@@ -663,13 +668,13 @@ async def update_layers(update: LayerUpdate, request: Request):
 @router.get("/api/live-data")
 @limiter.limit("120/minute")
 async def live_data(request: Request):
-    etag = _current_etag(prefix="live|full|")
+    etag = _current_etag(prefix="live|full|" + shadow_feed_etag_suffix())
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import get_latest_data_refs_snapshot
 
     def _build() -> dict:
-        return get_latest_data_refs_snapshot()
+        return apply_layer_source_modes(get_latest_data_refs_snapshot(), endpoint="live-data")
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -687,7 +692,7 @@ async def bootstrap_critical(request: Request):
     and a bounded response. It exists so the map and threat feed can paint
     before slower panels and background enrichers finish warming up.
     """
-    etag = _current_etag(prefix="bootstrap|critical|")
+    etag = _current_etag(prefix="bootstrap|critical|" + shadow_feed_etag_suffix())
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (
@@ -712,7 +717,7 @@ async def bootstrap_critical(request: Request):
         ships_enabled = any(active_layers.get(key, True) for key in (
             "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
         sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
-        return {
+        payload = {
             "last_updated": d.get("last_updated"),
             "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
             "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
@@ -741,6 +746,7 @@ async def bootstrap_critical(request: Request):
             "bootstrap_ready": True,
             "bootstrap_payload": True,
         }
+        return apply_layer_source_modes(payload, endpoint="bootstrap-critical")
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -898,7 +904,7 @@ async def live_data_fast(
     ),
 ):
     bbox_suffix = _bbox_etag_suffix(s, w, n, e)
-    client_lv = None if initial else _parse_layer_versions(lv)
+    client_lv = None if initial or uses_qazpipe_mode() else _parse_layer_versions(lv)
     want_delta = client_lv is not None
 
     if want_delta:
@@ -921,7 +927,7 @@ async def live_data_fast(
                 headers={"ETag": etag, "Cache-Control": "no-cache", "X-SB-Mode": "delta"},
             )
 
-    etag = _current_etag(prefix=("fast|initial|" if initial else "fast|full|") + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
+    etag = _current_etag(prefix=("fast|initial|" if initial else "fast|full|") + shadow_feed_etag_suffix() + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (effective_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
@@ -970,7 +976,7 @@ async def live_data_fast(
             if _has_full_bbox(s, w, n, e):
                 payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
             payload = _cap_fast_dashboard_payload(payload, s=s, w=w, n=n, e=e)
-        return _attach_version_meta(payload)
+        return apply_layer_source_modes(_attach_version_meta(payload), endpoint="fast")
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -989,7 +995,7 @@ async def live_data_slow(
     e: float = Query(None, description="East bound (see s)", ge=-180, le=180),
 ):
     bbox_suffix = _bbox_etag_suffix(s, w, n, e)
-    etag = _current_etag(prefix="slow|full|" + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
+    etag = _current_etag(prefix="slow|full|" + shadow_feed_etag_suffix() + bbox_suffix.lstrip("|") + ("|" if bbox_suffix else ""))
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
     from services.fetchers._store import (effective_layers, get_latest_data_subset_refs, get_source_timestamps_snapshot)
@@ -1086,7 +1092,7 @@ async def live_data_slow(
         # hides the infrastructure overlay the operator already has on screen.
         if _has_full_bbox(s, w, n, e):
             payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
-        return payload
+        return apply_layer_source_modes(payload, endpoint="slow")
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),

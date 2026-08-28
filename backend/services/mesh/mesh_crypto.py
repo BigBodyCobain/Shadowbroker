@@ -178,6 +178,36 @@ def resolve_peer_key_for_url(peer_url: str) -> bytes:
     return _derive_peer_key(global_secret, normalized_url)
 
 
+def resolve_peer_keys_for_url(peer_url: str) -> tuple[bytes, ...]:
+    """Return accepted receiver keys, primary first, during secret rotation.
+
+    A peer-specific secret remains exclusive.  The previous fleet secret is
+    accepted only for peers that use the global fleet secret, preventing the
+    rotation window from weakening per-peer isolation.
+    """
+    normalized_url = normalize_peer_url(peer_url)
+    if not normalized_url:
+        return ()
+
+    per_peer_secret = _lookup_per_peer_secret(normalized_url)
+    if per_peer_secret:
+        return (_derive_peer_key(per_peer_secret, normalized_url),)
+
+    primary = resolve_peer_key_for_url(normalized_url)
+    keys: list[bytes] = [primary] if primary else []
+    try:
+        from services.config import get_settings
+
+        previous = str(get_settings().MESH_PEER_PUSH_SECRET_PREVIOUS or "").strip()
+    except Exception:
+        previous = ""
+    if previous:
+        previous_key = _derive_peer_key(previous, normalized_url)
+        if previous_key and previous_key not in keys:
+            keys.append(previous_key)
+    return tuple(keys)
+
+
 def _node_digest(public_key_b64: str) -> str:
     raw = base64.b64decode(public_key_b64)
     return hashlib.sha256(raw).hexdigest()

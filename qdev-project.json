@@ -27,16 +27,18 @@
       "evidence": "docs/contracts/avds-adapter.md"
     },
     "qazpipe": {
-      "mode": "not_applicable",
-      "owner": "product-maintainer",
-      "reviewAt": "2026-11-23",
-      "rationale": "Product-owned fetchers retain source-specific attribution, opt-in and failure semantics."
+      "mode": "required",
+      "owner": "qazpipe",
+      "integration": "recurring-public-collection",
+      "evidence": "config/shadow_source_convergence.json",
+      "rationale": "Anonymous reusable recurring collection is owned by QazPipe after per-source rights, identity, cadence and retention gates."
     },
     "qazlake": {
-      "mode": "not_applicable",
-      "owner": "product-maintainer",
-      "reviewAt": "2026-11-23",
-      "rationale": "The public map reads self-hosted runtime projections; no QazLake consumer contract is configured."
+      "mode": "required",
+      "owner": "qazlake",
+      "integration": "protected-shadow-observations-feed-v1",
+      "evidence": "config/shadow_source_convergence.json",
+      "rationale": "Shadow consumes provider-neutral snapshots and cursor events from QazLake; raw provider payloads remain protected."
     },
     "qazcompute": {
       "mode": "not_applicable",

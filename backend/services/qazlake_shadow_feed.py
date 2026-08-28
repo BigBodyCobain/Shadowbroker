@@ -1,0 +1,527 @@
+"""Protected QazLake snapshot/events consumer for Shadow public projections."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import threading
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
+
+SCHEMA_VERSION = "qazlake.shadow-observations-feed/v1"
+VALID_MODES = frozenset({"local", "compare", "qazpipe"})
+DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
+    "aviation_public": ("commercial_flights", "military_flights"),
+    "orbital_public": (
+        "satellites",
+        "satnogs_stations",
+        "satnogs_observations",
+        "tinygs_satellites",
+    ),
+    "geohazards": ("earthquakes", "volcanoes"),
+    "weather_environment": ("space_weather", "weather_alerts", "air_quality"),
+    "uap_public": ("uap_sightings",),
+    "network_observability": ("internet_outages",),
+    "events_media": ("gdelt", "news", "telegram_osint"),
+    "radio_public": ("kiwisdr", "psk_reporter"),
+    "visual_reference": ("cctv",),
+}
+_lock = threading.RLock()
+_receipt_lock = threading.Lock()
+_stop = threading.Event()
+_thread: threading.Thread | None = None
+_state: dict[str, Any] = {
+    "entities": {},
+    "cursor": 0,
+    "watermark": None,
+    "refreshed_at": None,
+    "stale": True,
+    "error": "not_started",
+}
+
+
+def configured_modes() -> dict[str, str]:
+    raw = str(os.environ.get("SHADOW_LAYER_SOURCE_MODES", "") or "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        logger.error("SHADOW_LAYER_SOURCE_MODES must be a JSON object")
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {
+        str(family): str(mode).lower()
+        for family, mode in parsed.items()
+        if str(mode).lower() in VALID_MODES and str(mode).lower() != "local"
+    }
+
+
+def uses_qazpipe_mode() -> bool:
+    return "qazpipe" in configured_modes().values()
+
+
+def _cache_path() -> Path:
+    return Path(
+        os.environ.get("SHADOW_QAZLAKE_CACHE_PATH", "data/qazlake_shadow_cache.json")
+    )
+
+
+def _receipt_path() -> Path:
+    return Path(
+        os.environ.get(
+            "SHADOW_QAZPIPE_COMPARE_RECEIPT_PATH",
+            "data/qazpipe_compare_receipts.jsonl",
+        )
+    )
+
+
+def _request_page(projection: str, cursor: int) -> dict[str, Any]:
+    base_url = str(os.environ.get("QAZLAKE_SHADOW_FEED_URL", "") or "").rstrip("/")
+    token = str(os.environ.get("QAZLAKE_SHADOW_FEED_TOKEN", "") or "").strip()
+    if not base_url or not token:
+        raise RuntimeError("QazLake Shadow feed URL/token are not configured")
+    query = urlencode({"cursor": max(0, int(cursor)), "limit": 1000})
+    request = Request(
+        f"{base_url}/api/internal/v1/feeds/shadow/{projection}?{query}",
+        headers={"X-QazLake-Shadow-Feed-Token": token, "Accept": "application/json"},
+        method="GET",
+    )
+    with urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read())
+    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("unexpected QazLake Shadow feed contract")
+    if not isinstance(payload.get("items"), list):
+        raise TypeError("QazLake Shadow feed is missing items")
+    return payload
+
+
+def _save_cache() -> None:
+    path = _cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _lock:
+        serializable = dict(_state)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(
+        json.dumps(
+            serializable, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ),
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def _load_cache() -> None:
+    path = _cache_path()
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError):
+        return
+    if not isinstance(loaded, dict) or not isinstance(loaded.get("entities"), dict):
+        return
+    with _lock:
+        _state.update(loaded)
+        _state["stale"] = True
+        _state["error"] = "startup_cache"
+
+
+def _accept_items(items: list[Any], entities: dict[str, dict[str, Any]]) -> None:
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("entity_id") or "").strip()
+        properties = item.get("properties")
+        if not entity_id or not isinstance(properties, dict):
+            continue
+        entities[entity_id] = item
+
+
+def refresh_snapshot() -> None:
+    cursor = 0
+    entities: dict[str, dict[str, Any]] = {}
+    watermark = None
+    while True:
+        page = _request_page("snapshot", cursor)
+        _accept_items(page["items"], entities)
+        watermark = page.get("watermark")
+        next_cursor = page.get("next_cursor")
+        if not page.get("has_more") or next_cursor is None:
+            cursor = int((watermark or {}).get("cursor") or cursor)
+            break
+        cursor = int(next_cursor)
+    with _lock:
+        _state.update(
+            {
+                "entities": entities,
+                "cursor": cursor,
+                "watermark": watermark,
+                "refreshed_at": datetime.now(UTC).isoformat(),
+                "stale": False,
+                "error": None,
+            }
+        )
+    _save_cache()
+
+
+def poll_events() -> None:
+    with _lock:
+        cursor = int(_state.get("cursor") or 0)
+        entities = dict(_state.get("entities") or {})
+    watermark = None
+    while True:
+        page = _request_page("events", cursor)
+        _accept_items(page["items"], entities)
+        watermark = page.get("watermark")
+        next_cursor = page.get("next_cursor")
+        if next_cursor is not None:
+            cursor = int(next_cursor)
+        if not page.get("has_more"):
+            break
+    with _lock:
+        _state.update(
+            {
+                "entities": entities,
+                "cursor": cursor,
+                "watermark": watermark or _state.get("watermark"),
+                "refreshed_at": datetime.now(UTC).isoformat(),
+                "stale": False,
+                "error": None,
+            }
+        )
+    _save_cache()
+
+
+def _mark_stale(exc: Exception) -> None:
+    with _lock:
+        _state["stale"] = True
+        _state["error"] = type(exc).__name__
+    logger.warning(
+        "QazLake Shadow feed refresh failed; retaining last valid snapshot: %s",
+        type(exc).__name__,
+    )
+
+
+def _sync_loop() -> None:
+    try:
+        refresh_snapshot()
+    except (HTTPError, URLError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        _mark_stale(exc)
+    interval = max(
+        10, int(os.environ.get("QAZLAKE_SHADOW_POLL_INTERVAL_S", "30") or 30)
+    )
+    while not _stop.wait(interval):
+        try:
+            poll_events()
+        except (
+            HTTPError,
+            URLError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _mark_stale(exc)
+
+
+def start_shadow_feed_sync() -> None:
+    global _thread
+    if not configured_modes():
+        return
+    _load_cache()
+    if _thread and _thread.is_alive():
+        return
+    _stop.clear()
+    _thread = threading.Thread(
+        target=_sync_loop, daemon=True, name="qazlake-shadow-feed"
+    )
+    _thread.start()
+
+
+def stop_shadow_feed_sync() -> None:
+    _stop.set()
+
+
+def _public_item(item: dict[str, Any]) -> dict[str, Any]:
+    properties = dict(item.get("properties") or {})
+    entity_id = str(item.get("entity_id") or "")
+    result = {"id": entity_id, "entity_id": entity_id, **properties}
+    if item.get("latitude") is not None:
+        result["latitude"] = item["latitude"]
+        result["lat"] = item["latitude"]
+    if item.get("longitude") is not None:
+        result["longitude"] = item["longitude"]
+        result["lng"] = item["longitude"]
+    if isinstance(item.get("geometry"), dict):
+        result["geometry"] = item["geometry"]
+    result["observed_at"] = item.get("observed_at")
+    return result
+
+
+def _items_by_family() -> dict[str, dict[str, list[dict[str, Any]]]]:
+    grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    with _lock:
+        entities = list((_state.get("entities") or {}).values())
+    for item in entities:
+        properties = item.get("properties") if isinstance(item, dict) else None
+        family = str((properties or {}).get("layer_family") or "").strip()
+        layer_key = str((properties or {}).get("layer_key") or family).strip()
+        if family:
+            grouped.setdefault(family, {}).setdefault(layer_key, []).append(
+                _public_item(item)
+            )
+    return grouped
+
+
+def _family_layer_keys(family: str) -> tuple[str, ...]:
+    configured = _json_mapping("SHADOW_LAYER_FAMILY_KEYS")
+    value = configured.get(family)
+    if isinstance(value, list):
+        keys = tuple(str(key).strip() for key in value if str(key).strip())
+        if keys:
+            return keys
+    return DEFAULT_FAMILY_LAYER_KEYS.get(family, (family,))
+
+
+def _canonical_ids(items: Any) -> set[str]:
+    if not isinstance(items, list):
+        return set()
+    ids = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        identity = next(
+            (
+                item.get(key)
+                for key in ("entity_id", "id", "hex", "icao24", "mmsi")
+                if item.get(key)
+            ),
+            None,
+        )
+        if identity is not None:
+            ids.add(str(identity))
+    return ids
+
+
+def _json_mapping(name: str) -> dict[str, Any]:
+    raw = str(os.environ.get(name, "") or "").strip()
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        logger.error("%s must be a JSON object", name)
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _latest_observed_at(items: Any) -> datetime | None:
+    latest: datetime | None = None
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        raw = item.get("observed_at") or item.get("timestamp") or item.get("updated_at")
+        if not raw:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            parsed = parsed.astimezone(UTC)
+        except (TypeError, ValueError):
+            continue
+        latest = parsed if latest is None or parsed > latest else latest
+    return latest
+
+
+def _required_null_rate(items: Any, required_fields: list[str]) -> float:
+    rows = (
+        [item for item in items if isinstance(item, dict)]
+        if isinstance(items, list)
+        else []
+    )
+    if not rows or not required_fields:
+        return 0.0
+    missing = sum(
+        1 for item in rows for field in required_fields if item.get(field) is None
+    )
+    return missing / (len(rows) * len(required_fields))
+
+
+def _write_compare_receipt(
+    endpoint: str,
+    family: str,
+    layer_key: str,
+    local: Any,
+    candidate: list[dict[str, Any]],
+) -> None:
+    local_ids = _canonical_ids(local)
+    candidate_ids = _canonical_ids(candidate)
+    union = local_ids | candidate_ids
+    overlap = len(local_ids & candidate_ids) / len(union) if union else 1.0
+    comparison_kinds = _json_mapping("SHADOW_COMPARE_FAMILY_KINDS")
+    comparison_kind = str(comparison_kinds.get(family) or "streaming").lower()
+    if comparison_kind not in {"deterministic", "streaming"}:
+        comparison_kind = "streaming"
+    required_config = _json_mapping("SHADOW_COMPARE_REQUIRED_FIELDS")
+    required_fields = [
+        str(field)
+        for field in required_config.get(family, [])
+        if isinstance(field, str) and field
+    ]
+    local_null_rate = _required_null_rate(local, required_fields)
+    candidate_null_rate = _required_null_rate(candidate, required_fields)
+    null_rate_delta = candidate_null_rate - local_null_rate
+    cadence_config = _json_mapping("SHADOW_COMPARE_CADENCE_SECONDS")
+    try:
+        cadence_seconds = max(0, int(cadence_config.get(family, 0)))
+    except (TypeError, ValueError):
+        cadence_seconds = 0
+    local_latest = _latest_observed_at(local)
+    candidate_latest = _latest_observed_at(candidate)
+    freshness_lag_seconds = None
+    freshness_ok = True
+    if local_latest is not None:
+        freshness_lag_seconds = (
+            (local_latest - candidate_latest).total_seconds()
+            if candidate_latest is not None
+            else None
+        )
+        freshness_ok = (
+            candidate_latest is not None and freshness_lag_seconds <= cadence_seconds
+        )
+    deterministic_ok = local_ids == candidate_ids and len(local or []) == len(candidate)
+    identity_ok = (
+        deterministic_ok if comparison_kind == "deterministic" else overlap >= 0.90
+    )
+    status = shadow_feed_status()
+    watermark = status["watermark"]
+    watermark_ok = (
+        isinstance(watermark, dict)
+        and isinstance(watermark.get("cursor"), int)
+        and watermark["cursor"] >= 0
+    )
+    accepted = (
+        identity_ok
+        and freshness_ok
+        and null_rate_delta <= 0.01
+        and watermark_ok
+        and not status["stale"]
+    )
+    receipt = {
+        "schema_version": "shadow.qazpipe-comparison-receipt/v1",
+        "recorded_at": datetime.now(UTC).isoformat(),
+        "endpoint": endpoint,
+        "layer_family": family,
+        "layer_key": layer_key,
+        "comparison_kind": comparison_kind,
+        "local_count": len(local)
+        if isinstance(local, list)
+        else int(local is not None),
+        "qazlake_count": len(candidate),
+        "id_overlap": overlap,
+        "canonical_ids_exact": local_ids == candidate_ids,
+        "required_fields": required_fields,
+        "local_required_null_rate": local_null_rate,
+        "qazlake_required_null_rate": candidate_null_rate,
+        "required_null_rate_delta": null_rate_delta,
+        "freshness_lag_seconds": freshness_lag_seconds,
+        "cadence_seconds": cadence_seconds,
+        "watermark": watermark,
+        "watermark_valid": watermark_ok,
+        "stale": status["stale"],
+        "accepted": accepted,
+        "failed_gates": [
+            name
+            for name, passed in (
+                ("canonical_identity", identity_ok),
+                ("freshness", freshness_ok),
+                ("required_null_rate", null_rate_delta <= 0.01),
+                ("watermark", watermark_ok),
+                ("feed_current", not status["stale"]),
+            )
+            if not passed
+        ],
+    }
+    path = _receipt_path()
+    try:
+        with _receipt_lock:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(
+                    json.dumps(receipt, ensure_ascii=False, sort_keys=True) + "\n"
+                )
+    except OSError as exc:
+        logger.error(
+            "Unable to write QazLake comparison receipt: %s", type(exc).__name__
+        )
+
+
+def shadow_feed_status() -> dict[str, Any]:
+    with _lock:
+        return {
+            "stale": bool(_state.get("stale", True)),
+            "available": bool(_state.get("entities")),
+            "watermark": _state.get("watermark"),
+            "refreshed_at": _state.get("refreshed_at"),
+            "error": _state.get("error"),
+        }
+
+
+def shadow_feed_etag_suffix() -> str:
+    modes = configured_modes()
+    if not modes:
+        return ""
+    status = shadow_feed_status()
+    material = json.dumps(
+        {"modes": modes, "watermark": status["watermark"], "stale": status["stale"]},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return "qazlake-" + hashlib.sha256(material).hexdigest()[:12] + "|"
+
+
+def apply_layer_source_modes(
+    payload: dict[str, Any], *, endpoint: str
+) -> dict[str, Any]:
+    modes = configured_modes()
+    if not modes:
+        return payload
+    grouped = _items_by_family()
+    for family, mode in modes.items():
+        for layer_key in _family_layer_keys(family):
+            if layer_key not in payload:
+                continue
+            candidate = grouped.get(family, {}).get(layer_key, [])
+            if mode == "compare":
+                _write_compare_receipt(
+                    endpoint,
+                    family,
+                    layer_key,
+                    payload.get(layer_key),
+                    candidate,
+                )
+            elif mode == "qazpipe":
+                # Fail visibly: an unavailable feed projects an empty layer and
+                # explicit stale state; it never falls back to the local collector.
+                payload[layer_key] = candidate
+    if "qazpipe" in modes.values():
+        status = shadow_feed_status()
+        payload["qazpipe_state"] = {
+            "schema_version": SCHEMA_VERSION,
+            "modes": modes,
+            "status": "stale" if status["stale"] else "current",
+            "available": status["available"],
+            "watermark": status["watermark"],
+            "refreshed_at": status["refreshed_at"],
+        }
+    return payload

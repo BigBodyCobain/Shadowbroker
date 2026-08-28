@@ -231,6 +231,34 @@ class TestResolvePeerKeyForUrl:
             assert resolve_peer_key_for_url("not-a-url") == b""
             assert resolve_peer_key_for_url(None) == b""
 
+    def test_rotation_accepts_previous_only_for_global_peers(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from services.mesh.mesh_crypto import _derive_peer_key, resolve_peer_keys_for_url
+
+        monkeypatch.delenv("MESH_PEER_SECRETS", raising=False)
+        monkeypatch.setattr(
+            "services.config.get_settings",
+            lambda: SimpleNamespace(
+                MESH_PEER_PUSH_SECRET="new-secret",
+                MESH_PEER_PUSH_SECRET_PREVIOUS="old-secret",
+            ),
+        )
+        monkeypatch.setattr(
+            "services.mesh.mesh_fleet_defaults.effective_peer_push_secret",
+            lambda: "new-secret",
+        )
+        keys = resolve_peer_keys_for_url("https://peer.example")
+        assert keys == (
+            _derive_peer_key("new-secret", "https://peer.example"),
+            _derive_peer_key("old-secret", "https://peer.example"),
+        )
+
+        monkeypatch.setenv("MESH_PEER_SECRETS", "https://peer.example=exclusive-secret")
+        assert resolve_peer_keys_for_url("https://peer.example") == (
+            _derive_peer_key("exclusive-secret", "https://peer.example"),
+        )
+
 
 # ---------------------------------------------------------------------------
 # The actual #256 attack: peer A cannot impersonate peer B

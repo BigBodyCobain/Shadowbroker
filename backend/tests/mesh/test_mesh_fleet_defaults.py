@@ -1,6 +1,5 @@
 from services.mesh.mesh_fleet_defaults import (
     FLEET_SEED_ONION_URL,
-    FLEET_PEER_PUSH_SECRET,
     configured_bootstrap_seed_peers_with_fleet_default,
     effective_bootstrap_signer_public_key_b64,
     effective_fleet_seed_peers,
@@ -19,7 +18,7 @@ def test_fleet_defaults_apply_when_join_enabled(monkeypatch):
     try:
         assert infonet_fleet_join_enabled() is True
         assert effective_bootstrap_signer_public_key_b64()
-        assert effective_peer_push_secret() == FLEET_PEER_PUSH_SECRET
+        assert effective_peer_push_secret() == ""
     finally:
         get_settings.cache_clear()
 

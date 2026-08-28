@@ -177,6 +177,10 @@ _SECRET_VARS = [
     "SHODAN_API_KEY",
     "FINNHUB_API_KEY",
     "MESH_SECURE_STORAGE_SECRET",
+    "MESH_PEER_PUSH_SECRET",
+    "MESH_PEER_PUSH_SECRET_PREVIOUS",
+    "SHADOW_DERIVED_SIGNALS_TOKEN",
+    "QAZLAKE_SHADOW_FEED_TOKEN",
 ]
 
 for _var in _SECRET_VARS:
@@ -404,6 +408,7 @@ if _MESH_ONLY:
     intel_feeds_router = APIRouter()
     analytics_router = APIRouter()
     agent_shell_router = APIRouter()
+    qazpipe_derived_router = APIRouter()
 else:
     cctv_router = _load_optional_router("routers.cctv")
     radio_router = _load_optional_router("routers.radio")
@@ -420,6 +425,7 @@ else:
     intel_feeds_router = _load_optional_router("routers.intel_feeds")
     analytics_router = _load_optional_router("routers.analytics")
     agent_shell_router = _load_optional_router("routers.agent_shell")
+    qazpipe_derived_router = _load_optional_router("routers.qazpipe_derived")
 
 
 # ---------------------------------------------------------------------------
@@ -2749,6 +2755,11 @@ async def lifespan(app: FastAPI):
 
     validate_env(strict=not _MESH_ONLY)
 
+    if not _MESH_ONLY:
+        from services.qazlake_shadow_feed import start_shadow_feed_sync
+
+        start_shadow_feed_sync()
+
     if _MESH_ONLY:
         logger.info("MESH_ONLY enabled â€” skipping global data fetchers/schedulers.")
     else:
@@ -2895,6 +2906,9 @@ async def lifespan(app: FastAPI):
     yield
     if not _MESH_ONLY:
         # Shutdown: Stop all background services
+        from services.qazlake_shadow_feed import stop_shadow_feed_sync
+
+        stop_shadow_feed_sync()
         _NODE_SYNC_STOP.set()
         stop_ais_stream()
         stop_scheduler()
@@ -3868,6 +3882,7 @@ app.include_router(entity_graph_router)
 app.include_router(intel_feeds_router)
 app.include_router(analytics_router)
 app.include_router(agent_shell_router)
+app.include_router(qazpipe_derived_router)
 
 from services.data_fetcher import update_all_data
 

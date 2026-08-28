@@ -16,10 +16,6 @@ FLEET_SEED_ONION_URLS = (
 FLEET_BOOTSTRAP_SIGNER_PUBLIC_KEY_B64 = (
     "ul1d0kj/ODPIp0OhHzX8eLAVXzJ3CVvzW1vn2IC6q3I="
 )
-# Shared fleet HMAC for sb-testnet peer announce/push/sync. Public testnet join model.
-FLEET_PEER_PUSH_SECRET = "b7GoqsvoUD9MV7tyt0ZOzMptLA84QG6KCfaV9nDqz5Y"
-
-
 def infonet_fleet_join_enabled() -> bool:
     try:
         from services.config import get_settings
@@ -46,6 +42,11 @@ def effective_bootstrap_signer_public_key_b64() -> str:
 
 
 def effective_peer_push_secret() -> str:
+    """Return the operator-provided fleet secret.
+
+    Discovery defaults may be public, but authentication material must never be
+    bundled into source code or images.
+    """
     try:
         from services.config import get_settings
 
@@ -54,8 +55,6 @@ def effective_peer_push_secret() -> str:
             return configured
     except Exception:
         pass
-    if infonet_fleet_join_enabled():
-        return FLEET_PEER_PUSH_SECRET
     return ""
 
 

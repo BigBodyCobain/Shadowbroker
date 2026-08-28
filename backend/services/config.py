@@ -56,7 +56,8 @@ class Settings(BaseSettings):
         "ul1d0kj/ODPIp0OhHzX8eLAVXzJ3CVvzW1vn2IC6q3I="
     )
     MESH_BOOTSTRAP_SIGNER_PRIVATE_KEY: str = ""
-    # When true, empty MESH_PEER_PUSH_SECRET uses the public fleet HMAC for seed join/announce.
+    # Enables public fleet discovery defaults. Authentication still requires an
+    # operator-provided MESH_PEER_PUSH_SECRET or per-peer secret.
     MESH_INFONET_FLEET_JOIN: bool = True
     MESH_INFONET_FLEET_JOIN_DISABLED: bool = False
     # Headless relay/seed compose: auto-enable Tor wormhole on startup so
@@ -79,12 +80,21 @@ class Settings(BaseSettings):
     MESH_RELAY_FAILURE_COOLDOWN_S: int = 120
     MESH_BOOTSTRAP_SEED_FAILURE_COOLDOWN_S: int = 15
     MESH_PEER_PUSH_SECRET: str = ""
+    # Temporary rotation window: receivers accept signatures made with this
+    # previous fleet secret, while all senders continue to use the primary.
+    # Remove it after every peer has moved to the new primary.
+    MESH_PEER_PUSH_SECRET_PREVIOUS: str = ""
     # Issue #256 (tg12): optional per-peer HMAC secret map. Comma-separated
     # `url=secret` pairs. When a peer URL appears here, only that per-peer
     # secret is accepted for it — the global MESH_PEER_PUSH_SECRET above is
     # ignored for that specific URL. Single-peer installs and unmigrated
     # multi-peer installs leave this empty and behavior is unchanged.
     MESH_PEER_SECRETS: str = ""
+    # QazPipe reads only Shadow-owned derived analytics through this token.
+    SHADOW_DERIVED_SIGNALS_TOKEN: str = ""
+    # Shadow reads provider-neutral observations from the protected QazLake feed.
+    QAZLAKE_SHADOW_FEED_TOKEN: str = ""
+    QAZLAKE_SHADOW_FEED_URL: str = ""
     MESH_RNS_APP_NAME: str = "shadowbroker"
     MESH_RNS_ASPECT: str = "infonet"
     MESH_RNS_IDENTITY_PATH: str = ""

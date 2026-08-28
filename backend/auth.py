@@ -46,6 +46,7 @@ from services.mesh.mesh_crypto import (
     _derive_peer_key,
     normalize_peer_url,
     resolve_peer_key_for_url,
+    resolve_peer_keys_for_url,
     verify_signature,
     verify_node_binding,
     parse_public_key_algo,
@@ -1415,16 +1416,16 @@ def _verify_peer_transport_hmac(request: Request, body_bytes: bytes) -> bool:
     peer_url = _peer_hmac_url_from_request(request)
     if not peer_url:
         return False
-    peer_key = resolve_peer_key_for_url(peer_url)
-    if not peer_key:
+    peer_keys = resolve_peer_keys_for_url(peer_url)
+    if not peer_keys:
         return False
-
-    expected = _hmac_mod.new(
-        peer_key,
-        body_bytes,
-        _hashlib_mod.sha256,
-    ).hexdigest()
-    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
+    return any(
+        _hmac_mod.compare_digest(
+            provided.lower(),
+            _hmac_mod.new(peer_key, body_bytes, _hashlib_mod.sha256).hexdigest().lower(),
+        )
+        for peer_key in peer_keys
+    )
 
 
 def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:
@@ -1445,16 +1446,16 @@ def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:
     allowed_peers = set(authenticated_push_peer_urls())
     if not peer_url or peer_url not in allowed_peers:
         return False
-    peer_key = resolve_peer_key_for_url(peer_url)
-    if not peer_key:
+    peer_keys = resolve_peer_keys_for_url(peer_url)
+    if not peer_keys:
         return False
-
-    expected = _hmac_mod.new(
-        peer_key,
-        body_bytes,
-        _hashlib_mod.sha256,
-    ).hexdigest()
-    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
+    return any(
+        _hmac_mod.compare_digest(
+            provided.lower(),
+            _hmac_mod.new(peer_key, body_bytes, _hashlib_mod.sha256).hexdigest().lower(),
+        )
+        for peer_key in peer_keys
+    )
 
 
 # ---------------------------------------------------------------------------
