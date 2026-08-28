@@ -28,6 +28,13 @@ backend tests so new Shadow surfaces cannot silently escape disposition.
 - Credential/session/operator sources require a named protected successor or an
   explicit retirement decision before Shadow deletion.
 
+The exact reuse scan is recorded in `reuse_decisions` in the organ ledger.
+Only the provider-neutral feed-cutover receipt is a confirmed shared gap.
+QazStack already owns early-warning, temporal and HMAC/replay contracts, while
+AVDS already owns the source-state and map-control primitives. Shadow-specific
+weights, cases, stores, terminal styling and operator workflows therefore do
+not become new platform modules. They move to a named product owner or retire.
+
 ## Retirement sequence
 
 1. Finish QazLake feed deployment and security proof, then QazPipe inactive

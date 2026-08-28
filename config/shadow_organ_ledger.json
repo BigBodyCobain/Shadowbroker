@@ -15,6 +15,44 @@
     "shared_module_gate": ["canonical_owner", "platform_mandate_or_two_consumers", "pilot", "rollback"],
     "deletion_gate": ["replacement_live", "consumer_parity", "full_cadence", "rollback_receipt", "credential_revocation", "exact_resource_inventory"]
   },
+  "reuse_decisions": [
+    {
+      "family": "provider-neutral-feed-cutover",
+      "canonical_owner": "qazstack.databus",
+      "owner_baseline": "081de3852ce0becbbc408272fcaa925fc4cf4117",
+      "candidate_revision": "0b833d5a3b572fc9882f42fb6f239b88bbb8278e",
+      "decision": "extract",
+      "reason": "QazStack had no equivalent multiplicity, freshness, null-rate and stale-state cutover receipt; the extracted contract is provider-neutral and contains no record identifiers or payloads."
+    },
+    {
+      "family": "correlation-early-warning-backtest",
+      "canonical_owner": "qazstack.analytics-and-qazcompute",
+      "owner_baseline": "081de3852ce0becbbc408272fcaa925fc4cf4117",
+      "decision": "reuse_existing_and_keep_product_workload_outside_shared_core",
+      "reason": "QazStack already owns early-warning, drift, graph, scenario and calibration contracts; Shadow weights, cases, region heuristics and operator actions are product policy rather than a shared primitive."
+    },
+    {
+      "family": "temporal-snapshots-and-diffs",
+      "canonical_owner": "qazstack.temporal",
+      "owner_baseline": "081de3852ce0becbbc408272fcaa925fc4cf4117",
+      "decision": "reuse_existing",
+      "reason": "QazStack already owns versioned series, event batches and deterministic snapshot diffs, so the Shadow store and UI adapter must be retired after successor adoption."
+    },
+    {
+      "family": "hmac-rotation-replay",
+      "canonical_owner": "qazstack.databus",
+      "owner_baseline": "081de3852ce0becbbc408272fcaa925fc4cf4117",
+      "decision": "reuse_existing_tests_and_contract",
+      "reason": "QazStack already verifies canonical bytes, rotated keys, clock skew and replay rejection; only recipient-native rotation and old-secret rejection evidence is required."
+    },
+    {
+      "family": "operational-map-and-source-state-ui",
+      "canonical_owner": "avds",
+      "owner_baseline": "avds-4.8.0-eb719b0",
+      "decision": "reuse_existing_and_defer_unproven_gaps",
+      "reason": "AVDS already provides freshness, source policy and health, operational evidence, release proof and map layer controls. The Shadow rail, sheet and timeline remain candidates only after a second consumer and exact catalog gap."
+    }
+  ],
   "coverage_planes": [
     {
       "plane": "product_and_user_value",
@@ -180,7 +218,7 @@
       "capability": "Geotemporal correlation, rolling signals, early warning and backtest scoring.",
       "target_owner": "qazstack.analytics-and-qazcompute",
       "disposition": "adapt_to_existing",
-      "status": "deferred_pending_semantic_equivalence",
+      "status": "reviewed_existing_primitives_product_workload_pending",
       "acceptance": ["neutral algorithms are separated from Shadow weights and cases", "existing QazStack analytics is extended", "QazCompute owns product workloads", "golden fixtures match"]
     },
     {
@@ -190,7 +228,7 @@
       "capability": "Historical snapshots, cursor playback and snapshot differences.",
       "target_owner": "qazstack.temporal",
       "disposition": "consume_existing",
-      "status": "selected",
+      "status": "reviewed_existing_contracts_successor_adoption_pending",
       "acceptance": ["Shadow-specific stores are mapped to QazStack temporal contracts", "no duplicate temporal primitive is created"]
     },
     {
@@ -349,8 +387,8 @@
       "donor_refs": ["backend/tests/mesh/test_gate_envelope_authenticity.py", "backend/tests/mesh/test_mesh_env_security_audit.py", "backend/tests/test_cctv_redirect_ssrf.py", "backend/tests/test_openmhz_redirect_ssrf.py", "backend/tests/test_p0_security.py", "backend/tests/test_security_hardening_2026_08.py"],
       "capability": "HMAC body binding, replay rejection, SSRF boundaries and negative security fixtures.",
       "target_owner": "qazstack-security-platform",
-      "disposition": "adapt_tests_to_existing_owner",
-      "status": "deferred_pending_exact_duplicate_scan",
+      "disposition": "reuse_existing_contract_and_adapt_recipient_tests",
+      "status": "reviewed_existing_contracts_rotation_evidence_pending",
       "acceptance": ["tests contain no real secrets or topology", "dual-secret rotation is covered", "old secret is rejected after rotation", "existing security primitives are extended"]
     },
     {

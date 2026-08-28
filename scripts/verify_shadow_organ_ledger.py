@@ -21,6 +21,13 @@ EXPECTED_PLANES = {
     "discovery_seo_public_ai",
     "quality_operations_docs",
 }
+EXPECTED_REUSE_FAMILIES = {
+    "provider-neutral-feed-cutover",
+    "correlation-early-warning-backtest",
+    "temporal-snapshots-and-diffs",
+    "hmac-rotation-replay",
+    "operational-map-and-source-state-ui",
+}
 REQUIRED_ORGAN_FIELDS = {
     "id",
     "plane",
@@ -84,6 +91,32 @@ def verify(repo_root: Path) -> list[str]:
             f"missing={sorted(EXPECTED_PLANES - organ_planes)} "
             f"extra={sorted(organ_planes - EXPECTED_PLANES)}",
         )
+
+    reuse_decisions = data.get("reuse_decisions")
+    if not isinstance(reuse_decisions, list):
+        _fail(errors, "reuse_decisions must be a list")
+    else:
+        reuse_families: set[str] = set()
+        for index, decision in enumerate(reuse_decisions):
+            required = {"family", "canonical_owner", "owner_baseline", "decision", "reason"}
+            missing = required - set(decision)
+            if missing:
+                _fail(errors, f"reuse_decisions[{index}] missing fields: {sorted(missing)}")
+                continue
+            family = decision["family"]
+            if family in reuse_families:
+                _fail(errors, f"duplicate reuse family: {family}")
+            reuse_families.add(family)
+            for field in required:
+                if not isinstance(decision[field], str) or not decision[field].strip():
+                    _fail(errors, f"reuse_decisions[{index}].{field} must be non-empty text")
+        if reuse_families != EXPECTED_REUSE_FAMILIES:
+            _fail(
+                errors,
+                "reuse decision coverage mismatch: "
+                f"missing={sorted(EXPECTED_REUSE_FAMILIES - reuse_families)} "
+                f"extra={sorted(reuse_families - EXPECTED_REUSE_FAMILIES)}",
+            )
 
     planes = data.get("coverage_planes")
     if not isinstance(planes, list):
