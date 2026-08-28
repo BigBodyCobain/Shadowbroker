@@ -387,3 +387,39 @@ def test_cisa_projection_preserves_public_shape_and_keeps_risk_derived() -> None
     }
     assert "severity" not in item
     assert "threat_level" not in item
+
+
+def test_weather_alert_projection_preserves_shape_and_filters_expired() -> None:
+    current = feed._public_item(
+        {
+            "entity_id": "weather_alert:urn:oid:current",
+            "observed_at": "2099-08-28T11:34:00Z",
+            "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [0, 0]]]},
+            "properties": {
+                "layer_family": "weather_environment",
+                "layer_key": "weather_alerts",
+                "entity_type": "weather_alert",
+                "status": "active",
+                "alert_id": "urn:oid:current",
+                "event": "Special Weather Statement",
+                "severity": "Moderate",
+                "certainty": "Observed",
+                "urgency": "Expected",
+                "headline": "Example headline",
+                "description": "Example description",
+                "expires_at": "2099-08-28T12:00:00Z",
+            },
+        }
+    )
+    expired = {
+        **current,
+        "id": "urn:oid:expired",
+        "expires": "2000-01-01T00:00:00Z",
+        "expires_at": "2000-01-01T00:00:00Z",
+    }
+
+    assert feed._public_layer_value("weather_alerts", [expired, current]) == [current]
+    assert current["id"] == "urn:oid:current"
+    assert current["event"] == "Special Weather Statement"
+    assert current["expires"] == "2099-08-28T12:00:00Z"
+    assert current["geometry"]["type"] == "Polygon"

@@ -318,6 +318,11 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
             result["date"] = properties["date_added"]
         if properties.get("due_date") is not None:
             result["due"] = properties["due_date"]
+    elif layer_key == "weather_alerts":
+        if properties.get("alert_id") is not None:
+            result["id"] = properties["alert_id"]
+        if properties.get("expires_at") is not None:
+            result["expires"] = properties["expires_at"]
     return result
 
 
@@ -394,6 +399,23 @@ def _public_layer_value(layer_key: str, items: list[dict[str, Any]]) -> Any:
             },
             "timestamp": max(release_dates, default=None),
         }
+    if layer_key == "weather_alerts":
+        now = datetime.now(UTC)
+        active: list[dict[str, Any]] = []
+        for item in items:
+            raw_expiry = item.get("expires_at") or item.get("expires")
+            try:
+                expiry = datetime.fromisoformat(str(raw_expiry).replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                continue
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=UTC)
+            if expiry.astimezone(UTC) > now:
+                active.append(item)
+        active.sort(
+            key=lambda item: (str(item.get("expires") or ""), str(item.get("id") or ""))
+        )
+        return active
     return items
 
 
