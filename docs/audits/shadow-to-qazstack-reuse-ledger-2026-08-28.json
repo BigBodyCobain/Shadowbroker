@@ -118,7 +118,7 @@
       "adaptation": ["Converted browser-specific ViewBounds to existing QazStack BBox", "Removed Shadow's 3000-mile default and made radius explicit", "Rejected non-finite coordinates instead of silently coercing them", "Used standard west,south,east,north CSV without product query names"],
       "dependencies": ["QazStack PR 101 review and release", "non-Shadow consumer with explicit precision and retention policy"],
       "acceptance": ["105 focused geo tests pass", "QazStack full suite passes", "outward coarsening contains original viewport", "contract states data minimisation is not anonymisation"],
-      "rollback": "Revert isolated QazStack commit 45abb91079b181418eaa6f41fe3ad09fd3451dd0 before any consumer adopts it.",
+      "rollback": "Revert isolated QazStack commit 9f08e2529adf772d54cd22d00203229c4cc6839e before any consumer adopts it.",
       "update_path": "QazStack Geo remains canonical; consumers choose product radius and retention policy.",
       "hard_gates": {"target_value": "pass", "semantic_fit": "pass", "canonical_ownership": "pass", "contract_compatibility": "pass", "stack_convergence": "pass", "rights_privacy_security": "pass", "maintainable_update_path": "pass", "testability_rollback": "pass"}
     },
@@ -166,12 +166,12 @@
   "implementation": {
     "status": "partial",
     "target_changes": ["Added provider-neutral feed cutover policy, receipt and evaluator to qazstack.databus", "Added provider-neutral viewport data-minimisation helpers to qazstack.geo", "Added focused tests and DataBus/Geo documentation"],
-    "checks": ["QazStack full suite: 1934 passed and 19 skipped", "QazStack focused Geo suite: 105 passed", "QazStack native quality gate passed", "ruff check passed", "ruff format check passed", "git diff --check passed"],
+    "checks": ["QazStack full suite: 1939 passed and 19 skipped", "QazStack focused Geo suite: 109 passed", "QazStack native quality gate passed", "ruff check passed", "ruff format check passed", "git diff --check passed"],
     "remaining": ["Review and merge QazStack PR 101", "Release the QazStack contracts", "Adopt the released contracts in non-Shadow consumers before donor deletion", "Run a non-Shadow viewport privacy pilot with explicit precision and retention policy"]
   },
   "release": {
-    "status": "not_requested",
-    "evidence": ["QazStack commit 6f5cbb2", "QazStack commit 45abb91079b181418eaa6f41fe3ad09fd3451dd0", "https://github.com/belilovsky/qazstack/pull/101"]
+    "status": "pending_required_review",
+    "evidence": ["QazStack commit 6f5cbb2", "QazStack commit 9f08e2529adf772d54cd22d00203229c4cc6839e", "https://github.com/belilovsky/qazstack/pull/101"]
   },
-  "blockers": ["QazStack PR 101 has not been reviewed, merged or released", "No non-Shadow pilot has adopted it yet", "Shadow retirement gates remain open"]
+  "blockers": ["QazStack PR 101 still requires an approving review before merge and release", "No non-Shadow pilot has adopted it yet", "Shadow retirement gates remain open"]
 }
