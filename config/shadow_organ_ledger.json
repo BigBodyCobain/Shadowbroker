@@ -1,6 +1,6 @@
 {
   "schema_version": "shadowbroker-organ-ledger/v1",
-  "generated_at": "2026-08-28T12:35:11Z",
+  "generated_at": "2026-08-28T13:30:34Z",
   "donor": {
     "project_id": "shadowbroker",
     "revision": "79aff792c4b2780fe7982c297d95190b87f09c5c",
@@ -596,7 +596,7 @@
       "QazLake production feed has not yet completed deployment and live security proof.",
       "QazPipe schedules remain intentionally inactive pending source gates and canaries.",
       "Shadow upstream PR 543 is not merged and upstream push permission is unavailable.",
-      "Exact credential/operator feed inventory, schedule shutdown and credential revocation evidence are not complete.",
+      "Protected exact runtime, embedded schedule and credential-binding inventory is captured outside Git; schedule shutdown and credential revocation evidence are not complete.",
       "Three successful comparisons, one scheduled window, 24-hour observation and one full cadence are not yet evidenced."
     ],
     "deletion_scope": "Only exact ShadowBroker repository/runtime/container/image/schedule/secret resources listed in a signed retirement receipt; archives and rollback manifests remain outside the deleted runtime."
