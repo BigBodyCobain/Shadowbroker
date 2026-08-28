@@ -45,7 +45,7 @@ from services.mesh.mesh_compatibility import (
 from services.mesh.mesh_crypto import (
     _derive_peer_key,
     normalize_peer_url,
-    resolve_peer_key_for_url,
+    resolve_peer_key_candidates_for_url,
     verify_signature,
     verify_node_binding,
     parse_public_key_algo,
@@ -513,8 +513,11 @@ async def require_openclaw_or_local(request: Request):
 # Startup validators
 # ---------------------------------------------------------------------------
 
-_KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256 = (
-    "be05bc75350d6e5d2e154e969c4dfc14bab1e48a9661c64ab7a331e0aa96aea7"
+_KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256 = frozenset(
+    {
+        "be05bc75350d6e5d2e154e969c4dfc14bab1e48a9661c64ab7a331e0aa96aea7",
+        "d4a7406f20b988a723afc56e923d520e7174370140fa0eb2388cfd2691fd202c",
+    }
 )
 
 
@@ -569,32 +572,11 @@ def _validate_insecure_admin_startup() -> None:
         sys.exit(1)
 
 
-def _auto_generate_peer_push_secret() -> str | None:
-    """Generate a strong peer push secret, persist to .env, return it."""
-    import secrets
-
-    new_secret = secrets.token_urlsafe(32)  # 43-char URL-safe string
-    try:
-        from routers.ai_intel import _write_env_value
-
-        _write_env_value("MESH_PEER_PUSH_SECRET", new_secret)
-        os.environ["MESH_PEER_PUSH_SECRET"] = new_secret
-        try:
-            get_settings.cache_clear()
-        except Exception:
-            pass
-        return new_secret
-    except Exception as exc:
-        logger.warning("Could not auto-generate MESH_PEER_PUSH_SECRET: %s", exc)
-        return None
-
-
 def _validate_peer_push_secret() -> None:
     """Ensure peer push authentication is properly configured.
 
-    Instead of refusing to start when the secret is missing or compromised,
-    auto-generate a strong replacement and persist it to .env.  The only
-    hard failure is if auto-generation itself fails AND peers are configured.
+    Mesh credentials are operator-managed protected configuration. Never write
+    them into the checkout or generate a silent replacement during startup.
     """
     settings = None
     try:
@@ -603,35 +585,34 @@ def _validate_peer_push_secret() -> None:
     except Exception:
         secret = os.environ.get("MESH_PEER_PUSH_SECRET", "").strip()
 
-    # Replace the known-compromised testnet default automatically
     if (
         secret
         and _hashlib_mod.sha256(secret.encode("utf-8")).hexdigest()
-        == _KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256
+        in _KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256
     ):
-        logger.warning(
-            "MESH_PEER_PUSH_SECRET was the publicly-known testnet default — "
-            "auto-generating a secure replacement."
+        logger.critical(
+            "MESH_PEER_PUSH_SECRET is a known compromised value. Refusing to "
+            "start; inject a rotated secret through protected configuration."
         )
-        new_secret = _auto_generate_peer_push_secret()
-        if new_secret:
-            secret = new_secret
-            logger.info("MESH_PEER_PUSH_SECRET replaced and saved to .env.")
-        else:
-            logger.critical(
-                "MESH_PEER_PUSH_SECRET is the publicly-known testnet default "
-                "and could not be replaced automatically. "
-                "Set a unique secret in your .env file."
-            )
-            sys.exit(1)
+        sys.exit(1)
+
+    def invalid_secret_reason(value: str) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return "empty"
+        if raw.lower() in {"change-me", "changeme"}:
+            return "placeholder"
+        if len(raw) < 16:
+            return "too short"
+        return ""
 
     try:
         from services.env_check import (
-            _invalid_peer_push_secret_reason,
+            _invalid_peer_push_secret_reason as invalid_secret_reason,
             _peer_push_secret_required,
         )
 
-        secret_reason = _invalid_peer_push_secret_reason(secret)
+        secret_reason = invalid_secret_reason(secret)
         secret_required = (
             _peer_push_secret_required(settings)
             if settings is not None
@@ -645,29 +626,38 @@ def _validate_peer_push_secret() -> None:
         secret_reason = ""
         secret_required = False
 
-    # Secret is required but invalid — try to auto-fix
-    if secret_required and secret_reason:
-        logger.warning(
-            "MESH_PEER_PUSH_SECRET is invalid (%s) while relay or RNS peers are "
-            "configured — auto-generating a secure replacement.",
-            secret_reason,
-        )
-        new_secret = _auto_generate_peer_push_secret()
-        if new_secret:
-            logger.info("MESH_PEER_PUSH_SECRET auto-generated and saved to .env.")
-        else:
+    previous_value = (
+        getattr(settings, "MESH_PEER_PUSH_SECRET_PREVIOUS", "")
+        if settings is not None
+        else os.environ.get("MESH_PEER_PUSH_SECRET_PREVIOUS", "")
+    )
+    previous_secret = previous_value.strip() if isinstance(previous_value, str) else ""
+    if previous_secret:
+        previous_hash = _hashlib_mod.sha256(previous_secret.encode("utf-8")).hexdigest()
+        previous_reason = invalid_secret_reason(previous_secret)
+        if previous_hash in _KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256:
+            previous_reason = "known compromised value"
+        if previous_reason or previous_secret == secret:
             logger.critical(
-                "MESH_PEER_PUSH_SECRET is invalid (%s) and could not be replaced "
-                "automatically. Set a unique secret of at least 16 characters in .env.",
-                secret_reason,
+                "MESH_PEER_PUSH_SECRET_PREVIOUS is invalid (%s). Refusing to start; "
+                "the rotation fallback must be strong, distinct, and uncompromised.",
+                previous_reason or "same as primary",
             )
             sys.exit(1)
-        return
+
+    if secret_required and secret_reason:
+        logger.critical(
+            "MESH_PEER_PUSH_SECRET is invalid (%s) while relay or RNS peers are "
+            "configured. Refusing to start; inject a unique secret of at least "
+            "16 characters through protected configuration.",
+            secret_reason,
+        )
+        sys.exit(1)
 
     if not secret:
         logger.warning(
             "MESH_PEER_PUSH_SECRET is not set — peer push authentication is disabled. "
-            "Set MESH_PEER_PUSH_SECRET in your .env file for production use."
+            "Inject MESH_PEER_PUSH_SECRET through protected configuration for production use."
         )
 
 
@@ -1415,27 +1405,28 @@ def _verify_peer_transport_hmac(request: Request, body_bytes: bytes) -> bool:
     peer_url = _peer_hmac_url_from_request(request)
     if not peer_url:
         return False
-    peer_key = resolve_peer_key_for_url(peer_url)
-    if not peer_key:
+    peer_keys = resolve_peer_key_candidates_for_url(peer_url)
+    if not peer_keys:
         return False
-
-    expected = _hmac_mod.new(
-        peer_key,
-        body_bytes,
-        _hashlib_mod.sha256,
-    ).hexdigest()
-    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
+    return any(
+        _hmac_mod.compare_digest(
+            provided.lower(),
+            _hmac_mod.new(peer_key, body_bytes, _hashlib_mod.sha256).hexdigest().lower(),
+        )
+        for peer_key in peer_keys
+    )
 
 
 def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:
     """Verify HMAC-SHA256 peer authentication on push requests.
 
-    Issue #256: ``resolve_peer_key_for_url`` looks up a per-peer secret
+    Issue #256: the key resolver looks up a per-peer secret
     in ``MESH_PEER_SECRETS`` first, then falls back to the global
     ``MESH_PEER_PUSH_SECRET``. When a peer URL is listed in the per-peer
-    map, only the listed secret is accepted for it — the global secret
-    is ignored, so any peer that knows only the global secret cannot
-    forge a request claiming to be that peer.
+    map, only the listed secret is accepted for it — global primary and
+    previous secrets are ignored, so a peer that knows only a global
+    secret cannot forge a request claiming to be that peer. Unmapped
+    peers may use the receive-only previous global secret during rotation.
     """
     provided = str(request.headers.get("x-peer-hmac", "") or "").strip()
     if not provided:
@@ -1445,16 +1436,16 @@ def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:
     allowed_peers = set(authenticated_push_peer_urls())
     if not peer_url or peer_url not in allowed_peers:
         return False
-    peer_key = resolve_peer_key_for_url(peer_url)
-    if not peer_key:
+    peer_keys = resolve_peer_key_candidates_for_url(peer_url)
+    if not peer_keys:
         return False
-
-    expected = _hmac_mod.new(
-        peer_key,
-        body_bytes,
-        _hashlib_mod.sha256,
-    ).hexdigest()
-    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
+    return any(
+        _hmac_mod.compare_digest(
+            provided.lower(),
+            _hmac_mod.new(peer_key, body_bytes, _hashlib_mod.sha256).hexdigest().lower(),
+        )
+        for peer_key in peer_keys
+    )
 
 
 # ---------------------------------------------------------------------------

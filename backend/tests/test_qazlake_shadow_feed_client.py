@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from services import qazlake_shadow_feed as feed
 
 
@@ -24,6 +26,53 @@ def test_invalid_or_local_modes_do_not_activate_client(monkeypatch) -> None:
     )
 
     assert feed.configured_modes() == {"weather_environment": "compare"}
+
+
+def test_explicit_cutover_configuration_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"geohazards": "qazpipe"})
+    )
+    monkeypatch.delenv("QAZLAKE_SHADOW_FEED_URL", raising=False)
+    monkeypatch.delenv("QAZLAKE_SHADOW_FEED_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="URL/token"):
+        feed.validate_shadow_feed_configuration()
+
+
+def test_cutover_configuration_rejects_private_or_unknown_family(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"operator_private": "qazpipe"})
+    )
+
+    with pytest.raises(RuntimeError, match="unsupported Shadow source families"):
+        feed.validate_shadow_feed_configuration()
+
+
+def test_cutover_configuration_requires_https_outside_localhost(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"geohazards": "compare"})
+    )
+    monkeypatch.setenv("QAZLAKE_SHADOW_FEED_URL", "http://qazlake.internal")
+    monkeypatch.setenv("QAZLAKE_SHADOW_FEED_TOKEN", "shadow-feed-token")
+
+    with pytest.raises(RuntimeError, match="HTTPS"):
+        feed.validate_shadow_feed_configuration()
+
+
+def test_local_collection_stops_only_after_family_cutover(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES",
+        json.dumps(
+            {
+                "geohazards": "compare",
+                "transport_public": "qazpipe",
+            }
+        ),
+    )
+
+    assert feed.local_collection_allowed("geohazards") is True
+    assert feed.local_collection_allowed("transport_public") is False
+    assert feed.local_collection_allowed("operator_private") is True
 
 
 def test_compare_preserves_public_payload_and_records_receipt(
@@ -75,6 +124,36 @@ def test_qazpipe_mode_never_hides_failure_with_local_fallback(monkeypatch) -> No
     assert result["earthquakes"] == []
     assert result["qazpipe_state"]["status"] == "stale"
     assert result["qazpipe_state"]["available"] is False
+
+
+def test_transport_cutover_preserves_legacy_layer_shape(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "SHADOW_LAYER_SOURCE_MODES", json.dumps({"transport_public": "qazpipe"})
+    )
+    monkeypatch.setattr(
+        feed,
+        "_items_by_family",
+        lambda: {
+            "transport_public": {
+                "trains": [{"id": "train:2026-08-28:1", "speed_mps": 30.0}]
+            }
+        },
+    )
+    with feed._lock:
+        feed._state.update(
+            {
+                "entities": {"train:2026-08-28:1": {}},
+                "stale": False,
+                "watermark": {"cursor": 42},
+            }
+        )
+
+    result = feed.apply_layer_source_modes(
+        {"trains": [{"id": "local-train"}]}, endpoint="fast"
+    )
+
+    assert result["trains"] == [{"id": "train:2026-08-28:1", "speed_mps": 30.0}]
+    assert result["qazpipe_state"]["status"] == "current"
 
 
 def test_projection_filters_storage_and_provider_fields() -> None:

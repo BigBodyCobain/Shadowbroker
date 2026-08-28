@@ -178,6 +178,37 @@ def resolve_peer_key_for_url(peer_url: str) -> bytes:
     return _derive_peer_key(global_secret, normalized_url)
 
 
+def resolve_peer_key_candidates_for_url(peer_url: str) -> tuple[bytes, ...]:
+    """Return inbound verification keys for a bounded global-secret rotation.
+
+    The primary key is always first and remains the only outbound signing key.
+    A configured per-peer secret stays exclusive: the global previous secret is
+    never allowed to weaken per-peer identity.
+    """
+    normalized_url = normalize_peer_url(peer_url)
+    if not normalized_url:
+        return ()
+
+    primary_key = resolve_peer_key_for_url(normalized_url)
+    if not primary_key:
+        return ()
+    if _lookup_per_peer_secret(normalized_url):
+        return (primary_key,)
+
+    try:
+        from services.config import get_settings
+
+        previous_value = getattr(get_settings(), "MESH_PEER_PUSH_SECRET_PREVIOUS", "")
+        previous_secret = previous_value.strip() if isinstance(previous_value, str) else ""
+    except Exception:
+        previous_secret = ""
+
+    previous_key = _derive_peer_key(previous_secret, normalized_url)
+    if not previous_key or previous_key == primary_key:
+        return (primary_key,)
+    return (primary_key, previous_key)
+
+
 def _node_digest(public_key_b64: str) -> str:
     raw = base64.b64decode(public_key_b64)
     return hashlib.sha256(raw).hexdigest()

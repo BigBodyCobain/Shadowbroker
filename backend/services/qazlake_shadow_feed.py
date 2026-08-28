@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,12 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
         "tinygs_satellites",
     ),
     "geohazards": ("earthquakes", "volcanoes"),
-    "weather_environment": ("space_weather", "weather_alerts", "air_quality"),
+    "weather_environment": (
+        "weather",
+        "space_weather",
+        "weather_alerts",
+        "air_quality",
+    ),
     "uap_public": ("uap_sightings",),
     "network_observability": ("internet_outages",),
     "events_media": ("gdelt", "news", "telegram_osint"),
@@ -55,6 +60,8 @@ DEFAULT_FAMILY_LAYER_KEYS: dict[str, tuple[str, ...]] = {
     "visual_reference": ("cctv", "sar_scenes"),
     "cyber_public": ("cyber_threats",),
     "risk_reference_public": ("sanctions",),
+    "transport_public": ("trains",),
+    "infrastructure_public": ("datacenters", "power_plants"),
 }
 LAYER_ENABLE_KEYS: dict[str, str] = {
     "commercial_flights": "flights",
@@ -91,12 +98,61 @@ def configured_modes() -> dict[str, str]:
     return {
         str(family): str(mode).lower()
         for family, mode in parsed.items()
-        if str(mode).lower() in VALID_MODES and str(mode).lower() != "local"
+        if str(family) in DEFAULT_FAMILY_LAYER_KEYS
+        and str(mode).lower() in VALID_MODES
+        and str(mode).lower() != "local"
     }
+
+
+def validate_shadow_feed_configuration() -> None:
+    """Fail closed on an explicit but unsafe or incomplete cutover config."""
+    raw = str(os.environ.get("SHADOW_LAYER_SOURCE_MODES", "") or "").strip()
+    if not raw:
+        return
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("SHADOW_LAYER_SOURCE_MODES must be a JSON object") from exc
+    if not isinstance(parsed, dict):
+        raise TypeError("SHADOW_LAYER_SOURCE_MODES must be a JSON object")
+    unknown_families = sorted(set(map(str, parsed)) - set(DEFAULT_FAMILY_LAYER_KEYS))
+    if unknown_families:
+        raise RuntimeError(
+            "unsupported Shadow source families: " + ", ".join(unknown_families)
+        )
+    invalid_modes = sorted(
+        f"{family}={mode}"
+        for family, mode in parsed.items()
+        if str(mode).lower() not in VALID_MODES
+    )
+    if invalid_modes:
+        raise RuntimeError("invalid Shadow source modes: " + ", ".join(invalid_modes))
+    if not any(str(mode).lower() != "local" for mode in parsed.values()):
+        return
+
+    base_url = str(os.environ.get("QAZLAKE_SHADOW_FEED_URL", "") or "").rstrip("/")
+    token = str(os.environ.get("QAZLAKE_SHADOW_FEED_TOKEN", "") or "").strip()
+    if not base_url or not token:
+        raise RuntimeError(
+            "QazLake Shadow feed URL/token are required for compare or qazpipe mode"
+        )
+    parsed_url = urlparse(base_url)
+    is_local_http = parsed_url.scheme == "http" and parsed_url.hostname in {
+        "127.0.0.1",
+        "localhost",
+        "testserver",
+    }
+    if parsed_url.scheme != "https" and not is_local_http:
+        raise RuntimeError("QazLake Shadow feed URL must use HTTPS")
 
 
 def uses_qazpipe_mode() -> bool:
     return "qazpipe" in configured_modes().values()
+
+
+def local_collection_allowed(family: str) -> bool:
+    """Keep local collection during compare; stop it only after family cutover."""
+    return configured_modes().get(str(family)) != "qazpipe"
 
 
 def _cache_path() -> Path:
@@ -276,7 +332,12 @@ def start_shadow_feed_sync() -> None:
 
 
 def stop_shadow_feed_sync() -> None:
+    global _thread
     _stop.set()
+    thread = _thread
+    if thread and thread.is_alive():
+        thread.join(timeout=5)
+    _thread = None
 
 
 def _public_item(item: dict[str, Any]) -> dict[str, Any]:

@@ -59,6 +59,8 @@ services:
       - MESH_PUBLIC_PEER_URL=${MESH_PUBLIC_PEER_URL:-}
       # Shared transport auth for operator peer push. Must be set to a unique secret per deployment.
       - MESH_PEER_PUSH_SECRET=${MESH_PEER_PUSH_SECRET:-}
+      # Receive-only fallback for rolling rotation. Clear after all peers use primary.
+      - MESH_PEER_PUSH_SECRET_PREVIOUS=${MESH_PEER_PUSH_SECRET_PREVIOUS:-}
       # Issue #256: optional per-peer HMAC secrets. Comma-separated
       # `url=secret` pairs (no spaces). When a peer URL appears here, only
       # the listed per-peer secret is accepted for it — the global
@@ -131,6 +133,15 @@ services:
       # instead — the UI persists OPENCLAW_HMAC_SECRET to data/openclaw.env on the
       # backend_data volume so host-side agents can HMAC-auth after container restarts.
       - OPENCLAW_HMAC_SECRET=${OPENCLAW_HMAC_SECRET:-}
+      # Protected QazLake consumer feed. Keep modes empty until a family has
+      # passed compare receipts; production should inject the token by file.
+      - QAZLAKE_SHADOW_FEED_URL=${QAZLAKE_SHADOW_FEED_URL:-}
+      - QAZLAKE_SHADOW_FEED_TOKEN_FILE=${QAZLAKE_SHADOW_FEED_TOKEN_FILE:-}
+      - SHADOW_LAYER_SOURCE_MODES=${SHADOW_LAYER_SOURCE_MODES:-}
+      - SHADOW_LAYER_FAMILY_KEYS=${SHADOW_LAYER_FAMILY_KEYS:-}
+      - SHADOW_QAZLAKE_CACHE_PATH=${SHADOW_QAZLAKE_CACHE_PATH:-/app/data/qazlake_shadow_cache.json}
+      - SHADOW_QAZPIPE_COMPARE_RECEIPT_PATH=${SHADOW_QAZPIPE_COMPARE_RECEIPT_PATH:-/app/data/qazpipe_compare_receipts.jsonl}
+      - QAZLAKE_SHADOW_POLL_INTERVAL_S=${QAZLAKE_SHADOW_POLL_INTERVAL_S:-30}
     volumes:
       - backend_data:/app/data
     restart: unless-stopped

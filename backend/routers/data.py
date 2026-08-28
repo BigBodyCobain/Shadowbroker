@@ -97,21 +97,32 @@ def _viewport_changed_enough(bounds: tuple) -> bool:
 
 def _queue_viirs_change_refresh() -> None:
     from services.fetchers.earth_observation import fetch_viirs_change_nodes
+
     threading.Thread(target=fetch_viirs_change_nodes, daemon=True).start()
 
 
 def _etag_response(request: Request, payload: dict, prefix: str = "", default=None):
     etag = _current_etag(prefix)
     if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
+        return Response(
+            status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"}
+        )
     content = json_mod.dumps(_json_safe(payload), default=default, allow_nan=False)
-    return Response(content=content, media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"})
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"ETag": etag, "Cache-Control": "no-cache"},
+    )
 
 
 def _current_etag(prefix: str = "") -> str:
     from services.fetchers._store import get_active_layers_version, get_data_version
-    return f"{prefix}v{get_data_version()}-l{get_active_layers_version()}"
+    from services.qazlake_shadow_feed import shadow_feed_etag_suffix
+
+    return (
+        f"{prefix}{shadow_feed_etag_suffix()}"
+        f"v{get_data_version()}-l{get_active_layers_version()}"
+    )
 
 
 # ── Issue #288: viewport-aware payloads ─────────────────────────────────────
@@ -669,7 +680,11 @@ async def live_data(request: Request):
     from services.fetchers._store import get_latest_data_refs_snapshot
 
     def _build() -> dict:
-        return get_latest_data_refs_snapshot()
+        from services.qazlake_shadow_feed import apply_layer_source_modes
+
+        return apply_layer_source_modes(
+            get_latest_data_refs_snapshot(), endpoint="live-data"
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -702,45 +717,110 @@ async def bootstrap_critical(request: Request):
 
     def _build() -> dict:
         d = get_latest_data_subset_refs(
-            "last_updated", "commercial_flights", "military_flights", "private_flights",
-            "private_jets", "tracked_flights", "ships", "uavs", "liveuamap", "gps_jamming",
-            "satellites", "satellite_source", "satellite_analysis", "sigint", "sigint_totals",
-            "trains", "news", "gdelt", "airports", "threat_level", "trending_markets",
-            "correlations", "fimi", "crowdthreat",
+            "last_updated",
+            "commercial_flights",
+            "military_flights",
+            "private_flights",
+            "private_jets",
+            "tracked_flights",
+            "ships",
+            "uavs",
+            "liveuamap",
+            "gps_jamming",
+            "satellites",
+            "satellite_source",
+            "satellite_analysis",
+            "sigint",
+            "sigint_totals",
+            "trains",
+            "news",
+            "gdelt",
+            "airports",
+            "threat_level",
+            "trending_markets",
+            "correlations",
+            "fimi",
+            "crowdthreat",
         )
         freshness = get_source_timestamps_snapshot()
-        ships_enabled = any(active_layers.get(key, True) for key in (
-            "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"))
+        ships_enabled = any(
+            active_layers.get(key, True)
+            for key in (
+                "ships_military",
+                "ships_cargo",
+                "ships_civilian",
+                "ships_passenger",
+                "ships_tracked_yachts",
+            )
+        )
         sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
-        return {
+        payload = {
             "last_updated": d.get("last_updated"),
-            "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
-            "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
-            "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
-            "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
-            "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
+            "commercial_flights": (d.get("commercial_flights") or [])
+            if active_layers.get("flights", True)
+            else [],
+            "military_flights": (d.get("military_flights") or [])
+            if active_layers.get("military", True)
+            else [],
+            "private_flights": (d.get("private_flights") or [])
+            if active_layers.get("private", True)
+            else [],
+            "private_jets": (d.get("private_jets") or [])
+            if active_layers.get("jets", True)
+            else [],
+            "tracked_flights": (d.get("tracked_flights") or [])
+            if active_layers.get("tracked", True)
+            else [],
             "ships": (d.get("ships") or []) if ships_enabled else [],
-            "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
-            "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
-            "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
-            "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
+            "uavs": (d.get("uavs") or [])
+            if active_layers.get("military", True)
+            else [],
+            "liveuamap": (d.get("liveuamap") or [])
+            if active_layers.get("global_incidents", True)
+            else [],
+            "gps_jamming": (d.get("gps_jamming") or [])
+            if active_layers.get("gps_jamming", True)
+            else [],
+            "satellites": (d.get("satellites") or [])
+            if active_layers.get("satellites", True)
+            else [],
             "satellite_source": d.get("satellite_source", "none"),
-            "satellite_analysis": (d.get("satellite_analysis") or {}) if active_layers.get("satellites", True) else {},
-            "sigint": sigint_items if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True)) else [],
+            "satellite_analysis": (d.get("satellite_analysis") or {})
+            if active_layers.get("satellites", True)
+            else {},
+            "sigint": sigint_items
+            if (
+                active_layers.get("sigint_meshtastic", True)
+                or active_layers.get("sigint_aprs", True)
+            )
+            else [],
             "sigint_totals": _sigint_totals_for_items(sigint_items),
-            "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
+            "trains": (d.get("trains") or [])
+            if active_layers.get("trains", True)
+            else [],
             "news": d.get("news") or [],
-            "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
+            "gdelt": (d.get("gdelt") or [])
+            if active_layers.get("global_incidents", True)
+            else [],
             "airports": d.get("airports") or [],
             "threat_level": d.get("threat_level"),
             "trending_markets": d.get("trending_markets") or [],
-            "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
+            "correlations": (d.get("correlations") or [])
+            if active_layers.get("correlations", True)
+            else [],
             "fimi": d.get("fimi"),
-            "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
+            "crowdthreat": (d.get("crowdthreat") or [])
+            if active_layers.get("crowdthreat", True)
+            else [],
             "freshness": freshness,
             "bootstrap_ready": True,
             "bootstrap_payload": True,
         }
+        from services.qazlake_shadow_feed import apply_layer_source_modes
+
+        return apply_layer_source_modes(
+            payload, endpoint="bootstrap-critical", enabled_layers=active_layers
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -899,6 +979,12 @@ async def live_data_fast(
 ):
     bbox_suffix = _bbox_etag_suffix(s, w, n, e)
     client_lv = None if initial else _parse_layer_versions(lv)
+    from services.qazlake_shadow_feed import uses_qazpipe_mode
+
+    if uses_qazpipe_mode():
+        # A QazLake watermark is authoritative and does not share the local
+        # store's per-layer delta lineage; serve a compatible full snapshot.
+        client_lv = None
     want_delta = client_lv is not None
 
     if want_delta:
@@ -968,9 +1054,17 @@ async def live_data_fast(
             # Issue #288: bbox densify first so world/continental caps sample
             # the *visible* set, not a random world subset then clip.
             if _has_full_bbox(s, w, n, e):
-                payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
+                payload = _apply_bbox_to_payload(
+                    payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e
+                )
             payload = _cap_fast_dashboard_payload(payload, s=s, w=w, n=n, e=e)
-        return _attach_version_meta(payload)
+        from services.qazlake_shadow_feed import apply_layer_source_modes
+
+        return _attach_version_meta(
+            apply_layer_source_modes(
+                payload, endpoint="live-data-fast", enabled_layers=active_layers
+            )
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),
@@ -1086,7 +1180,11 @@ async def live_data_slow(
         # hides the infrastructure overlay the operator already has on screen.
         if _has_full_bbox(s, w, n, e):
             payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
-        return payload
+        from services.qazlake_shadow_feed import apply_layer_source_modes
+
+        return apply_layer_source_modes(
+            payload, endpoint="live-data-slow", enabled_layers=active_layers
+        )
 
     return Response(
         content=_cached_live_data_bytes(etag, _build),

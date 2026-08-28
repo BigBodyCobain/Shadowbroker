@@ -177,6 +177,9 @@ _SECRET_VARS = [
     "SHODAN_API_KEY",
     "FINNHUB_API_KEY",
     "MESH_SECURE_STORAGE_SECRET",
+    "MESH_PEER_PUSH_SECRET",
+    "MESH_PEER_PUSH_SECRET_PREVIOUS",
+    "QAZLAKE_SHADOW_FEED_TOKEN",
 ]
 
 for _var in _SECRET_VARS:
@@ -2752,6 +2755,13 @@ async def lifespan(app: FastAPI):
     if _MESH_ONLY:
         logger.info("MESH_ONLY enabled â€” skipping global data fetchers/schedulers.")
     else:
+        from services.qazlake_shadow_feed import (
+            start_shadow_feed_sync,
+            validate_shadow_feed_configuration,
+        )
+
+        validate_shadow_feed_configuration()
+        start_shadow_feed_sync()
         # Start AIS stream first â€” it loads the disk cache (instant ships) then
         # begins accumulating live vessel data via WebSocket in the background.
         start_ais_stream()
@@ -2842,7 +2852,10 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"Route database prime failed (non-fatal): {e}")
 
-        threading.Thread(target=_prime_route_database, daemon=True).start()
+        from services.qazlake_shadow_feed import local_collection_allowed
+
+        if local_collection_allowed("aviation_public"):
+            threading.Thread(target=_prime_route_database, daemon=True).start()
 
         # Prime the OpenSky aircraft metadata DB so hex24 -> aircraft type
         # lookups work on the first flight cycle (and emissions get populated
@@ -2854,7 +2867,8 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"Aircraft database prime failed (non-fatal): {e}")
 
-        threading.Thread(target=_prime_aircraft_database, daemon=True).start()
+        if local_collection_allowed("aviation_public"):
+            threading.Thread(target=_prime_aircraft_database, daemon=True).start()
 
         # Seed cached first-paint layers before accepting requests. This is
         # disk-only and keeps the critical bootstrap endpoint independent from
@@ -2899,6 +2913,9 @@ async def lifespan(app: FastAPI):
         stop_ais_stream()
         stop_scheduler()
         stop_carrier_tracker()
+        from services.qazlake_shadow_feed import stop_shadow_feed_sync
+
+        stop_shadow_feed_sync()
         try:
             from services.aprs_is_bridge import aprs_is_bridge
             from services.sigint_bridge import sigint_grid

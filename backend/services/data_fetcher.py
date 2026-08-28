@@ -109,6 +109,59 @@ from services.scm.suppliers import fetch_scm_suppliers  # noqa: F401
 from services.ais_stream import prune_stale_vessels  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+# Provider-neutral recurring collection families owned by QazPipe after their
+# explicit family mode is switched to ``qazpipe``.  Compare mode deliberately
+# leaves the local collector running so receipts have a real baseline.
+_PUBLIC_COLLECTOR_FAMILY_BY_NAME = {
+    "fetch_flights": "aviation_public",
+    "fetch_military_flights": "aviation_public",
+    "refresh_route_database": "aviation_public",
+    "refresh_aircraft_database": "aviation_public",
+    "fetch_satellites": "orbital_public",
+    "fetch_satnogs": "orbital_public",
+    "fetch_tinygs": "orbital_public",
+    "fetch_earthquakes": "geohazards",
+    "fetch_volcanoes": "geohazards",
+    "fetch_weather": "weather_environment",
+    "fetch_space_weather": "weather_environment",
+    "fetch_weather_alerts": "weather_environment",
+    "fetch_air_quality": "weather_environment",
+    "fetch_uap_sightings": "uap_public",
+    "fetch_internet_outages": "network_observability",
+    "fetch_ripe_atlas_probes": "network_observability",
+    "fetch_news": "events_media",
+    "fetch_gdelt": "events_media",
+    "fetch_telegram_osint": "events_media",
+    "fetch_kiwisdr": "radio_public",
+    "fetch_psk_reporter": "radio_public",
+    "fetch_cctv": "visual_reference",
+    "fetch_sar_catalog": "visual_reference",
+    "fetch_cyber_threats": "cyber_public",
+    "fetch_trains": "transport_public",
+    "fetch_datacenters": "infrastructure_public",
+    "fetch_power_plants": "infrastructure_public",
+}
+
+
+def _local_collector_allowed(func) -> bool:
+    family = _PUBLIC_COLLECTOR_FAMILY_BY_NAME.get(getattr(func, "__name__", ""))
+    if not family:
+        return True
+    from services.qazlake_shadow_feed import local_collection_allowed
+
+    allowed = local_collection_allowed(family)
+    if not allowed:
+        logger.info(
+            "Local collector suppressed after QazPipe cutover: %s", func.__name__
+        )
+    return allowed
+
+
+def _eligible_collectors(funcs):
+    return [func for func in funcs if _local_collector_allowed(func)]
+
+
 _SLOW_FETCH_S = float(os.environ.get("FETCH_SLOW_THRESHOLD_S", "5"))
 # Hard wall-clock limit per individual fetch task.  A task that exceeds this
 # is treated as a failure so it cannot block an entire fetch tier indefinitely.
@@ -450,7 +503,7 @@ def update_fast_data():
         fetch_sigint,
         fetch_trains,
     ]
-    _run_tasks("fast-tier", fast_funcs)
+    _run_tasks("fast-tier", _eligible_collectors(fast_funcs))
     with _data_lock:
         latest_data["last_updated"] = datetime.utcnow().isoformat()
     from services.fetchers._store import bump_data_version
@@ -489,7 +542,7 @@ def update_slow_data():
         fetch_cyber_threats,
         fetch_scm_suppliers,
     ]
-    _run_tasks("slow-tier", slow_funcs)
+    _run_tasks("slow-tier", _eligible_collectors(slow_funcs))
     # Run correlation engine after all data is fresh (skip when overlay is off).
     try:
         from services.fetchers._store import is_any_active
@@ -534,6 +587,8 @@ def _record_fetch_failure(label: str, name: str, start: float, error: Exception)
 
 def _load_cctv_cache_for_startup() -> None:
     """Load cached CCTV rows without running remote ingestors during first paint."""
+    if not _local_collector_allowed(fetch_cctv):
+        return
     try:
         fetch_cctv()
     except Exception as e:
@@ -542,7 +597,9 @@ def _load_cctv_cache_for_startup() -> None:
 
 def _load_static_infrastructure_for_startup() -> None:
     """Disk-backed reference layers — instant, no network."""
-    for func in (fetch_datacenters, fetch_military_bases, fetch_power_plants):
+    for func in _eligible_collectors(
+        (fetch_datacenters, fetch_military_bases, fetch_power_plants)
+    ):
         try:
             func()
         except Exception as e:
@@ -556,21 +613,25 @@ def _run_delayed_startup_heavy_refresh() -> None:
             _STARTUP_HEAVY_REFRESH_DELAY_S,
         )
         time.sleep(_STARTUP_HEAVY_REFRESH_DELAY_S)
-    logger.info("Startup heavy synthesis beginning (slow feeds, enrichment, daily products)...")
+    logger.info(
+        "Startup heavy synthesis beginning (slow feeds, enrichment, daily products)..."
+    )
     _run_tasks(
         "startup-heavy",
-        [
-            update_slow_data,
-            fetch_telegram_osint,
-            fetch_volcanoes,
-            fetch_viirs_change_nodes,
-            fetch_unusual_whales,
-            fetch_fimi,
-            fetch_uap_sightings,
-            fetch_wastewater,
-            fetch_sar_catalog,
-            fetch_sar_products,
-        ],
+        _eligible_collectors(
+            [
+                update_slow_data,
+                fetch_telegram_osint,
+                fetch_volcanoes,
+                fetch_viirs_change_nodes,
+                fetch_unusual_whales,
+                fetch_fimi,
+                fetch_uap_sightings,
+                fetch_wastewater,
+                fetch_sar_catalog,
+                fetch_sar_products,
+            ]
+        ),
     )
     logger.info("Startup heavy synthesis complete.")
 
@@ -605,15 +666,17 @@ def update_all_data(*, startup_mode: bool = False):
         meshtastic_seeded = bool(latest_data.get("meshtastic_map_nodes"))
     if startup_mode:
         _load_cctv_cache_for_startup()
-        priority_funcs = [
-            fetch_airports,
-            update_fast_data,
-            fetch_news,
-            fetch_gdelt,
-            fetch_crowdthreat,
-            fetch_firms_fires,
-            fetch_weather_alerts,
-        ]
+        priority_funcs = _eligible_collectors(
+            [
+                fetch_airports,
+                update_fast_data,
+                fetch_news,
+                fetch_gdelt,
+                fetch_crowdthreat,
+                fetch_firms_fires,
+                fetch_weather_alerts,
+            ]
+        )
         if not meshtastic_seeded:
             priority_funcs.append(fetch_meshtastic_nodes)
         else:
@@ -671,8 +734,14 @@ def update_all_data(*, startup_mode: bool = False):
     if not startup_mode:
         refresh_funcs.append(update_liveuamap)
     else:
-        logger.info("Startup preload: deferring Playwright Liveuamap scraper to scheduled cadence")
-    _run_tasks("full-refresh", refresh_funcs, max_concurrency=_STARTUP_HEAVY_CONCURRENCY)
+        logger.info(
+            "Startup preload: deferring Playwright Liveuamap scraper to scheduled cadence"
+        )
+    _run_tasks(
+        "full-refresh",
+        _eligible_collectors(refresh_funcs),
+        max_concurrency=_STARTUP_HEAVY_CONCURRENCY,
+    )
     # Run CCTV ingest immediately so cameras are available on first request
     # (the scheduled job also runs every 10 min for ongoing refresh).
     if startup_mode:
@@ -795,6 +864,17 @@ def start_scheduler():
     init_db()
     _scheduler = BackgroundScheduler(daemon=True)
 
+    def _add_public_job(family: str, func, trigger: str, **kwargs):
+        from services.qazlake_shadow_feed import local_collection_allowed
+
+        if not local_collection_allowed(family):
+            logger.info(
+                "Public schedule not registered after QazPipe cutover: %s",
+                kwargs.get("id", family),
+            )
+            return None
+        return _scheduler.add_job(func, trigger, **kwargs)
+
     # Fast tier — every 60 seconds
     _scheduler.add_job(
         lambda: _run_task_with_health(update_fast_data, "update_fast_data"),
@@ -827,8 +907,11 @@ def start_scheduler():
         except Exception as exc:
             logger.error("GT analytics refresh after telegram failed: %s", exc)
 
-    _scheduler.add_job(
-        lambda: _run_task_with_health(_fetch_telegram_osint_with_gt, "fetch_telegram_osint"),
+    _add_public_job(
+        "events_media",
+        lambda: _run_task_with_health(
+            _fetch_telegram_osint_with_gt, "fetch_telegram_osint"
+        ),
         "interval",
         minutes=_telegram_interval_m,
         next_run_time=datetime.utcnow() + timedelta(seconds=45),
@@ -859,7 +942,8 @@ def start_scheduler():
     )
 
     # Weather alerts — every 5 minutes (time-critical, separate from slow tier)
-    _scheduler.add_job(
+    _add_public_job(
+        "weather_environment",
         lambda: _run_task_with_health(fetch_weather_alerts, "fetch_weather_alerts"),
         "interval",
         minutes=5,
@@ -928,7 +1012,8 @@ def start_scheduler():
     # added within the window simply fall back to UNKNOWN until refresh.
     from services.fetchers.route_database import refresh_route_database
 
-    _scheduler.add_job(
+    _add_public_job(
+        "aviation_public",
         lambda: _run_task_with_health(refresh_route_database, "refresh_route_database"),
         "interval",
         days=5,
@@ -944,8 +1029,11 @@ def start_scheduler():
     # newer drops without hammering the bucket.
     from services.fetchers.aircraft_database import refresh_aircraft_database
 
-    _scheduler.add_job(
-        lambda: _run_task_with_health(refresh_aircraft_database, "refresh_aircraft_database"),
+    _add_public_job(
+        "aviation_public",
+        lambda: _run_task_with_health(
+            refresh_aircraft_database, "refresh_aircraft_database"
+        ),
         "interval",
         days=5,
         id="aircraft_database",
@@ -963,8 +1051,11 @@ def start_scheduler():
         except Exception as exc:
             logger.error("GT analytics refresh after gdelt failed: %s", exc)
 
-    _scheduler.add_job(
-        lambda: _run_task_with_health_on_executor(_SLOW_EXECUTOR, _fetch_gdelt_with_gt, "fetch_gdelt"),
+    _add_public_job(
+        "events_media",
+        lambda: _run_task_with_health_on_executor(
+            _SLOW_EXECUTOR, _fetch_gdelt_with_gt, "fetch_gdelt"
+        ),
         "interval",
         minutes=30,
         id="gdelt",
@@ -1048,7 +1139,8 @@ def start_scheduler():
         except Exception as e:
             logger.warning(f"CCTV post-ingest refresh failed: {e}")
 
-    _scheduler.add_job(
+    _add_public_job(
+        "visual_reference",
         lambda: _run_task_with_health_on_executor(
             _SLOW_EXECUTOR, _run_cctv_ingest_cycle, "cctv_ingest_cycle"
         ),
@@ -1144,7 +1236,8 @@ def start_scheduler():
     # UAP sightings (NUFORC) — weekly Mondays 12:00 UTC. Rolling ~60-day window;
     # each self-hosted install pulls live nuforc.org so operators see current
     # reports (typically ~400–500 mappable pins). Disk cache TTL defaults to 7d.
-    _scheduler.add_job(
+    _add_public_job(
+        "uap_public",
         lambda: _run_task_with_health(
             lambda: fetch_uap_sightings(force_refresh=True),
             "fetch_uap_sightings",
@@ -1182,7 +1275,8 @@ def start_scheduler():
 
     # SAR catalog (Mode A) — every hour, free metadata from ASF Search.
     # No account, no downloads, no DSP.  Pure scene catalog + coverage hints.
-    _scheduler.add_job(
+    _add_public_job(
+        "visual_reference",
         lambda: _run_task_with_health(fetch_sar_catalog, "fetch_sar_catalog"),
         "interval",
         hours=1,
