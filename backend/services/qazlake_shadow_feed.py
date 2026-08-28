@@ -266,6 +266,21 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
     if isinstance(item.get("geometry"), dict):
         result["geometry"] = item["geometry"]
     result["observed_at"] = item.get("observed_at")
+    layer_key = str(properties.get("layer_key") or "")
+    if layer_key == "earthquakes":
+        if properties.get("magnitude") is not None:
+            result["mag"] = properties["magnitude"]
+        if properties.get("place") is not None:
+            result["place"] = properties["place"]
+    elif layer_key == "air_quality":
+        if properties.get("pm25_ug_m3") is not None:
+            result["pm25"] = properties["pm25_ug_m3"]
+        if properties.get("aqi_us_epa") is not None:
+            result["aqi"] = properties["aqi_us_epa"]
+        if properties.get("name") is not None:
+            result["name"] = properties["name"]
+        if properties.get("country_code") is not None:
+            result["country"] = properties["country_code"]
     return result
 
 

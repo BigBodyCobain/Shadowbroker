@@ -161,3 +161,47 @@ def test_public_projection_does_not_expose_provider_or_receipt() -> None:
         "collection_receipt_id",
         "payload_hash_sha256",
     }.isdisjoint(item)
+
+
+def test_public_projection_preserves_earthquake_shape() -> None:
+    item = feed._public_item(
+        {
+            "entity_id": "us-test-1",
+            "properties": {
+                "layer_family": "geohazards",
+                "layer_key": "earthquakes",
+                "magnitude": 4.2,
+                "place": "Kazakhstan region",
+            },
+            "latitude": 43.2,
+            "longitude": 76.9,
+            "observed_at": "2026-08-28T00:00:00Z",
+        }
+    )
+    assert item["mag"] == 4.2
+    assert item["place"] == "Kazakhstan region"
+    assert item["lat"] == 43.2
+    assert item["lng"] == 76.9
+
+
+def test_public_projection_preserves_air_quality_shape() -> None:
+    item = feed._public_item(
+        {
+            "entity_id": "station-1",
+            "properties": {
+                "layer_family": "weather_environment",
+                "layer_key": "air_quality",
+                "name": "Almaty station",
+                "country_code": "KZ",
+                "pm25_ug_m3": 18.4,
+                "aqi_us_epa": 63,
+            },
+            "latitude": 43.2,
+            "longitude": 76.9,
+            "observed_at": "2026-08-28T00:00:00Z",
+        }
+    )
+    assert item["name"] == "Almaty station"
+    assert item["country"] == "KZ"
+    assert item["pm25"] == 18.4
+    assert item["aqi"] == 63
