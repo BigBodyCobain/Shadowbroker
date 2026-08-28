@@ -286,3 +286,54 @@ def test_space_weather_compare_uses_stable_singleton_identity(
     assert receipt["local_count"] == 1
     assert receipt["qazlake_count"] == 1
     assert receipt["accepted"] is True
+
+
+def test_satnogs_projection_preserves_public_shape_without_media_urls() -> None:
+    station = feed._public_item(
+        {
+            "entity_id": "satnogs_station:12",
+            "latitude": 43.24,
+            "longitude": 76.95,
+            "observed_at": "2026-08-28T10:00:00Z",
+            "properties": {
+                "layer_family": "orbital_public",
+                "layer_key": "satnogs_stations",
+                "name": "Almaty station",
+                "status": "online",
+                "altitude_m": 850,
+                "antenna": "Turnstile",
+                "observation_count": 42,
+                "last_seen_at": "2026-08-28T10:00:00Z",
+            },
+        }
+    )
+    observation = feed._public_item(
+        {
+            "entity_id": "satellite_observation:99",
+            "latitude": 43.24,
+            "longitude": 76.95,
+            "observed_at": "2026-08-28T10:00:00Z",
+            "properties": {
+                "layer_family": "orbital_public",
+                "layer_key": "satnogs_observations",
+                "satellite_name": "ISS (ZARYA)",
+                "norad_catalog_id": 25544,
+                "station_name": "Almaty station",
+                "started_at": "2026-08-28T10:00:00Z",
+                "ended_at": "2026-08-28T10:05:00Z",
+                "frequency_hz": 145800000,
+                "mode": "FM",
+                "status": "good",
+            },
+        }
+    )
+
+    assert station["altitude"] == 850
+    assert station["observations"] == 42
+    assert station["last_seen"] == "2026-08-28T10:00:00Z"
+    assert observation["norad_id"] == 25544
+    assert observation["start"] == "2026-08-28T10:00:00Z"
+    assert observation["end"] == "2026-08-28T10:05:00Z"
+    assert observation["frequency"] == 145800000
+    assert "waterfall" not in observation
+    assert "audio" not in observation

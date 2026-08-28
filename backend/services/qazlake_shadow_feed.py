@@ -294,6 +294,22 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
         else:
             result["kp_text"] = "QUIET"
         result["events"] = []
+    elif layer_key == "satnogs_stations":
+        if properties.get("altitude_m") is not None:
+            result["altitude"] = properties["altitude_m"]
+        if properties.get("observation_count") is not None:
+            result["observations"] = properties["observation_count"]
+        if properties.get("last_seen_at") is not None:
+            result["last_seen"] = properties["last_seen_at"]
+    elif layer_key == "satnogs_observations":
+        if properties.get("norad_catalog_id") is not None:
+            result["norad_id"] = properties["norad_catalog_id"]
+        if properties.get("started_at") is not None:
+            result["start"] = properties["started_at"]
+        if properties.get("ended_at") is not None:
+            result["end"] = properties["ended_at"]
+        if properties.get("frequency_hz") is not None:
+            result["frequency"] = properties["frequency_hz"]
     return result
 
 
