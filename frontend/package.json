@@ -26,7 +26,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "framer-motion": "^12.38.0",
-    "hls.js": "^1.6.15",
+    "hls.js": "^1.7.1",
     "lucide-react": "^0.575.0",
     "maplibre-gl": "^4.7.1",
     "next": "^16.2.7",
