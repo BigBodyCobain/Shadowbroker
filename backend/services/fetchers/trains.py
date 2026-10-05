@@ -336,13 +336,8 @@ def _fetch_amtraker() -> list[dict]:
             "https://api.amtraker.com/v3/trains",
             timeout=20,
             headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/136.0.0.0 Safari/537.36"
-                ),
+                "User-Agent": "Shadowbroker (+https://github.com/BigBodyCobain/Shadowbroker)",
                 "Accept": "application/json,text/plain,*/*",
-                "Referer": "https://www.amtraker.com/",
             },
         )
         if resp.status_code != 200:
