@@ -338,6 +338,7 @@ def _fetch_amtraker() -> list[dict]:
             headers={
                 "User-Agent": "Shadowbroker (+https://github.com/BigBodyCobain/Shadowbroker)",
                 "Accept": "application/json,text/plain,*/*",
+                "Referer": "https://www.amtraker.com/",
             },
         )
         if resp.status_code != 200:
