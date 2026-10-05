@@ -69,7 +69,7 @@ ShadowBroker includes an optional **Shodan connector** for operator-supplied API
 * **Connect to Meshtastic mesh radio nodes** and APRS amateur radio networks — visible on the map and integrated into Mesh Chat
 * **Detect ground changes through cloud cover** with SAR (Synthetic Aperture Radar) — mm-scale ground deformation, flood extent, vegetation disturbance, and damage assessments from NASA OPERA and Copernicus EGMS. Define your own watch areas and get anomaly alerts. Free with a NASA Earthdata account.
 * **Switch visual modes** — DEFAULT, SATELLITE, FLIR (thermal), NVG (night vision), CRT (retro terminal) — via the STYLE button
-* **Track trains** across the US (Amtrak) and Europe (DigiTraffic) in real time
+* **Track trains** across the US (Amtraker) and Europe (DigiTraffic) in real time
 * **Estimate where US aircraft carriers are** using automated GDELT news scraping — no other open tool does this
 * **Search internet-connected devices worldwide** via Shodan — cameras, SCADA systems, databases — plotted as a live overlay on the map
 * **Run a full recon toolkit** from the left sidebar — IP geolocation, DNS, RDAP/WHOIS, certificate transparency, BGP/ASN, OFAC sanctions search, CVE lookup, Tor/OTX threat checks, and subnet sweeps (InternetDB proxied server-side)
@@ -324,7 +324,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 
 ### 🚆 Rail Tracking (NEW in v0.9.6)
 
-* **Amtrak Trains** — Real-time positions of Amtrak trains across the US with speed, heading, route, and status
+* **Amtrak Trains** — Real-time positions of Amtrak, VIA Rail, and Brightline trains across the US and using Amtraker
 * **European Rail** — DigiTraffic integration for European train positions
 
 ### 🛰️ Space & Satellites
@@ -532,7 +532,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 ║  │  │  Carrier  │   GDELT   │ CCTV (12) │ DeepState │   NASA    │        │  ║
 ║  │  │  Tracker  │ Conflict  │  Cameras  │ Frontline │   FIRMS   │        │  ║
 ║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
-║  │  │   GPS     │  KiwiSDR  │  Shodan   │  Amtrak   │  SatNOGS  │        │  ║
+║  │  │   GPS     │  KiwiSDR  │  Shodan   │ Amtraker  │  SatNOGS  │        │  ║
 ║  │  │  Jamming  │   Radios  │  Devices  │ DigiTraf  │  TinyGS   │        │  ║
 ║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
 ║  │  │ Volcanoes │  Weather  │  Fishing  │ Mil Bases │   IODA    │        │  ║
@@ -632,7 +632,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [bgpview.io](https://bgpview.io) | BGP/ASN routing (recon) | On-demand | No |
 | TeleGeography (static) | Submarine cable routes | Static | No |
 | [ASFINAG](https://www.asfinag.at) | Austria motorway webcams | ~10min | No |
-| [Amtrak](https://www.amtrak.com) | US train positions | ~60s | No |
+| [Amtraker](https://amtraker.com) | US train positions | ~60s | No |
 | [DigiTraffic](https://www.digitraffic.fi) | European rail positions | ~60s | No |
 | [Global Fishing Watch](https://globalfishingwatch.org) | Fishing vessel activity events | ~1hr | **Yes** (`GFW_API_TOKEN`) |
 | [Telegram public previews](https://t.me/s) | War/OSINT channel posts (`telegram_osint`) | ~1hr | No (optional `TELEGRAM_OSINT_CHANNELS`) |
@@ -942,7 +942,7 @@ All 41 layers are independently toggleable from the left panel:
 | Cruise / Passenger | ✅ ON | Cruise ships and ferries |
 | Tracked Yachts | ✅ ON | Billionaire & oligarch superyachts |
 | Fishing Activity | ✅ ON | Global Fishing Watch vessel events |
-| Trains | ✅ ON | Amtrak + European rail positions |
+| Trains | ✅ ON | Amtraker + European rail positions |
 | Satellites | ✅ ON | Orbital assets by mission type |
 | SatNOGS | ✅ ON | Amateur satellite ground stations |
 | TinyGS | ✅ ON | LoRa satellite ground stations |
