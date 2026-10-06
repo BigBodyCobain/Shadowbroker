@@ -15,7 +15,7 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
-import { buildBasemapStyle } from '@/components/map/styles/mapStyles';
+import {\n  buildBasemapStyle,\n  CARTO_ATTRIBUTION_HTML,\n  OPENFREEMAP_ATTRIBUTION_HTML,\n  OSM_ATTRIBUTION_HTML,\n} from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
@@ -430,9 +430,8 @@ const MaplibreViewer = ({
   const [mapReady, setMapReady] = useState(false);
   const { theme } = useTheme();
   const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
-  const mapThemeStyle = useMemo<maplibregl.StyleSpecification>(
-    () =>
-      buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey) as maplibregl.StyleSpecification,
+  const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
     [theme, cartoApiKey],
   );
 
@@ -1901,8 +1900,8 @@ const MaplibreViewer = ({
       className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint', 'gt_risk'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
       style={pinPlacementMode || sarAoiDropMode ? { cursor: 'crosshair' } : undefined}
     >
-      {/* Wait for /api/basemap-config so the first style load already carries the CARTO key.
-          Bounded: useBasemapConfig fails open to the unkeyed style after a short timeout. */}
+      {/* Resolve optional CARTO config before first paint. Without a CARTO key,
+          buildBasemapStyle uses the keyless OpenFreeMap style instead. */}
       {basemapConfigLoaded && (
       <Map
         ref={mapRef}
@@ -2019,8 +2018,8 @@ const MaplibreViewer = ({
         <AttributionControl
           compact
           customAttribution={[
-            '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
-            '<a href="https://carto.com/attribution" target="_blank" rel="noopener">CARTO</a>',
+            OSM_ATTRIBUTION_HTML,
+            cartoApiKey ? CARTO_ATTRIBUTION_HTML : OPENFREEMAP_ATTRIBUTION_HTML,
             '<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol (ODbL)</a>',
             '<a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a>',
             '<a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>',
@@ -2045,7 +2044,6 @@ const MaplibreViewer = ({
             <Layer
               id="esri-world-imagery-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': 1,
                 'raster-fade-duration': 300,
@@ -2069,7 +2067,6 @@ const MaplibreViewer = ({
             <Layer
               id="gibs-modis-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': gibsOpacity ?? 0.6,
                 'raster-fade-duration': 0,
@@ -2093,7 +2090,6 @@ const MaplibreViewer = ({
               <Layer
                 id="viirs-nightlights-layer"
                 type="raster"
-                beforeId="imagery-ceiling"
                 paint={{
                   'raster-opacity': 0.9,
                   'raster-fade-duration': 0,
@@ -2117,7 +2113,6 @@ const MaplibreViewer = ({
             <Layer
               id="sentinel-hub-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': sentinelOpacity ?? 0.6,
                 'raster-fade-duration': 0,
