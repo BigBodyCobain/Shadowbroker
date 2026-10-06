@@ -41,7 +41,10 @@ export function cartoTileUrls(theme: BasemapTheme, cartoApiKey: string): string[
  * Use OpenFreeMap by default. CARTO is retained as an opt-in compatibility
  * path when an operator has already configured CARTO_API_KEY.
  */
-export function buildBasemapStyle(\n  theme: BasemapTheme,\n  cartoApiKey?: string | null,\n): string | StyleSpecification {
+export function buildBasemapStyle(
+  theme: BasemapTheme,
+  cartoApiKey?: string | null,
+): string | StyleSpecification {
   const key = (cartoApiKey || '').trim();
   if (!key) return OPENFREEMAP_STYLE_URLS[theme];
 
