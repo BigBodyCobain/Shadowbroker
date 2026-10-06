@@ -229,7 +229,7 @@ API_REGISTRY = [
         "id": "carto_api_key",
         "env_key": "CARTO_API_KEY",
         "name": "CARTO Basemaps",
-        "description": "API key for the CARTO raster basemap behind the DEFAULT dark/light map. CARTO requires one; without it tiles still load but carry an \"API KEY REQUIRED\" watermark. Free at carto.com/basemaps/apikey (no CARTO account needed, 5M tiles/month). Unlike the other keys this one is sent to the browser (GET /api/basemap-config) because the browser passes it to CARTO on every tile request.",
+        "description": "Optional CARTO raster-basemap override. ShadowBroker defaults to the keyless OpenFreeMap dark/light styles when this is unset. When configured, the browser receives this key from GET /api/basemap-config and sends it to CARTO on tile requests.",
         "category": "Imagery",
         "url": "https://carto.com/basemaps/apikey",
         "required": False,
