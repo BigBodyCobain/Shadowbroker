@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CARTO_ATTRIBUTION_HTML,
+  OPENFREEMAP_ATTRIBUTION_HTML,
+  OPENFREEMAP_STYLE_URLS,
   OSM_ATTRIBUTION_HTML,
   buildBasemapStyle,
   cartoTileUrls,
@@ -24,56 +26,63 @@ const VIEWER_SRC = fs.readFileSync(
 );
 
 describe('buildBasemapStyle', () => {
-  it('produces unkeyed CARTO tile URLs when no key is given', () => {
-    const style = buildBasemapStyle('dark');
-    const source = style.sources['carto-dark'];
+  it('uses keyless OpenFreeMap styles when CARTO is not configured', () => {
+    expect(buildBasemapStyle('dark')).toBe(OPENFREEMAP_STYLE_URLS.dark);
+    expect(buildBasemapStyle('light')).toBe(OPENFREEMAP_STYLE_URLS.light);
+    expect(buildBasemapStyle('dark', '   ')).toBe(OPENFREEMAP_STYLE_URLS.dark);
+  });
+
+  it('keeps CARTO as the compatibility path when an operator configured a key', () => {
+    const style = buildBasemapStyle('light', 'my key');
+    expect(typeof style).toBe('object');
+    if (typeof style === 'string') throw new Error('expected CARTO style object');
+
+    const source = style.sources['carto-light'];
     expect(source.tiles).toHaveLength(4);
     for (const url of source.tiles) {
-      expect(url).toMatch(/^https:\/\/[abcd]\.basemaps\.cartocdn\.com\/rastertiles\/dark_all\//);
-      expect(url).not.toContain('?');
-    }
-    expect(style.layers[0]).toMatchObject({ id: 'carto-dark-layer', source: 'carto-dark' });
-  });
-
-  it('appends ?key= to every tile URL when a key is given', () => {
-    const style = buildBasemapStyle('light', 'my key');
-    for (const url of style.sources['carto-light'].tiles) {
       expect(url).toMatch(/\/rastertiles\/light_all\/\{z\}\/\{x\}\/\{y\}@2x\.png\?key=my%20key$/);
     }
+    expect(style.layers[0]).toMatchObject({ id: 'carto-light-layer', source: 'carto-light' });
   });
 
-  it('treats blank keys as unconfigured', () => {
-    expect(cartoTileUrls('dark', '   ')).toEqual(cartoTileUrls('dark'));
-    expect(cartoTileUrls('dark', null)).toEqual(cartoTileUrls('dark'));
+  it('requires a non-empty CARTO key before building CARTO tile URLs', () => {
+    expect(cartoTileUrls('dark', 'my key')).toHaveLength(4);
+    expect(cartoTileUrls('dark', 'my key')[0]).toContain('?key=my%20key');
   });
 
-  it('keeps the key-less default exports in sync with the builder', () => {
-    expect(darkStyle).toEqual(buildBasemapStyle('dark'));
-    expect(lightStyle).toEqual(buildBasemapStyle('light'));
+  it('keeps the keyless default exports in sync with the builder', () => {
+    expect(darkStyle).toBe(OPENFREEMAP_STYLE_URLS.dark);
+    expect(lightStyle).toBe(OPENFREEMAP_STYLE_URLS.light);
   });
 
-  it('declares OpenStreetMap and CARTO attribution on the raster source, keyed or not', () => {
-    for (const style of [buildBasemapStyle('dark'), buildBasemapStyle('light', 'k')]) {
-      const source = Object.values(style.sources)[0];
-      expect(source.attribution).toContain('openstreetmap.org/copyright');
-      expect(source.attribution).toContain('carto.com/attribution');
-    }
+  it('keeps OpenStreetMap/CARTO attribution on the optional CARTO raster path', () => {
+    const style = buildBasemapStyle('dark', 'k');
+    if (typeof style === 'string') throw new Error('expected CARTO style object');
+    const source = Object.values(style.sources)[0];
+    expect(source.attribution).toContain('openstreetmap.org/copyright');
+    expect(source.attribution).toContain('carto.com/attribution');
   });
 });
 
 describe('MaplibreViewer attribution and basemap gating', () => {
-  it('still renders the explicit AttributionControl with the same OSM/CARTO markup', () => {
-    // attributionControl={false} only disables the default control; the
-    // explicit child below it is the visible attribution and must survive.
+  it('renders OSM plus provider-specific attribution', () => {
     expect(VIEWER_SRC).toContain('<AttributionControl');
-    expect(VIEWER_SRC).toContain(OSM_ATTRIBUTION_HTML);
-    expect(VIEWER_SRC).toContain(CARTO_ATTRIBUTION_HTML);
+    expect(VIEWER_SRC).toContain('OSM_ATTRIBUTION_HTML');
+    expect(VIEWER_SRC).toContain('CARTO_ATTRIBUTION_HTML');
+    expect(VIEWER_SRC).toContain('OPENFREEMAP_ATTRIBUTION_HTML');
+    expect(OSM_ATTRIBUTION_HTML).toContain('openstreetmap.org/copyright');
+    expect(CARTO_ATTRIBUTION_HTML).toContain('carto.com/attribution');
+    expect(OPENFREEMAP_ATTRIBUTION_HTML).toContain('openfreemap.org');
   });
 
-  it('gates the map on the bounded basemap config, not on an open-ended request', () => {
+  it('gates only long enough to resolve the optional CARTO override', () => {
     expect(VIEWER_SRC).toContain('{basemapConfigLoaded && (');
     expect(VIEWER_SRC).toMatch(/const \{ cartoApiKey, loaded: basemapConfigLoaded \} = useBasemapConfig\(\)/);
     expect(BASEMAP_CONFIG_SOFT_TIMEOUT_MS).toBeLessThan(BASEMAP_CONFIG_HARD_TIMEOUT_MS);
+  });
+
+  it('does not require the old CARTO-only imagery insertion anchor', () => {
+    expect(VIEWER_SRC).not.toContain('beforeId="imagery-ceiling"');
   });
 });
 
@@ -192,3 +201,4 @@ describe('useBasemapConfig', () => {
     expect(e.result.current).toEqual({ cartoApiKey: 'second-try', loaded: true });
   });
 });
+
