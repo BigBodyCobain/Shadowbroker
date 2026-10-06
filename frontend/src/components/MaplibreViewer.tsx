@@ -15,7 +15,12 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
-import {\n  buildBasemapStyle,\n  CARTO_ATTRIBUTION_HTML,\n  OPENFREEMAP_ATTRIBUTION_HTML,\n  OSM_ATTRIBUTION_HTML,\n} from '@/components/map/styles/mapStyles';
+import {
+  buildBasemapStyle,
+  CARTO_ATTRIBUTION_HTML,
+  OPENFREEMAP_ATTRIBUTION_HTML,
+  OSM_ATTRIBUTION_HTML,
+} from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
