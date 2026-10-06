@@ -354,7 +354,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 * **Sentinel Hub Process API** — Copernicus CDSE satellite imagery with OAuth2 token flow (NEW)
 * **VIIRS Nightlights** — Night-time light change detection overlay (NEW)
 * **5 Visual Modes** — Toggle the entire map aesthetic via the STYLE button:
-  * **DEFAULT** — Dark CARTO basemap
+  * **DEFAULT** — Dark OpenFreeMap vector basemap (no API key required; optional CARTO override)
   * **SATELLITE** — Sub-meter Esri World Imagery
   * **FLIR** — Thermal imaging aesthetic (inverted greyscale)
   * **NVG** — Night vision green phosphor
@@ -666,7 +666,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [Wikidata SPARQL](https://query.wikidata.org) | Head of state data | On-demand (cached 24h) | No |
 | [Wikipedia API](https://en.wikipedia.org/api) | Location summaries & aircraft images | On-demand (cached) | No |
 | [OSM Nominatim](https://nominatim.openstreetmap.org) | Place name geocoding (LOCATE bar) | On-demand | No |
-| [CARTO Basemaps](https://carto.com) | Dark/light map tiles | Continuous | **Yes** (free, `CARTO_API_KEY`) |
+| [OpenFreeMap](https://openfreemap.org) | Default dark/light vector basemap | Continuous | No |\n| [CARTO Basemaps](https://carto.com) | Optional raster basemap override | Continuous | Optional (`CARTO_API_KEY`) |
 
 **Outbound privacy & audit (#348–#366):** Each self-hosted install uses its own backend IP and per-install User-Agent handle. See [docs/OUTBOUND_DATA.md](docs/OUTBOUND_DATA.md) for what contacts third parties, opt-in/env controls, and accepted tradeoffs (CCTV Referer, basemap CDN, LiveUAMap, etc.).
 
@@ -1130,7 +1130,7 @@ OPENSKY_CLIENT_SECRET=your_opensky_secret     # OAuth2 — paired with Client ID
 # Optional (enhances data quality)
 AIS_API_KEY=your_aisstream_key                # Maritime vessel tracking (aisstream.io) — ships layer empty without it
 LTA_ACCOUNT_KEY=your_lta_key                  # Singapore CCTV cameras
-CARTO_API_KEY=your_carto_key                  # CARTO basemap tiles — DEFAULT map shows an "API KEY REQUIRED" watermark without it (free: carto.com/basemaps/apikey)
+CARTO_API_KEY=your_carto_key                  # Optional CARTO raster-basemap override; DEFAULT uses keyless OpenFreeMap when unset
 SHODAN_API_KEY=your_shodan_key                # Shodan device search overlay
 SH_CLIENT_ID=your_sentinel_hub_id             # Copernicus CDSE Sentinel Hub imagery
 SH_CLIENT_SECRET=your_sentinel_hub_secret     # Paired with Sentinel Hub Client ID
