@@ -307,6 +307,27 @@ describe('OpenRouter preset + live model dropdown (GET /api/voice/models)', () =
     });
   });
 
+  it('reloads the model list after saving a previously unconfigured gateway', async () => {
+    stubSetupFetch();
+    const originalFetch = fetch;
+    let saved = false;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/voice/provider')) saved = true;
+      if (String(input).includes('/api/voice/models') && !saved) {
+        return new Response(JSON.stringify({ detail: 'Save this gateway before fetching its model list.' }), { status: 400 });
+      }
+      return originalFetch(input, init);
+    }));
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId('voice-setup-provider-openrouter'));
+    await screen.findByTestId('voice-setup-models-error');
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-model-select', {}, { timeout: 3000 });
+    expect(saved).toBe(true);
+  });
+
   it('models fetch failure shows the verbatim detail; free text stays usable', async () => {
     stubSetupFetch({ ok: false, error: 'models_unavailable', detail: 'HTTP 401 from https://openrouter.ai/api/v1/models' });
     render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);

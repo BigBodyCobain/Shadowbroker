@@ -652,7 +652,6 @@ else:
         request: Request,
         provider: str = Query(None),
         baseUrl: str = Query(None),
-        apiKey: str = Query(None),
     ):
         """List selectable model ids for the setup card's dropdown.
 
@@ -664,6 +663,9 @@ else:
         gateway list.
         """
         from services.voice_broker import resolve_provider
+
+        if "apiKey" in request.query_params:
+            raise HTTPException(400, "Save credentials through the provider endpoint, not a URL.")
 
         s = _settings()
         info = resolve_provider(s)
@@ -687,10 +689,17 @@ else:
             return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
 
         if resolved in ("compatible_ws", "compat"):
-            base = str(baseUrl or info.get("compatBase") or "").strip().rstrip("/")
-            key = str(apiKey or info.get("compatKey") or "").strip()
+            base = str(info.get("compatBase") or "").strip().rstrip("/")
+            if baseUrl and str(baseUrl).strip().rstrip("/") != base:
+                raise HTTPException(400, "Save this gateway before fetching its model list.")
+            key = str(info.get("compatKey") or "").strip()
             if not base:
                 return {"ok": True, "models": [], "note": "save a provider first"}
+            from urllib.parse import urlsplit
+
+            destination = urlsplit(base)
+            if destination.scheme not in {"http", "https"} or not destination.hostname or destination.username or destination.password or destination.query or destination.fragment:
+                raise HTTPException(400, "Gateway must be an HTTP(S) base URL without credentials, query, or fragment.")
             import httpx
 
             headers = {"Authorization": f"Bearer {key}"} if key else {}

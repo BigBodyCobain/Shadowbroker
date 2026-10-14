@@ -23,6 +23,7 @@ import services.api_settings as api_settings_mod
 
 @pytest.fixture()
 def voice_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     """Isolate all VOICE_* configuration: env vars cleared, operator keys file
     redirected to an empty temp path.
 
@@ -67,7 +68,7 @@ def loopback(voice_env):
             import asyncio
 
             async def go():
-                async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+                async with AsyncClient(transport=self._transport, base_url=self._base, headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}) as ac:
                     return await ac.request(method, url, **kw)
             return self._loop.run_until_complete(go())
 
@@ -413,6 +414,7 @@ class _FakeAsyncClient:
     responses per call."""
 
     requested: list = []
+    headers: list = []
     responses: list = []
 
     def __init__(self, *a, **kw):
@@ -426,6 +428,7 @@ class _FakeAsyncClient:
 
     async def get(self, url, headers=None):
         type(self).requested.append(url)
+        type(self).headers.append(headers or {})
         idx = min(len(type(self).requested) - 1, len(type(self).responses) - 1)
         return type(self).responses[idx]
 
@@ -434,6 +437,7 @@ def _patch_httpx(monkeypatch, responses):
     import httpx
 
     _FakeAsyncClient.requested = []
+    _FakeAsyncClient.headers = []
     _FakeAsyncClient.responses = responses
     monkeypatch.setattr(httpx, "AsyncClient", _FakeAsyncClient)
 
@@ -456,6 +460,9 @@ class TestVoiceModels:
         assert "gemini-3.5-live-translate-preview" in ids
 
     def test_compat_queries_gateway_live_then_v1_fallback(self, loopback, monkeypatch):
+        monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://gw.test/v1")
+        monkeypatch.setenv("VOICE_COMPAT_API_KEY", "audit-synthetic-key")
+        config_mod.get_settings.cache_clear()
         _patch_httpx(
             monkeypatch,
             [
@@ -464,15 +471,18 @@ class TestVoiceModels:
             ],
         )
         body = loopback.get(
-            "/api/voice/models?provider=compat&baseUrl=http://gw.test/v1&apiKey=k-1"
+            "/api/voice/models?provider=compat&baseUrl=http://gw.test/v1"
         ).json()
         # First probe hits {base}/models, fallback adds /v1 (no double-v1).
         assert "http://gw.test/v1/models" in _FakeAsyncClient.requested[0]
         assert "http://gw.test/v1/v1/models" not in _FakeAsyncClient.requested[1]
         assert body["ok"] is True
+        assert _FakeAsyncClient.headers[0] == {"Authorization": "Bearer audit-synthetic-key"}
         assert [m["id"] for m in body["models"]] == ["a-model", "z-model"]
 
     def test_compat_failure_is_honest_not_fabricated(self, loopback, monkeypatch):
+        monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://gw.test")
+        config_mod.get_settings.cache_clear()
         _patch_httpx(monkeypatch, [_FakeResponse(503, {}), _FakeResponse(503, {})])
         body = loopback.get("/api/voice/models?provider=compat&baseUrl=http://gw.test").json()
         assert body["ok"] is False
@@ -486,7 +496,24 @@ class TestVoiceModels:
         assert "note" in body
 
     def test_models_list_capped_at_100(self, loopback, monkeypatch):
+        monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://gw.test")
+        config_mod.get_settings.cache_clear()
         big = {"data": [{"id": f"m{i:03d}"} for i in range(250)]}
         _patch_httpx(monkeypatch, [_FakeResponse(200, big)])
         body = loopback.get("/api/voice/models?provider=compat&baseUrl=http://gw.test").json()
         assert len(body["models"]) == 100
+
+    def test_saved_key_cannot_be_forwarded_to_another_destination(self, loopback, monkeypatch):
+        monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "https://configured.example/v1")
+        monkeypatch.setenv("VOICE_COMPAT_API_KEY", "audit-synthetic-key")
+        config_mod.get_settings.cache_clear()
+        _patch_httpx(monkeypatch, [_FakeResponse()])
+        response = loopback.get("/api/voice/models?provider=compat&baseUrl=https://attacker.example")
+        assert response.status_code == 400
+        assert _FakeAsyncClient.requested == []
+
+    def test_credentials_in_query_are_rejected(self, loopback, monkeypatch):
+        _patch_httpx(monkeypatch, [_FakeResponse()])
+        response = loopback.get("/api/voice/models?provider=compat&apiKey=audit-synthetic-key")
+        assert response.status_code == 400
+        assert _FakeAsyncClient.requested == []

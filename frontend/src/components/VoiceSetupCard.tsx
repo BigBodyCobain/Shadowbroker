@@ -190,7 +190,7 @@ export default function VoiceSetupCard() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [preset, needsBaseUrl, baseUrl]);
+  }, [preset, needsBaseUrl, baseUrl, provSave]);
 
   // Key-management affordances need the current keySet flags — poll status
   // once when the provider step is visible (and again after any save/clear).
