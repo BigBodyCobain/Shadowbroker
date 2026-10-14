@@ -44,6 +44,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Test development credential bootstrap
+        run: node --test scripts/dev-admin.test.cjs
+      - name: Run operator HTTP security regressions
+        run: npx vitest run --pool=threads src/__tests__/proxy src/__tests__/desktop/adminSessionBoundary.test.ts src/__tests__/voice/voiceSetupCard.test.tsx
       - run: npm run lint
       - run: npm run format:check
       - run: npx vitest run --reporter=verbose
@@ -67,6 +73,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
+      - name: Audit Python dependencies
+        run: cd backend && uv run --frozen --with pip-audit pip-audit --skip-editable --progress-spinner off
       - run: cd backend && uv run ruff check .
       - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
@@ -74,6 +82,8 @@ jobs:
         run: |
           cd backend
           uv run pytest \
+            tests/test_operator_http_boundary.py \
+            tests/test_voice_setup_api.py \
             tests/mesh/test_mesh_node_bootstrap_runtime.py \
             tests/mesh/test_mesh_infonet_sync_support.py \
             tests/mesh/test_mesh_canonical.py \
@@ -98,3 +108,7 @@ jobs:
           node-version: 20
       - name: Verify portable desktop backend staging
         run: node --test desktop-shell/tauri-skeleton/scripts/build-backend-runtime.test.cjs
+      - name: Verify native operator sessions and custody boundaries
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: cargo test --manifest-path desktop-shell/tauri-skeleton/src-tauri/Cargo.toml --bin shadowbroker-tauri-shell --quiet
