@@ -36,6 +36,7 @@ import services.api_settings as api_settings_mod
 
 @pytest.fixture()
 def voice_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     from services.voice_broker import _sessions
     from services.voice_session_tokens import reset_voice_session_tokens_for_tests
 

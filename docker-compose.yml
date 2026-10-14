@@ -24,7 +24,8 @@ services:
       - GFW_EVENTS_TIMEOUT_S=${GFW_EVENTS_TIMEOUT_S:-90}
       - WINDY_API_KEY=${WINDY_API_KEY:-}
       - CARTO_API_KEY=${CARTO_API_KEY:-}
-      - ADMIN_KEY=${ADMIN_KEY:-}
+      - ADMIN_KEY=${ADMIN_KEY:?Set ADMIN_KEY to at least 32 random characters in .env}
+      - SHADOWBROKER_ALLOWED_ORIGINS=${SHADOWBROKER_ALLOWED_ORIGINS:-}
       - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
       - AIRFRAMES_API_KEY=${AIRFRAMES_API_KEY:-}
       # LiveUAMap is optional enrichment for Global Incidents. GDELT remains
@@ -93,10 +94,7 @@ services:
       - APRS_IS_MAX_SIGNALS=${APRS_IS_MAX_SIGNALS:-5000}
       - APRS_IS_PRIVATE_SERVER=${APRS_IS_PRIVATE_SERVER:-false}
       - APRS_IS_FILTER=${APRS_IS_FILTER:-}
-      # The bundled Docker UI talks to the backend across Docker's private bridge.
-      # Treat that bridge as local operator access while ports remain bound to 127.0.0.1 by default.
-      - SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR=${SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR:-1}
-      # Issue #250: bridge trust is now bound to specific container hostnames
+      # These hosts are trusted only for rate-limit forwarding, never authorization.
       # (default: 'frontend' compose service + 'shadowbroker-frontend' container
       # name). If you rename the frontend service or run with a different
       # container_name, list the hostnames here (comma-separated, no spaces).
@@ -157,7 +155,9 @@ services:
       # Change this if your backend runs on a different host or port.
       - BACKEND_URL=http://backend:8000
       # Lets the server-side proxy authenticate protected local-node API calls.
-      - ADMIN_KEY=${ADMIN_KEY:-}
+      - ADMIN_KEY=${ADMIN_KEY:?Set ADMIN_KEY to at least 32 random characters in .env}
+      - SHADOWBROKER_ALLOWED_ORIGINS=${SHADOWBROKER_ALLOWED_ORIGINS:-}
+      - MESH_SCOPED_TOKENS=${MESH_SCOPED_TOKENS:-}
     depends_on:
       backend:
         condition: service_healthy

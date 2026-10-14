@@ -32,6 +32,7 @@ ACK_MISMATCH_STRING = (
 
 @pytest.fixture()
 def voice_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     """Isolate all VOICE_* configuration: env vars cleared, operator keys file
     redirected to an empty temp path, daily ledger pointed at tmp."""
     from services.voice_broker import _sessions
@@ -78,7 +79,7 @@ def loopback(voice_env):
             import asyncio
 
             async def go():
-                async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+                async with AsyncClient(transport=self._transport, base_url=self._base, headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}) as ac:
                     return await ac.request(method, url, **kw)
             return self._loop.run_until_complete(go())
 

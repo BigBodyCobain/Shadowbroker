@@ -2958,6 +2958,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from services.http_security import RequestBodyLimitMiddleware
+
 
 _NO_STORE_HEADERS = {
     "Cache-Control": "no-store, max-age=0",
@@ -12175,6 +12177,10 @@ def _dev_uvicorn_bind_host() -> str:
         return "0.0.0.0"
     return "127.0.0.1"
 
+
+# Last registration makes this the outermost user middleware, before privacy/HMAC
+# middleware can read a request body.
+app.add_middleware(RequestBodyLimitMiddleware)
 
 if __name__ == "__main__":
     _host = _dev_uvicorn_bind_host()

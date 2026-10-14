@@ -12,7 +12,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { resolveAdminSessionToken } from '@/lib/server/adminSessionStore';
+import { resolveAdminSessionToken, verifyPresentedAdminKey } from '@/lib/server/adminSessionStore';
+import { isAllowedBrowserRequest } from '@/lib/requestOrigin';
+import { readRequestBody, RequestBodyTooLarge } from '@/lib/server/requestBody';
 
 // Headers that must not be forwarded to the backend.
 const STRIP_REQUEST = new Set([
@@ -60,7 +62,8 @@ function sleep(ms: number): Promise<void> {
 function isSensitiveProxyPath(pathSegments: string[]): boolean {
   const joined = pathSegments.join('/');
   if (!joined) return false;
-  if (pathSegments[0] === 'wormhole') return true;
+  if (['wormhole', 'voice', 'agent-shell'].includes(pathSegments[0])) return true;
+  if (['radio', 'thermal', 'sigint', 'sentinel', 'sentinel2', 'liveuamap', 'prediction-markets', 'privacy'].includes(pathSegments[0])) return true;
   if (joined === 'refresh') return true;
   if (joined === 'debug-latest') return true;
   if (joined === 'system/update') return true;
@@ -72,6 +75,8 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   }
   if (pathSegments[0] === 'settings') return true;
   if (joined === 'mesh/infonet/ingest') return true;
+  if (['mesh/infonet/session-stream', 'mesh/infonet/peer-registry', 'mesh/reputation/all', 'mesh/trust/vouches'].includes(joined)) return true;
+  if (pathSegments[0] === 'mesh' && pathSegments[1] === 'oracle') return true;
   if (joined === 'mesh/meshtastic/send') return true;
   // mesh/peers and all tools/* use require_local_operator on the backend and
   // need X-Admin-Key injected on the server-side proxy leg.
@@ -80,133 +85,11 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   return false;
 }
 
-function normalizeHeaderHost(host: string | null): string {
-  return (host || '').trim().replace(/^"|"$/g, '').toLowerCase();
-}
-
-function hostnameFromHeaderHost(host: string): string {
-  const normalized = normalizeHeaderHost(host);
-  if (!normalized) return '';
-  try {
-    return new URL(`http://${normalized}`).hostname.toLowerCase();
-  } catch {
-    return normalized.replace(/:\d+$/, '').toLowerCase();
-  }
-}
-
-function isPrivateIpv4(hostname: string): boolean {
-  const parts = hostname.split('.').map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return false;
-  }
-  const [first, second] = parts;
-  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
-}
-
-function isInternalProxyHost(host: string): boolean {
-  const hostname = hostnameFromHeaderHost(host);
-  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-    return false;
-  }
-  return (
-    !hostname.includes('.') ||
-    isPrivateIpv4(hostname) ||
-    hostname.endsWith('.internal') ||
-    hostname.endsWith('.docker')
-  );
-}
-
-function forwardedHostCandidates(req: NextRequest): string[] {
-  const hosts = new Set<string>();
-  const directHost = normalizeHeaderHost(req.headers.get('host'));
-  if (directHost) hosts.add(directHost);
-
-  if (!isInternalProxyHost(directHost)) {
-    return [...hosts];
-  }
-
-  const forwardedHost = req.headers.get('x-forwarded-host');
-  if (forwardedHost) {
-    for (const value of forwardedHost.split(',')) {
-      const host = normalizeHeaderHost(value);
-      if (host) hosts.add(host);
-    }
-  }
-
-  const forwarded = req.headers.get('forwarded');
-  if (forwarded) {
-    const hostPattern = /(?:^|[;,])\s*host=(?:"([^"]+)"|([^;,]+))/gi;
-    let match: RegExpExecArray | null;
-    while ((match = hostPattern.exec(forwarded)) !== null) {
-      const host = normalizeHeaderHost(match[1] || match[2] || '');
-      if (host) hosts.add(host);
-    }
-  }
-
-  return [...hosts];
-}
-
-/**
- * CSRF guard for the server-side admin-key injection (issues #249 / #254).
- *
- * The proxy injects ``process.env.ADMIN_KEY`` into the forwarded
- * X-Admin-Key header for sensitive backend routes. Without an origin
- * check, any cross-origin webpage the operator visits could fire
- * ``fetch('http://localhost:3000/api/wormhole/identity/bootstrap')`` and
- * have that request get the operator's admin key injected for free —
- * full identity-takeover CSRF.
- *
- * We allow injection when ANY of these is true:
- *   - The request carries a valid admin session cookie (already auth'd)
- *   - The Origin header is absent (server-to-server fetch, Tauri/Electron
- *     native shells, curl/cli — none of these are browser-CSRF surfaces)
- *   - The Origin header host matches the request's own Host or, when the
- *     direct Host is an internal service name, a reverse proxy's forwarded
- *     host (genuine same-origin browser fetch from our own dashboard,
- *     including Docker/Traefik deployments where Host is internal)
- *
- * If Origin is present AND doesn't match Host, the caller is a hostile
- * cross-origin webpage. We refuse to inject the admin key. The backend
- * then sees the request without auth and rejects it via
- * require_local_operator — exactly the desired outcome.
- */
-function isSameOriginOrNonBrowser(req: NextRequest): boolean {
-  const origin = req.headers.get('origin');
-  if (!origin) {
-    // No Origin header = server-to-server / native shell / older browser
-    // doing a same-origin GET. CSRF requires the attacker to control a
-    // page running in a browser, which always sends Origin on the
-    // dangerous methods. Treat missing Origin as not-CSRF.
-    return true;
-  }
-  try {
-    const originUrl = new URL(origin);
-    const originHost = normalizeHeaderHost(originUrl.host);
-    if (!originHost) return false;
-    return forwardedHostCandidates(req).includes(originHost);
-  } catch {
-    // Malformed Origin header — be conservative.
-    return false;
-  }
-}
-
-function canUseEnvAdminKey(req: NextRequest, pathSegments: string[]): boolean {
-  const joined = pathSegments.join('/');
-  const origin = req.headers.get('origin');
-
-  // /api/refresh is a state-changing GET. A browser can trigger a no-Origin
-  // GET through ambient mechanisms such as image/script navigation, so do not
-  // give that shape the server-side ADMIN_KEY fallback. Valid admin-session
-  // cookies are still handled separately below.
-  if (joined === 'refresh' && req.method.toUpperCase() === 'GET' && !origin) {
-    return false;
-  }
-
-  return isSameOriginOrNonBrowser(req);
-}
-
 async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   try {
+    if (!isAllowedBrowserRequest(req)) {
+      return NextResponse.json({ detail: 'Cross-origin privileged request denied' }, { status: 403, headers: NO_STORE_PROXY_HEADERS });
+    }
     const isMesh = pathSegments[0] === 'mesh';
     const meshSegments = pathSegments.slice(1);
     const isSensitiveMeshPath = isMesh && meshSegments[0] === 'dm';
@@ -319,27 +202,10 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResp
         forwardHeaders.set(key, value);
       }
     });
-    if (isSensitiveProxyPath(pathSegments)) {
-      // Issues #249 / #254: gate the server-side admin-key injection on
-      // either a valid admin session cookie OR a same-origin request.
-      // Cross-origin webpages must not silently inherit the operator's
-      // ADMIN_KEY just by being open in the same browser.
-      const cookieToken = req.cookies.get(ADMIN_COOKIE)?.value || '';
-      const sessionAdminKey = resolveAdminSessionToken(cookieToken) || '';
-      const allowEnvKeyInjection = canUseEnvAdminKey(req, pathSegments);
-      let injectedAdmin = '';
-      if (sessionAdminKey) {
-        // Authenticated session always works — Origin doesn't matter
-        // because the cookie itself is same-site / strict.
-        injectedAdmin = sessionAdminKey;
-      } else if (allowEnvKeyInjection && process.env.ADMIN_KEY) {
-        // Fall back to the server-side ADMIN_KEY only for legitimate
-        // callers (same-origin dashboard, Tauri shell, server-to-server).
-        injectedAdmin = process.env.ADMIN_KEY;
-      }
-      if (injectedAdmin) {
-        forwardHeaders.set('X-Admin-Key', injectedAdmin);
-      }
+    const cookieToken = req.cookies.get(ADMIN_COOKIE)?.value || '';
+    const authenticatedKey = resolveAdminSessionToken(cookieToken) || verifyPresentedAdminKey(req.headers.get('x-admin-key') || '');
+    if (authenticatedKey && (isSensitiveProxyPath(pathSegments) || isSensitiveMeshPath)) {
+      forwardHeaders.set('X-Admin-Key', authenticatedKey);
     }
 
     const isBodyless = req.method === 'GET' || req.method === 'HEAD';
@@ -348,9 +214,16 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResp
       method: req.method,
       headers: forwardHeaders,
       cache: 'no-store',
+      redirect: 'manual',
     };
     if (!isBodyless) {
-      const body = await req.text();
+      const peerPath = pathSegments.join('/').replace(/\/+$/, '');
+      const limit = ['mesh/infonet/peer-push', 'mesh/gate/peer-push'].includes(peerPath)
+        ? 512 * 1024
+        : ['mesh/infonet/peer-announce', 'mesh/dm/replicate'].includes(peerPath)
+          ? 64 * 1024
+          : 8 * 1024 * 1024;
+      const body = await readRequestBody(req, limit);
       if (body.length > 0) {
         requestInit.body = body;
       }
@@ -408,6 +281,12 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResp
       headers: responseHeaders,
     });
   } catch (error) {
+    if (error instanceof RequestBodyTooLarge) {
+      return NextResponse.json({ detail: error.message }, {
+        status: 413,
+        headers: NO_STORE_PROXY_HEADERS,
+      });
+    }
     console.error('api proxy unexpected error', {
       pathSegments,
       method: req.method,

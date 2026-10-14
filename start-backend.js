@@ -3,6 +3,9 @@ const path = require("path");
 const fs = require("fs");
 
 const backendDir = path.resolve(__dirname, "backend");
+process.env.ADMIN_KEY = require("./frontend/scripts/dev-admin.cjs").ensureDevAdminKey(
+  path.join(__dirname, "frontend")
+);
 const isWindows = process.platform === "win32";
 const configuredBasePython = String(process.env.BACKEND_BASE_PYTHON || process.env.PYTHON || "").trim();
 const configuredVenvDir = String(process.env.BACKEND_VENV_DIR || "").trim();

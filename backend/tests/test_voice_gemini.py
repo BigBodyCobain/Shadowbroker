@@ -189,6 +189,7 @@ class TestGeminiEventTranslation:
 
 @pytest.fixture()
 def voice_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     for name in list(os.environ):
         if name.startswith("VOICE_"):
             monkeypatch.delenv(name, raising=False)

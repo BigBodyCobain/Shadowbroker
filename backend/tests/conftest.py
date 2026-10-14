@@ -38,10 +38,14 @@ def _suppress_background_services():
 
 
 @pytest.fixture()
-def client(_suppress_background_services):
+def client(_suppress_background_services, monkeypatch):
     """HTTPX test client against the FastAPI app (no real network)."""
     from httpx import ASGITransport, AsyncClient
     from main import app
+    from services.config import get_settings
+    key = "test-operator-key-" + "x" * 32
+    monkeypatch.setenv("ADMIN_KEY", key)
+    get_settings.cache_clear()
     import asyncio
 
     # Return a sync-usable wrapper
@@ -54,28 +58,28 @@ def client(_suppress_background_services):
             return self._loop.run_until_complete(self._get(url, **kw))
 
         async def _get(self, url, **kw):
-            async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
+            async with AsyncClient(transport=self._transport, base_url="http://test", headers={"X-Admin-Key": key}) as ac:
                 return await ac.get(url, **kw)
 
         def post(self, url, **kw):
             return self._loop.run_until_complete(self._post(url, **kw))
 
         async def _post(self, url, **kw):
-            async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
+            async with AsyncClient(transport=self._transport, base_url="http://test", headers={"X-Admin-Key": key}) as ac:
                 return await ac.post(url, **kw)
 
         def put(self, url, **kw):
             return self._loop.run_until_complete(self._put(url, **kw))
 
         async def _put(self, url, **kw):
-            async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
+            async with AsyncClient(transport=self._transport, base_url="http://test", headers={"X-Admin-Key": key}) as ac:
                 return await ac.put(url, **kw)
 
         def delete(self, url, **kw):
             return self._loop.run_until_complete(self._delete(url, **kw))
 
         async def _delete(self, url, **kw):
-            async with AsyncClient(transport=self._transport, base_url="http://test") as ac:
+            async with AsyncClient(transport=self._transport, base_url="http://test", headers={"X-Admin-Key": key}) as ac:
                 return await ac.delete(url, **kw)
 
     return SyncClient()

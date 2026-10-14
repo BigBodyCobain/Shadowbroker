@@ -36,6 +36,7 @@ import services.api_settings as api_settings_mod
 
 @pytest.fixture()
 def voice_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     """Isolate all VOICE_* configuration (same contract as test_voice_router)."""
     from services.voice_broker import _sessions
     from services.voice_session_tokens import reset_voice_session_tokens_for_tests
@@ -86,7 +87,7 @@ def loopback(voice_env):
             import asyncio
 
             async def go():
-                async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+                async with AsyncClient(transport=self._transport, base_url=self._base, headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}) as ac:
                     return await ac.request(method, url, **kw)
             return self._loop.run_until_complete(go())
 
