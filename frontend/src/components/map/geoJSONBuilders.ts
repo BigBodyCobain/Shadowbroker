@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 // ─── Pure GeoJSON builder functions ─────────────────────────────────────────
 // Extracted from MaplibreViewer to reduce component size and enable unit testing.
 // Each function takes data arrays + optional helpers and returns a GeoJSON FeatureCollection or null.

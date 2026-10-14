@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 import type { Ship, TrackedFlight } from '@/types/dashboard';
 import { shipFeatureId, trackedFlightFeatureId } from '@/components/map/featureIds';
 

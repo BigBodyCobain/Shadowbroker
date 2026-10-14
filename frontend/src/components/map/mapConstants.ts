@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 // Shared map constants
 // Extracted from MaplibreViewer.tsx
 

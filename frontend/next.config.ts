@@ -57,6 +57,7 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
+    tsconfigPath: 'tsconfig.build.json',
     ignoreBuildErrors: skipTypecheck,
   },
   ...(!isDesktopExport

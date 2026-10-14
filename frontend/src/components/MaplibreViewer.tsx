@@ -1,4 +1,5 @@
 'use client';
+import type * as GeoJSON from 'geojson';
 
 import { API_BASE } from '@/lib/api';
 import { clampZoom, ZOOM_MAX, ZOOM_FALLBACK } from '@/lib/mapZoom';
@@ -22,7 +23,10 @@ import {
   OSM_ATTRIBUTION_HTML,
 } from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+maplibregl.setWorkerUrl(
+  new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString(),
+);
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
 import FishingDestinationRoute from '@/components/map/FishingDestinationRoute';

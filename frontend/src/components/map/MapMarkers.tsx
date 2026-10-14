@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 import React from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { Earthquake, SelectedEntity, Ship, TrackedFlight, UAV } from '@/types/dashboard';

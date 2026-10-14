@@ -1,4 +1,5 @@
 'use client';
+import type * as GeoJSON from 'geojson';
 
 import { useEffect, useRef, useState } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';

@@ -55,7 +55,7 @@ process.on("SIGTERM", () => shutdown(0));
 start(
   "frontend",
   process.execPath,
-  [nextBin, "dev", "--hostname", "127.0.0.1", "--port", "3000"],
+  [nextBin, "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3000"],
   frontendDir,
 );
 start("backend", process.execPath, [backendLauncher], frontendDir);
