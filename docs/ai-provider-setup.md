@@ -37,6 +37,10 @@ External agents use `show_article` through the existing authenticated command ch
 
 AI turns also receive the existing bounded `sb.grounding.v1` map/selection snapshot, so the model has context for requests about the current area without screenshots or full telemetry dumps.
 
+## Missions and specialist roles
+
+Use the **Missions** button beside the microphone for saved investigations, evidence, and monitoring. Each role can choose a different saved provider/model and call limit. You can also speak/type **Start a mission: investigate this area and find related stories** to create and run the default researcher → analyst → reviewer workflow with the current model. Mission writes wait for explicit operator approval and retain existing access-tier requirements. See [mission workspace](mission-workspace.md) for setup and recovery details.
+
 ## Speak commands
 
 Speech input is configured separately from the language model. Open **Speech input settings**, choose OpenAI, Gemini, or a local/OpenAI-compatible transcription API, save credentials to load its catalog, choose the speech model, and save. Speech input defaults to off. A local chat model alone is not a speech recognizer; it needs a separate transcription server exposing `/v1/audio/transcriptions`.

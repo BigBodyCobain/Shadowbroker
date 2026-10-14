@@ -267,7 +267,7 @@ describe('page.tsx decomposition — voice console wrap', () => {
     // mount is still a single controller-driven wiring point, never an
     // ad-hoc second pipeline.
     expect(page).toContain(
-      '<VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />',
+      '<VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} missionWorkspace={voice.missions} />',
     );
   });
 

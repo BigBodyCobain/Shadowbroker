@@ -1069,3 +1069,8 @@ else:
             return JSONResponse(status_code=502, content=result)
         result["mode"] = _mesh_mode()
         return result
+
+
+if not _MESH_ONLY:
+    from routers.missions import router as missions_router
+    router.include_router(missions_router)

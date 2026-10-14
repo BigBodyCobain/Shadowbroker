@@ -7,6 +7,11 @@ snapshot pulls for common questions.
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolated_watch_storage(tmp_path, monkeypatch):
+    monkeypatch.setenv("SB_DATA_DIR", str(tmp_path))
+
+
 @pytest.fixture()
 def sample_store():
     from services.fetchers._store import latest_data, _data_lock

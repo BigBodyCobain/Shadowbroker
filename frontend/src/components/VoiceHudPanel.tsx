@@ -13,6 +13,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
 import VoiceSetupCard from '@/components/VoiceSetupCard';
 import VoiceDictationControls from '@/components/VoiceDictationControls';
+import MissionPanel from '@/components/MissionPanel';
+import type { MissionWorkspace } from '@/hooks/useMissionWorkspace';
 import { useTranslation } from '@/i18n';
 import type { FreshnessDisposition } from '@/lib/voiceFreshness';
 
@@ -27,9 +29,11 @@ const DISPOSITION_DOT: Record<FreshnessDisposition, string> = {
 export default function VoiceHudPanel({
   onSubmit,
   onClose,
+  missionWorkspace,
 }: {
   onSubmit: (text: string) => Promise<void> | void;
   onClose: () => void;
+  missionWorkspace?: MissionWorkspace;
 }) {
   const { t } = useTranslation();
   const state = useSyncExternalStore(voiceController.subscribe, voiceController.getState, voiceController.getState);
@@ -72,6 +76,8 @@ export default function VoiceHudPanel({
     if (cost.incomplete) costParts.push(t('voice.panel.costIncomplete'));
   }
   const costTooltip = costParts.join(' — ');
+
+  if (missionWorkspace?.open) return <MissionPanel workspace={missionWorkspace} onClose={onClose} />;
 
   return (
     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[520px] max-w-[92vw] max-h-[75vh] overflow-y-auto styled-scrollbar z-[200] bg-[var(--bg-secondary)] border border-violet-500/40 shadow-[0_-8px_30px_rgba(0,0,0,0.4)] flex flex-col" data-testid="voice-hud-panel">
@@ -133,6 +139,7 @@ export default function VoiceHudPanel({
             {t('voice.panel.changeModel')}
           </button>
         )}
+        {missionWorkspace && <button type="button" className="px-2 py-1 border border-cyan-800 text-cyan-300 text-xs" onClick={() => missionWorkspace.setOpen(true)}>Missions</button>}
         <button type="button" onClick={onClose} aria-label={t('voice.panel.close')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm leading-none">
           ×
         </button>

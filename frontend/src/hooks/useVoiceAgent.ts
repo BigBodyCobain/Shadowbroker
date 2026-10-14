@@ -16,6 +16,7 @@ import { runDeterministicTurn } from '@/lib/voiceDeterministic';
 import { voiceSpeech } from '@/lib/voiceSpeech';
 import { VoiceAudioClient, type VoiceAudioPhase } from '@/lib/voiceAudioClient';
 import { useVoiceGrounding } from '@/hooks/useVoiceGrounding';
+import { useMissionWorkspace, type MissionWorkspace } from '@/hooks/useMissionWorkspace';
 import type { ClientToolContext } from '@/lib/clientTools';
 import type { VoiceStatusResponse } from '@/lib/voiceTypes';
 
@@ -27,6 +28,7 @@ export type VoiceAgentBindings = ClientToolContext & {
 
 export interface UseVoiceAgentResult {
   state: VoiceControllerState;
+  missions: MissionWorkspace;
   submitText: (text: string) => Promise<void>;
   beginPtt: () => void;
   endPtt: () => void;
@@ -67,6 +69,9 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   // Keep the latest page bindings without resubscribing effects per render.
   const bindingsRef = useRef(bindings);
   bindingsRef.current = bindings;
+  const missions = useMissionWorkspace(() => bindingsRef.current, () => groundingRef.current.composeSnapshot());
+  const missionsRef = useRef(missions);
+  missionsRef.current = missions;
 
   // U8 realtime speech-to-speech: one audio session per PTT hold. The client
   // is controller-free (testable); this hook is its single wiring point.
@@ -171,6 +176,12 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
     voiceController.beginThinking();
     voiceController.pushTurn({ role: 'operator', kind: 'text', text: trimmed.slice(0, 500) });
     try {
+      const missionRequest = /^(?:please\s+)?(?:start|create|begin)\s+(?:an?\s+)?mission(?:\s*:\s*|\s+)([\s\S]{3,2000})$/i.exec(trimmed);
+      if (missionRequest) {
+        await missionsRef.current.startFromText(missionRequest[1].trim(), request.signal);
+        if (!request.signal.aborted) voiceController.pushTurn({ role: 'agent', kind: 'text', text: 'Mission saved. See Missions for its status, evidence, and any action awaiting approval.' });
+        return;
+      }
       const outcome = await runDeterministicTurn(trimmed, bindingsRef.current, request.signal, () => groundingRef.current.composeSnapshot());
       if (request.signal.aborted) return;
       for (const step of outcome.steps) {
@@ -227,5 +238,5 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   const openPanel = useCallback(() => voiceController.setPanelOpen(true), []);
   const closePanel = useCallback(() => voiceController.setPanelOpen(false), []);
 
-  return { state, submitText, beginPtt, endPtt, cancelActive, openPanel, closePanel, requestBrief: grounding.requestBrief };
+  return { state, missions, submitText, beginPtt, endPtt, cancelActive, openPanel, closePanel, requestBrief: grounding.requestBrief };
 }

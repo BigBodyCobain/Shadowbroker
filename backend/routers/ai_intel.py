@@ -1927,7 +1927,7 @@ _AGENT_TOOLS = [
             {
                 "name": "list_watches",
                 "type": "read",
-                "description": "List all active watchdog watches (aircraft tracking, geofences, keyword monitors, etc.).",
+                "description": "List saved watchdog watches, including pause state, check times, and latest trigger evidence (aircraft tracking, geofences, keyword monitors, etc.).",
                 "parameters": {},
                 "returns": "Array of watch objects with id, type, params, created_at",
             },
@@ -2397,9 +2397,11 @@ async def api_capabilities(request: Request):
             "durability": {
                 "command_queue": "memory_only",
                 "task_queue": "memory_only",
-                "watch_registry": "memory_only",
+                "watch_registry": "sqlite_persistent",
+                "mission_workspace": "sqlite_persistent",
+                "mission_resume": "operator_controlled",
                 "notes": [
-                    "Restarting the backend drops in-memory channel state, pending tasks, and watchdog watches.",
+                    "Restarting the backend drops in-memory channel state and pending channel tasks. Saved watch definitions, pause state, latest triggers, and mission records survive; model runs require explicit resume.",
                     "This channel is currently a singleton process-local integration, not a multi-agent durable broker.",
                 ],
             },
@@ -2792,7 +2794,9 @@ def _connect_info_metadata(settings) -> dict:
             "durability": {
                 "command_queue": "memory_only",
                 "task_queue": "memory_only",
-                "watch_registry": "memory_only",
+                "watch_registry": "sqlite_persistent",
+                "mission_workspace": "sqlite_persistent",
+                "mission_resume": "operator_controlled",
             },
         },
         "connection_modes": {

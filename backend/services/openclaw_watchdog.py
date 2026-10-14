@@ -11,6 +11,7 @@ something matters."
 from __future__ import annotations
 
 import logging
+import json
 import math
 import threading
 import time
@@ -55,8 +56,52 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # Watch CRUD
 # ---------------------------------------------------------------------------
 
+def _sync_watches():
+    from services.mission_store import watch_load
+    saved = watch_load()
+    _watches.clear()
+    _watches.update({watch["id"]: watch for watch in saved})
+    for watch in saved:
+        _seen_posts[watch["id"]] = set(watch.get("seen_posts") or [])
+
+
+def restore_watches():
+    """Restore monitoring on backend startup without resuming any model inference."""
+    with _lock:
+        _sync_watches()
+        active = any(not watch.get("paused") for watch in _watches.values())
+    if active:
+        _ensure_running()
+
+
+def update_watch(watch_id: str, **updates):
+    from services.mission_store import watch_save
+    with _lock:
+        _sync_watches()
+        if watch_id not in _watches:
+            raise KeyError(watch_id)
+        watch = dict(_watches[watch_id])
+        watch.update({key: value for key, value in updates.items() if key in {"paused", "mission_id"}})
+        watch_save(watch)
+        _watches[watch_id] = watch
+    if not watch.get("paused"):
+        _ensure_running()
+    return watch
+
+
 def add_watch(watch_type: str, params: dict[str, Any]) -> dict[str, Any]:
     """Register a new watch. Returns the watch definition with ID."""
+    if len(json.dumps(params, allow_nan=False)) > 4000:
+        raise ValueError("Watch parameters are too large")
+    if watch_type not in {"track_aircraft", "track_callsign", "track_registration", "track_ship", "track_entity", "geofence", "keyword", "telegram_rhetoric", "prediction_market"}:
+        raise ValueError("Unknown watch type")
+    if watch_type == "keyword" and not str(params.get("keyword") or "").strip():
+        raise ValueError("A keyword watch requires a keyword")
+    if watch_type == "geofence":
+        lat, lng = float(params.get("lat", 999)), float(params.get("lng", 999))
+        radius = float(params.get("radius_km", 50))
+        if not math.isfinite(lat) or not math.isfinite(lng) or not math.isfinite(radius) or not -90 <= lat <= 90 or not -180 <= lng <= 180 or not 0 < radius <= 1000:
+            raise ValueError("Use valid coordinates and a radius between zero and 1000 km")
     watch_id = str(uuid.uuid4())[:8]
     watch = {
         "id": watch_id,
@@ -64,8 +109,12 @@ def add_watch(watch_type: str, params: dict[str, Any]) -> dict[str, Any]:
         "params": params,
         "created_at": time.time(),
         "fires": 0,
+        "paused": False,
     }
+    from services.mission_store import watch_save
     with _lock:
+        _sync_watches()
+        watch_save(watch)
         _watches[watch_id] = watch
     _ensure_running()
     return watch
@@ -73,7 +122,10 @@ def add_watch(watch_type: str, params: dict[str, Any]) -> dict[str, Any]:
 
 def remove_watch(watch_id: str) -> dict[str, Any]:
     """Remove a watch by ID."""
+    from services.mission_store import watch_delete
     with _lock:
+        _sync_watches()
+        watch_delete(watch_id)
         removed = _watches.pop(watch_id, None)
         _fired.pop(watch_id, None)
         _seen_posts.pop(watch_id, None)
@@ -83,15 +135,19 @@ def remove_watch(watch_id: str) -> dict[str, Any]:
 
 
 def list_watches() -> list[dict[str, Any]]:
-    """List all active watches."""
+    """List saved watches, including paused watches and latest trigger state."""
     with _lock:
+        _sync_watches()
         return list(_watches.values())
 
 
 def clear_watches() -> dict[str, Any]:
     """Remove all watches."""
+    from services.mission_store import watch_delete
     with _lock:
+        _sync_watches()
         count = len(_watches)
+        watch_delete()
         _watches.clear()
         _fired.clear()
         _seen_posts.clear()
@@ -105,7 +161,8 @@ def clear_watches() -> dict[str, Any]:
 def _evaluate_watches() -> list[dict[str, Any]]:
     """Check all watches against current telemetry. Returns list of alerts."""
     with _lock:
-        watches = list(_watches.values())
+        _sync_watches()
+        watches = [dict(watch) for watch in _watches.values() if not watch.get("paused")]
 
     if not watches:
         return []
@@ -124,19 +181,26 @@ def _evaluate_watches() -> list[dict[str, Any]]:
     for watch in watches:
         wid = watch["id"]
 
+        from services.mission_store import watch_observe
+        checked = watch_observe(wid, now)
+        if checked is None:
+            continue
         # Debounce
         with _lock:
-            last = _fired.get(wid, 0)
+            last = max(_fired.get(wid, 0), checked.get("last_fired", 0))
         if now - last < DEBOUNCE_S:
             continue
 
         try:
             alert = _check_watch(watch, fast, slow)
             if alert:
+                saved = watch_observe(wid, now, alert, seen_posts=list(_seen_posts.get(wid, set()))[-_TELEGRAM_SEEN_MAX:])
+                if saved is None:
+                    continue
                 with _lock:
                     _fired[wid] = now
                     if wid in _watches:
-                        _watches[wid]["fires"] = _watches[wid].get("fires", 0) + 1
+                        _watches[wid] = saved
                 alerts.append({"watch_id": wid, "watch_type": watch["type"], **alert})
         except Exception as e:
             logger.warning("Watch %s evaluation error: %s", wid, e)

@@ -137,6 +137,15 @@ the feature dark.
 - **Retention:** session transcripts are **in-memory only** on the backend (10-minute
   sliding TTL, hard-capped sessions); nothing conversational is persisted. Daily spend
   ledgers (`data/voice_cost/<date>.json`) record cost figures, not content.
+- **Saved missions:** when the operator explicitly saves a mission, its objective,
+  bounded dashboard context, tool results, evidence, and role reports persist locally
+  in `missions.sqlite3`. Role provider/model choices persist, but provider keys do not.
+  Running a mission sends bounded context/evidence to its selected saved role provider
+  through the same backend broker, outbound opt-in, and daily budget gate. Writes
+  require operator approval. Restoring a mission does not initiate model inference;
+  saved watches resume cached-telemetry monitoring without automatic model calls.
+  Mission and watch removal are separate workspace controls. See
+  [mission workspace](mission-workspace.md) for retention bounds and recovery behavior.
 - **Attribution:** requests carry this install's per-install User-Agent handle, same as
   all other backend egress above.
 - **Spend control:** server-authoritative warn/cap latches and a persisted daily budget

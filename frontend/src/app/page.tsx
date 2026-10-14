@@ -895,9 +895,10 @@ export default function Dashboard() {
                   <ErrorBoundary name="VoiceMicButton">
                     <VoiceMicButton />
                   </ErrorBoundary>
+                  <button type="button" aria-label="Open mission workspace" className="px-2 py-1 border border-cyan-800/70 bg-black/80 text-cyan-300 text-xs font-mono rounded" onClick={() => { voice.missions.setOpen(true); voice.openPanel(); }}>Missions</button>
                   {voice.state.panelOpen && (
                     <ErrorBoundary name="VoiceHudPanel">
-                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} />
+                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} missionWorkspace={voice.missions} />
                     </ErrorBoundary>
                   )}
                 </div>
