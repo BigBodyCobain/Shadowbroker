@@ -49,7 +49,7 @@ jobs:
       - name: Test development credential bootstrap
         run: node --test scripts/dev-admin.test.cjs
       - name: Run operator HTTP security regressions
-        run: npx vitest run --pool=threads src/__tests__/proxy src/__tests__/desktop/adminSessionBoundary.test.ts src/__tests__/voice/voiceSetupCard.test.tsx
+        run: npx vitest run --pool=threads src/__tests__/proxy src/__tests__/desktop/adminSessionBoundary.test.ts src/__tests__/voice
       - run: npm run lint
       - run: npm run format:check
       - run: npx vitest run --reporter=verbose
@@ -88,6 +88,7 @@ jobs:
             tests/test_agent_shell_ws_auth.py \
             tests/test_p0_security.py \
             tests/test_voice_setup_api.py \
+            tests/test_voice_provider_catalog.py \
             tests/mesh/test_mesh_node_bootstrap_runtime.py \
             tests/mesh/test_mesh_infonet_sync_support.py \
             tests/mesh/test_mesh_canonical.py \

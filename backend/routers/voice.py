@@ -25,6 +25,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -87,9 +88,21 @@ else:
         apiKey: str | None = None
         baseUrl: str | None = None
         model: str | None = None  # gemini: VOICE_GEMINI_MODEL; compat/anthropic: VOICE_CHAT_MODEL
+        mode: Literal["text", "realtime"] | None = None
+        apiStyle: Literal["chat", "responses"] | None = None
+        chatModel: str | None = None
         # clear=true removes the provider's persisted rows (its key + the model
         # rows it owns) instead of saving — the documented removal path.
         clear: bool = False
+
+    class SpeechSettingsRequest(BaseModel):
+        provider: Literal["off", "openai", "gemini", "compat"]
+        model: str = Field(default="", max_length=256)
+        baseUrl: str | None = None
+        apiKey: str | None = None
+
+    class TranscriptionRequest(BaseModel):
+        audio: str = Field(min_length=1, max_length=2800000)
 
     # ------------------------------------------------------------------
     # Shared helpers (heavy imports stay inside function bodies)
@@ -189,6 +202,12 @@ else:
                     "geminiKeySet": bool(provider.get("geminiKeySet", False)),
                     "anthropicKeySet": bool(provider.get("anthropicKeySet", False)),
                     "chatModelConfigured": provider["chatModelConfigured"],
+                    "apiProvider": provider.get("apiProvider"),
+                    "chatModel": provider.get("chatModel"),
+                    "apiStyle": provider.get("apiStyle"),
+                    "keySet": provider.get("keySet"),
+                    "keysSet": provider.get("keysSet", {}),
+                    "realtime": provider.get("realtime"),
                 },
                 "degradedReason": provider["degradedReason"],
                 "reasons": provider["reasons"],
@@ -303,6 +322,11 @@ else:
         "gemini": ("VOICE_GEMINI_API_KEY", "VOICE_GEMINI_MODEL"),
         "anthropic": ("VOICE_ANTHROPIC_API_KEY",),
         "compat": ("VOICE_COMPAT_BASE_URL", "VOICE_COMPAT_API_KEY"),
+        "ollama": ("VOICE_COMPAT_BASE_URL", "VOICE_COMPAT_API_KEY"),
+        "lmstudio": ("VOICE_COMPAT_BASE_URL", "VOICE_COMPAT_API_KEY"),
+        "xai": ("VOICE_XAI_API_KEY",),
+        "openrouter": ("VOICE_OPENROUTER_API_KEY",),
+        "meta": ("VOICE_OPENROUTER_API_KEY",),
     }
 
     def _remove_voice_env(keys: tuple[str, ...]) -> tuple[bool, list[str]]:
@@ -356,11 +380,14 @@ else:
     async def voice_provider_save(request: Request, body: VoiceProviderRequest):
         """Persist provider credentials server-side (the browser never holds a
         provider key). Responds with is_set booleans only — never echoes the key."""
-        from services.voice_broker import resolve_provider
+        from services.voice_broker import _merged_operator_env, resolve_provider
+        from services.voice_providers import LOCAL_PROVIDERS, PROVIDERS, normalize_base
 
         provider = str(body.provider or "").strip().lower()
         api_key = str(body.apiKey or "").strip()
         base_url = str(body.baseUrl or "").strip()
+        if provider not in PROVIDERS:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "unknown_provider", "provider": provider})
 
         # ── clear variant: remove the provider's rows, respond with the same
         # fresh status shape as a save (plus managedByEnvironment honesty when
@@ -373,9 +400,17 @@ else:
                     status_code=400,
                     content={"ok": False, "error": "unknown_provider", "provider": provider},
                 )
+            clearing_selected = str(getattr(_settings(), "VOICE_API_PROVIDER", "")) == provider
+            if clearing_selected:
+                keys += ("VOICE_API_PROVIDER", "VOICE_PROVIDER", "VOICE_API_STYLE")
             removed, managed = _remove_voice_env(keys)
             if not removed:
                 return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+            if clearing_selected:
+                written, mode_managed = _persist_voice_env({"VOICE_PROVIDER": "disabled"})
+                if not written:
+                    return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+                managed.extend(mode_managed)
             from services.config import get_settings
 
             get_settings.cache_clear()
@@ -392,6 +427,12 @@ else:
                     "geminiKeySet": bool(summary.get("geminiKeySet", False)),
                     "anthropicKeySet": bool(summary.get("anthropicKeySet", False)),
                     "chatModelConfigured": summary["chatModelConfigured"],
+                    "apiProvider": summary.get("apiProvider"),
+                    "chatModel": summary.get("chatModel"),
+                    "apiStyle": summary.get("apiStyle"),
+                    "keySet": summary.get("keySet"),
+                    "keysSet": summary.get("keysSet", {}),
+                    "realtime": summary.get("realtime"),
                 },
                 "degradedReason": summary["degradedReason"],
                 "managedByEnvironment": bool(managed),
@@ -406,7 +447,51 @@ else:
             return payload
 
         updates: dict[str, str] = {}
-        if provider == "openai":
+        if body.mode is not None or provider not in {"openai", "gemini", "anthropic", "compat"}:
+            profile = PROVIDERS[provider]
+            mode = body.mode or "text"
+            saved = _merged_operator_env()
+            if mode == "realtime" and provider not in {"openai", "gemini", "compat"}:
+                return JSONResponse(status_code=400, content={"ok": False, "error": "realtime_unsupported"})
+            if provider in LOCAL_PROVIDERS:
+                same_profile = str(saved.get("VOICE_API_PROVIDER") or "") == provider
+                candidate = base_url or str((saved.get("VOICE_COMPAT_BASE_URL") if same_profile else "") or profile["base"])
+                try:
+                    candidate = normalize_base(candidate)
+                except ValueError as exc:
+                    return JSONResponse(status_code=400, content={"ok": False, "error": "invalid_base_url", "detail": str(exc)})
+                updates["VOICE_COMPAT_BASE_URL"] = candidate
+                # A changed destination must never inherit the previous gateway's key.
+                if candidate != str(saved.get("VOICE_COMPAT_BASE_URL") or "").rstrip("/"):
+                    old_key = str(saved.get(profile["key"]) or "").strip()
+                    if old_key and not api_key:
+                        return JSONResponse(status_code=400, content={"ok": False, "error": "key_rebind_required", "detail": "Clear the previous gateway credential or explicitly provide a key for this new destination."})
+                    if old_key and old_key != api_key:
+                        from services.api_settings import OPERATOR_KEYS_ENV_PATH, _parse_env_file
+
+                        rows = _parse_env_file(OPERATOR_KEYS_ENV_PATH)
+                        if os.environ.get(profile["key"]) and os.environ[profile["key"]] != rows.get(profile["key"]):
+                            return JSONResponse(status_code=400, content={"ok": False, "error": "environment_key_locked", "detail": "Remove the environment-managed gateway key before changing its destination and credential."})
+                    updates[profile["key"]] = api_key
+            elif not api_key and not str(saved.get(profile["key"]) or "").strip():
+                return JSONResponse(status_code=400, content={"ok": False, "error": "missing_field", "field": "apiKey"})
+            if api_key:
+                updates[profile["key"]] = api_key
+            updates["VOICE_API_PROVIDER"] = provider
+            updates["VOICE_API_STYLE"] = body.apiStyle or profile["style"]
+            if provider in {"anthropic", "gemini"}:
+                updates["VOICE_API_STYLE"] = profile["style"]
+            model = str(body.model or "").strip()
+            if mode == "text":
+                updates["VOICE_PROVIDER"] = "anthropic_text" if provider == "anthropic" else "local_text"
+                updates["VOICE_CHAT_MODEL"] = model
+            else:
+                updates["VOICE_PROVIDER"] = {"openai": "openai_realtime", "gemini": "gemini_live", "compat": "compatible_ws"}[provider]
+                if model:
+                    updates["VOICE_GEMINI_MODEL" if provider == "gemini" else "VOICE_MODEL_STANDARD"] = model
+                if body.chatModel is not None:
+                    updates["VOICE_CHAT_MODEL"] = str(body.chatModel).strip()
+        elif provider == "openai":
             if not api_key:
                 return JSONResponse(
                     status_code=400,
@@ -441,7 +526,10 @@ else:
                     status_code=400,
                     content={"ok": False, "error": "missing_field", "field": "baseUrl"},
                 )
-            updates["VOICE_COMPAT_BASE_URL"] = base_url
+            try:
+                updates["VOICE_COMPAT_BASE_URL"] = normalize_base(base_url)
+            except ValueError as exc:
+                return JSONResponse(status_code=400, content={"ok": False, "error": "invalid_base_url", "detail": str(exc)})
             if api_key:
                 updates["VOICE_COMPAT_API_KEY"] = api_key
             # Persist the chat-model row too (setup card's model field) so
@@ -465,6 +553,8 @@ else:
         summary = resolve_provider(get_settings())
         return {
             "ok": True,
+            "managedByEnvironment": bool(_managed),
+            "note": "Environment-managed settings remain authoritative: " + ", ".join(_managed) if _managed else "",
             "provider": {
                 "resolved": summary["resolved"],
                 "requestedMode": summary["requestedMode"],
@@ -474,6 +564,12 @@ else:
                 "geminiKeySet": bool(summary.get("geminiKeySet", False)),
                 "anthropicKeySet": bool(summary.get("anthropicKeySet", False)),
                 "chatModelConfigured": summary["chatModelConfigured"],
+                    "apiProvider": summary.get("apiProvider"),
+                    "chatModel": summary.get("chatModel"),
+                    "apiStyle": summary.get("apiStyle"),
+                    "keySet": summary.get("keySet"),
+                    "keysSet": summary.get("keysSet", {}),
+                    "realtime": summary.get("realtime"),
             },
             "degradedReason": summary["degradedReason"],
         }
@@ -481,6 +577,108 @@ else:
     # ------------------------------------------------------------------
     # POST /api/voice/session — mint one short-lived session grant
     # ------------------------------------------------------------------
+
+    def _speech_configuration() -> dict:
+        from services.voice_broker import _merged_operator_env
+        from services.voice_transcription import speech_connection
+
+        connection = speech_connection(_settings(), _merged_operator_env())
+        return {"provider": connection["provider"], "model": connection["model"], "baseUrl": connection["base"], "ready": connection["ready"], "keySet": bool(connection["key"])}
+
+    @router.get("/api/voice/speech-settings", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def read_speech_settings(request: Request):
+        try:
+            return {"ok": True, **_speech_configuration()}
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "detail": str(exc)})
+
+    @router.post("/api/voice/speech-settings", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("10/minute")
+    async def save_speech_settings(request: Request, body: SpeechSettingsRequest):
+        from services.api_settings import OPERATOR_KEYS_ENV_PATH, _parse_env_file
+        from services.config import get_settings
+        from services.voice_broker import _merged_operator_env
+        from services.voice_providers import normalize_base
+
+        env = _merged_operator_env()
+        key = str(body.apiKey or "").strip()
+        updates = {"VOICE_STT_PROVIDER": body.provider, "VOICE_STT_MODEL": body.model.strip()}
+        if body.provider == "off":
+            removed, key_managed = _remove_voice_env(("VOICE_STT_API_KEY", "VOICE_STT_BASE_URL"))
+            if not removed:
+                return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+        else:
+            key_managed = []
+            base = ""
+            if body.provider == "compat":
+                try:
+                    base = normalize_base(str(body.baseUrl or ""))
+                except ValueError as exc:
+                    return JSONResponse(status_code=400, content={"ok": False, "detail": str(exc)})
+                updates["VOICE_STT_BASE_URL"] = base
+            changed = body.provider != str(env.get("VOICE_STT_PROVIDER") or "off") or (body.provider == "compat" and base != str(env.get("VOICE_STT_BASE_URL") or ""))
+            old_key = str(env.get("VOICE_STT_API_KEY") or "").strip()
+            if changed and old_key and not key:
+                return JSONResponse(status_code=400, content={"ok": False, "error": "key_rebind_required", "detail": "Disable the previous speech connection or explicitly provide a key for the new destination."})
+            if changed and old_key and old_key != key:
+                rows = _parse_env_file(OPERATOR_KEYS_ENV_PATH)
+                if os.environ.get("VOICE_STT_API_KEY") and os.environ["VOICE_STT_API_KEY"] != rows.get("VOICE_STT_API_KEY"):
+                    return JSONResponse(status_code=400, content={"ok": False, "error": "environment_key_locked"})
+            fallback_key = env.get("VOICE_OPENAI_API_KEY" if body.provider == "openai" else "VOICE_GEMINI_API_KEY") if body.provider != "compat" else ""
+            if body.provider != "compat" and not (key or old_key or fallback_key):
+                return JSONResponse(status_code=400, content={"ok": False, "error": "missing_field", "field": "apiKey"})
+            if key:
+                updates["VOICE_STT_API_KEY"] = key
+        written, managed = _persist_voice_env(updates)
+        if not written:
+            return JSONResponse(status_code=500, content={"ok": False, "error": "persist_failed"})
+        get_settings.cache_clear()
+        return {"ok": True, **_speech_configuration(), "managedByEnvironment": bool(managed or key_managed)}
+
+    @router.get("/api/voice/speech-models", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("30/minute")
+    async def speech_models(request: Request):
+        from services.voice_broker import _merged_operator_env
+        from services.voice_providers import discover_models
+        from services.voice_transcription import speech_connection
+
+        try:
+            connection = speech_connection(_settings(), _merged_operator_env())
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "detail": str(exc)})
+        if connection["provider"] == "off":
+            return {"ok": True, "models": [], "note": "Configure speech input first."}
+        return await discover_models(connection["provider"], connection, mode="speech")
+
+    @router.post("/api/voice/transcribe", dependencies=[Depends(require_local_operator)])
+    @limiter.limit("20/minute")
+    async def voice_transcribe(request: Request, body: TranscriptionRequest):
+        from services.voice_broker import _merged_operator_env, _meter_chat_usage, resolve_provider
+        from services.voice_transcription import speech_connection, transcribe_audio, validate_audio
+
+        settings = _settings()
+        if not _opt_in_state(settings)[0]:
+            return JSONResponse(status_code=403, content=_opt_in_refusal_payload(resolve_provider(settings)["reasons"]))
+        budget_refusal, _gate = _budget_gate(settings)
+        if budget_refusal is not None:
+            return budget_refusal
+        try:
+            connection = speech_connection(settings, _merged_operator_env())
+            if not connection["ready"]:
+                return JSONResponse(status_code=503, content={"ok": False, "error": "speech_unconfigured"})
+            audio, duration = validate_audio(body.audio)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "invalid_audio", "detail": str(exc)})
+        result = await transcribe_audio(audio, connection)
+        if not result.get("ok"):
+            return JSONResponse(status_code=502, content=result)
+        usage = result.pop("usage", None)
+        estimated = not isinstance(usage, dict) or not (usage.get("input_tokens") or usage.get("output_tokens"))
+        if estimated:
+            usage = {"input_tokens": int(duration * max(1, settings.VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC)), "output_tokens": max(1, len(result["text"]) // 4)}
+        _meter_chat_usage(connection["model"], usage)
+        return {**result, "estimated": estimated}
 
     @router.post("/api/voice/session", status_code=201, dependencies=[Depends(require_local_operator)])
     @limiter.limit("10/minute")
@@ -615,6 +813,10 @@ else:
             provider_probe = resolve_provider(s)
             return JSONResponse(status_code=403, content=_opt_in_refusal_payload(provider_probe["reasons"]))
 
+        budget_refusal, _gate = _budget_gate(s)
+        if budget_refusal is not None:
+            return budget_refusal
+
         messages = []
         for entry in body.history[-8:]:
             if isinstance(entry, dict) and str(entry.get("role")) in ("user", "assistant"):
@@ -652,88 +854,34 @@ else:
         request: Request,
         provider: str = Query(None),
         baseUrl: str = Query(None),
+        mode: Literal["text", "realtime"] | None = Query(None),
     ):
-        """List selectable model ids for the setup card's dropdown.
-
-        Compat gateways (OpenRouter, Ollama, …) are queried LIVE server-side
-        ({base}/models, OpenAI list shape) so the operator picks from what
-        the gateway actually offers. OpenAI/Gemini have no guaranteed list
-        endpoint — curated static lists, marked curated:true. Unconfigured
-        degrades honestly; this endpoint never 500s and never fabricates a
-        gateway list.
-        """
-        from services.voice_broker import resolve_provider
+        """Discover current models using only this provider's saved destination/key."""
+        from services.voice_broker import _merged_operator_env, resolve_provider
+        from services.voice_providers import PROVIDERS, PROVIDER_ALIASES, connection_for, discover_models, normalize_base
 
         if "apiKey" in request.query_params:
             raise HTTPException(400, "Save credentials through the provider endpoint, not a URL.")
-
-        s = _settings()
-        info = resolve_provider(s)
-        resolved = str(provider or "").strip().lower() or info["resolved"]
-
-        if resolved == "openai_realtime":
-            curated = ["gpt-realtime", "gpt-realtime-mini", "gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"]
-            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
-        if resolved in ("gemini_live", "gemini"):
-            curated = [
-                "gemini-3.1-flash-live-preview",
-                "gemini-2.0-flash-live-001",
-                "gemini-3.5-live-translate-preview",
-            ]
-            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
-
-        # Anthropic has no list endpoint either — curated static Claude ids.
-        # Text-only: these models serve the typed console / briefs leg only.
-        if resolved in ("anthropic_text", "anthropic"):
-            curated = ["claude-sonnet-4-5", "claude-opus-4-1", "claude-3-5-haiku-latest"]
-            return {"ok": True, "models": [{"id": m} for m in curated], "curated": True}
-
-        if resolved in ("compatible_ws", "compat"):
-            base = str(info.get("compatBase") or "").strip().rstrip("/")
-            if baseUrl and str(baseUrl).strip().rstrip("/") != base:
+        settings = _settings()
+        info = resolve_provider(settings)
+        selected = str(provider or info.get("apiProvider") or info["resolved"] or "").strip().lower()
+        selected = PROVIDER_ALIASES.get(selected, selected)
+        if not selected:
+            return {"ok": True, "models": [], "note": "Save a provider first.", "live": False}
+        if selected not in PROVIDERS:
+            raise HTTPException(400, "Unknown provider")
+        try:
+            connection = connection_for(selected, settings, _merged_operator_env())
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+        if baseUrl:
+            try:
+                matches = normalize_base(baseUrl) == connection["base"]
+            except ValueError:
+                matches = False
+            if not matches:
                 raise HTTPException(400, "Save this gateway before fetching its model list.")
-            key = str(info.get("compatKey") or "").strip()
-            if not base:
-                return {"ok": True, "models": [], "note": "save a provider first"}
-            from urllib.parse import urlsplit
-
-            destination = urlsplit(base)
-            if destination.scheme not in {"http", "https"} or not destination.hostname or destination.username or destination.password or destination.query or destination.fragment:
-                raise HTTPException(400, "Gateway must be an HTTP(S) base URL without credentials, query, or fragment.")
-            import httpx
-
-            headers = {"Authorization": f"Bearer {key}"} if key else {}
-            last_detail = ""
-            base_root = base[:-3] if base.endswith("/v1") else base  # no double-/v1
-            for url in (f"{base}/models", f"{base_root}/v1/models"):
-                try:
-                    async with httpx.AsyncClient(timeout=10.0) as ac:
-                        resp = await ac.get(url, headers=headers)
-                except Exception as exc:
-                    last_detail = f"{type(exc).__name__}: {exc}"
-                    continue
-                if resp.status_code == 200:
-                    try:
-                        data = resp.json()
-                    except ValueError:
-                        last_detail = f"non-JSON model list from {url}"
-                        continue
-                    ids = sorted(
-                        {
-                            str(m.get("id"))
-                            for m in (data.get("data") or [])
-                            if isinstance(m, dict) and m.get("id")
-                        }
-                    )[:100]
-                    return {"ok": True, "models": [{"id": i} for i in ids]}
-                last_detail = f"HTTP {resp.status_code} from {url}"
-            return JSONResponse(
-                status_code=200,
-                content={"ok": False, "error": "models_unavailable", "detail": last_detail},
-            )
-
-        # local_text / unconfigured — honest empty, never a fabricated list.
-        return {"ok": True, "models": [], "note": "save a provider first"}
+        return await discover_models(selected, connection, mode=mode or "text")
 
     @router.post("/api/voice/tool", dependencies=[Depends(require_local_operator)])
     @limiter.limit("60/minute")

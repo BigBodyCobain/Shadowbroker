@@ -378,6 +378,11 @@ class Settings(BaseSettings):
     # Provider/model resolution. Resolution order matches get_settings():
     # process env → data/operator_api_keys.env rows → pydantic default.
     VOICE_PROVIDER: str = "auto"        # auto | openai_realtime | compatible_ws | gemini_live | anthropic_text | local_text
+    VOICE_API_PROVIDER: str = ""        # explicit setup selection; empty preserves legacy auto resolution
+    VOICE_API_STYLE: str = ""           # chat | responses | messages (provider default when empty)
+    VOICE_STT_PROVIDER: str = "off"     # off | openai | gemini | compat (local speech API)
+    VOICE_STT_MODEL: str = ""
+    VOICE_STT_BASE_URL: str = ""
     VOICE_OPENAI_BASE_URL: str = "https://api.openai.com"
     VOICE_COMPAT_BASE_URL: str = ""     # e.g. http://127.0.0.1:11434/v1 (Ollama)
     VOICE_GEMINI_MODEL: str = "gemini-3.1-flash-live-preview"   # Gemini Live (U8 provider #2)

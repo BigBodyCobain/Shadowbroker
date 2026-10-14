@@ -240,6 +240,7 @@ class TestPickerLoop:
         result = _run(broker.run_picker_turn("summary"))
         assert result["tool_results"][0]["envelope"] == {"ok": True, "data": {"cmd": "get_summary"}}
         assert result["tool_results"][0]["ok"] is True
+        assert result["say"] == "done"  # null narration must not become the spoken word None
 
     def test_parse_tool_call_tolerates_fences_and_prose(self):
         from services.voice_broker import parse_tool_call

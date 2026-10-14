@@ -216,6 +216,7 @@ function templateReply(cmd: string, envelope: ToolResult): string {
 export async function runDeterministicTurn(
   text: string,
   ctx: ClientToolContext,
+  signal?: AbortSignal,
 ): Promise<DeterministicOutcome> {
   const raw = String(text || '').trim();
   const resolution = resolveDeterministic(raw, ctx);
@@ -314,6 +315,31 @@ export async function runDeterministicTurn(
 
   if (resolution.kind === 'local_reply') {
     return { steps, reply: resolution.reply };
+  }
+
+  const state = voiceController.getState();
+  if (state.providerResolved && state.textModelConfigured && !['opt-in-required', 'lean-unavailable', 'quota-capped'].includes(state.phase)) {
+    const history = state.turns.slice(0, -1).filter((turn) => turn.kind !== 'tool')
+      .slice(-8).map((turn) => ({ role: turn.role === 'operator' ? 'user' : 'assistant', content: turn.text }));
+    const response = await fetch(`${API_BASE}/api/voice/turn`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: raw, history }),
+      signal,
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      const detail = String(result.detail || result.error || `HTTP ${response.status}`);
+      return { steps: [{ tool: null, argsSummary: '', ok: false, detail }], reply: detail };
+    }
+    for (const row of result.tool_results || []) {
+      steps.push({ tool: String(row.tool), argsSummary: '', ok: row.ok === true, detail: String(row.envelope?.error || row.envelope?.detail || '') });
+    }
+    for (const call of result.client_calls || []) {
+      if (signal?.aborted) return { steps, reply: 'cancelled' };
+      const applied = await executeClientVerb(String(call.name), call.args || {}, ctx);
+      record(applied, String(call.name), JSON.stringify(call.args || {}));
+    }
+    return { steps, reply: String(result.say || '') };
   }
 
   // ── route_query path ────────────────────────────────────────────────────

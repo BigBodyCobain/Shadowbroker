@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { voiceController } from '@/lib/voiceController';
 import VoiceSetupCard from '@/components/VoiceSetupCard';
+import VoiceDictationControls from '@/components/VoiceDictationControls';
 import { useTranslation } from '@/i18n';
 import type { FreshnessDisposition } from '@/lib/voiceFreshness';
 
@@ -45,6 +46,7 @@ export default function VoiceHudPanel({
   }, [state.composerFocusNonce]);
 
   const submit = () => {
+    if (state.phase === 'thinking') return;
     const text = value.trim();
     if (!text) return;
     setValue('');
@@ -72,7 +74,7 @@ export default function VoiceHudPanel({
   const costTooltip = costParts.join(' — ');
 
   return (
-    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[520px] max-w-[92vw] max-h-[420px] z-[200] bg-[var(--bg-secondary)] border border-violet-500/40 shadow-[0_-8px_30px_rgba(0,0,0,0.4)] flex flex-col" data-testid="voice-hud-panel">
+    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[520px] max-w-[92vw] max-h-[75vh] overflow-y-auto styled-scrollbar z-[200] bg-[var(--bg-secondary)] border border-violet-500/40 shadow-[0_-8px_30px_rgba(0,0,0,0.4)] flex flex-col" data-testid="voice-hud-panel">
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-primary)]">
         <span className="text-[11px] text-violet-400 font-mono font-bold tracking-widest">{`>_ ${t('voice.panel.title')}`}</span>
@@ -147,7 +149,7 @@ export default function VoiceHudPanel({
       ) : (
       <>
       {state.phase !== 'lean-unavailable' &&
-        (setupOpen || state.providerResolved === null || state.providerResolved === 'local_text') && (
+        (setupOpen || state.providerResolved === null || (state.providerResolved === 'local_text' && !state.apiProvider)) && (
           <VoiceSetupCard />
         )}
       {/* Narration renders ONLY when an actual brief exists — no placeholder
@@ -232,6 +234,9 @@ export default function VoiceHudPanel({
       </div>
 
       {/* Composer — always present; typed text drives the identical pipeline */}
+      {state.phase !== 'opt-in-required' && state.phase !== 'lean-unavailable' && (
+        <VoiceDictationControls onSubmit={onSubmit} />
+      )}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-[var(--border-primary)]">
         {state.degraded && (
           <span className="px-1 py-[1px] text-[11px] font-mono bg-cyan-500/10 border border-cyan-800/50 text-cyan-400 whitespace-nowrap" data-testid="voice-text-mode-chip">

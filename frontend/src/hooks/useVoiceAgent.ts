@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
 import { voiceController, type VoiceControllerState } from '@/lib/voiceController';
 import { runDeterministicTurn } from '@/lib/voiceDeterministic';
+import { voiceSpeech } from '@/lib/voiceSpeech';
 import { VoiceAudioClient, type VoiceAudioPhase } from '@/lib/voiceAudioClient';
 import { useVoiceGrounding } from '@/hooks/useVoiceGrounding';
 import type { ClientToolContext } from '@/lib/clientTools';
@@ -68,6 +69,8 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   // U8 realtime speech-to-speech: one audio session per PTT hold. The client
   // is controller-free (testable); this hook is its single wiring point.
   const audioClientRef = useRef<VoiceAudioClient | null>(null);
+  const textRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => textRequestRef.current?.abort(), []);
 
   const realtimeActive = isRealtimeProvider(state.providerResolved);
 
@@ -160,10 +163,14 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
 
   const submitText = useCallback(async (text: string) => {
     const trimmed = String(text ?? '').trim();
-    if (!trimmed) return;
+    if (!trimmed || textRequestRef.current) return;
+    const request = new AbortController();
+    textRequestRef.current = request;
+    voiceController.beginThinking();
     voiceController.pushTurn({ role: 'operator', kind: 'text', text: trimmed.slice(0, 500) });
     try {
-      const outcome = await runDeterministicTurn(trimmed, bindingsRef.current);
+      const outcome = await runDeterministicTurn(trimmed, bindingsRef.current, request.signal);
+      if (request.signal.aborted) return;
       for (const step of outcome.steps) {
         voiceController.pushTurn({
           role: 'agent',
@@ -182,17 +189,30 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
         });
       }
       voiceController.pushTurn({ role: 'agent', kind: 'text', text: outcome.reply });
+      if (voiceController.getState().readReplies) {
+        voiceSpeech.probe();
+        voiceSpeech.say(outcome.reply);
+      }
     } catch (err) {
+      if (request.signal.aborted) return;
       // Verbatim honesty: render the real error string, never a fabricated success.
       voiceController.pushTurn({
         role: 'agent',
         kind: 'text',
         text: err instanceof Error && err.message ? err.message : 'console loop failed',
       });
+    } finally {
+      if (textRequestRef.current === request) {
+        textRequestRef.current = null;
+        const latest = voiceController.getState();
+        if (!latest.pttHeld && latest.phase === 'thinking') voiceController.backToIdle();
+      }
     }
   }, []);
 
   const cancelActive = useCallback(() => {
+    textRequestRef.current?.abort();
+    textRequestRef.current = null;
     // Esc cancels an open mic or aborts a thinking turn — an active audio
     // session is terminated the same honest way as a PTT release.
     const client = audioClientRef.current;

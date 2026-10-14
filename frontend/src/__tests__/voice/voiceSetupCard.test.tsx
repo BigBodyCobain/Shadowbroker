@@ -137,20 +137,31 @@ describe('VoiceSetupCard (panel disabled state)', () => {
 
     const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
     expect(provCalls).toHaveLength(1);
-    // Gemini prefills its current Live model id — persisted server-side as VOICE_GEMINI_MODEL.
-    expect(provCalls[0].body).toEqual({ provider: 'gemini', apiKey: 'gm-key-1', model: 'gemini-3.1-flash-live-preview' });
+    // Text is the default; model IDs come from live discovery or free text.
+    expect(provCalls[0].body).toEqual({ provider: 'gemini', mode: 'text', apiStyle: 'chat', apiKey: 'gm-key-1' });
 
     // Resolved provider echoed back honestly.
     expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('gemini_live');
   });
 
-  it('shows the Voice-is-on confirmation once both steps succeed', async () => {
+  it('shows the connected confirmation after saving a model', async () => {
+    stubFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.change(screen.getByTestId('voice-setup-model'), { target: { value: 'test-model' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    expect(await screen.findByTestId('voice-setup-done')).not.toBeNull();
+  });
+
+  it('does not claim a connection after saving credentials without a model', async () => {
     stubFetch();
     render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
     fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
     await screen.findByTestId('voice-setup-optin-done');
     fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
-    expect(await screen.findByTestId('voice-setup-done')).not.toBeNull();
+    await screen.findByTestId('voice-setup-provider-result');
+    expect(screen.queryByTestId('voice-setup-done')).toBeNull();
   });
 
   it('renders a managedByEnvironment note verbatim', async () => {
@@ -284,8 +295,8 @@ describe('OpenRouter preset + live model dropdown (GET /api/voice/models)', () =
     await screen.findByTestId('voice-setup-optin-done');
 
     fireEvent.click(screen.getByTestId('voice-setup-provider-openrouter'));
-    const baseUrlInput = screen.getByTestId('voice-setup-base-url') as HTMLInputElement;
-    expect(baseUrlInput.value).toBe('https://openrouter.ai/api/v1');
+    // Hosted presets own their server-side destination.
+    expect(screen.queryByTestId('voice-setup-base-url')).toBeNull();
 
     // Debounced models fetch resolves into a dropdown of gateway model ids.
     const select = (await screen.findByTestId('voice-setup-model-select', {}, { timeout: 3000 })) as HTMLSelectElement;
@@ -301,8 +312,9 @@ describe('OpenRouter preset + live model dropdown (GET /api/voice/models)', () =
     await screen.findByTestId('voice-setup-provider-result');
     const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
     expect(provCalls[0].body).toEqual({
-      provider: 'compat',
-      baseUrl: 'https://openrouter.ai/api/v1',
+      provider: 'openrouter',
+      mode: 'text',
+      apiStyle: 'chat',
       model: 'qwen/qwen3-235b',
     });
   });
@@ -380,7 +392,7 @@ describe('Anthropic + Custom endpoint presets', () => {
 
     fireEvent.click(screen.getByTestId('voice-setup-provider-anthropic'));
     // Honesty label: Claude is TEXT-ONLY — typed console + briefs, no voice.
-    expect(screen.getByTestId('voice-setup-anthropic-note').textContent).toContain('Text-only');
+    expect(screen.getByTestId('voice-setup-anthropic-note').textContent).toContain('dictate');
 
     // Model dropdown fed by GET /api/voice/models?provider=anthropic.
     const select = (await screen.findByTestId('voice-setup-model-select', {}, { timeout: 3000 })) as HTMLSelectElement;
@@ -393,7 +405,7 @@ describe('Anthropic + Custom endpoint presets', () => {
     await screen.findByTestId('voice-setup-provider-result');
 
     const provCalls = calls.filter((c) => c.url.includes('/api/voice/provider'));
-    expect(provCalls[0].body).toEqual({ provider: 'anthropic', apiKey: 'sk-ant-1', model: 'claude-sonnet-4-5' });
+    expect(provCalls[0].body).toEqual({ provider: 'anthropic', mode: 'text', apiStyle: 'chat', apiKey: 'sk-ant-1', model: 'claude-sonnet-4-5' });
     expect(screen.getByTestId('voice-setup-provider-result').textContent).toContain('anthropic_text');
   });
 
@@ -417,6 +429,8 @@ describe('Anthropic + Custom endpoint presets', () => {
     expect(provCalls[0].body).toEqual({
       provider: 'compat',
       baseUrl: 'https://gw.corp.example/v1',
+      mode: 'text',
+      apiStyle: 'chat',
       apiKey: 'gw-key-9',
       model: 'my-model',
     });
@@ -565,7 +579,50 @@ describe('key management — Replace key / clear affordances for a configured pr
     expect(saveCall?.body).toEqual({
       provider: 'gemini',
       apiKey: 'gm-replacement',
-      model: 'gemini-3.1-flash-live-preview',
+      mode: 'text',
+      apiStyle: 'chat',
     });
+  });
+});
+
+describe('multi-provider and local model setup', () => {
+  beforeEach(() => {
+    voiceController.resetForNewSession();
+    voiceController.resetTranscript();
+    voiceController.applyStatus(disabledStatus());
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it.each([
+    ['xai', 'xai'], ['meta', 'meta'], ['lmstudio', 'lmstudio'], ['local', 'ollama'],
+    ['openrouter', 'openrouter'], ['anthropic', 'anthropic'], ['gemini', 'gemini'], ['custom', 'compat'],
+  ])('saves %s as an explicit text provider with the selected model', async (preset, provider) => {
+    const calls = stubSetupFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.click(screen.getByTestId(`voice-setup-provider-${preset}`));
+    expect((screen.getByTestId('voice-setup-mode') as HTMLSelectElement).value).toBe('text');
+    if (preset === 'custom') fireEvent.change(screen.getByTestId('voice-setup-base-url'), { target: { value: 'http://localhost:4141/v1' } });
+    fireEvent.change(screen.getByTestId('voice-setup-model'), { target: { value: 'current-served-model' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+    expect(calls.find((call) => call.url.endsWith('/api/voice/provider'))?.body).toMatchObject({ provider, mode: 'text', model: 'current-served-model' });
+  });
+
+  it('supports Responses on a custom server and clears a typed credential when changing provider', async () => {
+    const calls = stubSetupFetch();
+    render(<VoiceHudPanel onSubmit={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-setup-turn-on'));
+    await screen.findByTestId('voice-setup-optin-done');
+    fireEvent.change(screen.getByTestId('voice-setup-api-key'), { target: { value: 'previous-secret' } });
+    fireEvent.click(screen.getByTestId('voice-setup-provider-custom'));
+    expect((screen.getByTestId('voice-setup-api-key') as HTMLInputElement).value).toBe('');
+    fireEvent.change(screen.getByTestId('voice-setup-api-style'), { target: { value: 'responses' } });
+    fireEvent.change(screen.getByTestId('voice-setup-base-url'), { target: { value: 'http://localhost:4141/v1' } });
+    fireEvent.change(screen.getByTestId('voice-setup-model'), { target: { value: 'current-gpt-model' } });
+    fireEvent.click(screen.getByTestId('voice-setup-save-provider'));
+    await screen.findByTestId('voice-setup-provider-result');
+    expect(calls.find((call) => call.url.endsWith('/api/voice/provider'))?.body).toEqual({ provider: 'compat', mode: 'text', apiStyle: 'responses', baseUrl: 'http://localhost:4141/v1', model: 'current-gpt-model' });
   });
 });

@@ -32,6 +32,12 @@ export interface VoiceStatusResponse {
     compatBaseUrlSet: boolean;
     geminiKeySet: boolean;
     chatModelConfigured: boolean;
+    apiProvider?: string;
+    chatModel?: string;
+    keySet?: boolean;
+    keysSet?: Record<string, boolean>;
+    realtime?: boolean;
+    apiStyle?: string;
   };
   /** Verbatim-honest degradation reason, shown as-is. */
   degradedReason: string | null;

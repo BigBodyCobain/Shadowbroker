@@ -147,7 +147,9 @@ def resolve_provider(settings=None) -> dict[str, Any]:
     # speech API (Claude is text-in/text-out), so it must never resolve as a
     # realtime provider: the WS relay and PTT gate treat it like local_text.
     candidates: list[str] = []
-    if requested_mode in ("auto", ""):
+    if requested_mode == "disabled":
+        candidates = []
+    elif requested_mode in ("auto", ""):
         candidates = ["openai_realtime", "compatible_ws", "gemini_live", "anthropic_text", "local_text"]
     elif requested_mode in (
         "openai_realtime",
@@ -180,6 +182,18 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         if candidate == "local_text" and chat_model_configured:
             resolved = "local_text"
             break
+
+    from services.voice_providers import LOCAL_PROVIDERS, PROVIDERS, connection_for
+
+    api_provider = str(getattr(s, "VOICE_API_PROVIDER", "") or "").strip()
+    connection = None
+    if api_provider in PROVIDERS:
+        try:
+            connection = connection_for(api_provider, s, env)
+        except ValueError:
+            connection = None
+        ready = connection and connection["base"] and (connection["key"] or api_provider in LOCAL_PROVIDERS)
+        resolved = requested_mode if ready and (requested_mode != "local_text" or chat_model_configured) else None
 
     reasons: list[str] = []
     enable_raw = str(getattr(s, "VOICE_AGENT_OUTBOUND_ENABLE", "block") or "block").strip().lower()
@@ -216,6 +230,11 @@ def resolve_provider(settings=None) -> dict[str, Any]:
         "geminiKeySet": gemini_key_set,
         "anthropicKeySet": anthropic_key_set,
         "chatModelConfigured": chat_model_configured,
+        "apiProvider": api_provider,
+        "apiStyle": connection["style"] if connection else "",
+        "keySet": bool(connection and connection["key"]),
+        "keysSet": {name: bool(str(env.get(profile["key"]) or "").strip()) for name, profile in PROVIDERS.items()},
+        "realtime": resolved in {"openai_realtime", "compatible_ws", "gemini_live"},
         "degradedReason": degraded_reason,
         "reasons": reasons,
         # Upstream dial details — server-only; never serialized to clients.
@@ -1232,7 +1251,22 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
         if message.get("role") == "tool" else message
         for message in messages
     ]
-    if provider["resolved"] == "anthropic_text":
+    protocol = "messages" if provider["resolved"] == "anthropic_text" else "chat"
+    api_provider = provider.get("apiProvider")
+    if api_provider:
+        from services.voice_providers import PROVIDERS, connection_for
+
+        if api_provider not in PROVIDERS:
+            return {"ok": False, "error": "chat_unconfigured"}
+        try:
+            connection = connection_for(api_provider, s, _merged_operator_env())
+        except ValueError:
+            return {"ok": False, "error": "invalid_provider_url"}
+        model_id = provider["chatModel"]
+        if not model_id:
+            return {"ok": False, "error": "chat_unconfigured"}
+        base, api_key, protocol = connection["base"], connection["key"], connection["style"]
+    elif provider["resolved"] == "anthropic_text":
         # Anthropic branch (text-only): Claude is text-in/text-out — there is
         # NO separate Anthropic voice model, so the VOICE_CHAT_MODEL setting
         # doubles as the Anthropic model id; the curated-list head is the
@@ -1257,11 +1291,11 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
             return {"ok": False, "error": "chat_unconfigured"}
         model_id = provider["chatModel"]
         base = str(provider["compatBase"] or provider["openaiBase"]).rstrip("/")
-        api_key = provider["compatKey"] or provider["openaiKey"]
+        api_key = provider["compatKey"] if provider["compatBase"] else provider["openaiKey"]
 
     import httpx
 
-    if provider["resolved"] == "anthropic_text":
+    if protocol == "messages":
         # Messages API contract: system content collapses into a single
         # ``system`` string and the ``messages`` array excludes it.
         system_parts = [str(m.get("content") or "") for m in messages if m.get("role") == "system"]
@@ -1283,13 +1317,16 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
-        url = f"{base}/v1/messages"
+        url = f"{base}/messages" if base.endswith("/v1") else f"{base}/v1/messages"
     else:
         payload = {"model": model_id, "messages": messages}
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         url = f"{base}/chat/completions"
+        if protocol == "responses":
+            payload = {"model": model_id, "input": messages, "store": False}
+            url = f"{base}/responses"
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, json=payload, headers=headers)
@@ -1301,14 +1338,29 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
             "ok": False,
             "error": "upstream_error",
             "status": response.status_code,
-            "detail": response.text[:500],
+            "detail": response.text.replace(api_key, "[redacted]")[:500] if api_key else response.text[:500],
         }
     try:
         body = response.json()
     except ValueError:
         return {"ok": False, "error": "upstream_malformed_response"}
+    if not isinstance(body, dict):
+        return {"ok": False, "error": "upstream_malformed_response"}
     result: dict[str, Any] = {"ok": True, "reply": None, "model": model_id}
-    if provider["resolved"] == "anthropic_text":
+    if protocol == "responses":
+        reply = "".join(
+            str(part.get("text") or "")
+            for item in body.get("output", []) if isinstance(item, dict) and item.get("type") == "message"
+            for part in item.get("content", []) if isinstance(part, dict) and part.get("type") == "output_text"
+        )
+        if not reply:
+            return {"ok": False, "error": "upstream_malformed_response"}
+        result["reply"] = reply
+        if isinstance(body.get("usage"), dict):
+            result["usage"] = body["usage"]
+            _meter_chat_usage(model_id, body["usage"])
+        return result
+    if protocol == "messages":
         try:
             reply = "".join(
                 str(block.get("text") or "")
@@ -1458,7 +1510,7 @@ async def run_picker_turn(
             return dict(leg)  # typed chat-leg error envelope (503/502 surfaces)
 
         call = parse_tool_call(leg.get("reply"))
-        spoken = str((call or {}).get("say") if call else leg.get("reply")).strip()
+        spoken = str(((call or {}).get("say") if call else leg.get("reply")) or "").strip()
         if spoken:
             say_parts.append(spoken[:720])
         if call is None or not call.get("tool"):

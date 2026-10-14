@@ -1,4 +1,4 @@
-"""Voice setup API tests — first-class enablement (POST /api/voice/opt-in and
+"""Voice setup API tests â€” first-class enablement (POST /api/voice/opt-in and
 POST /api/voice/provider).
 
 Covers: opt-in round-trip flipping status.effectiveEnable, provider save
@@ -29,7 +29,7 @@ def voice_env(tmp_path, monkeypatch):
 
     The setup endpoints intentionally mutate os.environ (env-var-wins sync);
     those writes happen AFTER fixture setup, so monkeypatch cannot restore
-    them — teardown pops every remaining VOICE_* var explicitly.
+    them â€” teardown pops every remaining VOICE_* var explicitly.
     """
     from services.voice_broker import _sessions
     from services.voice_session_tokens import reset_voice_session_tokens_for_tests
@@ -83,7 +83,7 @@ def loopback(voice_env):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/voice/opt-in — round trip flips status.effectiveEnable
+# POST /api/voice/opt-in â€” round trip flips status.effectiveEnable
 # ---------------------------------------------------------------------------
 
 
@@ -126,7 +126,7 @@ class TestOptInEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/voice/provider — save resolves through resolve_provider
+# POST /api/voice/provider â€” save resolves through resolve_provider
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +204,7 @@ class TestProviderSaveEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/voice/provider — clear variant + replace-key upsert semantics
+# POST /api/voice/provider â€” clear variant + replace-key upsert semantics
 # ---------------------------------------------------------------------------
 
 
@@ -236,7 +236,7 @@ class TestProviderClearAndReplace:
         rows = self._operator_rows()
         assert "VOICE_GEMINI_API_KEY" not in rows
         assert "VOICE_GEMINI_MODEL" not in rows
-        # Live env was synced too — the provider stays de-armed in-process.
+        # Live env was synced too â€” the provider stays de-armed in-process.
         import os as _os
 
         assert not _os.environ.get("VOICE_GEMINI_API_KEY")
@@ -396,7 +396,7 @@ class TestMeshOnlyGuard:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/voice/models — model discovery for the setup card dropdown
+# GET /api/voice/models â€” model discovery for the setup card dropdown
 # ---------------------------------------------------------------------------
 
 
@@ -410,7 +410,7 @@ class _FakeResponse:
 
 
 class _FakeAsyncClient:
-    """Duck-typed httpx.AsyncClient — records requested URLs, returns queued
+    """Duck-typed httpx.AsyncClient â€” records requested URLs, returns queued
     responses per call."""
 
     requested: list = []
@@ -426,7 +426,7 @@ class _FakeAsyncClient:
     async def __aexit__(self, *exc):
         return False
 
-    async def get(self, url, headers=None):
+    async def get(self, url, headers=None, **kwargs):
         type(self).requested.append(url)
         type(self).headers.append(headers or {})
         idx = min(len(type(self).requested) - 1, len(type(self).responses) - 1)
@@ -443,39 +443,29 @@ def _patch_httpx(monkeypatch, responses):
 
 
 class TestVoiceModels:
-    def test_curated_list_for_openai(self, loopback):
-        body = loopback.get("/api/voice/models?provider=openai_realtime").json()
+    @pytest.mark.parametrize("provider", ["openai", "gemini"])
+    def test_unsaved_hosted_provider_has_no_fabricated_model_list(self, loopback, provider):
+        body = loopback.get(f"/api/voice/models?provider={provider}").json()
         assert body["ok"] is True
-        assert body["curated"] is True
-        ids = [m["id"] for m in body["models"]]
-        assert "gpt-realtime" in ids
+        assert body["models"] == []
+        assert body["live"] is False
 
-    def test_curated_list_for_gemini(self, loopback):
-        body = loopback.get("/api/voice/models?provider=gemini_live").json()
-        assert body["curated"] is True
-        ids = [m["id"] for m in body["models"]]
-        # Current Live lineup leads; the retired 2.0 id stays as secondary.
-        assert ids[0] == "gemini-3.1-flash-live-preview"
-        assert "gemini-2.0-flash-live-001" in ids
-        assert "gemini-3.5-live-translate-preview" in ids
-
-    def test_compat_queries_gateway_live_then_v1_fallback(self, loopback, monkeypatch):
+    def test_compat_queries_the_saved_gateway_live(self, loopback, monkeypatch):
         monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://gw.test/v1")
         monkeypatch.setenv("VOICE_COMPAT_API_KEY", "audit-synthetic-key")
         config_mod.get_settings.cache_clear()
         _patch_httpx(
             monkeypatch,
             [
-                _FakeResponse(404, {"error": "not found"}),
                 _FakeResponse(200, {"data": [{"id": "z-model"}, {"id": "a-model"}, {"nope": 1}]}),
             ],
         )
         body = loopback.get(
             "/api/voice/models?provider=compat&baseUrl=http://gw.test/v1"
         ).json()
-        # First probe hits {base}/models, fallback adds /v1 (no double-v1).
+        # The normalized saved base is used exactly once.
         assert "http://gw.test/v1/models" in _FakeAsyncClient.requested[0]
-        assert "http://gw.test/v1/v1/models" not in _FakeAsyncClient.requested[1]
+        assert _FakeAsyncClient.requested == ["http://gw.test/v1/models"]
         assert body["ok"] is True
         assert _FakeAsyncClient.headers[0] == {"Authorization": "Bearer audit-synthetic-key"}
         assert [m["id"] for m in body["models"]] == ["a-model", "z-model"]
@@ -495,13 +485,13 @@ class TestVoiceModels:
         assert body["models"] == []
         assert "note" in body
 
-    def test_models_list_capped_at_100(self, loopback, monkeypatch):
+    def test_models_list_capped_at_2000(self, loopback, monkeypatch):
         monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://gw.test")
         config_mod.get_settings.cache_clear()
-        big = {"data": [{"id": f"m{i:03d}"} for i in range(250)]}
+        big = {"data": [{"id": f"m{i:03d}"} for i in range(2005)]}
         _patch_httpx(monkeypatch, [_FakeResponse(200, big)])
         body = loopback.get("/api/voice/models?provider=compat&baseUrl=http://gw.test").json()
-        assert len(body["models"]) == 100
+        assert len(body["models"]) == 2000
 
     def test_saved_key_cannot_be_forwarded_to_another_destination(self, loopback, monkeypatch):
         monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "https://configured.example/v1")
@@ -517,3 +507,158 @@ class TestVoiceModels:
         response = loopback.get("/api/voice/models?provider=compat&apiKey=audit-synthetic-key")
         assert response.status_code == 400
         assert _FakeAsyncClient.requested == []
+
+
+class TestExplicitProviderSelection:
+    @pytest.mark.parametrize("provider", ["openai", "gemini", "anthropic", "xai", "openrouter", "meta", "ollama", "lmstudio", "compat"])
+    def test_new_setup_selects_a_text_provider_and_persists_it(self, loopback, voice_env, provider):
+        voice_env.setenv("VOICE_OPENAI_API_KEY", "synthetic-previous-openai-key")
+        config_mod.get_settings.cache_clear()
+        body = {"provider": provider, "mode": "text", "model": "current-model", "apiKey": "synthetic-new-key"}
+        if provider in {"ollama", "lmstudio", "compat"}:
+            body["baseUrl"] = "http://localhost:11434"
+        response = loopback.post("/api/voice/provider", json=body)
+        assert response.status_code == 200, response.text
+        summary = response.json()["provider"]
+        assert summary["apiProvider"] == provider
+        assert summary["resolved"] == ("anthropic_text" if provider == "anthropic" else "local_text")
+        assert summary["chatModel"] == "current-model"
+        assert summary["realtime"] is False
+        assert "synthetic-new-key" not in response.text
+        assert api_settings_mod._parse_env_file(api_settings_mod.OPERATOR_KEYS_ENV_PATH)["VOICE_API_PROVIDER"] == provider
+
+    def test_local_destination_change_cannot_reuse_a_saved_gateway_key(self, loopback):
+        assert loopback.post("/api/voice/provider", json={"provider": "compat", "mode": "text", "baseUrl": "https://first.example/v1", "model": "one", "apiKey": "synthetic-bound-key"}).status_code == 200
+        result = loopback.post("/api/voice/provider", json={"provider": "ollama", "mode": "text", "baseUrl": "https://second.example/v1", "model": "two"})
+        assert result.status_code == 400
+        assert result.json()["error"] == "key_rebind_required"
+        assert os.environ["VOICE_COMPAT_BASE_URL"] == "https://first.example/v1"
+
+    def test_clearing_selected_provider_does_not_reactivate_an_older_key(self, loopback, voice_env):
+        voice_env.setenv("VOICE_OPENAI_API_KEY", "synthetic-previous-openai-key")
+        config_mod.get_settings.cache_clear()
+        assert loopback.post("/api/voice/provider", json={"provider": "xai", "mode": "text", "model": "grok-test", "apiKey": "synthetic-xai"}).status_code == 200
+        cleared = loopback.post("/api/voice/provider", json={"provider": "xai", "clear": True})
+        assert cleared.status_code == 200
+        assert cleared.json()["provider"]["resolved"] is None
+
+    def test_text_only_provider_cannot_claim_a_native_realtime_session(self, loopback):
+        result = loopback.post("/api/voice/provider", json={"provider": "openrouter", "mode": "realtime", "apiKey": "synthetic-key"})
+        assert result.status_code == 400
+        assert result.json()["error"] == "realtime_unsupported"
+
+
+class TestBrokeredSpeechInput:
+    @staticmethod
+    def audio(seconds=0.1):
+        import base64
+        import io
+        import wave
+        target = io.BytesIO()
+        with wave.open(target, "wb") as output:
+            output.setnchannels(1)
+            output.setsampwidth(2)
+            output.setframerate(16000)
+            output.writeframes(b"\x00\x00" * int(seconds * 16000))
+        return base64.b64encode(target.getvalue()).decode("ascii")
+
+    def test_disabled_voice_never_uploads_audio(self, loopback, monkeypatch):
+        from unittest.mock import AsyncMock
+        import services.voice_transcription as speech
+        upstream = AsyncMock()
+        monkeypatch.setattr(speech, "transcribe_audio", upstream)
+        response = loopback.post("/api/voice/transcribe", json={"audio": self.audio()})
+        assert response.status_code == 403
+        upstream.assert_not_called()
+
+    def test_unconfigured_speech_is_an_honest_503(self, loopback):
+        assert loopback.post("/api/voice/opt-in", json={"enable": True}).status_code == 200
+        response = loopback.post("/api/voice/transcribe", json={"audio": self.audio()})
+        assert response.status_code == 503
+        assert response.json()["error"] == "speech_unconfigured"
+
+    def test_local_speech_upload_is_brokered_and_never_borrows_the_model_key(self, loopback, voice_env, monkeypatch):
+        import httpx
+        voice_env.setenv("VOICE_COMPAT_API_KEY", "synthetic-model-only-key")
+        config_mod.get_settings.cache_clear()
+        assert loopback.post("/api/voice/opt-in", json={"enable": True}).status_code == 200
+        saved = loopback.post("/api/voice/speech-settings", json={"provider": "compat", "baseUrl": "http://localhost:8080/v1", "model": "local-whisper"})
+        assert saved.status_code == 200 and saved.json()["ready"] is True
+        seen = []
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(200, json={"text": "zoom in"})
+        original = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+        response = loopback.post("/api/voice/transcribe", json={"audio": self.audio()})
+        assert response.status_code == 200 and response.json()["text"] == "zoom in"
+        assert response.json()["estimated"] is True
+        assert str(seen[0].url) == "http://localhost:8080/v1/audio/transcriptions"
+        assert "authorization" not in seen[0].headers
+        assert b"command.wav" in seen[0].content
+        assert b"synthetic-model-only-key" not in seen[0].content
+
+    @pytest.mark.parametrize("audio", ["not-base64", "b25l", "too-long"])
+    def test_invalid_audio_is_rejected_before_egress(self, loopback, monkeypatch, audio):
+        from unittest.mock import AsyncMock
+        import services.voice_transcription as speech
+        assert loopback.post("/api/voice/opt-in", json={"enable": True}).status_code == 200
+        assert loopback.post("/api/voice/speech-settings", json={"provider": "compat", "baseUrl": "http://localhost:8080/v1", "model": "local-whisper"}).status_code == 200
+        upstream = AsyncMock()
+        monkeypatch.setattr(speech, "transcribe_audio", upstream)
+        if audio == "too-long":
+            audio = self.audio(31)
+        assert loopback.post("/api/voice/transcribe", json={"audio": audio}).status_code == 400
+        upstream.assert_not_called()
+
+    def test_speech_key_cannot_follow_a_new_destination_implicitly(self, loopback):
+        saved = loopback.post("/api/voice/speech-settings", json={"provider": "compat", "baseUrl": "https://first.example/v1", "model": "stt", "apiKey": "synthetic-speech-key"})
+        assert saved.status_code == 200
+        response = loopback.post("/api/voice/speech-settings", json={"provider": "compat", "baseUrl": "https://second.example/v1", "model": "stt"})
+        assert response.status_code == 400 and response.json()["error"] == "key_rebind_required"
+        assert "synthetic-speech-key" not in response.text
+
+    def test_speech_key_is_not_disclosed_and_can_be_disabled(self, loopback):
+        saved = loopback.post("/api/voice/speech-settings", json={"provider": "openai", "model": "gpt-transcribe", "apiKey": "synthetic-speech-key"})
+        assert saved.status_code == 200
+        assert "synthetic-speech-key" not in loopback.get("/api/voice/speech-settings").text
+        disabled = loopback.post("/api/voice/speech-settings", json={"provider": "off"})
+        assert disabled.status_code == 200 and disabled.json()["ready"] is False
+        assert "VOICE_STT_API_KEY" not in api_settings_mod._parse_env_file(api_settings_mod.OPERATOR_KEYS_ENV_PATH)
+
+    def test_gemini_speech_uses_inline_wav_and_its_own_key(self, loopback, monkeypatch):
+        import base64
+        import json
+        import httpx
+        assert loopback.post("/api/voice/opt-in", json={"enable": True}).status_code == 200
+        saved = loopback.post("/api/voice/speech-settings", json={"provider": "gemini", "model": "gemini-test", "apiKey": "synthetic-gemini-speech"})
+        assert saved.status_code == 200
+        seen = []
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "zoom in"}]}}], "usageMetadata": {"promptTokenCount": 15, "candidatesTokenCount": 2}})
+        original = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+        response = loopback.post("/api/voice/transcribe", json={"audio": self.audio()})
+        assert response.status_code == 200 and response.json()["text"] == "zoom in"
+        assert str(seen[0].url) == "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent"
+        assert seen[0].headers["x-goog-api-key"] == "synthetic-gemini-speech"
+        assert "authorization" not in seen[0].headers
+        data = json.loads(seen[0].content)["contents"][0]["parts"][1]["inlineData"]
+        assert data["mimeType"] == "audio/wav"
+        assert base64.b64decode(data["data"]).startswith(b"RIFF")
+
+    def test_speech_redirect_does_not_forward_audio_or_credentials(self, loopback, monkeypatch):
+        import httpx
+        assert loopback.post("/api/voice/opt-in", json={"enable": True}).status_code == 200
+        assert loopback.post("/api/voice/speech-settings", json={"provider": "openai", "model": "gpt-transcribe", "apiKey": "synthetic-speech-key"}).status_code == 200
+        seen = []
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(307, headers={"Location": "https://unrelated.example/upload"})
+        original = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+        response = loopback.post("/api/voice/transcribe", json={"audio": self.audio()})
+        assert response.status_code == 502
+        assert len(seen) == 1
+        assert "synthetic-speech-key" not in response.text

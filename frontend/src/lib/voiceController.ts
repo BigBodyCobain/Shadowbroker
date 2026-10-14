@@ -57,6 +57,9 @@ export interface VoiceControllerState {
   /** Resolved provider id from the last status poll (U8): realtime-capable
    *  providers ('openai_realtime'|'compatible_ws') gate PTT audio capture. */
   providerResolved: string | null;
+  readReplies: boolean;
+  apiProvider: string;
+  textModelConfigured: boolean;
 }
 
 /**
@@ -66,7 +69,7 @@ export interface VoiceControllerState {
 const LEGAL_TRANSITIONS: Record<VoicePhase, ReadonlyArray<VoicePhase>> = {
   'opt-in-required': ['idle', 'lean-unavailable'],
   'lean-unavailable': ['idle', 'opt-in-required'],
-  idle: ['connecting', 'listening', 'error', 'quota-capped', 'opt-in-required', 'lean-unavailable'],
+  idle: ['connecting', 'listening', 'thinking', 'error', 'quota-capped', 'opt-in-required', 'lean-unavailable'],
   connecting: ['listening', 'thinking', 'idle', 'error', 'quota-capped'],
   listening: ['connecting', 'thinking', 'speaking', 'idle', 'error', 'quota-capped'],
   thinking: ['speaking', 'listening', 'idle', 'error', 'quota-capped'],
@@ -92,6 +95,9 @@ const INITIAL_STATE: VoiceControllerState = {
   dailySpend: null,
   lastFaultReason: null,
   providerResolved: null,
+  readReplies: false,
+  apiProvider: '',
+  textModelConfigured: false,
 };
 
 const MAX_TURNS = 200;
@@ -152,11 +158,13 @@ class VoiceController {
         status.provider.resolved === 'local_text' ||
         status.provider.resolved === 'anthropic_text',
       providerResolved: status.provider.resolved ?? null,
+      apiProvider: status.provider.apiProvider || '',
+      textModelConfigured: status.provider.chatModelConfigured,
       modelLabel:
         status.mode === 'mesh_lean'
           ? ''
           : status.provider.resolved
-            ? String(status.provider.resolved)
+            ? String(status.provider.chatModel || status.provider.apiProvider || status.provider.resolved)
             : '',
       dailySpend: status.dailySpend ?? null,
     });
@@ -180,6 +188,10 @@ class VoiceController {
   }
 
   // ── Push-to-talk ────────────────────────────────────────────────────────
+
+  setReadReplies(enabled: boolean): void {
+    this.set({ readReplies: enabled });
+  }
 
   beginPtt(): void {
     // A dead hold can leave pttHeld latched while the UI shows LINK

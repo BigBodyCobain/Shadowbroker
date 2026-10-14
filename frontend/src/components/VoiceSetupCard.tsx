@@ -10,14 +10,9 @@
  * directly on the provider step; saving another provider/key upserts.
  * One primary button enables voice (POST /api/voice/opt-in), then a compact
  * provider step saves the chosen provider/key/model (POST /api/voice/provider).
- * Provider presets: OpenAI, Gemini, Anthropic, OpenRouter, Local/Ollama and
- * Custom endpoint (the latter three are presets of the `compat` provider;
- * Anthropic is TEXT-ONLY — Claude has no realtime speech API, so it feeds the
- * typed console + briefs leg and never opens the mic path). Compat presets
- * get a live model dropdown fed by GET /api/voice/models plus an
- * always-usable free-text fallback; endpoint errors stay verbatim behind a
- * short human lead-in (§5.5 honesty). All inputs opt out of browser autofill
- * — a stray saved credential must never land in a console field.
+ * Hosted and local presets discover model IDs from the saved backend connection.
+ * Free-text model IDs remain available when discovery is unavailable. Credentials
+ * stay on the backend; inputs disable autofill to prevent accidental reuse.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { API_BASE } from '@/lib/api';
@@ -25,27 +20,28 @@ import { voiceController } from '@/lib/voiceController';
 import { useTranslation } from '@/i18n';
 
 type SetupStep = 'idle' | 'pending' | 'done';
-/** UI preset — openrouter/local/custom all POST as the `compat` provider. */
-type ProviderPreset = 'openai' | 'gemini' | 'openrouter' | 'local' | 'anthropic' | 'custom';
-type WireProvider = 'openai' | 'gemini' | 'compat' | 'anthropic';
+/** UI presets map to backend provider profiles. */
+type ProviderPreset = 'openai' | 'gemini' | 'openrouter' | 'local' | 'anthropic' | 'xai' | 'meta' | 'lmstudio' | 'custom';
+type WireProvider = 'openai' | 'gemini' | 'compat' | 'anthropic' | 'xai' | 'openrouter' | 'meta' | 'ollama' | 'lmstudio';
 
-const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const LOCAL_BASE_PLACEHOLDER = 'http://127.0.0.1:11434/v1';
 const CUSTOM_BASE_PLACEHOLDER = 'https://your-gateway.example/v1';
-const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-live-preview';
 const MODELS_FETCH_DEBOUNCE_MS = 300;
 
 const PROVIDER_PRESETS: Array<{ id: ProviderPreset; labelKey: string }> = [
   { id: 'openai', labelKey: 'voice.setup.providerOpenai' },
   { id: 'gemini', labelKey: 'voice.setup.providerGemini' },
   { id: 'anthropic', labelKey: 'voice.setup.providerAnthropic' },
+  { id: 'xai', labelKey: 'voice.setup.providerXai' },
   { id: 'openrouter', labelKey: 'voice.setup.providerOpenrouter' },
+  { id: 'meta', labelKey: 'voice.setup.providerMeta' },
+  { id: 'lmstudio', labelKey: 'voice.setup.providerLmstudio' },
   { id: 'local', labelKey: 'voice.setup.providerCompat' },
   { id: 'custom', labelKey: 'voice.setup.providerCustom' },
 ];
 
 function wireProviderFor(preset: ProviderPreset): WireProvider {
-  return preset === 'openrouter' || preset === 'local' || preset === 'custom' ? 'compat' : preset;
+  return preset === 'local' ? 'ollama' : preset === 'custom' ? 'compat' : preset;
 }
 
 /** Shared autofill-hygiene attrs (C3): no saved tokens in console fields. */
@@ -68,6 +64,7 @@ interface ProviderFlags {
   compatBaseUrlSet: boolean;
   geminiKeySet: boolean;
   anthropicKeySet: boolean;
+  keysSet: Record<string, boolean>;
 }
 
 function readProviderFlags(status: unknown): ProviderFlags | null {
@@ -80,11 +77,14 @@ function readProviderFlags(status: unknown): ProviderFlags | null {
     compatBaseUrlSet: bool(provider.compatBaseUrlSet),
     geminiKeySet: bool(provider.geminiKeySet),
     anthropicKeySet: bool(provider.anthropicKeySet),
+    keysSet: (provider.keysSet || {}) as Record<string, boolean>,
   };
 }
 
 function isProviderConfigured(wire: WireProvider, flags: ProviderFlags | null): boolean {
   if (!flags) return false;
+  if (flags.keysSet[wire]) return true;
+  if (wire === 'xai' || wire === 'openrouter' || wire === 'meta') return false;
   if (wire === 'openai') return flags.openaiKeySet;
   if (wire === 'gemini') return flags.geminiKeySet;
   if (wire === 'anthropic') return flags.anthropicKeySet;
@@ -109,16 +109,21 @@ export default function VoiceSetupCard() {
   const [showKey, setShowKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
+  const [mode, setMode] = useState<'text' | 'realtime'>('text');
+  const [apiStyle, setApiStyle] = useState<'chat' | 'responses'>('responses');
+  const [chatModel, setChatModel] = useState('');
   const [models, setModels] = useState<string[]>([]);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [provSave, setProvSave] = useState<SetupStep>('idle');
+  const [providerReady, setProviderReady] = useState(false);
   const [provMessage, setProvMessage] = useState<string | null>(null);
   const [providerFlags, setProviderFlags] = useState<ProviderFlags | null>(null);
   const [clearing, setClearing] = useState(false);
 
   const wireProvider = wireProviderFor(preset);
-  const needsBaseUrl = wireProvider === 'compat';
-  const needsModel = preset !== 'openai';
+  const needsBaseUrl = wireProvider === 'compat' || wireProvider === 'ollama' || wireProvider === 'lmstudio';
+  const needsModel = true;
+  const supportsRealtime = preset === 'openai' || preset === 'gemini' || preset === 'custom';
 
   // After both steps succeed, let the operator actually read the "Voice is
   // on" line before the delayed status refresh swaps in the live console.
@@ -133,33 +138,21 @@ export default function VoiceSetupCard() {
   const pickPreset = (next: ProviderPreset) => {
     setPreset(next);
     setProvSave('idle');
+    setProviderReady(false);
     setProvMessage(null);
     setModels([]);
     setModelsError(null);
-    if (next === 'openrouter') setBaseUrl(OPENROUTER_BASE_URL);
-    else if (next === 'local') setBaseUrl('');
-    else setBaseUrl('');
-    if (next === 'gemini') setModel((prev) => prev || GEMINI_DEFAULT_MODEL);
-    else if (next === 'openai') setModel('');
+    setApiKey('');
+    setModel('');
+    setChatModel('');
+    setMode('text');
+    setApiStyle(next === 'openai' || next === 'xai' ? 'responses' : 'chat');
+    setBaseUrl(next === 'local' ? LOCAL_BASE_PLACEHOLDER : next === 'lmstudio' ? 'http://127.0.0.1:1234/v1' : '');
   };
 
-  // Live model list: Anthropic gets its curated list from
-  // /api/voice/models?provider=anthropic; compat gateways (OpenRouter,
-  // Ollama, custom endpoints) are queried per base URL. Free text stays
-  // authoritative — the dropdown is only a convenience, and failures never
-  // block typing.
+  // Discover from the saved provider connection; free-text IDs remain usable.
   useEffect(() => {
-    let query: string | null = null;
-    if (preset === 'anthropic') {
-      query = `${API_BASE}/api/voice/models?provider=anthropic`;
-    } else if (needsBaseUrl && baseUrl.trim()) {
-      query = `${API_BASE}/api/voice/models?provider=compat&baseUrl=${encodeURIComponent(baseUrl.trim())}`;
-    }
-    if (!query) {
-      setModels([]);
-      setModelsError(null);
-      return;
-    }
+    const query = `${API_BASE}/api/voice/models?provider=${wireProvider}&mode=${mode}${needsBaseUrl && baseUrl.trim() ? `&baseUrl=${encodeURIComponent(baseUrl.trim())}` : ''}`;
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
@@ -190,7 +183,7 @@ export default function VoiceSetupCard() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [preset, needsBaseUrl, baseUrl, provSave]);
+  }, [wireProvider, mode, needsBaseUrl, baseUrl, provSave]);
 
   // Key-management affordances need the current keySet flags — poll status
   // once when the provider step is visible (and again after any save/clear).
@@ -216,6 +209,7 @@ export default function VoiceSetupCard() {
    *  key (+ its model row) server-side; a fresh status poll updates flags. */
   const clearProvider = async () => {
     setClearing(true);
+    setProviderReady(false);
     setProvMessage(null);
     try {
       const res = await fetch(`${API_BASE}/api/voice/provider`, {
@@ -228,6 +222,7 @@ export default function VoiceSetupCard() {
         note?: string;
         error?: string;
         detail?: string;
+        provider?: { resolved?: string | null };
       };
       if (!res.ok || !json?.ok) {
         setProvMessage(json?.detail || json?.error || `HTTP ${res.status}`);
@@ -286,9 +281,11 @@ export default function VoiceSetupCard() {
 
   const saveProvider = async () => {
     setProvSave('pending');
+    setProviderReady(false);
     setProvMessage(null);
     try {
-      const body: Record<string, unknown> = { provider: wireProvider };
+      const body: Record<string, unknown> = { provider: wireProvider, mode, apiStyle };
+      if (mode === 'realtime') body.chatModel = chatModel.trim();
       const key = apiKey.trim();
       const url = baseUrl.trim();
       const modelId = model.trim();
@@ -306,6 +303,8 @@ export default function VoiceSetupCard() {
         degradedReason?: string | null;
         error?: string;
         detail?: string;
+        provider?: { resolved?: string | null };
+        note?: string;
       };
       if (!res.ok || !json?.ok) {
         setProvMessage(json?.detail || json?.error || `HTTP ${res.status}`);
@@ -313,9 +312,11 @@ export default function VoiceSetupCard() {
         return;
       }
       // Show what resolved — or verbatim why it degraded — never a fake OK.
-      setProvMessage(json.resolved ? String(json.resolved) : json.degradedReason || '');
+      setProvMessage(json.note || (json.provider?.resolved || json.resolved) || json.degradedReason || t('voice.setup.chooseModelAfterSave'));
+      setProviderReady(Boolean(modelId && (json.provider?.resolved || json.resolved)));
       setProvSave('done');
-      lingerTimer.current = setTimeout(() => void refreshStatus(), DONE_LINGER_MS);
+      setApiKey('');
+      if (modelId) lingerTimer.current = setTimeout(() => void refreshStatus(), DONE_LINGER_MS);
     } catch (err) {
       setProvMessage(err instanceof Error && err.message ? err.message : `HTTP error`);
       setProvSave('idle');
@@ -335,14 +336,14 @@ export default function VoiceSetupCard() {
     }
   };
 
-  const bothDone = optIn === 'done' && provSave === 'done';
+  const bothDone = optIn === 'done' && provSave === 'done' && providerReady;
   // Enabled-but-unconnected mounts lead with the connect headline instead of
   // the first-run title.
   const titleKey =
     voiceController.getState().phase === 'opt-in-required' ? 'voice.setup.title' : 'voice.setup.connectTitle';
 
   return (
-    <div className="mx-3 mt-2 p-3 bg-black/60 border border-violet-500/40 rounded-sm" data-testid="voice-setup-card">
+    <div className="mx-3 mt-2 p-3 max-h-[45vh] overflow-y-auto styled-scrollbar bg-black/60 border border-violet-500/40 rounded-sm" data-testid="voice-setup-card">
       <div className="text-violet-300 font-bold text-sm font-mono mb-1">{t(titleKey)}</div>
       <p className="text-xs font-mono text-[var(--text-secondary)] mb-2">{t('voice.setup.explainer')}</p>
 
@@ -418,12 +419,12 @@ export default function VoiceSetupCard() {
 
           <div className="mt-2 flex flex-col gap-1">
             {/* Anthropic honesty label: Claude is text-in/text-out — no voice. */}
-            {preset === 'anthropic' && (
+            {mode === 'text' && (
               <div
                 className="text-[11px] font-mono text-cyan-300 break-words"
                 data-testid="voice-setup-anthropic-note"
               >
-                {t('voice.setup.anthropicTextOnly')}
+                {t('voice.setup.textModeNote')}
               </div>
             )}
             {/* Gemini free tier: the fastest no-card path — link straight to it. */}
@@ -438,6 +439,22 @@ export default function VoiceSetupCard() {
                 {t('voice.setup.geminiFreeKey')}
               </a>
             )}
+            {preset === 'meta' && <p className="text-xs text-cyan-300">{t('voice.setup.metaNote')}</p>}
+            {needsBaseUrl && <p className="text-xs text-[var(--text-muted)]">{t('voice.setup.localNote')}</p>}
+            <label className="text-xs font-mono text-[var(--text-secondary)]">
+              {t('voice.setup.interactionMode')}
+              <select data-testid="voice-setup-mode" value={mode} onChange={(e) => { setMode(e.target.value as 'text' | 'realtime'); setModel(''); }} className="ml-2 bg-black/60 border border-[var(--border-primary)] p-1">
+                <option value="text">{t('voice.setup.textCommands')}</option>
+                {supportsRealtime && <option value="realtime">{t('voice.setup.realtimeAudio')}</option>}
+              </select>
+            </label>
+            {needsBaseUrl && <label className="text-xs font-mono text-[var(--text-secondary)]">
+              {t('voice.setup.apiStyleLabel')}
+              <select data-testid="voice-setup-api-style" value={apiStyle} onChange={(e) => setApiStyle(e.target.value as 'chat' | 'responses')} className="ml-2 bg-black/60 border border-[var(--border-primary)] p-1">
+                <option value="chat">Chat Completions</option><option value="responses">Responses</option>
+              </select>
+            </label>}
+            {mode === 'realtime' && <input data-testid="voice-setup-chat-model" aria-label={t('voice.setup.chatModelLabel')} placeholder={t('voice.setup.chatModelLabel')} value={chatModel} onChange={(e) => setChatModel(e.target.value)} {...NO_AUTOFILL} className="bg-black/50 border border-[var(--border-primary)] px-2 py-1.5 text-xs" />}
             <div className="relative">
               <input
                 value={apiKey}
@@ -558,7 +575,7 @@ export default function VoiceSetupCard() {
                 : 'bg-cyan-500/10 border-cyan-700/60 text-cyan-300 hover:border-cyan-500/60 focus-visible:outline focus-visible:outline-cyan-400'
             }`}
           >
-            {t('voice.setup.saveCheck')}
+            {model.trim() ? t('voice.setup.saveCheck') : t('voice.setup.connectModels')}
           </button>
           {provMessage && (
             <div className="mt-1 text-xs font-mono break-words text-[var(--text-secondary)]" data-testid="voice-setup-provider-result">
@@ -572,7 +589,7 @@ export default function VoiceSetupCard() {
       {/* Both steps done — read this before the console goes live. */}
       {bothDone && (
         <div className="mt-2 text-sm font-mono text-emerald-400" data-testid="voice-setup-done">
-          {t('voice.setup.done')}
+          {t('voice.setup.connected')}
         </div>
       )}
 

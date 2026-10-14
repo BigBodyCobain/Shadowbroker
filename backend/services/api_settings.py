@@ -265,6 +265,33 @@ API_REGISTRY = [
         "required": False,
     },
     {
+        "id": "voice_xai_api_key",
+        "env_key": "VOICE_XAI_API_KEY",
+        "name": "AI Console — xAI API Key",
+        "description": "Server-side xAI credential for Grok text commands. Never returned to the browser.",
+        "category": "Voice",
+        "url": "https://console.x.ai/",
+        "required": False,
+    },
+    {
+        "id": "voice_stt_api_key",
+        "env_key": "VOICE_STT_API_KEY",
+        "name": "AI Console — Speech Input API Key",
+        "description": "Server-side credential for the explicitly selected speech-to-text API. Optional for a local speech server.",
+        "category": "Voice",
+        "url": None,
+        "required": False,
+    },
+    {
+        "id": "voice_openrouter_api_key",
+        "env_key": "VOICE_OPENROUTER_API_KEY",
+        "name": "AI Console — OpenRouter API Key",
+        "description": "Server-side OpenRouter credential, including hosted Meta/Llama models. Never returned to the browser.",
+        "category": "Voice",
+        "url": "https://openrouter.ai/settings/keys",
+        "required": False,
+    },
+    {
         "id": "carto_api_key",
         "env_key": "CARTO_API_KEY",
         "name": "CARTO Basemaps",
@@ -285,10 +312,18 @@ API_REGISTRY = [
 # that real process environment variables always win over persisted file rows
 # (the loader only fills unset/empty vars).
 VOICE_PERSISTED_SETTING_ENV_KEYS = frozenset({
+    "VOICE_STT_PROVIDER",
+    "VOICE_STT_MODEL",
+    "VOICE_STT_BASE_URL",
+    "VOICE_PROVIDER",
+    "VOICE_API_PROVIDER",
+    "VOICE_API_STYLE",
     "VOICE_AGENT_OUTBOUND_ENABLE",
     "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE",
     "VOICE_CHAT_MODEL",
     "VOICE_GEMINI_MODEL",
+    "VOICE_MODEL_STANDARD",
+    "VOICE_LOCAL_TTS_ENABLE",
     "VOICE_COMPAT_BASE_URL",
 })
 

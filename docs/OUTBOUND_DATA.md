@@ -119,16 +119,14 @@ two-step opt-in (`VOICE_AGENT_OUTBOUND_ENABLE=allow` **and**
 `VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true`). Both flags must be set; either alone keeps
 the feature dark.
 
-- **Destination disclosure:** when enabled, operator speech and typed text are sent to
-  the **operator-configured realtime provider** — one of:
-  `VOICE_OPENAI_BASE_URL` (default `https://api.openai.com`), a self-selected gateway
-  such as a local Ollama / LM Studio at `VOICE_COMPAT_BASE_URL`, or **Google Gemini
-  Live** (`VOICE_GEMINI_API_KEY`, default model `gemini-2.0-flash-live-001`,
-  endpoint `VOICE_GEMINI_BASE_URL`, default `wss://generativelanguage.googleapis.com/ws`).
-  The destination is the operator's own choice per install. **Google-specific
-  disclosure:** on Gemini's free tier Google may use uploaded audio for product
-  improvement; paid tiers do not. Audio still reaches Google only through this
-  install's backend broker — the browser never dials Google directly.
+- **Destination disclosure:** when enabled, typed commands and context reach the
+  operator-selected language-model provider: OpenAI, Anthropic, Gemini, xAI,
+  OpenRouter (including Meta/Llama), or a saved local/custom API. Spoken command
+  clips reach the separately selected speech provider through `/api/voice/transcribe`
+  (OpenAI, Gemini, or an OpenAI-compatible transcription server). Native realtime
+  audio uses the configured realtime endpoint. Local addresses are resolved from
+  the backend host. Provider retention and training terms apply to hosted services.
+  See [AI provider setup](ai-provider-setup.md) for supported protocols and settings.
 - **Brokered server-side only:** every provider dial lives in the backend voice broker;
   the browser never holds a provider key and never connects to the third-party host.
   Keys are stored in `data/operator_api_keys.env` and disclosed as `is_set` booleans only.
@@ -147,8 +145,11 @@ the feature dark.
   `webkitSpeechRecognition` are banned outright (empty allow-list, enforced by CI).
   Chromium's implementation ships microphone audio unbrokered to Google cloud — it cannot
   satisfy "every third-party call is brokered server-side". Degraded input is typed text
-  through the composer; the sanctioned future STT path would be a server-brokered
-  endpoint behind the same two-step gate.
+  through the composer; microphone command input uses the server-brokered
+  `/api/voice/transcribe` endpoint behind the same operator authentication, two-step
+  gate, rate limit, and budget gate. Clips are limited to 30 seconds, validated as
+  mono PCM WAV, rebuilt from the validated samples, and processed in memory without
+  persistent recordings. Cancelling capture suppresses pending transcript submission.
 
 ---
 

@@ -15,6 +15,7 @@ import {
 } from '@/lib/voiceDeterministic';
 import { voiceController } from '@/lib/voiceController';
 import type { ClientToolContext } from '@/lib/clientTools';
+import type { VoiceStatusResponse } from '@/lib/voiceTypes';
 
 function baseCtx(overrides: Partial<ClientToolContext> = {}): ClientToolContext {
   return {
@@ -107,6 +108,38 @@ describe('deterministic plain-language phrases (acceptance #38)', () => {
     const outcome = await runDeterministicTurn('toggle wibble layer', ctx);
     expect(ctx.toggleLayer).not.toHaveBeenCalled();
     expect(outcome.steps[0]?.tool).toBe('route_query');
+  });
+});
+
+describe('connected text model command turns', () => {
+  beforeEach(() => {
+    clearPendingConfirmation();
+    voiceController.resetForNewSession();
+    voiceController.applyStatus({
+      ok: true, effectiveEnable: true, opt_in_state: 'enabled', flags: { enableSet: true, acknowledgeSet: true },
+      provider: { resolved: 'local_text', requestedMode: 'local_text', apiProvider: 'ollama', chatModel: 'served-local-model', openaiKeySet: false, compatKeySet: false, compatBaseUrlSet: true, geminiKeySet: false, chatModelConfigured: true },
+      reasons: [], degradedReason: null, mode: 'full', activeSessions: 0, maxConcurrent: 1,
+    } as VoiceStatusResponse);
+  });
+  afterEach(() => { vi.unstubAllGlobals(); voiceController.applyStatus({ effectiveEnable: false, provider: { resolved: null, chatModelConfigured: false }, mode: 'full', reasons: [] } as unknown as VoiceStatusResponse); });
+
+  it('sends free-form text through the model and applies a validated client command', async () => {
+    const upstream = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify({ ok: true, say: 'Flights enabled.', tool_results: [{ tool: 'channel_status', ok: true, envelope: { ok: true } }], client_calls: [{ name: 'toggle_layer', args: { layer: 'sar', enabled: true } }] })));
+    vi.stubGlobal('fetch', upstream);
+    const ctx = baseCtx();
+    const result = await runDeterministicTurn('Please help me inspect this dashboard', ctx);
+    expect(String(upstream.mock.calls[0][0])).toContain('/api/voice/turn');
+    expect(ctx.toggleLayer).toHaveBeenCalledWith('sar', true);
+    expect(result.reply).toBe('Flights enabled.');
+    expect(result.steps.map((step) => step.tool)).toEqual(['channel_status', 'toggle_layer']);
+  });
+
+  it('keeps local map commands on the deterministic path even with a model connected', async () => {
+    const upstream = vi.fn(); vi.stubGlobal('fetch', upstream);
+    const ctx = baseCtx();
+    await runDeterministicTurn('toggle sar layer', ctx);
+    expect(ctx.toggleLayer).toHaveBeenCalledWith('sar', true);
+    expect(upstream).not.toHaveBeenCalled();
   });
 });
 

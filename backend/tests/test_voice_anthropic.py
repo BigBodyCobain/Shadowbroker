@@ -363,20 +363,26 @@ class TestProviderSaveAnthropic:
 
 
 class TestVoiceModelsAnthropic:
-    CURATED = ["claude-sonnet-4-5", "claude-opus-4-1", "claude-3-5-haiku-latest"]
-
-    def test_curated_list_for_provider_param(self, loopback):
+    def test_unsaved_provider_has_no_static_model_guesses(self, loopback):
         body = loopback.get("/api/voice/models?provider=anthropic").json()
-        assert body["ok"] is True
-        assert body["curated"] is True
-        assert [m["id"] for m in body["models"]] == self.CURATED
+        assert body["ok"] is True and body["models"] == []
+        assert body["live"] is False
 
-    def test_curated_list_when_resolved_is_anthropic_text(self, loopback):
-        saved = loopback.post("/api/voice/provider", json={"provider": "anthropic", "apiKey": "sk-ant-m1"})
+    def test_models_uses_the_saved_anthropic_key(self, loopback, monkeypatch):
+        import httpx
+
+        saved = loopback.post("/api/voice/provider", json={"provider": "anthropic", "apiKey": "synthetic-anthropic-key"})
         assert saved.status_code == 200
+        seen = []
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(200, json={"data": [{"id": "claude-current"}]})
+        original = httpx.AsyncClient
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
         body = loopback.get("/api/voice/models").json()
-        assert body["curated"] is True
-        assert [m["id"] for m in body["models"]] == self.CURATED
+        assert body["live"] is True
+        assert [row["id"] for row in body["models"]] == ["claude-current"]
+        assert seen[0].headers["x-api-key"] == "synthetic-anthropic-key"
 
 
 # ---------------------------------------------------------------------------
