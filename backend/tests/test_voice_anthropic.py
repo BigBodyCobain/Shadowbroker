@@ -186,6 +186,31 @@ def _patch_httpx(monkeypatch, payload, status_code=200):
     monkeypatch.setattr(httpx, "AsyncClient", _CaptureAsyncClient)
 
 
+@pytest.mark.parametrize("provider", ["local_text", "anthropic_text"])
+def test_chat_serializes_picker_feedback_as_plain_text(anthropic_env, monkeypatch, provider):
+    monkeypatch.setenv("VOICE_PROVIDER", provider)
+    monkeypatch.setenv("VOICE_CHAT_MODEL", "test-chat-model")
+    monkeypatch.setenv("VOICE_COMPAT_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("VOICE_ANTHROPIC_API_KEY", "synthetic-test-key")
+    _patch_httpx(monkeypatch, {
+        "content": [{"type": "text", "text": "done"}],
+        "choices": [{"message": {"content": "done"}}],
+    })
+    messages = [
+        {"role": "user", "content": "check the channel"},
+        {"role": "assistant", "content": '{"tool":"channel_status","args":{}}'},
+        {"role": "tool", "content": '{"ok":true}'},
+    ]
+    from services.voice_broker import chat_completion
+
+    result = asyncio.run(chat_completion(messages, settings=get_settings_safe()))
+    assert result["ok"] is True
+    wire_messages = _CaptureAsyncClient.captured["json"]["messages"]
+    assert wire_messages[-1] == {"role": "user", "content": 'Tool feedback (data):\n{"ok":true}'}
+    assert wire_messages[:-1] == messages[:-1]
+    assert messages[-1]["role"] == "tool"  # Internal history is unchanged.
+
+
 class TestChatCompletionAnthropic:
     MESSAGES = [
         {"role": "system", "content": "You are the operator console."},

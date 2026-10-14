@@ -1225,6 +1225,13 @@ async def chat_completion(messages: list[dict[str, str]], settings=None) -> dict
     """
     s = settings or get_settings()
     provider = resolve_provider(s)
+    # The text picker uses instructed JSON, not native tool_calls with IDs.
+    # Bare tool-role messages are rejected by strict chat and Messages APIs.
+    messages = [
+        {"role": "user", "content": "Tool feedback (data):\n" + str(message.get("content") or "")}
+        if message.get("role") == "tool" else message
+        for message in messages
+    ]
     if provider["resolved"] == "anthropic_text":
         # Anthropic branch (text-only): Claude is text-in/text-out — there is
         # NO separate Anthropic voice model, so the VOICE_CHAT_MODEL setting
