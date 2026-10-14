@@ -16,6 +16,7 @@ import {
 import { voiceController } from '@/lib/voiceController';
 import type { ClientToolContext } from '@/lib/clientTools';
 import type { VoiceStatusResponse } from '@/lib/voiceTypes';
+import type { GroundingSnapshot } from '@/lib/voiceGroundingTypes';
 
 function baseCtx(overrides: Partial<ClientToolContext> = {}): ClientToolContext {
   return {
@@ -132,6 +133,36 @@ describe('connected text model command turns', () => {
     expect(ctx.toggleLayer).toHaveBeenCalledWith('sar', true);
     expect(result.reply).toBe('Flights enabled.');
     expect(result.steps.map((step) => step.tool)).toEqual(['channel_status', 'toggle_layer']);
+  });
+
+  it('includes the existing bounded map and selection snapshot in an AI turn', async () => {
+    const snapshot: GroundingSnapshot = {
+      schema: 'sb.grounding.v1', generated_at: new Date().toISOString(),
+      view: { bounds: null, zoom: 3, scale_class: 'world' }, session: { mode: 'live' },
+      layers: { active: ['ships'], inactive_count: 0 }, selection: { id: 'ship-1', type: 'ships' },
+      counts: { ships: 1 }, entities: [], correlations: [], verdicts: { news: [] }, freshness: {}, health: {},
+    };
+    let payload: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      payload = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ ok: true, say: 'Area inspected.', client_calls: [] }));
+    }));
+    const getSnapshot = vi.fn(async () => snapshot);
+    await runDeterministicTurn('Inspect the current area', baseCtx(), undefined, getSnapshot);
+    expect(getSnapshot).toHaveBeenCalledOnce();
+    expect(payload.snapshot).toEqual(snapshot);
+  });
+
+  it('reports an actual article failure instead of a model-authored success claim', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ok: true, say: 'The article is now open.',
+      client_calls: [{ name: 'open_article', args: { url: 'https://missing.example/article' } }],
+    }))));
+    const ctx = baseCtx();
+    const result = await runDeterministicTurn('Bring that source into view', ctx);
+    expect(result.reply).toContain('article not found in loaded news');
+    expect(result.reply).not.toContain('now open');
+    expect(ctx.setSelectedEntity).not.toHaveBeenCalled();
   });
 
   it('keeps local map commands on the deterministic path even with a model connected', async () => {

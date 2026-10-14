@@ -1744,6 +1744,16 @@ _AGENT_TOOLS = [
                 "returns": "{results: [{source_layer, label, summary, type, id, lat, lng, time, score}], version: int, truncated: bool, searched_layers: [...]}",
             },
             {
+                "name": "show_article",
+                "type": "write",
+                "description": "Queue an article dossier to open in the dashboard. Matches current news by exact URL or title/topic query. Requires full access. queued=true means requested, not confirmed displayed; the dashboard must be open.",
+                "parameters": {
+                    "query": {"type": "string", "required": False, "description": "Article title or topic"},
+                    "url": {"type": "string", "required": False, "description": "Exact source link from a news-layer search result; never an arbitrary URL"},
+                },
+                "returns": "{queued: true, displayed: false, article: {query, url}, delivery: 'best_effort_dashboard_poll'}",
+            },
+            {
                 "name": "search_news",
                 "type": "read",
                 "description": "Search news and event layers server-side by keyword. Includes news, GDELT, CrowdThreat, Telegram OSINT, and major incident/event feeds without pulling the full slow telemetry feed.",

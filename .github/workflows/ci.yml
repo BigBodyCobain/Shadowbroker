@@ -89,6 +89,7 @@ jobs:
             tests/test_p0_security.py \
             tests/test_voice_setup_api.py \
             tests/test_voice_provider_catalog.py \
+            tests/test_agent_article_actions.py \
             tests/mesh/test_mesh_node_bootstrap_runtime.py \
             tests/mesh/test_mesh_infonet_sync_support.py \
             tests/mesh/test_mesh_canonical.py \

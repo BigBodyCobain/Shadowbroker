@@ -61,6 +61,8 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
   // its requestBrief surface user-reachable ("BRIEF NOW") and feeds it the
   // page-local selectedEntity for the §2.6 regen trigger.
   const grounding = useVoiceGrounding(bindings);
+  const groundingRef = useRef(grounding);
+  groundingRef.current = grounding;
 
   // Keep the latest page bindings without resubscribing effects per render.
   const bindingsRef = useRef(bindings);
@@ -169,7 +171,7 @@ export function useVoiceAgent(bindings: VoiceAgentBindings): UseVoiceAgentResult
     voiceController.beginThinking();
     voiceController.pushTurn({ role: 'operator', kind: 'text', text: trimmed.slice(0, 500) });
     try {
-      const outcome = await runDeterministicTurn(trimmed, bindingsRef.current, request.signal);
+      const outcome = await runDeterministicTurn(trimmed, bindingsRef.current, request.signal, () => groundingRef.current.composeSnapshot());
       if (request.signal.aborted) return;
       for (const step of outcome.steps) {
         voiceController.pushTurn({

@@ -2,6 +2,7 @@
 import type * as GeoJSON from 'geojson';
 
 import { API_BASE } from '@/lib/api';
+import { articleSourceUrl } from '@/lib/newsArticles';
 import { clampZoom, ZOOM_MAX, ZOOM_FALLBACK } from '@/lib/mapZoom';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Map, {
@@ -6445,8 +6446,8 @@ const MaplibreViewer = ({
                               key={si}
                               role="button"
                               tabIndex={0}
-                              onClick={() => sub.link && window.open(sub.link, '_blank', 'noopener,noreferrer')}
-                              onKeyDown={(e) => { if (e.key === 'Enter' && sub.link) window.open(sub.link, '_blank', 'noopener,noreferrer'); }}
+                              onClick={() => { const url = articleSourceUrl(sub.link); if (url) window.open(url, '_blank', 'noopener,noreferrer'); }}
+                              onKeyDown={(e) => { const url = articleSourceUrl(sub.link); if (e.key === 'Enter' && url) window.open(url, '_blank', 'noopener,noreferrer'); }}
                               className="flex items-start gap-3 py-2 px-3 border-l-2 border-cyan-800/40 bg-black/30 rounded-r hover:bg-cyan-950/30 transition-colors group cursor-pointer"
                             >
                               <div className="flex-1 min-w-0">
@@ -6469,9 +6470,9 @@ const MaplibreViewer = ({
 
                   {/* ── FOOTER ── */}
                   <div className="px-5 py-3 flex justify-between items-center border-t border-[var(--border-primary)] mt-auto shrink-0">
-                    {item.link ? (
+                    {articleSourceUrl(item.link) ? (
                       <button
-                        onClick={() => window.open(item.link, '_blank', 'noopener,noreferrer')}
+                        onClick={() => { const url = articleSourceUrl(item.link); if (url) window.open(url, '_blank', 'noopener,noreferrer'); }}
                         className={`${threatColor} hover:text-white text-[12px] font-bold underline underline-offset-2 cursor-pointer`}
                       >
                         GO TO ARTICLE ↗

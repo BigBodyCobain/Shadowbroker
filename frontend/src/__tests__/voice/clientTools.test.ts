@@ -25,8 +25,8 @@ function makeCtx(overrides: Partial<ClientToolContext> = {}): ClientToolContext 
 }
 
 describe('clientTools executors', () => {
-  it('descriptor block carries exactly the 16 fixture verbs', () => {
-    expect(CLIENT_TOOL_DESCRIPTORS).toHaveLength(16);
+  it('descriptor block carries all 17 fixture verbs', () => {
+    expect(CLIENT_TOOL_DESCRIPTORS).toHaveLength(17);
     expect(CLIENT_TOOL_DESCRIPTORS.map((d) => d.name)).toContain('map_fly_to');
   });
 

@@ -27,6 +27,16 @@ Local Llama models also work through Ollama, LM Studio, or a compatible server. 
 
 When changing a custom destination, supply a key explicitly or clear the old connection first. Keys are bound to their intended provider; OpenAI credentials are never borrowed for a custom host. Environment-managed credentials/settings take precedence and the setup UI reports that condition.
 
+## Open articles automatically
+
+Say or type **Open an article about port traffic**, **Show me the story about storm warnings**, or **Open article https://the-source-link**. The console resolves a matching article from its loaded news feed and opens the existing dossier automatically, including source details and corroborating stories. Articles without coordinates can also open. Known article phrases work without a language model; other wording can use the model's `open_article` tool.
+
+Only existing feed articles are selectable; an invented or unrelated URL cannot trigger navigation. Publisher pages open from the dossier's explicit **GO TO ARTICLE** button, and only HTTP(S) links are permitted. A missing story produces a failure instead of selecting another item.
+
+External agents use `show_article` through the existing authenticated command channel, with `query` or the exact source `url`. This retains the full-access requirement for remote display commands. Its result reports `queued: true, displayed: false`: the dashboard poll requests the preview, but the channel has no display receipt yet. The local AI console's `open_article` action uses the active dashboard directly.
+
+AI turns also receive the existing bounded `sb.grounding.v1` map/selection snapshot, so the model has context for requests about the current area without screenshots or full telemetry dumps.
+
 ## Speak commands
 
 Speech input is configured separately from the language model. Open **Speech input settings**, choose OpenAI, Gemini, or a local/OpenAI-compatible transcription API, save credentials to load its catalog, choose the speech model, and save. Speech input defaults to off. A local chat model alone is not a speech recognizer; it needs a separate transcription server exposing `/v1/audio/transcriptions`.

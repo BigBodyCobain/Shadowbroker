@@ -26,6 +26,7 @@ LATENCY_TIER_MS: dict[str, int] = {
     "get_summary": 10,
     "what_changed": 15,
     "search_news": 15,
+    "show_article": 15,
     "find_flights": 25,
     "find_ships": 25,
     "find_entity": 30,
@@ -330,6 +331,12 @@ def route_query(
             "avoid": avoid,
             "estimated_ms": _estimate_ms("get_summary"),
         }
+
+    article = re.match(r"^(?:please\s+)?(?:open|read|show(?:\s+me)?|bring\s+up)\s+(?:the\s+|an?\s+)?(?:news\s+)?(?:article|story)(?:\s+(?:about|on|titled|called))?\s+(.+?)\s*[.!]?$", raw, re.I)
+    if article:
+        reference = article.group(1).strip().strip("\"'")
+        args = {"url": reference} if reference.lower().startswith(("http://", "https://")) else {"query": reference}
+        return _route_result("open_article", {"cmd": "show_article", "args": args}, avoid, alternates)
 
     cve_match = RE_CVE.search(raw)
     if cve_match:

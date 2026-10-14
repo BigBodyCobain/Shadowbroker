@@ -42,6 +42,7 @@ import {
 } from '@/lib/layerPreferences';
 import type { ShodanSearchMatch } from '@/types/shodan';
 import { API_BASE } from '@/lib/api';
+import { findNewsArticle } from '@/lib/newsArticles';
 import { useDataPolling, LAYER_TOGGLE_EVENT } from '@/hooks/useDataPolling';
 import { useBackendStatus, useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
@@ -530,7 +531,10 @@ export default function Dashboard() {
   // useAgentActions at the top of Dashboard.
   useAgentActions(handleMapRightClick, ({ lat, lng, zoom }) => {
     setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
-  }, secondaryBootReady);
+  }, secondaryBootReady, (reference) => {
+    const article = findNewsArticle(reference);
+    if (article) setSelectedEntity({ id: article.id, type: 'news', name: article.title });
+  });
 
   // Voice console (U4) — the single wiring site for client tool bindings (§3.5).
   const voice = useVoiceAgent({

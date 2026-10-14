@@ -16,6 +16,7 @@
  * backend/tests/test_voice_tool_registry.py fails on drift.
  */
 import { send } from '@/lib/mapControlBus';
+import { findNewsArticle } from '@/lib/newsArticles';
 import { getPollMeta, readDataKey } from '@/hooks/useDataStore';
 import {
   enterSnapshotMode,
@@ -198,6 +199,20 @@ export const CLIENT_TOOL_DESCRIPTORS: readonly ClientToolDescriptor[] = /* voice
       "layer": { "type": "string", "required": false }
     },
     "returns": "{ok, action, entity:{id,layer,label} | selected:false}",
+    "latency_tier_ms": 300,
+    "requires_confirm": false
+  },
+  {
+    "name": "open_article",
+    "type": "ui",
+    "surface": "client",
+    "description": "Open an article dossier automatically in the dashboard. Use a title/topic query or the exact URL returned by search_news. Only loaded news articles can be opened; this never navigates an arbitrary URL.",
+    "parameters": {
+      "id": { "type": "string", "required": false },
+      "query": { "type": "string", "required": false },
+      "url": { "type": "string", "required": false }
+    },
+    "returns": "{ok, action, article:{id,title,url} | error}",
     "latency_tier_ms": 300,
     "requires_confirm": false
   },
@@ -489,6 +504,17 @@ async function execSelectEntity(args: Record<string, unknown>, ctx: ClientToolCo
   return { ok: true, action: 'select_entity', entity: { id: hit.id, layer: hit.layer, label: hit.label } };
 }
 
+async function execOpenArticle(args: Record<string, unknown>, ctx: ClientToolContext): Promise<ToolResult> {
+  const article = findNewsArticle({
+    id: typeof args.id === 'string' ? args.id : undefined,
+    query: typeof args.query === 'string' ? args.query : undefined,
+    url: typeof args.url === 'string' ? args.url : undefined,
+  });
+  if (!article) return { ok: false, action: 'open_article', error: 'article not found in loaded news' };
+  ctx.setSelectedEntity({ id: article.id, type: 'news', name: article.title });
+  return { ok: true, action: 'open_article', article };
+}
+
 async function execClearSelection(args: Record<string, unknown>, ctx: ClientToolContext, _turnId: number): Promise<ToolResult> {
   ctx.setSelectedEntity(null);
   return { ok: true, action: 'clear_selection' };
@@ -620,6 +646,7 @@ const EXECUTORS: Record<
   set_map_style: execSetMapStyle,
   set_filter: execSetFilter,
   select_entity: execSelectEntity,
+  open_article: execOpenArticle,
   clear_selection: execClearSelection,
   tm_enter_snapshot: execTmEnterSnapshot,
   tm_playback: execTmPlayback,

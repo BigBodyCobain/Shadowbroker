@@ -131,6 +131,29 @@
       "requires_confirm": false
     },
     {
+      "name": "open_article",
+      "type": "ui",
+      "surface": "client",
+      "description": "Open an article dossier automatically in the dashboard. Use a title/topic query or the exact URL returned by search_news. Only loaded news articles can be opened; this never navigates an arbitrary URL.",
+      "parameters": {
+        "id": {
+          "type": "string",
+          "required": false
+        },
+        "query": {
+          "type": "string",
+          "required": false
+        },
+        "url": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "returns": "{ok, action, article:{id,title,url} | error}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
       "name": "clear_selection",
       "type": "ui",
       "surface": "client",

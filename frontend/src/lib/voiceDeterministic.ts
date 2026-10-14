@@ -3,14 +3,15 @@
  *
  * Camera intents are matched first by regex and never reach route_query;
  * plain-language layer/time-machine phrases are resolved locally too. All
- * remaining text delegates to the server's `route_query` command through the
- * gated stateless endpoint POST /api/voice/tool — the same validate_and_gate →
- * dispatcher → verbatim-result path the LLM picker uses, with no model and no
- * third-party egress (geocoding rides the backend proxy like LocateBar).
+ * article requests select an existing dossier locally too. Other text uses the
+ * configured model picker with a bounded grounding snapshot, or the server's
+ * deterministic route_query fallback when text inference is unavailable. Both
+ * server paths retain the existing tool validation and permission gates.
  */
 import { API_BASE } from '@/lib/api';
 import { executeClientVerb, type ClientToolContext, type ToolResult } from './clientTools';
 import { voiceController } from './voiceController';
+import type { GroundingSnapshot } from './voiceGroundingTypes';
 
 export interface TurnStep {
   tool: string | null;
@@ -94,6 +95,11 @@ export function resolveDeterministic(text: string, ctx: ClientToolContext): Dete
   const raw = String(text || '').trim();
   if (!raw) return { kind: 'route_query' };
 
+  const article = /^(?:please\s+)?(?:open|read|show(?:\s+me)?|bring\s+up)\s+(?:the\s+|an?\s+)?(?:news\s+)?(?:article|story)(?:\s+(?:about|on|titled|called))?\s+(.+?)\s*[.!]?$/i.exec(raw);
+  if (article) {
+    const reference = article[1].trim().replace(/^["']|["']$/g, '');
+    return { kind: 'client_verb', tool: 'open_article', args: /^https?:\/\//i.test(reference) ? { url: reference } : { query: reference } };
+  }
   if (RE_ORBIT_STOP.test(raw)) {
     return { kind: 'client_verb', tool: 'map_orbit', args: { stop: true, lng: 0, lat: 0 } };
   }
@@ -217,6 +223,7 @@ export async function runDeterministicTurn(
   text: string,
   ctx: ClientToolContext,
   signal?: AbortSignal,
+  getSnapshot?: () => Promise<GroundingSnapshot>,
 ): Promise<DeterministicOutcome> {
   const raw = String(text || '').trim();
   const resolution = resolveDeterministic(raw, ctx);
@@ -280,7 +287,9 @@ export async function runDeterministicTurn(
     return {
       steps,
       reply:
-        resolution.tool === 'map_orbit'
+        resolution.tool === 'open_article'
+          ? `Opened article: ${String((result.article as { title?: string } | undefined)?.title || '')}`
+          : resolution.tool === 'map_orbit'
           ? result.orbiting
             ? 'Orbiting.'
             : 'Orbit stopped.'
@@ -321,9 +330,11 @@ export async function runDeterministicTurn(
   if (state.providerResolved && state.textModelConfigured && !['opt-in-required', 'lean-unavailable', 'quota-capped'].includes(state.phase)) {
     const history = state.turns.slice(0, -1).filter((turn) => turn.kind !== 'tool')
       .slice(-8).map((turn) => ({ role: turn.role === 'operator' ? 'user' : 'assistant', content: turn.text }));
+    const snapshot = await getSnapshot?.();
+    signal?.throwIfAborted();
     const response = await fetch(`${API_BASE}/api/voice/turn`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: raw, history }),
+      body: JSON.stringify({ text: raw, history, ...(snapshot ? { snapshot } : {}) }),
       signal,
     });
     const result = await response.json();
@@ -334,12 +345,14 @@ export async function runDeterministicTurn(
     for (const row of result.tool_results || []) {
       steps.push({ tool: String(row.tool), argsSummary: '', ok: row.ok === true, detail: String(row.envelope?.error || row.envelope?.detail || '') });
     }
+    const clientFailures: string[] = [];
     for (const call of result.client_calls || []) {
       if (signal?.aborted) return { steps, reply: 'cancelled' };
       const applied = await executeClientVerb(String(call.name), call.args || {}, ctx);
-      record(applied, String(call.name), JSON.stringify(call.args || {}));
+      const failure = record(applied, String(call.name), JSON.stringify(call.args || {}));
+      if (failure) clientFailures.push(failure);
     }
-    return { steps, reply: String(result.say || '') };
+    return { steps, reply: clientFailures.length ? clientFailures.join(' ') : String(result.say || '') };
   }
 
   // ── route_query path ────────────────────────────────────────────────────
