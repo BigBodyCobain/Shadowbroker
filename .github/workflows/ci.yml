@@ -86,3 +86,15 @@ jobs:
             tests/test_xquik_news.py \
             tests/test_aprs_is_resource_safety.py \
             -v --tb=short
+
+
+  desktop-runtime-portability:
+    name: Windows Runtime Portability
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify portable desktop backend staging
+        run: node --test desktop-shell/tauri-skeleton/scripts/build-backend-runtime.test.cjs

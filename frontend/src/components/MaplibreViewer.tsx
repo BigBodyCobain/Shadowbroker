@@ -15,7 +15,13 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
-import { darkStyle, lightStyle } from '@/components/map/styles/mapStyles';
+import {
+  buildBasemapStyle,
+  CARTO_ATTRIBUTION_HTML,
+  OPENFREEMAP_ATTRIBUTION_HTML,
+  OSM_ATTRIBUTION_HTML,
+} from '@/components/map/styles/mapStyles';
+import { useBasemapConfig } from '@/hooks/useBasemapConfig';
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
@@ -152,6 +158,8 @@ import { useImperativeSource } from '@/components/map/hooks/useImperativeSource'
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
 import { useStaticMapLayersWorker } from '@/components/map/hooks/useStaticMapLayersWorker';
 import { applyDynamicLayerInterp } from '@/components/map/applyDynamicLayerInterp';
+import { filterShipsByActiveFilters } from '@/components/map/shipFilters';
+import { shipsWithIcons, trackedFlightsWithIcons } from '@/components/map/labelSubjects';
 import {
   ClusterCountLabels,
   TrackedFlightLabels,
@@ -427,9 +435,10 @@ const MaplibreViewer = ({
   const mapInitRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const { theme } = useTheme();
-  const mapThemeStyle = useMemo<maplibregl.StyleSpecification>(
-    () => (theme === 'light' ? lightStyle : darkStyle) as maplibregl.StyleSpecification,
-    [theme],
+  const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
+  const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
+    [theme, cartoApiKey],
   );
 
   const initialViewState = useMemo<ViewState>(
@@ -1385,6 +1394,17 @@ const MaplibreViewer = ({
     aprsGeoJSON,
   } = interpolatedDynamicMapLayers;
 
+  // Label subjects follow the worker output (pre-interp, stable between
+  // rebuilds) so labels track the same data filters as the icons.
+  const trackedFlightsForLabels = useMemo(
+    () => trackedFlightsWithIcons(data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON),
+    [data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON],
+  );
+  const shipsForYachtLabels = useMemo(
+    () => shipsWithIcons(data?.ships, dynamicMapLayers.shipsGeoJSON),
+    [data?.ships, dynamicMapLayers.shipsGeoJSON],
+  );
+
   const staticMapLayers = useStaticMapLayersWorker(
     {
       cctv: staticCctv,
@@ -1523,9 +1543,14 @@ const MaplibreViewer = ({
   const shipClusters = useClusterLabels(mapRef, 'ships-clusters-layer', shipsGeoJSON);
   const eqClusters = useClusterLabels(mapRef, 'eq-clusters-layer', earthquakesGeoJSON);
 
+  // Carriers bypass the worker, so apply the operator's vessel filters here.
+  const carrierShips = useMemo(
+    () => (activeLayers.ships_military ? filterShipsByActiveFilters(data?.ships, activeFilters) : []),
+    [activeLayers.ships_military, data?.ships, activeFilters],
+  );
   const carriersGeoJSON = useMemo(
-    () => (activeLayers.ships_military ? buildCarriersGeoJSON(data?.ships) : null),
-    [activeLayers.ships_military, data?.ships],
+    () => (activeLayers.ships_military ? buildCarriersGeoJSON(carrierShips) : null),
+    [activeLayers.ships_military, carrierShips],
   );
 
   // SAR anomaly pins (Mode B) + AOI watchbox circles.  AOIs render whenever
@@ -1955,6 +1980,9 @@ const MaplibreViewer = ({
       className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint', 'gt_risk'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
       style={pinPlacementMode || sarAoiDropMode ? { cursor: 'crosshair' } : undefined}
     >
+      {/* Resolve optional CARTO config before first paint. Without a CARTO key,
+          buildBasemapStyle uses the keyless OpenFreeMap style instead. */}
+      {basemapConfigLoaded && (
       <Map
         ref={mapRef}
         reuseMaps
@@ -2070,8 +2098,8 @@ const MaplibreViewer = ({
         <AttributionControl
           compact
           customAttribution={[
-            '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
-            '<a href="https://carto.com/attribution" target="_blank" rel="noopener">CARTO</a>',
+            OSM_ATTRIBUTION_HTML,
+            cartoApiKey ? CARTO_ATTRIBUTION_HTML : OPENFREEMAP_ATTRIBUTION_HTML,
             '<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol (ODbL)</a>',
             '<a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a>',
             '<a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>',
@@ -2096,7 +2124,6 @@ const MaplibreViewer = ({
             <Layer
               id="esri-world-imagery-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': 1,
                 'raster-fade-duration': 300,
@@ -2120,7 +2147,6 @@ const MaplibreViewer = ({
             <Layer
               id="gibs-modis-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': gibsOpacity ?? 0.6,
                 'raster-fade-duration': 0,
@@ -2144,7 +2170,6 @@ const MaplibreViewer = ({
               <Layer
                 id="viirs-nightlights-layer"
                 type="raster"
-                beforeId="imagery-ceiling"
                 paint={{
                   'raster-opacity': 0.9,
                   'raster-fade-duration': 0,
@@ -2168,7 +2193,6 @@ const MaplibreViewer = ({
             <Layer
               id="sentinel-hub-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': sentinelOpacity ?? 0.6,
                 'raster-fade-duration': 0,
@@ -4547,9 +4571,9 @@ const MaplibreViewer = ({
         )}
 
         {/* HTML labels for tracked flights — color-matched, zoom-gated for non-HVA */}
-        {trackedFlightsGeoJSON && !selectedEntity && !isMapInteracting && data?.tracked_flights && (
+        {trackedFlightsGeoJSON && !selectedEntity && !isMapInteracting && trackedFlightsForLabels.length > 0 && (
           <TrackedFlightLabels
-            flights={data.tracked_flights}
+            flights={trackedFlightsForLabels}
             zoom={mapZoom}
             inView={inView}
             interpFlight={interpFlight}
@@ -4557,13 +4581,13 @@ const MaplibreViewer = ({
         )}
 
         {/* HTML labels for carriers (orange names, with ESTIMATED badge for OSINT positions) */}
-        {carriersGeoJSON && !selectedEntity && !isMapInteracting && data?.ships && (
-          <CarrierLabels ships={data.ships} inView={inView} interpShip={interpShip} />
+        {carriersGeoJSON && !selectedEntity && !isMapInteracting && carrierShips.length > 0 && (
+          <CarrierLabels ships={carrierShips} inView={inView} interpShip={interpShip} />
         )}
 
         {/* HTML labels for tracked yachts (pink owner names) */}
-        {shipsGeoJSON && activeLayers.ships_tracked_yachts && !selectedEntity && !isMapInteracting && data?.ships && (
-          <TrackedYachtLabels ships={data.ships} inView={inView} interpShip={interpShip} />
+        {shipsGeoJSON && activeLayers.ships_tracked_yachts && !selectedEntity && !isMapInteracting && shipsForYachtLabels.length > 0 && (
+          <TrackedYachtLabels ships={shipsForYachtLabels} inView={inView} interpShip={interpShip} />
         )}
 
         {/* HTML labels for earthquake cluster counts (hidden when any entity popup is active) */}
@@ -6727,6 +6751,7 @@ const MaplibreViewer = ({
 
         <MeasurementLayers measurePoints={measurePoints} />
       </Map>
+      )}
     </div>
   );
 };

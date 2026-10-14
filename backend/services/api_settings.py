@@ -264,6 +264,15 @@ API_REGISTRY = [
         "url": None,
         "required": False,
     },
+    {
+        "id": "carto_api_key",
+        "env_key": "CARTO_API_KEY",
+        "name": "CARTO Basemaps",
+        "description": "Optional CARTO raster-basemap override. ShadowBroker defaults to the keyless OpenFreeMap dark/light styles when this is unset. When configured, the browser receives this key from GET /api/basemap-config and sends it to CARTO on tile requests.",
+        "category": "Imagery",
+        "url": "https://carto.com/basemaps/apikey",
+        "required": False,
+    },
 ]
 
 # Voice-agent behavioral settings (two-step opt-in switches and provider
@@ -474,6 +483,13 @@ def get_api_keys():
             entry["is_set"] = bool(raw)
         result.append(entry)
     return result
+
+
+def get_basemap_config() -> dict:
+    """Public config for the browser map: the CARTO key (or empty when unset)."""
+    load_persisted_api_keys_into_environ()
+    key = os.environ.get("CARTO_API_KEY", "").strip()
+    return {"carto": {"configured": bool(key), "key": key}}
 
 
 def save_api_keys(updates: dict[str, str]) -> dict:

@@ -19,7 +19,7 @@ derivative must also be offered under ODbL and must preserve attribution.
 | Source | URL | What we use it for |
 |---|---|---|
 | adsb.lol | https://adsb.lol | Military aircraft positions, regional commercial gap-fill, route enrichment |
-| OpenStreetMap contributors | https://www.openstreetmap.org/copyright | Nominatim geocoding (LOCATE bar), CARTO basemap tiles (OSM-derived) |
+| OpenStreetMap contributors | https://www.openstreetmap.org/copyright | Nominatim geocoding (LOCATE bar), OpenFreeMap/CARTO basemap data (OSM-derived) |
 
 **Attribution requirement:** the ShadowBroker map UI displays
 "© OpenStreetMap contributors" and "adsb.lol (ODbL)" in the map attribution
@@ -59,7 +59,7 @@ These sources have their own terms; consult each link before redistributing.
 | Meshtastic | https://meshtastic.org | Open Source | Mesh radio nodes (protocol) |
 | Meshtastic Map (Liam Cottle) | https://meshtastic.liamcottle.net | Community project (per-site terms) | Global Meshtastic node positions — polled once per day with on-disk cache trust to minimize load on this volunteer-run HTTP API |
 | APRS-IS | https://www.aprs-is.net | Open / attribution-based | Amateur radio positions |
-| CARTO basemaps | https://carto.com | CARTO attribution required | Dark map tiles (OSM-derived) |
+| OpenFreeMap / OpenMapTiles | https://openfreemap.org | OSM/OpenMapTiles attribution | Default dark/light vector basemap |\n| CARTO basemaps | https://carto.com | CARTO attribution required | Optional keyed raster basemap override |
 | Esri World Imagery | https://www.arcgis.com | Esri terms | High-res satellite basemap |
 | IODA (Georgia Tech) | https://ioda.inetintel.cc.gatech.edu | Research/academic terms | Internet outage data |
 

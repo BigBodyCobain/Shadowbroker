@@ -69,7 +69,7 @@ ShadowBroker includes an optional **Shodan connector** for operator-supplied API
 * **Connect to Meshtastic mesh radio nodes** and APRS amateur radio networks — visible on the map and integrated into Mesh Chat
 * **Detect ground changes through cloud cover** with SAR (Synthetic Aperture Radar) — mm-scale ground deformation, flood extent, vegetation disturbance, and damage assessments from NASA OPERA and Copernicus EGMS. Define your own watch areas and get anomaly alerts. Free with a NASA Earthdata account.
 * **Switch visual modes** — DEFAULT, SATELLITE, FLIR (thermal), NVG (night vision), CRT (retro terminal) — via the STYLE button
-* **Track trains** across the US (Amtrak) and Europe (DigiTraffic) in real time
+* **Track trains** across the US (Amtraker) and Europe (DigiTraffic) in real time
 * **Estimate where US aircraft carriers are** using automated GDELT news scraping — no other open tool does this
 * **Search internet-connected devices worldwide** via Shodan — cameras, SCADA systems, databases — plotted as a live overlay on the map
 * **Run a full recon toolkit** from the left sidebar — IP geolocation, DNS, RDAP/WHOIS, certificate transparency, BGP/ASN, OFAC sanctions search, CVE lookup, Tor/OTX threat checks, and subnet sweeps (InternetDB proxied server-side)
@@ -324,7 +324,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 
 ### 🚆 Rail Tracking (NEW in v0.9.6)
 
-* **Amtrak Trains** — Real-time positions of Amtrak trains across the US with speed, heading, route, and status
+* **Amtrak Trains** — Real-time positions of Amtrak, VIA Rail, and Brightline trains across the US and using Amtraker
 * **European Rail** — DigiTraffic integration for European train positions
 
 ### 🛰️ Space & Satellites
@@ -354,7 +354,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 * **Sentinel Hub Process API** — Copernicus CDSE satellite imagery with OAuth2 token flow (NEW)
 * **VIIRS Nightlights** — Night-time light change detection overlay (NEW)
 * **5 Visual Modes** — Toggle the entire map aesthetic via the STYLE button:
-  * **DEFAULT** — Dark CARTO basemap
+  * **DEFAULT** — Dark OpenFreeMap vector basemap (no API key required; optional CARTO override)
   * **SATELLITE** — Sub-meter Esri World Imagery
   * **FLIR** — Thermal imaging aesthetic (inverted greyscale)
   * **NVG** — Night vision green phosphor
@@ -532,7 +532,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 ║  │  │  Carrier  │   GDELT   │ CCTV (12) │ DeepState │   NASA    │        │  ║
 ║  │  │  Tracker  │ Conflict  │  Cameras  │ Frontline │   FIRMS   │        │  ║
 ║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
-║  │  │   GPS     │  KiwiSDR  │  Shodan   │  Amtrak   │  SatNOGS  │        │  ║
+║  │  │   GPS     │  KiwiSDR  │  Shodan   │ Amtraker  │  SatNOGS  │        │  ║
 ║  │  │  Jamming  │   Radios  │  Devices  │ DigiTraf  │  TinyGS   │        │  ║
 ║  │  ├───────────┼───────────┼───────────┼───────────┼───────────┤        │  ║
 ║  │  │ Volcanoes │  Weather  │  Fishing  │ Mil Bases │   IODA    │        │  ║
@@ -632,7 +632,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [bgpview.io](https://bgpview.io) | BGP/ASN routing (recon) | On-demand | No |
 | TeleGeography (static) | Submarine cable routes | Static | No |
 | [ASFINAG](https://www.asfinag.at) | Austria motorway webcams | ~10min | No |
-| [Amtrak](https://www.amtrak.com) | US train positions | ~60s | No |
+| [Amtraker](https://amtraker.com) | US train positions | ~60s | No |
 | [DigiTraffic](https://www.digitraffic.fi) | European rail positions | ~60s | No |
 | [Global Fishing Watch](https://globalfishingwatch.org) | Fishing vessel activity events | ~1hr | **Yes** (`GFW_API_TOKEN`) |
 | [Telegram public previews](https://t.me/s) | War/OSINT channel posts (`telegram_osint`) | ~1hr | No (optional `TELEGRAM_OSINT_CHANNELS`) |
@@ -666,7 +666,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [Wikidata SPARQL](https://query.wikidata.org) | Head of state data | On-demand (cached 24h) | No |
 | [Wikipedia API](https://en.wikipedia.org/api) | Location summaries & aircraft images | On-demand (cached) | No |
 | [OSM Nominatim](https://nominatim.openstreetmap.org) | Place name geocoding (LOCATE bar) | On-demand | No |
-| [CARTO Basemaps](https://carto.com) | Dark map tiles | Continuous | No |
+| [OpenFreeMap](https://openfreemap.org) | Default dark/light vector basemap | Continuous | No |\n| [CARTO Basemaps](https://carto.com) | Optional raster basemap override | Continuous | Optional (`CARTO_API_KEY`) |
 
 **Outbound privacy & audit (#348–#366):** Each self-hosted install uses its own backend IP and per-install User-Agent handle. See [docs/OUTBOUND_DATA.md](docs/OUTBOUND_DATA.md) for what contacts third parties, opt-in/env controls, and accepted tradeoffs (CCTV Referer, basemap CDN, LiveUAMap, etc.).
 
@@ -942,7 +942,7 @@ All 41 layers are independently toggleable from the left panel:
 | Cruise / Passenger | ✅ ON | Cruise ships and ferries |
 | Tracked Yachts | ✅ ON | Billionaire & oligarch superyachts |
 | Fishing Activity | ✅ ON | Global Fishing Watch vessel events |
-| Trains | ✅ ON | Amtrak + European rail positions |
+| Trains | ✅ ON | Amtraker + European rail positions |
 | Satellites | ✅ ON | Orbital assets by mission type |
 | SatNOGS | ✅ ON | Amateur satellite ground stations |
 | TinyGS | ✅ ON | LoRa satellite ground stations |
@@ -1130,6 +1130,7 @@ OPENSKY_CLIENT_SECRET=your_opensky_secret     # OAuth2 — paired with Client ID
 # Optional (enhances data quality)
 AIS_API_KEY=your_aisstream_key                # Maritime vessel tracking (aisstream.io) — ships layer empty without it
 LTA_ACCOUNT_KEY=your_lta_key                  # Singapore CCTV cameras
+CARTO_API_KEY=your_carto_key                  # Optional CARTO raster-basemap override; DEFAULT uses keyless OpenFreeMap when unset
 SHODAN_API_KEY=your_shodan_key                # Shodan device search overlay
 SH_CLIENT_ID=your_sentinel_hub_id             # Copernicus CDSE Sentinel Hub imagery
 SH_CLIENT_SECRET=your_sentinel_hub_secret     # Paired with Sentinel Hub Client ID

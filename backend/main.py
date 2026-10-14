@@ -7613,7 +7613,9 @@ async def dm_get_pubkey(
             from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
 
             preferred_lookup_peer = str(lookup_peer_url or "").strip().rstrip("/")
-            remote_bundle = fetch_dm_prekey_bundle(
+            # Off the event loop: the fleet lookup makes blocking network calls.
+            remote_bundle = await asyncio.to_thread(
+                fetch_dm_prekey_bundle,
                 agent_id="",
                 lookup_token=resolved_lookup,
                 lookup_peer_urls=[preferred_lookup_peer] if preferred_lookup_peer else None,
@@ -7703,7 +7705,9 @@ async def dm_get_prekey_bundle(
         )
     resolved_id, resolved_lookup = _preferred_dm_lookup_target(agent_id, lookup_token)
     preferred_lookup_peer = str(lookup_peer_url or "").strip().rstrip("/")
-    result = fetch_dm_prekey_bundle(
+    # Off the event loop: the fleet lookup makes blocking network calls.
+    result = await asyncio.to_thread(
+        fetch_dm_prekey_bundle,
         agent_id=resolved_id,
         lookup_token=resolved_lookup,
         lookup_peer_urls=[preferred_lookup_peer] if preferred_lookup_peer else None,
@@ -9075,7 +9079,7 @@ async def api_sentinel_tile(request: Request):
 # ---------------------------------------------------------------------------
 # API Settings â€” key registry & management
 # ---------------------------------------------------------------------------
-from services.api_settings import get_api_keys, get_env_path_info
+from services.api_settings import get_api_keys, get_basemap_config, get_env_path_info
 from services.shodan_connector import (
     ShodanConnectorError,
     count_shodan,
@@ -9112,6 +9116,12 @@ async def api_get_keys(request: Request):
 @limiter.limit("30/minute")
 async def api_get_keys_meta(request: Request):
     return get_env_path_info()
+
+
+@app.get("/api/basemap-config")
+@limiter.limit("60/minute")
+async def api_basemap_config(request: Request):
+    return get_basemap_config()
 
 
 @app.get("/api/tools/shodan/status", dependencies=[Depends(require_local_operator)])

@@ -77,7 +77,9 @@ The release build now does the full packaging pipeline:
 2. Stages a desktop-only frontend export tree that omits Next server-only
    routes/proxy (`src/app/api`, `src/proxy.ts`)
 3. Stages a managed backend runtime bundle from `backend/` into
-   `src-tauri/backend-runtime/`
+   `src-tauri/backend-runtime/`. On Windows this contains a relocatable,
+   checksum-verified embedded Python runtime; the developer venv is never
+   included.
 4. Builds the frontend export with `NEXT_OUTPUT=export`
 5. Copies `frontend/out` to `src-tauri/companion-www/`
 6. Runs `cargo tauri build`
@@ -86,6 +88,10 @@ The release build now does the full packaging pipeline:
 
 If `cargo tauri` is not installed, the build now fails immediately with the
 required install command instead of failing after the frontend export.
+
+Windows packaging also runs a relocation smoke test before creating the
+installer and fails closed if `pyvenv.cfg`, `.pth`/`.egg-link` files, or the
+build machine's Python paths leak into the staged runtime.
 
 See [RELEASE.md](./RELEASE.md) for the release-oriented checklist.
 See [RELEASE_INPUTS.md](./RELEASE_INPUTS.md) for the future credentials/secrets

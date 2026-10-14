@@ -28,6 +28,8 @@ Prerequisites:
 - Rust toolchain
 - `cargo tauri` available via `cargo install tauri-cli@^2`
 - Node.js / npm with the frontend dependencies already installed
+- On Windows, an x64 Python 3.11 backend venv with the production dependencies
+  installed. The venv is used only as a package source and is never shipped.
 
 ## CI / GitHub Actions
 
@@ -53,7 +55,10 @@ See [RELEASE_INPUTS.md](./RELEASE_INPUTS.md) for the plain-language answer to
 1. Generates the desktop icon set in `src-tauri/icons/`
 2. Stages a desktop-only frontend export tree that omits Next server-only
    routes/proxy (`src/app/api`, `src/proxy.ts`)
-3. Stages a managed backend runtime bundle into `src-tauri/backend-runtime/`
+3. Stages a managed backend runtime bundle into `src-tauri/backend-runtime/`.
+   Windows builds use the checksum-pinned official Python 3.11.9 embeddable
+   distribution plus the backend venv's installed packages; they never copy
+   `pyvenv.cfg` or a host-bound venv launcher.
 4. Builds the frontend export with `NEXT_OUTPUT=export`
 5. Copies `frontend/out` into `src-tauri/companion-www/`
 6. Runs `cargo tauri build`
@@ -67,6 +72,18 @@ For CI/release builds, the backend release-gate attestation is also staged into
 the managed backend bundle at `backend-runtime/data/release_attestation.json`,
 and the managed-backend updater refreshes that file on version sync without
 overwriting the rest of the runtime `data/` directory.
+
+The Windows staging step fails the build if virtualenv metadata or an absolute
+build-machine Python path reaches the bundle. It also renames the completed
+runtime and launches the embedded interpreter from the relocated path before
+Tauri packaging begins. Set `SHADOWBROKER_PYTHON_EMBED_ZIP` to an offline copy
+of `python-3.11.9-embed-amd64.zip`; the pinned SHA-256 is still enforced. Set
+`SHADOWBROKER_BACKEND_PYTHON` only when the production backend interpreter is
+outside the normal `backend/venv` location.
+
+When an installed runtime layout changes, the desktop updater removes legacy
+virtualenv directories and their marker after copying the new bundle. The
+operator's `.env`, `data/`, and unrelated runtime files remain preserved.
 
 ## Release artifacts
 

@@ -139,6 +139,7 @@ fn install_bundled_backend(
         fs::create_dir_all(&install_root)
             .map_err(|e| format!("managed_backend_install_dir_failed:{e}"))?;
         sync_runtime_tree(bundled_root, &install_root)?;
+        remove_legacy_virtualenv_entries(&install_root)?;
         fs::write(
             install_root.join(BUNDLE_VERSION_FILE),
             format!("{bundled_version}\n"),
@@ -150,6 +151,39 @@ fn install_bundled_backend(
         .map_err(|e| format!("managed_backend_data_preserve_dir_failed:{e}"))?;
     sync_release_attestation(bundled_root, &install_root)?;
     Ok(install_root)
+}
+
+fn remove_legacy_virtualenv_entries(install_root: &Path) -> Result<(), String> {
+    let selected_venv = read_trimmed_file_optional(&install_root.join(".venv-dir"));
+    for entry in fs::read_dir(install_root)
+        .map_err(|e| format!("managed_backend_cleanup_read_dir_failed:{e}"))?
+    {
+        let entry = entry.map_err(|e| format!("managed_backend_cleanup_entry_failed:{e}"))?;
+        let file_name = entry.file_name();
+        let file_name_str = file_name.to_string_lossy();
+        let is_legacy_venv = matches!(
+            file_name_str.as_ref(),
+            "venv" | ".venv" | "venv-repair" | ".venv-repair" | ".venv-dir"
+        ) || file_name_str.starts_with("venv-repair-")
+            || file_name_str.starts_with(".venv-repair-")
+            || selected_venv.as_deref() == Some(file_name_str.as_ref());
+        if !is_legacy_venv {
+            continue;
+        }
+
+        let entry_path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("managed_backend_cleanup_file_type_failed:{e}"))?;
+        if file_type.is_dir() {
+            fs::remove_dir_all(&entry_path)
+                .map_err(|e| format!("managed_backend_legacy_venv_cleanup_failed:{e}"))?;
+        } else {
+            fs::remove_file(&entry_path)
+                .map_err(|e| format!("managed_backend_legacy_venv_marker_cleanup_failed:{e}"))?;
+        }
+    }
+    Ok(())
 }
 
 fn sync_runtime_tree(src: &Path, dst: &Path) -> Result<(), String> {
@@ -449,10 +483,13 @@ fn resolve_python_bin(runtime_root: &Path) -> Result<PathBuf, String> {
     }
 
     let candidates = if cfg!(target_os = "windows") {
-        candidate_roots
-            .into_iter()
-            .map(|root| root.join("Scripts").join("python.exe"))
-            .collect::<Vec<_>>()
+        let mut candidates = vec![runtime_root.join("python").join("python.exe")];
+        candidates.extend(
+            candidate_roots
+                .into_iter()
+                .map(|root| root.join("Scripts").join("python.exe")),
+        );
+        candidates
     } else {
         candidate_roots
             .into_iter()
@@ -567,6 +604,67 @@ mod tests {
             fs::read_to_string(dst.join("main.py")).unwrap(),
             "print('new')"
         );
+
+        let _ = fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn runtime_refresh_removes_stale_venv_only() {
+        let temp = std::env::temp_dir().join(format!(
+            "sb_backend_cleanup_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(temp.join("data")).unwrap();
+        fs::create_dir_all(temp.join("custom-venv")).unwrap();
+        fs::write(temp.join(".env"), "ADMIN_KEY=preserve\n").unwrap();
+        fs::write(temp.join(".venv-dir"), "custom-venv\n").unwrap();
+        fs::write(temp.join("data").join("keep.txt"), "keep").unwrap();
+        fs::write(
+            temp.join("custom-venv").join("pyvenv.cfg"),
+            "home=C:\\Users\\builder",
+        )
+        .unwrap();
+        fs::write(temp.join("old_runtime.py"), "stale").unwrap();
+
+        remove_legacy_virtualenv_entries(&temp).unwrap();
+
+        assert!(temp.join(".env").exists());
+        assert!(temp.join("data").join("keep.txt").exists());
+        assert!(!temp.join("custom-venv").exists());
+        assert!(!temp.join(".venv-dir").exists());
+        assert!(temp.join("old_runtime.py").exists());
+
+        let _ = fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn portable_python_is_preferred_over_legacy_venv() {
+        let temp = std::env::temp_dir().join(format!(
+            "sb_backend_python_resolver_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let portable = if cfg!(target_os = "windows") {
+            temp.join("python").join("python.exe")
+        } else {
+            temp.join("venv").join("bin").join("python3")
+        };
+        let legacy = if cfg!(target_os = "windows") {
+            temp.join("venv").join("Scripts").join("python.exe")
+        } else {
+            temp.join("venv").join("bin").join("python")
+        };
+        fs::create_dir_all(portable.parent().unwrap()).unwrap();
+        fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+        fs::write(&portable, "portable").unwrap();
+        fs::write(&legacy, "legacy").unwrap();
+
+        assert_eq!(resolve_python_bin(&temp).unwrap(), portable);
 
         let _ = fs::remove_dir_all(temp);
     }

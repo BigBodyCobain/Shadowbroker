@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     OPENSKY_CLIENT_ID: str = ""
     OPENSKY_CLIENT_SECRET: str = ""
     LTA_ACCOUNT_KEY: str = ""
+    CARTO_API_KEY: str = ""  # Basemap tiles; served to the browser via /api/basemap-config
 
     # Runtime
     CORS_ORIGINS: str = ""

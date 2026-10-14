@@ -78,12 +78,15 @@ Shadowbroker is **self-hosted**: each install uses its own backend egress IP. Th
 
 ---
 
-## Basemap CDN (#354)
+## Basemap CDN (#354, #583)
 
-- **Code:** `frontend/src/components/map/styles/mapStyles.ts`, `frontend/public/map-style.json`
-- **Hosts:** `*.basemaps.cartocdn.com`, `demotiles.maplibre.org`
-- **Exposure:** **Browser** loads tiles (client IP + pan/zoom), not the backend
-- **Mitigation:** Self-host raster tiles and point MapLibre `sources` at your tile server (operator choice; not required for core features)
+- **Code:** `frontend/src/components/map/styles/mapStyles.ts`
+- **Default host:** `tiles.openfreemap.org`
+- **Default behavior:** OpenFreeMap Dark/Positron vector styles load without registration or an API key. OpenFreeMap's public instance is the zero-config path.
+- **Optional CARTO override:** If `CARTO_API_KEY` is configured (env or API Keys panel), ShadowBroker keeps the existing CARTO raster dark/light basemap. The key is served by `GET /api/basemap-config` and sent by the browser to `*.basemaps.cartocdn.com`.
+- **Exposure:** Basemap requests are made by the **browser**, so the selected provider sees browser network metadata and requested map resources.
+- **Attribution:** ShadowBroker explicitly displays OpenStreetMap plus the active basemap provider attribution.
+- **Self-hosting:** OpenFreeMap is open-source and supports self-hosting; operators can replace the public basemap endpoint if they need full infrastructure control.
 
 ---
 

@@ -228,6 +228,13 @@ export default function Dashboard() {
   const resetActiveLayers = useCallback(() => {
     setActiveLayers(getDefaultActiveLayers());
   }, []);
+  const enableLayers = useCallback((keys: (keyof ActiveLayers)[]) => {
+    setActiveLayers((prev) => {
+      const next = { ...prev };
+      for (const key of keys) next[key] = true;
+      return next;
+    });
+  }, []);
   const regionLat =
     selectedEntity?.type === 'region_dossier' ? selectedEntity.extra?.lat : undefined;
   const regionLng =
@@ -845,6 +852,8 @@ export default function Dashboard() {
                   <FilterPanel
                     activeFilters={activeFilters}
                     setActiveFilters={setActiveFilters}
+                    activeLayers={activeLayers}
+                    onEnableLayers={enableLayers}
                   />
                 </ErrorBoundary>
               </div>
