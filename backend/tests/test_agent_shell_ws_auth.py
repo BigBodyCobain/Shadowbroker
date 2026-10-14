@@ -35,7 +35,11 @@ from services.agent_shell_ws_token import (  # noqa: E402
 def shell_client():
     app = FastAPI()
     app.include_router(agent_shell.router)
-    with TestClient(app) as client:
+    with (
+        patch("auth._current_admin_key", return_value="audit-operator-key-" + "x" * 32),
+        patch.object(agent_shell, "_current_admin_key", return_value="audit-operator-key-" + "x" * 32),
+        TestClient(app) as client,
+    ):
         yield client
 
 
@@ -55,10 +59,10 @@ class TestAgentShellWsTokenStore:
 
 
 class TestAgentShellWsTokenRoute:
-    def test_loopback_can_mint_token(self, shell_client):
+    def test_authenticated_loopback_can_mint_token(self, shell_client):
         transport = shell_client._transport
         transport.client = ("127.0.0.1", 12345)
-        response = shell_client.post("/api/agent-shell/ws-token")
+        response = shell_client.post("/api/agent-shell/ws-token", headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32})
         assert response.status_code == 200
         body = response.json()
         assert body["token"]
@@ -92,7 +96,7 @@ class TestAgentShellWsAuthorization:
 
     def test_remote_peer_with_valid_ws_token_is_accepted(self, shell_client):
         shell_client._transport.client = ("127.0.0.1", 12345)
-        token = shell_client.post("/api/agent-shell/ws-token").json()["token"]
+        token = shell_client.post("/api/agent-shell/ws-token", headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}).json()["token"]
         shell_client._transport.client = ("1.2.3.4", 12345)
         with patch("sys.platform", "win32"):
             with shell_client.websocket_connect(f"/api/agent-shell/ws?ws_token={token}") as ws:
@@ -102,7 +106,7 @@ class TestAgentShellWsAuthorization:
 
     def test_ws_token_is_single_use(self, shell_client):
         shell_client._transport.client = ("127.0.0.1", 12345)
-        token = shell_client.post("/api/agent-shell/ws-token").json()["token"]
+        token = shell_client.post("/api/agent-shell/ws-token", headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}).json()["token"]
         shell_client._transport.client = ("1.2.3.4", 12345)
         with patch("sys.platform", "win32"):
             with shell_client.websocket_connect(f"/api/agent-shell/ws?ws_token={token}") as ws:
@@ -111,10 +115,17 @@ class TestAgentShellWsAuthorization:
             with shell_client.websocket_connect(f"/api/agent-shell/ws?ws_token={token}") as ws:
                 ws.receive_text()
 
-    def test_loopback_peer_does_not_need_ws_token(self, shell_client):
+    def test_loopback_peer_without_credential_is_denied(self, shell_client):
+        shell_client._transport.client = ("127.0.0.1", 12345)
+        with pytest.raises(WebSocketDisconnect) as error:
+            with shell_client.websocket_connect("/api/agent-shell/ws") as ws:
+                ws.receive_json()
+        assert error.value.code == 4403
+
+    def test_native_header_credential_is_accepted(self, shell_client):
         shell_client._transport.client = ("127.0.0.1", 12345)
         with patch("sys.platform", "win32"):
-            with shell_client.websocket_connect("/api/agent-shell/ws") as ws:
+            with shell_client.websocket_connect("/api/agent-shell/ws", headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}) as ws:
                 payload = ws.receive_json()
         assert payload["type"] == "error"
         assert "Windows" in payload["message"]

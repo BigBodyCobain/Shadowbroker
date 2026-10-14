@@ -50,16 +50,17 @@ class _PeerClient:
     explicitly to exercise the real ``require_local_operator`` path.
     """
 
-    def __init__(self, peer_ip: str):
+    def __init__(self, peer_ip: str, headers=None):
         from main import app
 
         self._loop = asyncio.new_event_loop()
         self._transport = ASGITransport(app=app, client=(peer_ip, 12345))
         self._base = f"http://{peer_ip}:8000"
+        self._headers = headers or {}
 
     def _do(self, method: str, url: str, **kw):
         async def go():
-            async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+            async with AsyncClient(transport=self._transport, base_url=self._base, headers=self._headers) as ac:
                 return await ac.request(method, url, **kw)
 
         return self._loop.run_until_complete(go())
@@ -84,9 +85,11 @@ def remote():
 
 @pytest.fixture
 def loopback():
-    """127.0.0.1 caller — must pass the gate exactly like the operator."""
-    client = _PeerClient("127.0.0.1")
-    yield client
+    """An explicitly authenticated operator on loopback."""
+    key = "audit-operator-key-" + "x" * 32
+    client = _PeerClient("127.0.0.1", headers={"X-Admin-Key": key})
+    with patch("auth._current_admin_key", return_value=key):
+        yield client
     client.close()
 
 
@@ -127,19 +130,8 @@ class TestSentinelTokenAuthGate:
         assert r.status_code == 403
         assert fake_post.call_count == 0
 
-    def test_loopback_caller_passes_auth(self, loopback):
-        """A 127.0.0.1 caller must pass the gate. We don't care about
-        the upstream response shape — just that the request reaches the
-        handler (which would then try to talk to Copernicus). We patch
-        ``requests.post`` to return a 401 so the test doesn't hit the
-        real network.
-
-        Note: FastAPI's ``TestClient`` reports ``request.client.host``
-        as ``"testclient"`` by default, which is NOT on the loopback
-        allowlist (``127.0.0.1`` / ``::1`` / ``localhost``). The
-        ``loopback`` fixture below uses raw ASGI with an explicit
-        ``127.0.0.1`` peer IP so the auth gate sees real loopback.
-        """
+    def test_authenticated_loopback_caller_passes_auth(self, loopback):
+        """Valid credentials reach the handler without contacting Copernicus."""
         fake_resp = MagicMock()
         fake_resp.status_code = 401
         fake_resp.content = b'{"error": "invalid_client"}'
@@ -210,11 +202,8 @@ class TestSentinel2SearchAuthGate:
         assert r.status_code == 403
         assert fake.call_count == 0
 
-    def test_loopback_caller_reaches_handler(self, loopback):
-        """127.0.0.1 must pass the gate and reach the search function.
-        Uses raw ASGI peer IP via the ``loopback`` fixture — TestClient
-        would set ``request.client.host`` to ``"testclient"`` which
-        isn't on the loopback allowlist."""
+    def test_authenticated_loopback_caller_reaches_handler(self, loopback):
+        """Valid credentials reach the mocked search function."""
         fake = MagicMock(return_value={"ok": True, "results": []})
         with patch("services.sentinel_search.search_sentinel2_scene", fake):
             r = loopback.get("/api/sentinel2/search?lat=0&lng=0")
