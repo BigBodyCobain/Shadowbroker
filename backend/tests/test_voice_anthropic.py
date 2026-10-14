@@ -22,6 +22,7 @@ import services.config as config_mod
 @pytest.fixture()
 def anthropic_env(tmp_path, monkeypatch):
     """Isolate all VOICE_* configuration (same pattern as test_voice_setup_api)."""
+    monkeypatch.setenv("ADMIN_KEY", "audit-operator-key-" + "x" * 32)
     from services.voice_broker import _sessions
     from services.voice_session_tokens import reset_voice_session_tokens_for_tests
     from limiter import limiter
@@ -57,7 +58,7 @@ def loopback(anthropic_env):
 
         def _do(self, method: str, url: str, **kw):
             async def go():
-                async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+                async with AsyncClient(transport=self._transport, base_url=self._base, headers={"X-Admin-Key": "audit-operator-key-" + "x" * 32}) as ac:
                     return await ac.request(method, url, **kw)
             return self._loop.run_until_complete(go())
 
