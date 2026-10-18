@@ -2,9 +2,7 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { interpolatePosition } from '@/utils/positioning';
-import { INTERP_TICK_MS } from '@/lib/constants';
-
-const UNBOUNDED_INTERP_SECONDS = Number.POSITIVE_INFINITY;
+import { INTERP_TICK_MS, MAX_INTERP_SECONDS } from '@/lib/constants';
 
 /**
  * Custom hook that provides position interpolation for flights, ships, and satellites.
@@ -59,7 +57,7 @@ export function useInterpolation() {
         f.speed_knots,
         dt,
         0,
-        UNBOUNDED_INTERP_SECONDS,
+        MAX_INTERP_SECONDS,
       );
       return [newLng, newLat];
     },
@@ -86,7 +84,7 @@ export function useInterpolation() {
         s.sog,
         dt,
         0,
-        UNBOUNDED_INTERP_SECONDS,
+        MAX_INTERP_SECONDS,
       );
       return [newLng, newLat];
     },
@@ -105,7 +103,7 @@ export function useInterpolation() {
         s.speed_knots,
         dt,
         0,
-        UNBOUNDED_INTERP_SECONDS,
+        MAX_INTERP_SECONDS,
       );
       return [newLng, newLat];
     },
