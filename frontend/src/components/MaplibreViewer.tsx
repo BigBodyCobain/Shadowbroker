@@ -830,7 +830,7 @@ const MaplibreViewer = ({
     [activeLayers.shodan_overlay, shodanResults],
   );
 
-  // AI Intel layer — pins from OpenClaw and the AI co-pilot
+  // AI Intel layer — pins from connected AI agents and the AI co-pilot
   useEffect(() => {
     if (!activeLayers.ai_intel) return;
     let cancelled = false;
@@ -3374,7 +3374,7 @@ const MaplibreViewer = ({
           );
         })()}
 
-        {/* AI Intel Layer — pins from OpenClaw / AI co-pilot (data via useImperativeSource) */}
+        {/* AI Intel Layer — pins from connected AI agents / AI co-pilot (data via useImperativeSource) */}
         <Source
           id="ai-intel-source"
           type="geojson"

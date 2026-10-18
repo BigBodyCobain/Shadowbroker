@@ -345,7 +345,7 @@ function ChannelStatusSection() {
   );
 }
 
-/* ─── Connect OpenClaw Modal Body ─────────────────────────────────── */
+/* ─── Connect AI Agent Modal Body ─────────────────────────────────── */
 
 interface ConnectModalBodyProps {
   apiEndpoint: string;
@@ -572,7 +572,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       if (res.ok) {
         const data = await res.json();
         // Regenerate is a deliberate destructive action — operator needs
-        // to see the new secret once to update their OpenClaw config.
+        // to see the new secret once to update their agent's config.
         // Both the full and masked forms refresh in one shot.
         setHmacSecret(data.hmac_secret || '');
         setMaskedHmacSecret(data.masked_hmac_secret || '');
@@ -636,22 +636,45 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
     lines.push(`SHADOWBROKER_ACCESS=${accessTier}`);
     if (connectionMode === 'remote' && nodeId) lines.push(`SHADOWBROKER_NODE_ID=${nodeId}`);
     lines.push('');
+    lines.push('# SETUP (do this once, before anything else):');
+    lines.push("# 1. Store the values above as environment variables in your agent's own config (e.g. Hermes: ~/.hermes/.env,");
+    lines.push('#    a systemd Environment= line, or the .env file your agent loads). Agent tools read them from the environment.');
+    lines.push('#    Do NOT paste them into a chat channel: Discord/Slack/Telegram history keeps the secret in plain text,');
+    lines.push('#    and an agent reading it from chat still has no environment variable set.');
+    lines.push('# 2. Use the bundled client (openclaw-skills/shadowbroker/sb_query.py) from a Python that has httpx installed.');
+    lines.push('# 3. Verify before relying on it:  python openclaw-skills/shadowbroker/verify_hmac.py  -> expect HTTP 200 and your tier.');
+    if (connectionMode === 'local') {
+      lines.push('# 4. Docker installs: an agent running on the host is not loopback to the backend container, so it still');
+      lines.push('#    needs this HMAC secret even though it is on the same machine. A 403 "authentication required" means it is not set.');
+    }
+    lines.push('');
     lines.push('# AUTH DIRECTIVE:');
     lines.push('# SHADOWBROKER_HMAC_SECRET is a shared HMAC signing secret, not a raw API key.');
     lines.push('# Never send it as X-Admin-Key, Authorization: Bearer, a query parameter, or a plain request header.');
     lines.push('# Every direct ShadowBroker API request must be HMAC-SHA256 signed with:');
     lines.push('#   X-SB-Timestamp, X-SB-Nonce, X-SB-Signature');
     lines.push('# Signature input: METHOD|path|timestamp|nonce|sha256(body)');
-    lines.push('# Use the ShadowBrokerClient/openclaw skill helper so requests are signed automatically.');
+    lines.push('# Use the bundled ShadowBrokerClient (openclaw-skills/shadowbroker/sb_query.py) so requests are signed automatically.');
     lines.push('');
     lines.push('# OPERATING DIRECTIVE:');
-    lines.push('# You are a remote OpenClaw agent connected to ShadowBroker.');
+    lines.push(
+      connectionMode === 'local'
+        ? '# You are an AI agent connected to ShadowBroker on the same machine.'
+        : '# You are an AI agent connected to ShadowBroker over the network.',
+    );
     lines.push('# ShadowBroker is a live intelligence and telemetry platform, not a narrow single-purpose API.');
     lines.push('# Treat the platform as having broad live telemetry unless a focused check proves otherwise.');
     lines.push("# Do not claim a layer, entity type, or capability is unavailable until you verify it from live data.");
     lines.push("# If something is absent, say 'not found in current telemetry' or 'not present in the current dataset' rather than saying ShadowBroker cannot track it.");
     lines.push('# Full access means you MAY place pins, create layers, inject data, set watches, and trigger displays, but do not perform write actions unless the user asks or the task clearly requires it.');
     lines.push('# For ordinary questions, prefer read commands and concise answers grounded in live results.');
+    lines.push('');
+    lines.push('# ANALYST DIRECTIVE (alert-driven or unattended investigations):');
+    lines.push('# - Stay read-only unless the operator asked for a write. Batch lookups and keep to a small command budget.');
+    lines.push('# - Tie every claim to something you saw in live data (entity, headline, count) and name its layer.');
+    lines.push('# - State your confidence (low / medium / high) and why.');
+    lines.push('# - Detector alerts can be noise or feed artifacts. If live data does not support the alert, say "probably noise"');
+    lines.push('#   plainly instead of building a story around it.');
 
     // Tool manifest — first thing the agent should hit
     if (resolvedUrl) {
@@ -660,8 +683,11 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       lines.push(`# GET ${resolvedUrl}/api/ai/tools`);
       lines.push('# Returns structured tool definitions (names, params, types, examples).');
       lines.push('# Load these as your available tool/function definitions on connect.');
-      lines.push('# Prefer compact lookups first: get_summary, search_telemetry, find_flights, find_ships, search_news, entities_near, get_layer_slice.');
-      lines.push('# Reserve get_telemetry, get_slow_telemetry, and get_report for rare full-context pulls.');
+      lines.push('# Prefer fast, targeted reads: route_query (natural language -> recommended command), find_entity / get_entity_profile,');
+      lines.push('#   find_flights, find_ships, search_news, entities_near / brief_area, get_summary, get_layer_slice.');
+      lines.push('#   run_playbook bundles common reads (e.g. hot_snapshot, area_brief). The Python client wraps route_query as ask().');
+      lines.push('# EXPENSIVE: search_telemetry, get_telemetry, get_slow_telemetry and get_report are rejected unless you pass');
+      lines.push('#   confirm_expensive=true. Use them only as a deliberate last resort after targeted reads came up short.');
       lines.push('# BATCH COMMANDS: POST /api/ai/channel/batch with {"commands": [{"cmd": "...", "args": {...}}, ...]} (max 20).');
       lines.push('# Batch executes all commands concurrently in one HTTP round-trip. Use it whenever you need 2+ lookups.');
       lines.push('# Example: batch entities_near + search_news + get_correlations in one call instead of 3 sequential calls.');
@@ -670,12 +696,13 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       lines.push('# get_layer_slice is uncapped by default. Pass limit_per_layer only when you intentionally want a smaller slice.');
       lines.push("# UAP sightings, wastewater, and tracked_flights/VIP aircraft are real layers when populated. Verify with get_summary/get_layer_slice before claiming they don't exist.");
       lines.push("# fishing_activity is the fishing-vessel activity layer. Aliases like gfw and global_fishing_watch should be treated as fishing_activity.");
-      lines.push("# Use search_telemetry as the Google-style entry point whenever the user gives you a person, place, company, owner, nickname, or natural-language phrase and you do not already know the source layer.");
-      lines.push("# Example: 'Where is Jerry Jones yacht?' -> search_telemetry('Jerry Jones') first, then refine with find_ships only after you identify the ship match.");
-      lines.push("# For fuzzy natural-language lookups like 'Patriots jet' or 'Jerry Jones yacht', inspect the ranked search_telemetry candidates before making a hard claim.");
-      lines.push("# search_telemetry returns ranked candidates grouped by entity type, so use the groups to narrow aircraft vs ships vs events before answering.");
+      lines.push("# When the user gives a person, place, company, owner, nickname, or natural-language phrase and you do not know the source layer,");
+      lines.push("#   call route_query first; it returns the fastest command (usually find_entity or get_entity_profile) with arguments.");
+      lines.push("# Example: 'Where is Jerry Jones yacht?' -> route_query('Where is Jerry Jones yacht') -> find_entity(owner='Jerry Jones') -> find_ships.");
+      lines.push("# Only if targeted lookups come up empty, run search_telemetry(..., confirm_expensive=true); it returns ranked candidates");
+      lines.push("#   grouped by entity type, so inspect the groups before making a hard claim.");
       lines.push("# For AF1/AF2 or other VIP aircraft, use find_flights first when the domain is obvious, then get_layer_slice(['tracked_flights']) if you need raw layer context.");
-      lines.push("# If one domain-specific command returns 0, do not conclude the entity is absent. Fall back to search_telemetry before any layer pull.");
+      lines.push("# If one domain-specific command returns 0, do not conclude the entity is absent. Try route_query / find_entity, then search_telemetry with confirm_expensive=true.");
       lines.push("# If search_telemetry returns several plausible matches, summarize the top candidates instead of pretending one uncertain hit is definitive.");
       lines.push("# If a user asks 'what is near here', use entities_near before pulling large datasets.");
       lines.push("# If a user asks about a topic or incident, use search_news before downloading the full slow feed.");
@@ -740,7 +767,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       lines.push('# 2. Batch your focused lookups: POST /api/ai/channel/batch with multiple commands in one call');
       lines.push('#    e.g. {"commands": [{"cmd":"find_flights","args":{"callsign":"AF1"}}, {"cmd":"search_news","args":{"query":"military"}}]}');
       lines.push('# 3. For repeat polling, use get_layer_slice with since_version to skip unchanged data');
-      lines.push('# 4. Only pull full telemetry (get_telemetry/get_report) if focused commands were insufficient');
+      lines.push('# 4. Only pull full telemetry (get_telemetry/get_report, confirm_expensive=true) if focused commands were insufficient');
       lines.push('# 5. Use write commands only when the user explicitly wants an action on the map/system');
     }
 
@@ -935,6 +962,10 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
                 </p>
               </button>
             </div>
+            <p className="mt-2 text-[10px] font-mono text-gray-500 leading-relaxed">
+              Read Only is enough for monitoring and investigating. Choose Full Access only if the agent
+              must place pins, set watches, or post on your behalf.
+            </p>
           </div>
 
           {/* Step N+1: Connection Credentials */}
@@ -952,8 +983,13 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
               <>
                 <p className="text-[10px] font-mono text-gray-500 mb-2">
                   {connectionMode === 'local'
-                    ? 'Paste these as environment variables or add them to your agent\u2019s config.'
-                    : 'Give these to your agent. The key is masked below \u2014 COPY sends the real key to your clipboard.'}
+                    ? 'Set these as environment variables in your agent\u2019s config (e.g. ~/.hermes/.env), then run the verify step in the snippet.'
+                    : 'Put these in your agent\u2019s environment config. The key is masked below \u2014 COPY sends the real key to your clipboard.'}
+                </p>
+                <p className="text-[10px] font-mono text-amber-400/80 mb-2 flex items-start gap-1.5">
+                  <AlertTriangle size={11} className="shrink-0 mt-px" />
+                  Don&apos;t paste the secret into a chat with your agent: chat history keeps it in plain text, and the
+                  agent&apos;s tools still won&apos;t see it.
                 </p>
                 <div className="relative">
                   <pre className="bg-black/60 border border-violet-800/40 px-4 py-3 pr-20 text-xs font-mono text-violet-300 whitespace-pre-wrap break-all leading-relaxed">
@@ -1437,14 +1473,14 @@ export default function AIIntelPanel({
           >
             <div className="p-3 space-y-3 max-h-[60vh] overflow-y-auto styled-scrollbar">
 
-              {/* ── Connect OpenClaw Button ──────────────────────── */}
+              {/* ── Connect AI Agent Button ──────────────────────── */}
               <button
                 onClick={(e) => { e.stopPropagation(); setShowConnect(true); }}
                 className="w-full flex items-center justify-center gap-2 py-2 text-[12px] font-mono tracking-wider border transition-all bg-violet-600/15 border-violet-500/30 text-violet-400 hover:bg-violet-600/25 hover:text-violet-300 hover:border-violet-500/50"
-                title="Connect your OpenClaw AI agent"
+                title="Connect your AI agent"
               >
                 <Link2 size={14} />
-                CONNECT OPENCLAW
+                CONNECT AI AGENT
               </button>
 
               {/* ── Pin Placement Button ─────────────────────────── */}
@@ -1521,7 +1557,7 @@ export default function AIIntelPanel({
                 {/* Layer list */}
                 {layers.length === 0 && !showNewLayer && (
                   <div className="text-[11px] font-mono text-[var(--text-muted)] px-2 py-3 text-center border border-dashed border-[var(--border-primary)]">
-                    No layers yet. Create one or let OpenClaw add them.
+                    No layers yet. Create one or let your AI agent add them.
                   </div>
                 )}
 
@@ -1896,7 +1932,7 @@ export default function AIIntelPanel({
         )}
       </AnimatePresence>
 
-      {/* ── Connect OpenClaw Modal (Portal) ──────────────────── */}
+      {/* ── Connect AI Agent Modal (Portal) ──────────────────── */}
       {showConnect && ReactDOM.createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center"
@@ -1914,7 +1950,7 @@ export default function AIIntelPanel({
             <div className="flex items-center justify-between px-6 py-4 border-b border-violet-500/30 bg-violet-950/20 sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <Link2 size={18} className="text-violet-400" />
-                <span className="text-sm font-mono text-violet-400 tracking-widest font-bold uppercase">Connect OpenClaw Agent</span>
+                <span className="text-sm font-mono text-violet-400 tracking-widest font-bold uppercase">Connect AI Agent</span>
               </div>
               <button
                 onClick={() => setShowConnect(false)}

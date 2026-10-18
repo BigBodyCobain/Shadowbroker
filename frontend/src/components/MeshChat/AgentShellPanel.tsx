@@ -90,7 +90,7 @@ function ShellIntro({ onAcknowledge }: { onAcknowledge: () => void }) {
 
         <p className="text-[13px] font-mono text-[var(--text-secondary)] leading-[1.75] text-left">
 
-          Connect your own agent CLIs here — OpenClaw, Codex, Gemini, or whatever you run locally.
+          Connect your own agent CLIs here — Claude Code, Codex, Gemini, Hermes, or whatever you run locally.
 
         </p>
 
