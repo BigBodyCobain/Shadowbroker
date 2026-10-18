@@ -11,6 +11,7 @@ import { fetchWikipediaSummary } from '@/lib/wikimediaClient';
 import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
 import { useDataKeys } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
+import { sameEntityId } from '@/components/map/featureIds';
 import DatalinkMessagesBlock from '@/components/DatalinkMessagesBlock';
 import { lookupShodanHost } from '@/lib/shodanClient';
 import type { ShodanHost } from '@/types/shodan';
@@ -1202,7 +1203,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
     }
 
     if (selectedEntity?.type === 'ship') {
-        const ship = data?.ships?.find((s: any) => s.mmsi === selectedEntity.id);
+        const ship = data?.ships?.find((s: any) => sameEntityId(s.mmsi, selectedEntity.id));
         if (ship) {
             const vesselTypeLabels: Record<string, string> = {
                 'tanker': 'TANKER',
