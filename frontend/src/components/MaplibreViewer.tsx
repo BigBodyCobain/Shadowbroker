@@ -185,6 +185,7 @@ import {
 import { useViewportBounds } from '@/components/map/hooks/useViewportBounds';
 import { getLiveDataBounds } from '@/lib/liveDataViewport';
 import { MeasurementLayers } from '@/components/map/layers/MeasurementLayers';
+import { sameEntityId } from '@/components/map/featureIds';
 import { buildCctvProxyUrl } from '@/lib/cctvProxy';
 import { sanitizeSubmarineCables } from '@/lib/submarineCables';
 import { CctvFullscreenModal } from '@/components/MaplibreViewer/CctvFullscreenModal';
@@ -4595,7 +4596,7 @@ const MaplibreViewer = ({
         {/* Satellite click popup (with ISS live feed + maneuver alerts) */}
         {selectedEntity?.type === 'satellite' &&
           (() => {
-            const sat = data?.satellites?.find((s) => s.id === selectedEntity.id);
+            const sat = data?.satellites?.find((s) => sameEntityId(s.id, selectedEntity.id));
             if (!sat) return null;
             const maneuverAlert = data?.satellite_analysis?.maneuvers?.find(
               (m) => m.norad_id === sat.id
@@ -4629,7 +4630,7 @@ const MaplibreViewer = ({
         {selectedEntity?.type === 'uap_sighting' &&
           (() => {
             const props = selectedEntity.extra || {};
-            const sighting = data?.uap_sightings?.find((s) => s.id === selectedEntity.id);
+            const sighting = data?.uap_sightings?.find((s) => sameEntityId(s.id, selectedEntity.id));
             const lat = sighting?.lat ?? props.lat;
             const lng = sighting?.lng ?? props.lng;
             if (lat == null || lng == null) return null;
@@ -4684,7 +4685,7 @@ const MaplibreViewer = ({
         {/* Wastewater plant popup */}
         {selectedEntity?.type === 'wastewater' &&
           (() => {
-            const plant = data?.wastewater?.find((w) => w.id === selectedEntity.id);
+            const plant = data?.wastewater?.find((w) => sameEntityId(w.id, selectedEntity.id));
             if (!plant) return null;
             return (
               <WastewaterPopup
@@ -4742,7 +4743,7 @@ const MaplibreViewer = ({
         {/* Train click popup */}
         {selectedEntity?.type === 'train' &&
           (() => {
-            const train = data?.trains?.find((t) => t.id === selectedEntity.id);
+            const train = data?.trains?.find((t) => sameEntityId(t.id, selectedEntity.id));
             if (!train) return null;
             const isAmtrak = train.source === 'amtrak';
             const sourceLabel = train.source_label || train.source.toUpperCase();
@@ -4796,7 +4797,7 @@ const MaplibreViewer = ({
         {/* UAV click popup — real ADS-B detected drones */}
         {selectedEntity?.type === 'uav' &&
           (() => {
-            const uav = data?.uavs?.find((u) => u.id === selectedEntity.id);
+            const uav = data?.uavs?.find((u) => sameEntityId(u.id, selectedEntity.id));
             if (!uav) return null;
             return (
               <Popup
@@ -5250,8 +5251,8 @@ const MaplibreViewer = ({
           (() => {
             const ship = data?.ships?.find((s, i: number) => {
               return (
-                (s.mmsi || s.name || `ship-${i}`) === selectedEntity.id ||
-                (s.mmsi || s.name || `carrier-${i}`) === selectedEntity.id
+                sameEntityId(s.mmsi || s.name || `ship-${i}`, selectedEntity.id) ||
+                sameEntityId(s.mmsi || s.name || `carrier-${i}`, selectedEntity.id)
               );
             });
             if (!ship) return null;
@@ -5644,7 +5645,7 @@ const MaplibreViewer = ({
         {/* Weather Alert popup */}
         {selectedEntity?.type === 'weather_alert' &&
           (() => {
-            const alert = data?.weather_alerts?.find((a) => a.id === selectedEntity.id);
+            const alert = data?.weather_alerts?.find((a) => sameEntityId(a.id, selectedEntity.id));
             if (!alert) return null;
             const sevColors: Record<string, string> = { Extreme: '#ef4444', Severe: '#f97316', Moderate: '#eab308', Minor: '#3b82f6' };
             const accent = sevColors[alert.severity] || '#3b82f6';

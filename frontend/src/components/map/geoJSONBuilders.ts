@@ -2,6 +2,7 @@
 // Extracted from MaplibreViewer to reduce component size and enable unit testing.
 // Each function takes data arrays + optional helpers and returns a GeoJSON FeatureCollection or null.
 
+import { sameEntityId } from '@/components/map/featureIds';
 import type {
   Earthquake,
   GPSJammingZone,
@@ -71,9 +72,9 @@ export function findSelectedEntity(
     case 'tracked_flight':
       return data.tracked_flights?.find((f) => f.icao24 === id) || null;
     case 'ship':
-      return data.ships?.find((s) => s.mmsi === id) || null;
+      return data.ships?.find((s) => sameEntityId(s.mmsi, id)) || null;
     case 'uav':
-      return data.uavs?.find((u) => u.id === id) || null;
+      return data.uavs?.find((u) => sameEntityId(u.id, id)) || null;
     default:
       return null;
   }
