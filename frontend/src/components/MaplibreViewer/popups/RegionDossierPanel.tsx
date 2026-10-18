@@ -11,6 +11,9 @@ export interface Sentinel2Data {
   datetime?: string;
   cloud_cover?: number;
   fallback?: boolean;
+  /** True while the live Sentinel-2 search is still in flight. */
+  searching?: boolean;
+  message?: string;
   scenes?: Sentinel2Data[];
 }
 
@@ -163,8 +166,36 @@ export function RegionDossierPanel({ sentinel2: s2, lat, lng, onClose }: RegionD
           </div>
         </div>
 
-        {scene.found ? (
+        {s2.searching ? (
+          <div
+            style={{
+              padding: '60px 16px',
+              minWidth: 360,
+              fontSize: 12,
+              color: '#4ade80',
+              fontFamily: 'monospace',
+              letterSpacing: '0.2em',
+              textAlign: 'center',
+              animation: 'pulse 2s infinite',
+            }}
+          >
+            SEARCHING SENTINEL-2 ARCHIVE…
+          </div>
+        ) : scene.found ? (
           <>
+            {scene.fallback && scene.message && (
+              <div
+                style={{
+                  padding: '6px 16px',
+                  fontSize: 11,
+                  color: '#fbbf24',
+                  fontFamily: 'monospace',
+                  borderBottom: '1px solid rgba(20,83,45,0.4)',
+                }}
+              >
+                {scene.message}
+              </div>
+            )}
             {/* Metadata row with scene navigation */}
             <div
               style={{
