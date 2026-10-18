@@ -2289,6 +2289,7 @@ const MaplibreViewer = ({
             id="gps-jamming-label"
             type="symbol"
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': [
                 'concat',
                 'GPS JAM ',
@@ -2386,6 +2387,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'rf_anomaly']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'RF ANOMALY\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2426,6 +2428,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'military_buildup']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'MIL BUILDUP\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2465,6 +2468,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'infra_cascade']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'INFRA CASCADE\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2505,6 +2509,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'contradiction']}
             minzoom={2}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', '? CONTRADICTION\n', ['get', 'context'], ' · ', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2557,6 +2562,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'analysis_zone']}
             minzoom={2}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', ['get', 'zone_title'], '\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2599,6 +2605,7 @@ const MaplibreViewer = ({
             type="symbol"
             filter={['has', 'point_count']}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': '{point_count_abbreviated}',
               'text-size': 12,
               'text-allow-overlap': true,
