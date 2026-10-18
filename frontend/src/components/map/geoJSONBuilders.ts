@@ -247,7 +247,7 @@ export function buildCorrelationsGeoJSON(alerts?: CorrelationAlert[]): FC {
             alternatives: (a.alternatives || []).join(' | '),
             location_name: a.location_name || '',
           }),
-          // Analysis zone extras (OpenClaw-placed)
+          // Analysis zone extras (agent-placed)
           ...(a.type === 'analysis_zone' && {
             zone_id: a.id || '',
             zone_title: a.title || '',
