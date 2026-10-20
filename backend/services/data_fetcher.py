@@ -99,6 +99,7 @@ from services.fetchers.crowdthreat import fetch_crowdthreat  # noqa: F401
 from services.fetchers.wastewater import fetch_wastewater  # noqa: F401
 from services.fetchers.sar_catalog import fetch_sar_catalog  # noqa: F401
 from services.fetchers.sar_products import fetch_sar_products  # noqa: F401
+from services.fetchers.snapmap_osint import fetch_snapmap_osint, scan_interval_minutes as _snapmap_interval  # noqa: F401
 from services.ais_stream import prune_stale_vessels  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -1030,6 +1031,17 @@ def start_scheduler():
         id="crowdthreat_daily",
         max_instances=1,
         misfire_grace_time=3600,
+    )
+
+    # Snap Map OSINT — watch-zone density scan (own cadence, min 10 min, default 15).
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_snapmap_osint, "fetch_snapmap_osint"),
+        "interval",
+        minutes=_snapmap_interval(),
+        next_run_time=datetime.utcnow() + timedelta(seconds=90),
+        id="snapmap_osint",
+        max_instances=1,
+        misfire_grace_time=600,
     )
 
     # SAR catalog (Mode A) — every hour, free metadata from ASF Search.

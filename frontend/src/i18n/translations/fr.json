@@ -201,7 +201,8 @@
     "crowdThreat": "CrowdThreat",
     "shodanOverlay": "Couche Shodan",
     "aiIntel": "Infos IA",
-    "sar": "SAR"
+    "sar": "SAR",
+    "snapmapOsint": "Activité Snap Map (zones)"
   },
   "shodan": {
     "title": "Connecteur Shodan",
@@ -242,5 +243,19 @@
     "vegetation": "Perturbation végétale",
     "damage": "Évaluation des dégâts",
     "coherence": "Changement de cohérence"
+  },
+  "snapmap": {
+    "level": "Niveau",
+    "lastHour": "Dernière heure",
+    "baseline": "Référence",
+    "warmup": "Calibrage en cours : la référence se construit sur les prochains passages.",
+    "corroboration": "Recoupements (autres couches)",
+    "keywords": "Mots-clés",
+    "reliabilityHint": "A = vérifié par un analyste · B = recoupé par une autre source · C = Snap Map seul",
+    "confirmPlaceholder": "Note de vérification (géolocalisation, source…)",
+    "confirm": "Confirmer après vérification (A)",
+    "confirmError": "Échec de la confirmation",
+    "scanned": "Scan il y a",
+    "disclaimer": "Densité de snaps publics — signal à vérifier, pas un fait établi."
   }
 }

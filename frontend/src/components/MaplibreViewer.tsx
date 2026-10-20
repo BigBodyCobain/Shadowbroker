@@ -175,6 +175,7 @@ import { SigintPopup } from '@/components/MaplibreViewer/popups/SigintPopup';
 import { CorrelationPopup } from '@/components/MaplibreViewer/popups/CorrelationPopup';
 import { WastewaterPopup } from '@/components/MaplibreViewer/popups/WastewaterPopup';
 import { MilitaryBasePopup } from '@/components/MaplibreViewer/popups/MilitaryBasePopup';
+import { SnapmapOsintPopup } from '@/components/MaplibreViewer/popups/SnapmapOsintPopup';
 import { RegionDossierPanel } from '@/components/MaplibreViewer/popups/RegionDossierPanel';
 import {
   buildSentinelTileUrl,
@@ -186,6 +187,7 @@ import {
   buildEarthquakesGeoJSON,
   buildJammingGeoJSON,
   buildCorrelationsGeoJSON,
+  buildSnapmapOsintGeoJSON,
   buildTinygsGeoJSON,
   buildShodanGeoJSON,
   buildAIIntelGeoJSON,
@@ -289,6 +291,7 @@ function flightPayloadHasKnownRoute(entity: ReturnType<typeof findSelectedEntity
 }
 
 const MAP_EXTRA_DATA_KEYS = [
+  'snapmap_osint',
   'air_quality',
   'cctv',
   'commercial_flights',
@@ -754,6 +757,10 @@ const MaplibreViewer = ({
     [activeLayers.gps_jamming, data?.gps_jamming],
   );
 
+  const snapmapGeoJSON = useMemo(
+    () => (activeLayers.snapmap_osint ? buildSnapmapOsintGeoJSON(data?.snapmap_osint) : null),
+    [activeLayers.snapmap_osint, data?.snapmap_osint],
+  );
   const correlationsGeoJSON = useMemo(
     () => {
       if (!activeLayers.correlations && !activeLayers.contradictions) return null;
@@ -1668,6 +1675,8 @@ const MaplibreViewer = ({
     correlationsGeoJSON && 'corr-infra-fill',
     correlationsGeoJSON && 'corr-contra-fill',
     correlationsGeoJSON && 'corr-analysis-fill',
+    snapmapGeoJSON && 'snapmap-zone-fill',
+    snapmapGeoJSON && 'snapmap-zone-center',
   ].filter(Boolean) as string[];
 
   useEffect(() => {
@@ -1731,6 +1740,7 @@ const MaplibreViewer = ({
   useImperativeSource(mapForHook, 'uap-sightings-source', uapSightingsGeoJSON, 100);
   useImperativeSource(mapForHook, 'wastewater-source', wastewaterGeoJSON, 100);
   useImperativeSource(mapForHook, 'crowdthreat-source', crowdthreatGeoJSON, 100);
+  useImperativeSource(mapForHook, 'snapmap-source', snapmapGeoJSON, 150);
   useImperativeSource(mapForHook, 'ships', shipsGeoJSON, 75);
   useImperativeSource(mapForHook, 'meshtastic-source', meshtasticGeoJSON, 60);
   useImperativeSource(mapForHook, 'aprs-source', aprsGeoJSON, 60);
@@ -2166,6 +2176,67 @@ const MaplibreViewer = ({
             }}
           />
         </Source>
+
+        {/* Snap Map OSINT — watch-zone footprints coloured by anomaly level, centre sized by last-hour activity */}
+        <Source id="snapmap-source" type="geojson" data={EMPTY_FC}>
+          <Layer
+            id="snapmap-zone-fill"
+            type="fill"
+            filter={['==', ['get', 'geom'], 'zone']}
+            paint={{
+              'fill-color': ['get', 'color'],
+              'fill-opacity': [
+                'match',
+                ['get', 'level'],
+                'critical', 0.32,
+                'high', 0.26,
+                'elevated', 0.2,
+                0.08,
+              ],
+            }}
+          />
+          <Layer
+            id="snapmap-zone-outline"
+            type="line"
+            filter={['==', ['get', 'geom'], 'zone']}
+            paint={{
+              'line-color': ['get', 'color'],
+              'line-width': ['match', ['get', 'level'], 'critical', 2.5, 'high', 2, 1],
+              'line-dasharray': [2, 1.5],
+            }}
+          />
+          <Layer
+            id="snapmap-zone-center"
+            type="circle"
+            filter={['==', ['get', 'geom'], 'center']}
+            paint={{
+              'circle-radius': ['interpolate', ['linear'], ['get', 'count_1h'], 0, 5, 10, 9, 50, 16, 200, 26],
+              'circle-color': ['get', 'color'],
+              'circle-opacity': 0.85,
+              'circle-stroke-width': ['match', ['get', 'reliability'], 'A', 3, 'B', 2, 1],
+              'circle-stroke-color': ['match', ['get', 'reliability'], 'A', '#10b981', 'B', '#38bdf8', '#e4e4e7'],
+            }}
+          />
+          <Layer
+            id="snapmap-zone-label"
+            type="symbol"
+            minzoom={6}
+            filter={['==', ['get', 'geom'], 'center']}
+            layout={{
+              'text-field': ['concat', ['get', 'name'], '\n', ['get', 'tag']],
+              'text-size': 10,
+              'text-offset': [0, 1.6],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+            }}
+            paint={{
+              'text-color': '#fde68a',
+              'text-halo-color': '#000000',
+              'text-halo-width': 1.5,
+            }}
+          />
+        </Source>
+
 
         {/* Correlation Alerts — Emergent Intelligence grid squares */}
         <Source id="correlations" type="geojson" data={(correlationsGeoJSON ?? EMPTY_FC)}>
@@ -4434,6 +4505,14 @@ const MaplibreViewer = ({
           })()}
 
         {/* CrowdThreat popup */}
+        {(() => {
+          if (selectedEntity?.type !== 'snapmap_osint' || !data?.snapmap_osint?.zones) return null;
+          const zone = data.snapmap_osint.zones.find((z) => z.id === selectedEntity.id);
+          if (!zone) return null;
+          return <SnapmapOsintPopup zone={zone} onClose={() => onEntityClick?.(null)} />;
+        })()}
+
+
         {selectedEntity?.type === 'crowdthreat' &&
           (() => {
             const props = selectedEntity.extra || {};

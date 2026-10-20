@@ -639,6 +639,7 @@ async def live_data_slow(
         "scanners", "weather_alerts", "ukraine_alerts", "air_quality", "volcanoes",
         "fishing_activity", "psk_reporter", "correlations", "uap_sightings", "wastewater",
         "crowdthreat", "threat_level", "trending_markets",
+        "snapmap_osint",
     )
     freshness = get_source_timestamps_snapshot()
     payload = {
@@ -679,6 +680,7 @@ async def live_data_slow(
         "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
         "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
         "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
+        "snapmap_osint": (d.get("snapmap_osint") or {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0}) if active_layers.get("snapmap_osint", False) else {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0},
         "freshness": freshness,
     }
     # Issue #288: bbox filter heavy/dense layers only when all four bounds

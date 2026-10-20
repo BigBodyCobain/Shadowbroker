@@ -105,6 +105,7 @@ const FRESHNESS_MAP: Record<string, string> = {
   wastewater: 'wastewater',
   ai_intel: '',
   crowdthreat: 'crowdthreat',
+  snapmap_osint: 'snapmap_osint',
 };
 
 // POTUS fleet ICAO hex codes for client-side filtering
@@ -1242,6 +1243,13 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           source: 'GDELT',
           count: data?.gdelt?.length || 0,
           icon: Activity,
+        },
+        {
+          id: 'snapmap_osint',
+          name: t('layers.snapmapOsint'),
+          source: 'Snap Map · watch zones',
+          count: data?.snapmap_osint?.anomalies || 0,
+          icon: MapPin,
         },
         {
           id: 'crowdthreat',

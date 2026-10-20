@@ -218,6 +218,7 @@ export default function Dashboard() {
     wastewater: true,
     // CrowdThreat is operator opt-in only.
     crowdthreat: false,
+    snapmap_osint: false,
     // Shodan
     shodan_overlay: false,
     // AI Intel

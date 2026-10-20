@@ -365,6 +365,7 @@ wormhole_router = _load_optional_router("routers.wormhole")
 ai_intel_router = _load_optional_router("routers.ai_intel")
 sar_router = _load_optional_router("routers.sar")
 infonet_router = _load_optional_router("routers.infonet")
+snapmap_router = _load_optional_router("routers.snapmap")
 
 
 # ---------------------------------------------------------------------------
@@ -3641,6 +3642,7 @@ app.include_router(wormhole_router)
 app.include_router(ai_intel_router)
 app.include_router(sar_router)
 app.include_router(infonet_router)
+app.include_router(snapmap_router)
 
 from services.data_fetcher import update_all_data
 
@@ -4216,6 +4218,7 @@ async def live_data_slow(
         "sar_scenes",
         "sar_anomalies",
         "sar_aoi_coverage",
+        "snapmap_osint",
     )
     freshness = get_source_timestamps_snapshot()
 
@@ -4261,6 +4264,7 @@ async def live_data_slow(
         "sar_scenes": (d.get("sar_scenes") or []) if active_layers.get("sar", True) else [],
         "sar_anomalies": (d.get("sar_anomalies") or []) if active_layers.get("sar", True) else [],
         "sar_aoi_coverage": (d.get("sar_aoi_coverage") or []) if active_layers.get("sar", True) else [],
+        "snapmap_osint": (d.get("snapmap_osint") or {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0}) if active_layers.get("snapmap_osint", False) else {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0},
         "freshness": freshness,
     }
     return Response(
