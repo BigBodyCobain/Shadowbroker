@@ -314,7 +314,7 @@ def test_cctv_proxy_profiles_are_source_specific():
     tfl = main._cctv_proxy_profile_for_url("https://s3-eu-west-1.amazonaws.com/jamcams.tfl.gov.uk/00001.mp4")
     austin = main._cctv_proxy_profile_for_url("https://cctv.austinmobility.io/image/316.jpg")
     georgia = main._cctv_proxy_profile_for_url("https://511ga.org/map/Cctv/22378")
-    spain = main._cctv_proxy_profile_for_url("https://infocar.dgt.es/etraffic/data/camaras/1050.jpg")
+    spain = main._cctv_proxy_profile_for_url("https://etraffic.dgt.es/camarasEtraffic/1050.jpg")
 
     assert tfl.name == "tfl-jamcam"
     assert tfl.headers["Accept"].startswith("video/mp4")
@@ -324,7 +324,7 @@ def test_cctv_proxy_profiles_are_source_specific():
     assert georgia.timeout == (5.0, 12.0)
     assert georgia.headers["Referer"] == "https://511ga.org/cctv"
     assert spain.name == "dgt-spain"
-    assert spain.headers["Referer"] == "https://infocar.dgt.es/"
+    assert spain.headers["Referer"] == "https://etraffic.dgt.es/"
 
 
 def test_cctv_proxy_preserves_upstream_http_status(monkeypatch):

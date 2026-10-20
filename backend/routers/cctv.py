@@ -46,7 +46,10 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "tripcheck.com",
     "www.tripcheck.com",
     "infocar.dgt.es",
+    "etraffic.dgt.es",
     "informo.madrid.es",
+    "webcams2.asfinag.at",
+    "odo.asfinag.at",
     "www.windy.com",
     "imgproxy.windy.com",
     "www.lakecountypassage.com",
@@ -55,6 +58,14 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "www.nps.gov",
     "home.lewiscounty.com",
     "www.seattle.gov",
+    "511on.ca",
+    "511.alberta.ca",
+    "fl511.com",
+    "www.fl511.com",
+    "webcams.transport.nsw.gov.au",
+    "www.livetraffic.com",
+    "livetraffic.com",
+    "opendata.ndw.nu",
 }
 
 
@@ -120,7 +131,7 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
         read_timeout = 18.0 if "/snapshots/" in path else 12.0
         return _CCTVProxyProfile(name="gdot-snapshot", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, read_timeout), cache_seconds=15,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                     "Referer": "http://navigator-c2c.dot.ga.gov/"})
+                     "Referer": "https://navigator-c2c.dot.ga.gov/"})
     if host == "511ga.org":
         return _CCTVProxyProfile(name="gdot-511ga-image", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=15,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
@@ -128,7 +139,7 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
     if host.startswith("vss") and host.endswith("dot.ga.gov"):
         return _CCTVProxyProfile(name="gdot-hls", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 20.0), cache_seconds=10,
             headers={"Accept": "application/vnd.apple.mpegurl,application/x-mpegURL,video/*,*/*;q=0.8",
-                     "Referer": "http://navigator-c2c.dot.ga.gov/"})
+                     "Referer": "https://navigator-c2c.dot.ga.gov/"})
     if host in {"gettingaroundillinois.com", "cctv.travelmidwest.com"}:
         return _CCTVProxyProfile(name="illinois-dot", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"})
@@ -148,18 +159,42 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
     if host in {"tripcheck.com", "www.tripcheck.com"}:
         return _CCTVProxyProfile(name="odot-tripcheck", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"})
-    if host == "infocar.dgt.es":
+    if host in {"infocar.dgt.es", "etraffic.dgt.es"}:
         return _CCTVProxyProfile(name="dgt-spain", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 8.0), cache_seconds=60,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                     "Referer": "https://infocar.dgt.es/"})
+                     "Referer": "https://etraffic.dgt.es/"})
     if host == "informo.madrid.es":
         return _CCTVProxyProfile(name="madrid-city", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                      "Referer": "https://informo.madrid.es/"})
+    if host in {"webcams2.asfinag.at", "odo.asfinag.at"}:
+        return _CCTVProxyProfile(name="asfinag-austria", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=60,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://www.asfinag.at/"})
     if host in {"www.windy.com", "imgproxy.windy.com"}:
         return _CCTVProxyProfile(name="windy-webcams", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=60,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                      "Referer": "https://www.windy.com/"})
+    if host == "511on.ca":
+        return _CCTVProxyProfile(name="ontario-511", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://511on.ca/"})
+    if host == "511.alberta.ca":
+        return _CCTVProxyProfile(name="alberta-511", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://511.alberta.ca/"})
+    if host in {"fl511.com", "www.fl511.com"}:
+        return _CCTVProxyProfile(name="florida-511", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://fl511.com/"})
+    if host == "webcams.transport.nsw.gov.au":
+        return _CCTVProxyProfile(name="nsw-live-traffic", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=60,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://www.livetraffic.com/"})
+    if host in {"opendata.ndw.nu", "www.ndw.nu"}:
+        return _CCTVProxyProfile(name="ndw-netherlands", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=120,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://www.ndw.nu/"})
     return _CCTVProxyProfile(name="generic-cctv", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 8.0), cache_seconds=30,
         headers={"Accept": "*/*"})
 

@@ -287,28 +287,18 @@ def write_signed_bootstrap_manifest(
     return manifest
 
 
-def load_bootstrap_manifest(
-    path: str | Path,
+def parse_bootstrap_manifest_dict(
+    raw: dict[str, Any],
     *,
     signer_public_key_b64: str,
     now: float | None = None,
 ) -> BootstrapManifest:
-    manifest_path = _resolve_manifest_path(str(path))
-    try:
-        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise BootstrapManifestError(f"bootstrap manifest not found: {manifest_path}") from exc
-    except json.JSONDecodeError as exc:
-        raise BootstrapManifestError("bootstrap manifest is not valid JSON") from exc
-
     if not isinstance(raw, dict):
         raise BootstrapManifestError("bootstrap manifest root must be an object")
-
     signature = str(raw.get("signature", "") or "").strip()
     payload = {key: value for key, value in raw.items() if key != "signature"}
     if not signature:
         raise BootstrapManifestError("bootstrap manifest signature is required")
-
     _verify_manifest_signature(
         payload,
         signature_b64=signature,
@@ -325,11 +315,36 @@ def load_bootstrap_manifest(
     )
 
 
+def load_bootstrap_manifest(
+    path: str | Path,
+    *,
+    signer_public_key_b64: str,
+    now: float | None = None,
+) -> BootstrapManifest:
+    manifest_path = _resolve_manifest_path(str(path))
+    try:
+        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise BootstrapManifestError(f"bootstrap manifest not found: {manifest_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise BootstrapManifestError("bootstrap manifest is not valid JSON") from exc
+
+    if not isinstance(raw, dict):
+        raise BootstrapManifestError("bootstrap manifest root must be an object")
+    return parse_bootstrap_manifest_dict(
+        raw,
+        signer_public_key_b64=signer_public_key_b64,
+        now=now,
+    )
+
+
 def load_bootstrap_manifest_from_settings(*, now: float | None = None) -> BootstrapManifest | None:
     settings = get_settings()
     if bool(getattr(settings, "MESH_BOOTSTRAP_DISABLED", False)):
         return None
-    signer_public_key_b64 = str(getattr(settings, "MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY", "") or "").strip()
+    from services.mesh.mesh_fleet_defaults import effective_bootstrap_signer_public_key_b64
+
+    signer_public_key_b64 = effective_bootstrap_signer_public_key_b64()
     if not signer_public_key_b64:
         return None
     manifest_path = _resolve_manifest_path(str(getattr(settings, "MESH_BOOTSTRAP_MANIFEST_PATH", "") or ""))

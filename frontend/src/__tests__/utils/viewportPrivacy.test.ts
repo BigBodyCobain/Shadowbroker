@@ -5,6 +5,10 @@ import {
   coarsenViewBounds,
   expandBoundsToRadius,
 } from '@/lib/viewportPrivacy';
+import {
+  liveDataBoundsKey,
+  setLiveDataBounds,
+} from '@/lib/liveDataViewport';
 
 describe('viewport privacy helper', () => {
   it('coarsens narrow bounds outward without clipping the original view', () => {
@@ -43,6 +47,14 @@ describe('viewport privacy helper', () => {
 
     expect(a).toBe('?s=47.60&w=-122.35&n=47.70&e=-122.20');
     expect(b).toBe(a);
+  });
+
+  it('liveDataBoundsKey matches quantized fetch params and clears for world view', () => {
+    setLiveDataBounds({ south: 33.6, west: -84.5, north: 33.8, east: -84.2 });
+    expect(liveDataBoundsKey()).toBe('33,-85,34,-84');
+
+    setLiveDataBounds(null);
+    expect(liveDataBoundsKey()).toBeNull();
   });
 
   it('expands bounds to a fixed preload radius around the current view center', () => {

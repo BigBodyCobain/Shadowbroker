@@ -15,9 +15,9 @@ evaluation. Once frozen:
   can't pre-mine before the boundary.
 
 The snapshot itself is **immutable** by spec — the producer emits it
-once and never updates it. Sprint 4 enforces immutability by ignoring
-any subsequent ``market_snapshot`` events with the same market_id
-(``find_snapshot`` returns the FIRST one). Tests assert this invariant.
+once and never updates it. The first snapshot in canonical hashchain
+append order is authoritative; a malformed first snapshot fails closed
+and cannot be replaced by a later one.
 """
 
 from __future__ import annotations
@@ -26,21 +26,23 @@ import hashlib
 import json
 from typing import Any, Iterable
 
+from services.infonet.markets.event_selection import (
+    events_for_market,
+    finite_float,
+    first_authoritative_event,
+    has_valid_ordering,
+    payload,
+)
 
-def _payload(event: dict[str, Any]) -> dict[str, Any]:
-    p = event.get("payload")
-    return p if isinstance(p, dict) else {}
 
+class InvalidAuthoritativeSnapshot(ValueError):
+    """Raised when the first on-chain snapshot exists but is malformed.
 
-def _events_for_market(market_id: str, chain: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for ev in chain:
-        if not isinstance(ev, dict):
-            continue
-        if _payload(ev).get("market_id") == market_id:
-            out.append(ev)
-    out.sort(key=lambda e: (float(e.get("timestamp") or 0.0), int(e.get("sequence") or 0)))
-    return out
+    ``None`` from :func:`find_snapshot` is reserved for the distinct state in
+    which no snapshot exists. Raising here prevents downstream resolution and
+    eligibility code from interpreting a corrupted commitment as an absent
+    snapshot with relaxed restrictions.
+    """
 
 
 def build_snapshot(
@@ -51,17 +53,21 @@ def build_snapshot(
 ) -> dict[str, Any]:
     """Compute the snapshot payload deterministically from chain history.
 
-    Walks ``prediction_place`` events for ``market_id``, in chain order,
-    and produces the frozen counts / stake totals / predictor list /
-    yes-no probability state. The resulting dict is ready to be written
-    as the payload of a ``market_snapshot`` event.
+    Walks ``prediction_place`` events for ``market_id`` in canonical hashchain
+    append order and produces the frozen counts / stake totals / predictor list /
+    yes-no probability state. The resulting dict is ready to be written as the
+    payload of a ``market_snapshot`` event.
 
     ``frozen_at`` is the canonical commitment timestamp — typically
     ``chain_majority_time(chain)`` at the moment the producer decides
     to advance to EVIDENCE. Pass it explicitly so the function stays
     pure and deterministic.
     """
-    events = _events_for_market(market_id, chain)
+    frozen_at_value = finite_float(frozen_at)
+    if frozen_at_value is None:
+        raise ValueError("frozen_at must be finite")
+
+    events = events_for_market(market_id, chain)
 
     predictor_ids: list[str] = []
     seen_predictors: set[str] = set()
@@ -75,31 +81,33 @@ def build_snapshot(
         node = ev.get("node_id")
         if not isinstance(node, str) or not node:
             continue
-        p = _payload(ev)
+        p = payload(ev)
         side = p.get("side")
         if side not in ("yes", "no"):
             continue
+
+        stake = p.get("stake_amount")
+        if stake is None:
+            weight = 1.0  # Free pick = 1.0 virtual stake (RULES §5.2).
+            staked_amount = 0.0
+        else:
+            parsed_stake = finite_float(stake)
+            if parsed_stake is None or parsed_stake <= 0:
+                # Invalid paid predictions must not inflate participant
+                # counts or poison the frozen probability state.
+                continue
+            weight = parsed_stake
+            staked_amount = parsed_stake
+
         if node not in seen_predictors:
             seen_predictors.add(node)
             predictor_ids.append(node)
-        stake = p.get("stake_amount")
-        if stake is not None:
-            try:
-                a = float(stake)
-            except (TypeError, ValueError):
-                a = 0.0
-            if a > 0:
-                total_stake += a
-                if side == "yes":
-                    yes_weight += a
-                else:
-                    no_weight += a
+
+        total_stake += staked_amount
+        if side == "yes":
+            yes_weight += weight
         else:
-            # Free pick = 1.0 virtual stake (RULES §5.2).
-            if side == "yes":
-                yes_weight += 1.0
-            else:
-                no_weight += 1.0
+            no_weight += weight
 
     pool = yes_weight + no_weight
     if pool > 0:
@@ -114,7 +122,7 @@ def build_snapshot(
         "frozen_total_stake": total_stake,
         "frozen_predictor_ids": predictor_ids,
         "frozen_probability_state": {"yes": yes_p, "no": no_p},
-        "frozen_at": float(frozen_at),
+        "frozen_at": frozen_at_value,
     }
 
 
@@ -150,21 +158,27 @@ def find_snapshot(
     market_id: str,
     chain: Iterable[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Return the FIRST ``market_snapshot`` payload for ``market_id``.
+    """Return the first authoritative ``market_snapshot`` payload.
 
-    Subsequent ``market_snapshot`` events with the same market_id are
-    ignored — snapshots are immutable per RULES §2.2. This is a
-    structural enforcement, not just a convention; an attacker who
-    forges a second snapshot cannot influence resolution.
+    Selection follows canonical hashchain append order. ``None`` means no
+    snapshot exists. If the first snapshot exists but has malformed ordering
+    metadata, :class:`InvalidAuthoritativeSnapshot` is raised instead of
+    treating the corruption as absence or allowing a later snapshot to replace
+    the commitment.
     """
-    events = _events_for_market(market_id, chain)
-    for ev in events:
-        if ev.get("event_type") == "market_snapshot":
-            return _payload(ev)
-    return None
+    events = events_for_market(market_id, chain)
+    snapshot = first_authoritative_event(events, "market_snapshot")
+    if snapshot is None:
+        return None
+    if not has_valid_ordering(snapshot):
+        raise InvalidAuthoritativeSnapshot(
+            f"authoritative snapshot for market '{market_id}' has invalid ordering metadata"
+        )
+    return payload(snapshot)
 
 
 __all__ = [
+    "InvalidAuthoritativeSnapshot",
     "build_snapshot",
     "compute_snapshot_event_hash",
     "find_snapshot",

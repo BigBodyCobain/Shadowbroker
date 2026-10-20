@@ -113,3 +113,52 @@ def test_fetch_fishing_activity_dedupes_to_latest_event_per_vessel(monkeypatch):
         assert latest_data["fishing_activity"][0]["vessel_ssvid"] == "ssvid-1"
     finally:
         latest_data["fishing_activity"] = original
+
+
+def test_fetch_fishing_activity_respects_max_pages(monkeypatch):
+    from services.fetchers import geo
+    from services.fetchers._store import latest_data
+
+    original = list(latest_data.get("fishing_activity") or [])
+    requests: list[str] = []
+
+    def fake_fetch(url, timeout=30, headers=None):
+        requests.append(url)
+        offset = 0
+        if "offset=500" in url:
+            offset = 500
+        payload = {
+            "total": 5000,
+            "entries": [
+                {
+                    "id": f"evt-{offset + i}",
+                    "position": {"lat": 10.0 + i, "lon": 20.0 + i},
+                    "event": {"duration": 3600},
+                    "vessel": {
+                        "id": f"v-{offset + i}",
+                        "ssvid": f"ssvid-{offset + i}",
+                        "name": f"Vessel-{offset + i}",
+                        "flag": "US",
+                    },
+                }
+                for i in range(500)
+            ],
+            "nextOffset": offset + 500,
+        }
+        return SimpleNamespace(status_code=200, json=lambda p=payload: p)
+
+    monkeypatch.setenv("GFW_API_TOKEN", "test-token")
+    monkeypatch.setenv("GFW_EVENTS_PAGE_SIZE", "500")
+    monkeypatch.setenv("GFW_EVENTS_MAX_PAGES", "2")
+    monkeypatch.setattr("services.fetchers._store.is_any_active", lambda *args: True)
+    monkeypatch.setattr(geo, "fetch_with_curl", fake_fetch)
+    monkeypatch.setattr(geo, "_mark_fresh", lambda *args, **kwargs: None)
+    monkeypatch.setattr(geo, "_last_fishing_fetch_ts", 0.0)
+
+    try:
+        geo.fetch_fishing_activity()
+        assert len(latest_data["fishing_activity"]) == 1000
+        assert len(requests) == 2
+        assert all("offset=0" in url or "offset=500" in url for url in requests)
+    finally:
+        latest_data["fishing_activity"] = original

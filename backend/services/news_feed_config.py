@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
 MAX_FEEDS = 50
 _FEED_URL_REPLACEMENTS = {
+    "http://feeds.bbci.co.uk/news/world/rss.xml": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "http://www.news.cn/english/rss/worldrss.xml": "https://www.news.cn/english/rss/worldrss.xml",
     "https://www.channelnewsasia.com/rssfeed/8395986": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml",
 }
 _DEAD_FEED_URLS = {
@@ -27,7 +29,7 @@ _DEAD_FEED_URLS = {
 
 DEFAULT_FEEDS = [
     {"name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 4},
-    {"name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3},
+    {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3},
     {"name": "AlJazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml", "weight": 2},
     {"name": "NYT", "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", "weight": 1},
     {"name": "GDACS", "url": "https://www.gdacs.org/xml/rss.xml", "weight": 5},
@@ -35,7 +37,7 @@ DEFAULT_FEEDS = [
     {"name": "Bellingcat", "url": "https://www.bellingcat.com/feed/", "weight": 4},
     {"name": "Guardian", "url": "https://www.theguardian.com/world/rss", "weight": 3},
     {"name": "TASS", "url": "https://tass.com/rss/v2.xml", "weight": 2},
-    {"name": "Xinhua", "url": "http://www.news.cn/english/rss/worldrss.xml", "weight": 2},
+    {"name": "Xinhua", "url": "https://www.news.cn/english/rss/worldrss.xml", "weight": 2},
     {"name": "CNA", "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml", "weight": 3},
     {"name": "Mercopress", "url": "https://en.mercopress.com/rss/", "weight": 3},
     {"name": "SCMP", "url": "https://www.scmp.com/rss/91/feed", "weight": 4},

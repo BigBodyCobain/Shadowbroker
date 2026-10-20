@@ -28,6 +28,10 @@ def sample_store():
             "weather_alerts": list(latest_data.get("weather_alerts") or []),
             "gps_jamming": list(latest_data.get("gps_jamming") or []),
             "military_bases": list(latest_data.get("military_bases") or []),
+            "telegram_osint": dict(latest_data.get("telegram_osint") or {}),
+            "malware_threats": dict(latest_data.get("malware_threats") or {}),
+            "cyber_threats": dict(latest_data.get("cyber_threats") or {}),
+            "scm_suppliers": dict(latest_data.get("scm_suppliers") or {}),
         }
         latest_data["tracked_flights"] = [
             {
@@ -188,6 +192,66 @@ def sample_store():
                 "lng": -76.87,
             }
         ]
+        latest_data["telegram_osint"] = {
+            "posts": [
+                {
+                    "id": "tg-1",
+                    "title": "Missile strike reported near Kyiv overnight",
+                    "description": "OSINT channel reports explosions near Kyiv",
+                    "channel": "osintdefender",
+                    "source": "t.me/osintdefender",
+                    "link": "https://t.me/osintdefender/123",
+                    "published": "2026-06-02T12:00:00+00:00",
+                    "risk_score": 0.8,
+                    "coords": [50.45, 30.52],
+                }
+            ],
+            "total": 1,
+            "geolocated": 1,
+        }
+        latest_data["malware_threats"] = {
+            "threats": [
+                {
+                    "id": "feodo-1",
+                    "ip": "203.0.113.10",
+                    "malware": "Emotet",
+                    "country": "US",
+                    "threat_type": "botnet_c2",
+                    "lat": 38.95,
+                    "lng": -77.45,
+                }
+            ],
+            "total": 1,
+        }
+        latest_data["cyber_threats"] = {
+            "threats": [
+                {
+                    "id": "CVE-2026-1234",
+                    "name": "Example Vendor RCE",
+                    "vendor": "Example Vendor",
+                    "product": "Example Product",
+                    "severity": "CRITICAL",
+                    "source": "CISA KEV",
+                }
+            ],
+            "stats": {"active_cves": 1},
+        }
+        latest_data["scm_suppliers"] = {
+            "suppliers": [
+                {
+                    "id": "sup-tsmc-hsinchu",
+                    "name": "TSMC Fab 12 (Tier 1)",
+                    "city": "Hsinchu",
+                    "country": "Taiwan",
+                    "category": "Semiconductor",
+                    "risk_level": "NORMAL",
+                    "lat": 24.774,
+                    "lng": 120.992,
+                }
+            ],
+            "total": 1,
+            "critical_count": 0,
+        }
 
     try:
         yield
@@ -402,13 +466,53 @@ def test_find_entity_prioritizes_aircraft_operator_and_callsign(sample_store, mo
 
     monkeypatch.setattr(telemetry, "get_data_version", lambda: 130)
 
-    by_operator = telemetry.find_entity(query="patriots jet", limit=5)
+    by_operator = telemetry.find_entity(owner="Patriots", limit=5)
     assert by_operator["best_match"]["group"] == "aircraft"
     assert by_operator["best_match"]["label"] == "OXE2116"
+
+    fuzzy = telemetry.find_entity(query="patriots jet", limit=5, fallback_search=True)
+    assert fuzzy["best_match"]["group"] == "aircraft"
 
     by_callsign = telemetry.find_entity(callsign="AF1", entity_type="aircraft", limit=5)
     assert by_callsign["best_match"]["callsign"] == "AF1"
     assert by_callsign["best_match"]["alert_operator"] == "POTUS"
+
+
+def test_find_entity_skips_fuzzy_when_exact_match(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 200)
+    calls: list[str] = []
+
+    def _fake_search(*_args, **_kwargs):
+        calls.append("search")
+        return {"results": [], "searched_layers": []}
+
+    monkeypatch.setattr(telemetry, "search_telemetry", _fake_search)
+
+    result = telemetry.find_entity(callsign="AF1", entity_type="aircraft", fallback_search=False)
+    assert result["best_match"]["callsign"] == "AF1"
+    assert calls == []
+
+
+def test_find_entity_fuzzy_only_when_fallback_or_empty(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 201)
+    calls: list[str] = []
+
+    def _fake_search(*_args, **_kwargs):
+        calls.append("search")
+        return {"results": [], "searched_layers": []}
+
+    monkeypatch.setattr(telemetry, "search_telemetry", _fake_search)
+
+    empty = telemetry.find_entity(query="zzzznonexistententity", fallback_search=False)
+    assert empty["best_match"] is None
+    assert calls == []
+
+    telemetry.find_entity(query="zzzznonexistententity", fallback_search=True)
+    assert calls == ["search"]
 
 
 def test_find_entity_prioritizes_maritime_owner_and_identifiers(sample_store, monkeypatch):
@@ -473,6 +577,89 @@ def test_correlate_entity_returns_evidence_pack_near_aircraft(sample_store, monk
     assert "environment_or_rf_hazard_near_entity" in signal_types
     assert result["evidence"]["context_layers"]["correlations"][0]["type"] == "infra_cascade"
     assert result["recommended_next"]
+
+
+def test_get_slow_telemetry_includes_new_osint_layers(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 210)
+    result = telemetry.get_cached_slow_telemetry()
+
+    assert "telegram_osint" in result
+    assert result["telegram_osint"]["total"] == 1
+    assert "malware_threats" in result
+    assert result["malware_threats"]["total"] == 1
+    assert "scm_suppliers" in result
+    assert result["scm_suppliers"]["total"] == 1
+
+
+def test_get_layer_slice_accepts_telegram_alias(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 211)
+    result = telemetry.get_layer_slice(layers=["telegram"], limit_per_layer=10)
+
+    assert result["requested_layers"] == ["telegram_osint"]
+    assert result["layers"]["telegram_osint"]["posts"][0]["channel"] == "osintdefender"
+
+
+def test_get_telemetry_summary_counts_nested_layer_items(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 212)
+    result = telemetry.get_telemetry_summary()
+
+    assert result["counts"]["telegram_osint"] == 1
+    assert result["counts"]["malware_threats"] == 1
+    assert result["counts"]["scm_suppliers"] == 1
+    assert "telegram_osint" in result["non_empty_layers"]
+    assert result["layer_aliases"]["telegram"] == "telegram_osint"
+    assert result["layer_aliases"]["scm"] == "scm_suppliers"
+
+
+def test_search_news_matches_telegram_osint(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 213)
+    result = telemetry.search_news(query="kyiv missile", limit=10, include_telegram=True)
+
+    assert result["results"]
+    assert result["results"][0]["source_layer"] == "telegram_osint"
+    assert result["results"][0]["lat"] == 50.45
+
+
+def test_search_telemetry_finds_telegram_malware_and_scm(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 214)
+
+    telegram = telemetry.search_telemetry(query="osintdefender kyiv", limit=10)
+    assert any(item["source_layer"] == "telegram_osint" for item in telegram["results"])
+
+    malware = telemetry.search_telemetry(query="emotet", limit=10)
+    assert any(item["source_layer"] == "malware_threats" for item in malware["results"])
+
+    scm = telemetry.search_telemetry(query="tsmc hsinchu", limit=10)
+    assert any(item["source_layer"] == "scm_suppliers" for item in scm["results"])
+
+    cve = telemetry.search_telemetry(query="CVE-2026-1234", limit=10)
+    assert any(item["source_layer"] == "cyber_threats" for item in cve["results"])
+
+
+def test_entities_near_finds_telegram_and_malware(sample_store, monkeypatch):
+    import services.telemetry as telemetry
+
+    monkeypatch.setattr(telemetry, "get_data_version", lambda: 215)
+    result = telemetry.entities_near(
+        lat=38.95,
+        lng=-77.45,
+        radius_km=50,
+        entity_types=["telegram", "malware"],
+        limit=10,
+    )
+
+    layers = {item["source_layer"] for item in result["results"]}
+    assert "malware_threats" in layers
 
 
 def test_openclaw_correlate_entity_command(sample_store, monkeypatch):

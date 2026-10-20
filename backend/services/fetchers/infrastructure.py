@@ -235,11 +235,11 @@ _DC_GEOCODED_PATH = Path(__file__).parent.parent.parent / "data" / "datacenters_
 
 
 def fetch_datacenters():
-    """Load geocoded data centers (5K+ street-level precise locations)."""
-    from services.fetchers._store import is_any_active
+    """Load geocoded data centers (5K+ street-level precise locations).
 
-    if not is_any_active("datacenters"):
-        return
+    Always loads from disk; /api/live-data/slow gates the payload on the
+    datacenters layer toggle so enabling the layer can render immediately.
+    """
     dcs = []
     try:
         if not _DC_GEOCODED_PATH.exists():

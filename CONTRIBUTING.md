@@ -62,8 +62,10 @@ A PR that adds a new language is harder to review than one that fixes typos in a
 
 ### What about adding a new language?
 
-We welcome new languages. The mechanical setup is documented in the header comment of `frontend/src/i18n/index.ts`. Beyond that:
+We welcome new languages. The mechanical setup is documented in the header comment of `frontend/src/i18n/index.tsx`. Beyond that:
 
+- Register the locale in `backend/services/telegram_translate.py` (`_LOCALE_TO_GOOGLE` and `_SOURCE_LANG_LABELS`) and the matching fallback labels in `frontend/src/components/MaplibreViewer/popups/TelegramOsintPopup.tsx`. Simple codes like `fa` already pass through to Google Translate, but without the labels the UI shows raw codes (e.g. `FA`) for source language, and aliases like `zh` → `zh-CN` need an explicit map entry.
+- For RTL languages, add the locale to `RTL_LOCALES` in `frontend/src/i18n/index.tsx` and smoke-test the map chrome (sidebar, modals, popups) with that locale selected — `dir="rtl"` can mirror flex layouts that were designed LTR.
 - We are more likely to merge a new language quickly if at least one reviewer in the maintainer's network speaks it.
 - If you are the *only* speaker of the target language reading this repo, your translation is welcome but the merge timeline will be longer while a reviewer is found.
 - Partial translations are fine — the system falls back to English for any missing key.

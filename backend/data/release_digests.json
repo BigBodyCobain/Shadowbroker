@@ -46,5 +46,20 @@
     "ShadowBroker_v0.9.81.zip": "f81f454bdc88e9a32c351df38212b8cfa624704d65764b971bb091eef62259c6",
     "ShadowBroker_0.9.81_x64-setup.exe": "25e9a95d0d8ce959a7d08fe8e7406772ae24b596652793e81d1de5d02510a5a6",
     "ShadowBroker_0.9.81_x64_en-US.msi": "34e655fc0c0f195ee4ac978f228a4b2b9d5565253b8771aca9ef4693409e9e70"
+  },
+  "v0.9.82": {
+    "ShadowBroker_v0.9.82.zip": "202ab043465741dcc06de57c19ec8314904332f8e818b891d7174655719d084c",
+    "ShadowBroker_0.9.82_x64-setup.exe": "0eb9f2bda02ab691b39687641abc97e6bfb507b42f48de21970ad7dfb4ea15fc",
+    "ShadowBroker_0.9.82_x64_en-US.msi": "ced08f930171c0c08009a958cc30b0171a09f982230fc217c6808c2ed7ab2e30"
+  },
+  "v0.9.83": {
+    "ShadowBroker_v0.9.83.zip": "53f56631731ad3cdc7be68df09bedd6570ed91ecda6fa57c39651098e15666c7",
+    "ShadowBroker_0.9.83_x64-setup.exe": "d62170af4b9df0b190832b7bb3ad6bfe8a7ac01472f2c7b39cf2a1b61edc7492",
+    "ShadowBroker_0.9.83_x64_en-US.msi": "b664cc0003a29f7ce88b04c2b425643dbe7ed897342fc6e9a2378bc1910c6850"
+  },
+  "v0.9.84": {
+    "ShadowBroker_v0.9.84.zip": "b9cf09754949febb85c9ea967e53c867627b85343b9391af1ff67eb8f129d479",
+    "ShadowBroker_0.9.84_x64-setup.exe": "37d5bcb087b7a669668b2eb85a37413242b4579efb4444a36df8f8515be4a5e4",
+    "ShadowBroker_0.9.84_x64_en-US.msi": "83edd9074469f034660d0ab81197c9a0bf3ba92b101693101217b2cd39444223"
   }
 }

@@ -93,6 +93,11 @@ _SLOW_KEYS = (
     "sar_scenes",
     "sar_anomalies",
     "sar_aoi_coverage",
+    "malware_threats",
+    "cyber_threats",
+    "scm_suppliers",
+    "telegram_osint",
+    "gt_risk",
 )
 
 
@@ -158,6 +163,20 @@ _ENTITY_LAYER_ALIASES = {
     "uap_sightings": "uap_sightings",
     "wastewater": "wastewater",
     "pins": "pins",
+    "telegram": "telegram_osint",
+    "telegram_osint": "telegram_osint",
+    "osint_feed": "telegram_osint",
+    "malware": "malware_threats",
+    "malware_threats": "malware_threats",
+    "malware_c2": "malware_threats",
+    "botnet": "malware_threats",
+    "cyber": "cyber_threats",
+    "cyber_threats": "cyber_threats",
+    "cisa": "cyber_threats",
+    "kev": "cyber_threats",
+    "scm": "scm_suppliers",
+    "scm_suppliers": "scm_suppliers",
+    "suppliers": "scm_suppliers",
 }
 
 _SLICEABLE_LAYERS = tuple(dict.fromkeys(_FAST_KEYS + _SLOW_KEYS))
@@ -188,6 +207,24 @@ _LAYER_ALIASES = {
     "sar_coverage": "sar_aoi_coverage",
     # Satellite analysis (maneuvers, decay, Starlink)
     "satellite_analysis": "satellite_analysis",
+    # OSINT / cyber / supply-chain overlays
+    "telegram": "telegram_osint",
+    "telegram_osint": "telegram_osint",
+    "osint_feed": "telegram_osint",
+    "gt_risk": "gt_risk",
+    "strategic_risk": "gt_risk",
+    "gt_analytics": "gt_risk",
+    "malware": "malware_threats",
+    "malware_threats": "malware_threats",
+    "malware_c2": "malware_threats",
+    "botnet": "malware_threats",
+    "cyber": "cyber_threats",
+    "cyber_threats": "cyber_threats",
+    "cisa": "cyber_threats",
+    "kev": "cyber_threats",
+    "scm": "scm_suppliers",
+    "scm_suppliers": "scm_suppliers",
+    "suppliers": "scm_suppliers",
 }
 
 _UNIVERSAL_SEARCH_DEFAULT_LAYERS = (
@@ -225,6 +262,10 @@ _UNIVERSAL_SEARCH_DEFAULT_LAYERS = (
     "tinygs_satellites",
     "psk_reporter",
     "ukraine_alerts",
+    "telegram_osint",
+    "malware_threats",
+    "cyber_threats",
+    "scm_suppliers",
 )
 
 _GENERIC_QUERY_STOPWORDS = {
@@ -269,7 +310,19 @@ _GENERIC_LAYER_HINTS: dict[str, tuple[str, ...]] = {
     "protest": ("crowdthreat", "gdelt", "news", "frontlines", "liveuamap"),
     "riot": ("crowdthreat", "gdelt", "news", "frontlines", "liveuamap"),
     "event": ("crowdthreat", "gdelt", "news", "frontlines", "liveuamap"),
-    "news": ("news", "gdelt", "crowdthreat", "frontlines", "liveuamap"),
+    "news": ("news", "gdelt", "crowdthreat", "frontlines", "liveuamap", "telegram_osint"),
+    "telegram": ("telegram_osint",),
+    "osint": ("telegram_osint", "gdelt", "news", "crowdthreat"),
+    "channel": ("telegram_osint",),
+    "malware": ("malware_threats",),
+    "botnet": ("malware_threats",),
+    "c2": ("malware_threats",),
+    "cve": ("cyber_threats",),
+    "cisa": ("cyber_threats",),
+    "cyber": ("cyber_threats", "malware_threats"),
+    "supplier": ("scm_suppliers",),
+    "scm": ("scm_suppliers",),
+    "semiconductor": ("scm_suppliers",),
     "plant": ("power_plants", "wastewater"),
     "datacenter": ("datacenters",),
     "data": ("datacenters",),
@@ -314,6 +367,10 @@ _SEARCH_GROUP_BY_LAYER = {
     "kiwisdr": "signals",
     "psk_reporter": "signals",
     "ukraine_alerts": "events",
+    "telegram_osint": "events",
+    "malware_threats": "cyber",
+    "cyber_threats": "cyber",
+    "scm_suppliers": "infrastructure",
 }
 
 _SEARCH_QUERY_SYNONYMS: dict[str, tuple[str, ...]] = {
@@ -328,6 +385,9 @@ _SEARCH_QUERY_SYNONYMS: dict[str, tuple[str, ...]] = {
     "plants": ("plant",),
     "cameras": ("camera",),
     "radios": ("radio",),
+    "telegrams": ("telegram",),
+    "channels": ("channel",),
+    "suppliers": ("supplier",),
 }
 
 _SEARCH_INDEX_LOCK = threading.Lock()
@@ -653,6 +713,42 @@ _UNIVERSAL_SEARCH_SPECS: dict[str, dict[str, Any]] = {
         "id_fields": ("id",),
         "time_fields": ("updated_at", "timestamp"),
     },
+    "telegram_osint": {
+        "fields": ("title", "description", "title_translated", "description_translated", "source", "channel", "link"),
+        "primary_fields": ("title_translated", "title", "description_translated", "description", "channel"),
+        "label_fields": ("title_translated", "title", "channel"),
+        "summary_fields": ("description_translated", "description", "source"),
+        "type_fields": ("channel", "source"),
+        "id_fields": ("id", "link"),
+        "time_fields": ("published", "timestamp"),
+    },
+    "malware_threats": {
+        "fields": ("ip", "malware", "status", "country", "threat_type"),
+        "primary_fields": ("ip", "malware", "country"),
+        "label_fields": ("ip", "malware"),
+        "summary_fields": ("status", "country", "threat_type"),
+        "type_fields": ("threat_type", "malware"),
+        "id_fields": ("id", "ip"),
+        "time_fields": ("first_seen", "last_online", "timestamp"),
+    },
+    "cyber_threats": {
+        "fields": ("id", "name", "vendor", "product", "severity", "source"),
+        "primary_fields": ("id", "name", "vendor", "product"),
+        "label_fields": ("id", "name"),
+        "summary_fields": ("vendor", "product", "severity", "source"),
+        "type_fields": ("severity", "source"),
+        "id_fields": ("id",),
+        "time_fields": ("date", "due", "timestamp"),
+    },
+    "scm_suppliers": {
+        "fields": ("name", "city", "country", "category", "risk_level"),
+        "primary_fields": ("name", "city", "country", "category"),
+        "label_fields": ("name", "city"),
+        "summary_fields": ("country", "category", "risk_level"),
+        "type_fields": ("category", "risk_level"),
+        "id_fields": ("id",),
+        "time_fields": ("timestamp",),
+    },
 }
 
 
@@ -734,6 +830,11 @@ def _extract_coords(candidate: dict[str, Any]) -> tuple[float | None, float | No
         if isinstance(coords, (list, tuple)) and len(coords) >= 2:
             lng = lng if lng is not None else _coerce_float(coords[0])
             lat = lat if lat is not None else _coerce_float(coords[1])
+    if lat is None or lng is None:
+        coords = candidate.get("coords")
+        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+            lat = lat if lat is not None else _coerce_float(coords[0])
+            lng = lng if lng is not None else _coerce_float(coords[1])
     return lat, lng
 
 
@@ -832,6 +933,53 @@ def _layer_group(layer: str) -> str:
     return _SEARCH_GROUP_BY_LAYER.get(layer, "other")
 
 
+_LAYER_NESTED_LIST_KEYS: dict[str, tuple[str, ...]] = {
+    "telegram_osint": ("posts",),
+    "malware_threats": ("threats",),
+    "cyber_threats": ("threats",),
+    "scm_suppliers": ("suppliers",),
+}
+_DEFAULT_NESTED_LIST_KEYS = (
+    "items",
+    "results",
+    "vessels",
+    "features",
+    "posts",
+    "threats",
+    "suppliers",
+)
+
+
+def _unwrap_layer_items(value: Any, layer: str = "") -> list[Any]:
+    """Return the searchable/geospatial item list inside a layer value."""
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, dict):
+        return []
+    keys = _LAYER_NESTED_LIST_KEYS.get(layer, _DEFAULT_NESTED_LIST_KEYS)
+    for key in keys:
+        nested = value.get(key)
+        if isinstance(nested, list):
+            return nested
+    return []
+
+
+def _layer_record_count(value: Any, layer: str = "") -> int:
+    if isinstance(value, list):
+        return len(value)
+    if isinstance(value, dict):
+        total = value.get("total")
+        if isinstance(total, (int, float)):
+            return int(total)
+        items = _unwrap_layer_items(value, layer)
+        if items:
+            return len(items)
+        return len(value) if value else 0
+    if value is None:
+        return 0
+    return 1
+
+
 def _build_search_document(doc_id: int, layer: str, candidate: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
     fields = tuple(spec.get("fields", ()))
     text = _document_text(candidate, fields)
@@ -880,9 +1028,7 @@ def _get_search_index() -> dict[str, Any]:
 
         for layer in layers:
             spec = _UNIVERSAL_SEARCH_SPECS[layer]
-            items = snap.get(layer) or []
-            if isinstance(items, dict):
-                items = items.get("items", []) or items.get("results", []) or items.get("vessels", [])
+            items = _unwrap_layer_items(snap.get(layer), layer)
             if not isinstance(items, list):
                 continue
             for item in items:
@@ -1144,18 +1290,9 @@ def get_telemetry_summary() -> dict[str, Any]:
 
     for layer in layer_names:
         value = snap.get(layer)
-        if isinstance(value, list):
-            counts[layer] = len(value)
-            if value:
-                non_empty_layers.append(layer)
-        elif isinstance(value, dict):
-            counts[layer] = len(value)
-            if value:
-                non_empty_layers.append(layer)
-        elif value is None:
-            counts[layer] = 0
-        else:
-            counts[layer] = 1
+        count = _layer_record_count(value, layer)
+        counts[layer] = count
+        if count > 0:
             non_empty_layers.append(layer)
 
     alias_examples = {
@@ -1167,6 +1304,16 @@ def get_telemetry_summary() -> dict[str, Any]:
         "tracked": "tracked_flights",
         "military": "military_flights",
         "jets": "private_jets",
+        "telegram": "telegram_osint",
+        "osint_feed": "telegram_osint",
+        "malware": "malware_threats",
+        "malware_c2": "malware_threats",
+        "botnet": "malware_threats",
+        "cyber": "cyber_threats",
+        "cisa": "cyber_threats",
+        "kev": "cyber_threats",
+        "scm": "scm_suppliers",
+        "suppliers": "scm_suppliers",
     }
 
     return {
@@ -1406,11 +1553,13 @@ def find_entity(
     owner: str = "",
     layers: list[str] | tuple[str, ...] | None = None,
     limit: int = 10,
+    fallback_search: bool = False,
 ) -> dict[str, Any]:
     """Find a named entity across aircraft, maritime, and general telemetry.
 
     This is an intent-level lookup for agents. It tries high-precision
-    aircraft/ship fields first, then falls back to the universal search index.
+    aircraft/ship fields first, then optionally falls back to the universal
+    search index only when ``fallback_search`` is True (opt-in fuzzy scan).
     """
     effective_query = str(query or name or owner or callsign or registration or icao24 or mmsi or imo or "").strip()
     if not effective_query:
@@ -1485,16 +1634,18 @@ def find_entity(
                 seen.add(key)
                 results.append(normalized)
 
-    search_layers = requested_layers or _entity_layers_for_type(entity_type)
-    search_result = search_telemetry(query=effective_query, layers=search_layers, limit=limit)
-    if search_result.get("results"):
-        strategies.append("universal_index")
-    for item in search_result.get("results") or []:
-        normalized = _normalize_entity_result(item)
-        key = _entity_key(normalized)
-        if key not in seen:
-            seen.add(key)
-            results.append(normalized)
+    search_layers = list(requested_layers or _entity_layers_for_type(entity_type) or [])
+    search_result: dict[str, Any] = {"results": [], "searched_layers": search_layers}
+    if fallback_search:
+        search_result = search_telemetry(query=effective_query, layers=search_layers, limit=limit)
+        if search_result.get("results"):
+            strategies.append("universal_index")
+        for item in search_result.get("results") or []:
+            normalized = _normalize_entity_result(item)
+            key = _entity_key(normalized)
+            if key not in seen:
+                seen.add(key)
+                results.append(normalized)
 
     results.sort(
         key=lambda item: (
@@ -1577,14 +1728,7 @@ def _nearby_items_from_layers(
     snap = get_latest_data_subset_refs(*layers)
     out: dict[str, list[dict[str, Any]]] = {}
     for layer in layers:
-        value = snap.get(layer) or []
-        if isinstance(value, dict):
-            if layer == "gdelt" and isinstance(value.get("features"), list):
-                items = value.get("features") or []
-            else:
-                items = value.get("items") or value.get("features") or value.get("vessels") or []
-        else:
-            items = value
+        items = _unwrap_layer_items(snap.get(layer), layer)
         if not isinstance(items, list):
             continue
         matches: list[dict[str, Any]] = []
@@ -1728,6 +1872,9 @@ def correlate_entity(
             "crowdthreat",
             "frontlines",
             "liveuamap",
+            "telegram_osint",
+            "malware_threats",
+            "scm_suppliers",
             "military_bases",
             "datacenters",
             "power_plants",
@@ -1783,6 +1930,9 @@ def correlate_entity(
         })
 
     status = "context_found" if signals else "no_nearby_context"
+    from services.entity_trail import movement_context_for_entity
+
+    movement = movement_context_for_entity(best, max_points=40)
     return {
         "status": status,
         "claim_level": "evidence_pack_not_verdict",
@@ -1791,11 +1941,13 @@ def correlate_entity(
         "center": {"lat": lat, "lng": lng},
         "radius_km": radius,
         "signals": signals,
+        "movement": movement,
         "evidence": {
             "proximate_entities": proximate_entities,
             "context_layers": context,
         },
         "recommended_next": [
+            "Use get_entity_trail for full observed path and route enrichment.",
             "Use track_entity to keep monitoring this exact entity.",
             "Use watch_area on the returned center if the area matters more than the entity.",
             "Treat co-location as a lead, not proof of intent or causation.",
@@ -1809,13 +1961,17 @@ def search_news(
     query: str,
     limit: int = 10,
     include_gdelt: bool = True,
+    include_telegram: bool = True,
 ) -> dict[str, Any]:
     """Search news and event layers server-side and return a compact result set."""
     query_norm = _norm_text(query)
     if not query_norm:
         return {"results": [], "version": get_data_version(), "truncated": False}
 
-    snap = get_latest_data_subset_refs("news", "gdelt", "crowdthreat", "liveuamap", "frontlines")
+    layer_keys = ["news", "gdelt", "crowdthreat", "liveuamap", "frontlines"]
+    if include_telegram:
+        layer_keys.append("telegram_osint")
+    snap = get_latest_data_subset_refs(*layer_keys)
     out: list[dict[str, Any]] = []
     limit = _coerce_limit(limit, default=10, maximum=50)
 
@@ -1936,6 +2092,33 @@ def search_news(
                     "lat": lat,
                     "lng": lng,
                     "risk_score": event.get("severity") or event.get("score"),
+                }
+            )
+            if len(out) >= limit:
+                return {"results": out, "version": get_data_version(), "truncated": True}
+
+    if include_telegram:
+        from services.telegram_osint_text import telegram_post_display_title, telegram_post_search_text
+
+        for post in _unwrap_layer_items(snap.get("telegram_osint"), "telegram_osint"):
+            if not isinstance(post, dict):
+                continue
+            text = telegram_post_search_text(post)
+            if not _text_matches_query(query_norm, text):
+                continue
+            lat, lng = _extract_coords(post)
+            out.append(
+                {
+                    "source_layer": "telegram_osint",
+                    "title": telegram_post_display_title(post),
+                    "summary": post.get("description_translated") or post.get("description") or "",
+                    "source": post.get("source") or post.get("channel") or "Telegram",
+                    "link": post.get("link") or "",
+                    "lat": lat,
+                    "lng": lng,
+                    "risk_score": post.get("risk_score"),
+                    "source_lang": post.get("source_lang"),
+                    "source_lang_label": post.get("source_lang_label"),
                 }
             )
             if len(out) >= limit:
@@ -2205,16 +2388,13 @@ def entities_near(
     out: list[dict[str, Any]] = []
 
     for layer in layers:
-        items = snap.get(layer) or []
-        if isinstance(items, dict):
-            items = items.get("vessels", []) or items.get("items", [])
+        items = _unwrap_layer_items(snap.get(layer), layer)
         if not isinstance(items, list):
             continue
         for item in items:
             if not isinstance(item, dict):
                 continue
-            item_lat = _coerce_float(item.get("lat") or item.get("latitude"))
-            item_lng = _coerce_float(item.get("lng") or item.get("lon") or item.get("longitude"))
+            item_lat, item_lng = _extract_coords(item)
             if item_lat is None or item_lng is None:
                 continue
             distance = _haversine_km(center_lat, center_lng, item_lat, item_lng)

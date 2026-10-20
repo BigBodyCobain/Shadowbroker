@@ -85,6 +85,39 @@ async def api_geocode_reverse(
     return await asyncio.to_thread(reverse_geocode, lat, lng, local_only)
 
 
+# ── Wikimedia proxy (#360) — browser calls these instead of wikipedia.org ───
+@router.get("/api/wikipedia/summary")
+@limiter.limit("60/minute")
+def api_wikipedia_summary(
+    request: Request,
+    title: str = Query(..., min_length=1, max_length=256),
+):
+    """Proxy Wikipedia REST summaries through the self-hosted backend."""
+    from services.region_dossier import fetch_wikipedia_page_summary
+
+    summary = fetch_wikipedia_page_summary(title)
+    if summary is None:
+        return JSONResponse(status_code=404, content={"detail": "not_found"})
+    return summary
+
+
+class WikidataSparqlRequest(BaseModel):
+    query: str
+
+
+@router.post("/api/wikidata/sparql")
+@limiter.limit("30/minute")
+def api_wikidata_sparql(request: Request, body: WikidataSparqlRequest):
+    """Proxy Wikidata SPARQL so the browser never contacts query.wikidata.org."""
+    from services.region_dossier import fetch_wikidata_sparql_bindings
+
+    q = (body.query or "").strip()
+    if len(q) > 12_000:
+        raise HTTPException(400, "SPARQL query too large")
+    bindings = fetch_wikidata_sparql_bindings(q)
+    return {"bindings": bindings}
+
+
 # ── Sentinel proxy routes (Issue #299/#300/#301, reported by tg12) ──────────
 # These three endpoints relay external Sentinel / Planetary Computer
 # requests through the backend to avoid browser CORS blocks. They are

@@ -55,7 +55,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'JetBrains Mono', var(--font-roboto-mono), 'Roboto Mono', monospace;
+  font-family: var(--font-jetbrains-mono), var(--font-roboto-mono), 'Roboto Mono', monospace;
 }
 
 /* Global interactive cursor hints */
@@ -139,7 +139,7 @@ textarea:disabled {
   padding: 12px 16px;
   color: #d1d5db;
   font-family:
-    'JetBrains Mono', var(--font-roboto-mono), 'Roboto Mono', monospace, 'Microsoft YaHei', 'PingFang SC',
+    var(--font-jetbrains-mono), var(--font-roboto-mono), 'Roboto Mono', monospace, 'Microsoft YaHei', 'PingFang SC',
     'Noto Sans SC', 'Noto Sans JP', 'Noto Sans KR', sans-serif;
   font-size: 13px;
   min-width: 240px;
@@ -377,7 +377,7 @@ textarea:disabled {
 /* ── INFONET CRT TERMINAL EFFECTS ── */
 
 .infonet-font {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
 /* CRT scanline overlay — scoped to .crt containers only */

@@ -104,13 +104,23 @@ set MESH_INFONET_ALLOW_CLEARNET_SYNC=false
 set MESH_ARTI_ENABLED=true
 set MESH_DM_HASHCHAIN_SPOOL_LIMIT=2
 set MESH_DM_HASHCHAIN_SPOOL_TTL_S=3600
-if "%MESH_BOOTSTRAP_SEED_PEERS%"=="" set MESH_BOOTSTRAP_SEED_PEERS=http://gqpbunqbgtkcqilvclm3xrkt3zowjyl3s62kkktvojgvxzizamvbrqid.onion:8000
+if "%MESH_INFONET_FLEET_JOIN%"=="" set MESH_INFONET_FLEET_JOIN=true
+if "%MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY%"=="" set MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY=ul1d0kj/ODPIp0OhHzX8eLAVXzJ3CVvzW1vn2IC6q3I=
+if "%MESH_SYNC_TIMEOUT_S%"=="" set MESH_SYNC_TIMEOUT_S=45
+if "%MESH_RELAY_PUSH_TIMEOUT_S%"=="" set MESH_RELAY_PUSH_TIMEOUT_S=45
+if "%MESH_SYNC_MAX_PEERS_PER_CYCLE%"=="" set MESH_SYNC_MAX_PEERS_PER_CYCLE=5
+if "%MESH_SWARM_MANIFEST_PULL_INTERVAL_S%"=="" set MESH_SWARM_MANIFEST_PULL_INTERVAL_S=300
 
 echo.
 echo ===================================================
 echo   Mesh node starting on port 8000
 echo   Mode: MESH_ONLY (no data feeds)
-echo   Bootstrap: %MESH_BOOTSTRAP_SEED_PEERS%
+if "%MESH_BOOTSTRAP_SEED_PEERS%"=="" (
+  echo   Bootstrap: sb-testnet fleet defaults
+) else (
+  echo   Bootstrap: %MESH_BOOTSTRAP_SEED_PEERS%
+)
+echo   Swarm: announce + signed manifest pull (fleet join)
 echo   Press Ctrl+C to stop
 echo ===================================================
 echo.

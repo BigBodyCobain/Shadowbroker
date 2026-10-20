@@ -465,6 +465,45 @@ def test_user_facing_status_mapping_remains_plain_language_and_stable():
     assert evaluate_network_release("dm", "private_strong").status_label == "Delivered privately"
 
 
+def test_queued_dm_releases_at_private_transitional_when_rns_disabled(monkeypatch):
+    deposit_calls = []
+
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": False},
+    )
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_transport_tier",
+        lambda: "private_transitional",
+    )
+    monkeypatch.setattr(mesh_private_release_worker, "_secure_dm_enabled", lambda: False)
+    monkeypatch.setattr(mesh_private_release_worker, "_rns_private_dm_ready", lambda: False)
+    monkeypatch.setattr(mesh_private_release_worker, "_maybe_apply_dm_relay_jitter", lambda: None)
+    monkeypatch.setattr(
+        "services.mesh.mesh_dm_relay.dm_relay.deposit",
+        lambda **kwargs: deposit_calls.append(kwargs) or {"ok": True, "msg_id": kwargs["msg_id"]},
+    )
+
+    queued = main._queue_dm_release(
+        current_tier="private_transitional",
+        payload={
+            "msg_id": "dm-tor-only-1",
+            "sender_id": "alice",
+            "recipient_id": "bob",
+            "delivery_class": "request",
+            "sender_token_hash": "abc123",
+            "ciphertext": "x3dh1:ciphertext",
+            "timestamp": 1,
+        },
+    )
+
+    mesh_private_release_worker.private_release_worker.run_once()
+
+    item = _outbox_item(queued["outbox_id"], exposure="diagnostic")
+    assert len(deposit_calls) == 1
+    assert item["release_state"] == "delivered"
+
+
 def test_outbox_exposes_publishing_state_without_claiming_delivery():
     item = mesh_private_outbox.private_delivery_outbox.enqueue(
         lane="dm",

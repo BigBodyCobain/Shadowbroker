@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from services.fetchers.news import _resolve_coords
-from services.news_feed_config import DEFAULT_FEEDS
+from services.news_feed_config import DEFAULT_FEEDS, _normalise_feeds
 
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "news_feeds.json"
@@ -152,3 +152,14 @@ class TestFeedConfig:
         urls = {f["url"] for f in DEFAULT_FEEDS}
         assert "https://www.reutersagency.com/feed/?best-topics=world" not in urls
         assert "https://rsshub.app/apnews/topics/world-news" not in urls
+
+    def test_legacy_http_feeds_are_migrated_to_https(self):
+        feeds = _normalise_feeds(
+            [
+                {"name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3},
+                {"name": "Xinhua", "url": "http://www.news.cn/english/rss/worldrss.xml", "weight": 2},
+            ]
+        )
+        urls = {f["url"] for f in feeds}
+        assert "https://feeds.bbci.co.uk/news/world/rss.xml" in urls
+        assert "https://www.news.cn/english/rss/worldrss.xml" in urls

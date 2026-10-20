@@ -133,23 +133,19 @@ class TestOperatorHandleGeneration:
 
 
 class TestOutboundUserAgentString:
-    def test_includes_operator_handle(self, isolated_handle):
+    def test_ua_is_operator_handle(self, isolated_handle):
         ua = isolated_handle.outbound_user_agent()
         handle = isolated_handle.get_operator_handle()
-        assert f"operator: {handle}" in ua
+        assert ua == handle
 
     def test_includes_purpose_when_provided(self, isolated_handle):
         ua = isolated_handle.outbound_user_agent("wikipedia")
-        assert "purpose: wikipedia" in ua
+        handle = isolated_handle.get_operator_handle()
+        assert ua == f"{handle} (purpose: wikipedia)"
 
-    def test_includes_contact_path(self, isolated_handle):
-        ua = isolated_handle.outbound_user_agent()
-        assert "github.com" in ua.lower()
-        assert "shadowbroker" in ua.lower()
-
-    def test_version_prefix(self, isolated_handle):
-        ua = isolated_handle.outbound_user_agent()
-        assert ua.startswith("Shadowbroker/")
+    def test_no_shadowbroker_product_token(self, isolated_handle):
+        ua = isolated_handle.outbound_user_agent("nominatim")
+        assert "shadowbroker" not in ua.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -181,8 +177,8 @@ class TestWikimediaCallsAreNowPerOperator:
         assert "Api-User-Agent" in headers
         handle = isolated_handle.get_operator_handle()
         for header_value in (headers["User-Agent"], headers["Api-User-Agent"]):
-            assert f"operator: {handle}" in header_value, (
-                f"Wikimedia UA must include the per-operator handle; got {header_value!r}"
+            assert header_value.startswith(handle), (
+                f"Wikimedia UA must be the per-operator handle; got {header_value!r}"
             )
 
     def test_wikipedia_summary_uses_per_operator_ua(self, isolated_handle, monkeypatch):
@@ -211,7 +207,8 @@ class TestWikimediaCallsAreNowPerOperator:
         assert wikipedia_hits, "Wikipedia summary fetch was not called"
         for _url, headers in wikipedia_hits:
             handle = isolated_handle.get_operator_handle()
-            assert f"operator: {handle}" in headers.get("User-Agent", "")
+            ua = headers.get("User-Agent", "")
+            assert ua.startswith(handle), f"Wikipedia UA must be the operator handle; got {ua!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +230,7 @@ class TestNoMonsterUserAgentRemains:
     """
 
     BANNED_LITERALS = (
+        "Shadowbroker/",
         "ShadowBroker-OSINT/1.0",
         "ShadowBroker-OSINT/0.9",
         "ShadowBroker-FeedIngester/1.0",
@@ -240,8 +238,8 @@ class TestNoMonsterUserAgentRemains:
         "ShadowBroker/0.9.79 Finnhub connector",
         "ShadowBroker/0.9.8 local Shodan connector",
         "ShadowBroker/0.9.8 Finnhub connector",
-        "ShadowBroker/0.9.81 local Shodan connector",
-        "ShadowBroker/0.9.81 Finnhub connector",
+        "ShadowBroker/0.9.82 local Shodan connector",
+        "ShadowBroker/0.9.82 Finnhub connector",
         "Mozilla/5.0 (compatible; ShadowBroker CCTV proxy)",
     )
 

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from limiter import limiter
 from auth import require_admin, require_local_operator, _scoped_view_authenticated
-from services.data_fetcher import get_latest_data
+from services.fetchers._store import get_latest_data_refs_snapshot as get_latest_data
 from services.mesh.mesh_protocol import normalize_payload
 from services.mesh.mesh_signed_events import (
     MeshWriteExemption,

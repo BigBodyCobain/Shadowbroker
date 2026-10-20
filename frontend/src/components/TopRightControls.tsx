@@ -30,17 +30,20 @@ import {
 import {
   requestMeshTerminalOpen,
   subscribeSecureMeshTerminalLauncherOpen,
+  subscribeInfonetSessionEnd,
 } from '@/lib/meshTerminalLauncher';
 import { purgeBrowserContactGraph, purgeBrowserSigningMaterial, setSecureModeCached, getNodeIdentity, generateNodeKeys } from '@/mesh/meshIdentity';
 import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
 import {
   fetchInfonetNodeStatusSnapshot,
+  joinInfonetSwarm,
   startTorHiddenService,
   type InfonetNodeStatusSnapshot,
 } from '@/mesh/controlPlaneStatusClient';
 import {
   fetchWormholeStatus,
   prepareWormholeInteractiveLane,
+  isWormholePrepAbortedError,
 } from '@/mesh/wormholeIdentityClient';
 import { fetchWormholeSettings } from '@/mesh/wormholeClient';
 import packageJson from '../../package.json';
@@ -109,7 +112,7 @@ export default function TopRightControls({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [nodeStep, setNodeStep] = useState<'prompt' | 'terms' | 'activating' | 'disable'>('prompt');
-  const [activatingPhase, setActivatingPhase] = useState<'keys' | 'peers' | 'sync' | 'done'>('keys');
+  const [activatingPhase, setActivatingPhase] = useState<'keys' | 'peers' | 'swarm' | 'sync' | 'done'>('keys');
   const activatingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activatingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activatingTimedOut, setActivatingTimedOut] = useState(false);
@@ -171,8 +174,15 @@ export default function TopRightControls({
     });
   }, [openTerminalLauncher]);
 
+  useEffect(() => {
+    return subscribeInfonetSessionEnd(() => {
+      setTerminalLaunchBusy(false);
+      setTerminalLaunchError('');
+    });
+  }, []);
+
   const closeTerminalLauncher = () => {
-    if (terminalLaunchBusy) return;
+    setTerminalLaunchBusy(false);
     setTerminalLauncherOpen(false);
     setTerminalLaunchError('');
   };
@@ -214,6 +224,9 @@ export default function TopRightControls({
         console.info('[top-right] Wormhole terminal launch ready', identityNodeId);
       }
     } catch (error) {
+      if (isWormholePrepAbortedError(error)) {
+        return;
+      }
       const message =
         typeof error === 'object' && error !== null && 'message' in error
           ? String((error as { message?: string }).message || '')
@@ -299,8 +312,11 @@ export default function TopRightControls({
       await refreshNodeStatus();
 
       if (enabled) {
-        // Start fast-polling for sync progress
+        setActivatingPhase('swarm');
+        await joinInfonetSwarm().catch(() => null);
+        await refreshNodeStatus();
         setActivatingPhase('sync');
+        // Start fast-polling for sync progress
         stopActivatingPolls();
         activatingPollRef.current = setInterval(async () => {
           try {
@@ -789,7 +805,14 @@ export default function TopRightControls({
                       <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal flex flex-wrap gap-x-3">
                         <span>{syncOutcome.toLowerCase()}</span>
                         {(nodeStatus?.total_events ?? 0) > 0 && <span>{nodeStatus?.total_events} {t('node.events')}</span>}
-                        {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && <span>{nodeStatus?.bootstrap?.sync_peer_count} {t('node.peers')}</span>}
+                        {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && (
+                          <span>
+                            {nodeStatus?.bootstrap?.sync_peer_count} {t('node.peers')}
+                            {(nodeStatus?.bootstrap?.swarm_sync_peer_count ?? 0) > 0
+                              ? ` (${nodeStatus?.bootstrap?.swarm_sync_peer_count} swarm)`
+                              : ''}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-3 text-[11px] text-[var(--text-muted)] normal-case tracking-normal leading-[1.8]">
                         {t('node.keepSyncing')}
@@ -855,9 +878,32 @@ export default function TopRightControls({
                           : t('node.peersReady')}
                         </span>
                       </div>
+                      {/* Step: Register with swarm */}
+                      <div className="flex items-center gap-3 text-[10px] font-mono">
+                        {activatingPhase === 'keys' || activatingPhase === 'peers' ? (
+                          <span className="w-[11px] h-[11px] shrink-0" />
+                        ) : activatingPhase === 'swarm' ? (
+                          <RefreshCw size={11} className="text-cyan-400 animate-spin shrink-0" />
+                        ) : (
+                          <CheckCircle2 size={11} className="text-green-400 shrink-0" />
+                        )}
+                        <span className={
+                          activatingPhase === 'keys' || activatingPhase === 'peers' ? 'text-[var(--text-muted)]'
+                          : activatingPhase === 'swarm' ? 'text-cyan-300'
+                          : 'text-green-300'
+                        }>
+                          {activatingPhase === 'swarm'
+                            ? 'Registering with swarm...'
+                            : activatingPhase === 'keys' || activatingPhase === 'peers'
+                              ? 'Join private Infonet swarm'
+                              : `Swarm ready${(nodeStatus?.bootstrap?.swarm_sync_peer_count ?? 0) > 0
+                                ? ` (${nodeStatus?.bootstrap?.swarm_sync_peer_count} discovered)`
+                                : ''}`}
+                        </span>
+                      </div>
                       {/* Step: Sync chain */}
                       <div className="flex items-center gap-3 text-[10px] font-mono">
-                        {(activatingPhase === 'keys' || activatingPhase === 'peers') ? (
+                        {(activatingPhase === 'keys' || activatingPhase === 'peers' || activatingPhase === 'swarm') ? (
                           <span className="w-[11px] h-[11px] shrink-0" />
                         ) : activatingPhase === 'sync' ? (
                           <RefreshCw size={11} className="text-cyan-400 animate-spin shrink-0" />
@@ -865,7 +911,7 @@ export default function TopRightControls({
                           <CheckCircle2 size={11} className="text-green-400 shrink-0" />
                         )}
                         <span className={
-                          (activatingPhase === 'keys' || activatingPhase === 'peers') ? 'text-[var(--text-muted)]'
+                          (activatingPhase === 'keys' || activatingPhase === 'peers' || activatingPhase === 'swarm') ? 'text-[var(--text-muted)]'
                           : activatingPhase === 'sync' ? 'text-cyan-300'
                           : 'text-green-300'
                         }>

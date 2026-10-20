@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import type { ToastItem } from '@/hooks/useAlertToasts';
 
 const TOAST_LIFETIME_MS = 5_000;

@@ -1,13 +1,9 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from '@/lib/motion';
 import { X } from 'lucide-react';
-import {
-  fetchInfonetNodeStatusSnapshot,
-  setInfonetNodeEnabled,
-  startTorHiddenService,
-} from '@/mesh/controlPlaneStatusClient';
+import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import InfonetShell from './InfonetShell';
 
 interface InfonetTerminalProps {
@@ -39,16 +35,8 @@ export default function InfonetTerminal({
 
     const connectParticipantNode = async () => {
       try {
-        const nodeStatus = await fetchInfonetNodeStatusSnapshot(true).catch(() => null);
-        if (cancelled || nodeStatus?.node_enabled) return;
-
-        const torStatus = await startTorHiddenService().catch(() => null);
-        if (cancelled || !torStatus?.running || !torStatus?.onion_address) return;
-
-        await setInfonetNodeEnabled(true);
-        if (!cancelled) {
-          await fetchInfonetNodeStatusSnapshot(true).catch(() => null);
-        }
+        if (cancelled) return;
+        await beginInfonetTerminalSession();
       } catch {
         // Remote/shared viewers may not have local-operator rights. Leave manual controls intact.
       }

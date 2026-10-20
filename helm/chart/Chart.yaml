@@ -1,8 +1,8 @@
 ---
 apiVersion: v2
 name: shadowbroker
-version: 0.9.81
-appVersion: "0.9.81"
+version: 0.9.82
+appVersion: "0.9.82"
 description: simple shadowbroker installation
 type: application
 

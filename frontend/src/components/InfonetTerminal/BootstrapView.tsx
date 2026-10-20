@@ -60,8 +60,14 @@ export default function BootstrapView({ marketId, onBack }: BootstrapViewProps) 
     nodeStatus?.bootstrap?.bootstrap_seed_peer_count ?? nodeStatus?.bootstrap?.default_sync_peer_count ?? 0,
   );
   const syncPeerCount = Number(nodeStatus?.bootstrap?.sync_peer_count || 0);
+  const swarmSyncPeerCount = Number(nodeStatus?.bootstrap?.swarm_sync_peer_count || 0);
+  const manifestLoaded = Boolean(nodeStatus?.bootstrap?.manifest_loaded);
+  const swarmPull = nodeStatus?.bootstrap?.swarm_manifest_pull;
+  const swarmPullOk = Boolean(swarmPull?.ok) && !swarmPull?.skipped;
   const lastPeerUrl = String(nodeStatus?.sync_runtime?.last_peer_url || '').trim();
   const privateTransportRequired = Boolean(nodeStatus?.private_transport_required);
+  const bootstrapState = String(nodeStatus?.bootstrap?.bootstrap_state || '').toLowerCase();
+  const bootstrapDetail = String(nodeStatus?.bootstrap?.bootstrap_detail || '').trim();
 
   const toggleNode = useCallback(async (enabled: boolean) => {
     setNodeToggleBusy(true);
@@ -146,7 +152,7 @@ export default function BootstrapView({ marketId, onBack }: BootstrapViewProps) 
               Refresh
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 text-xs">
             <div>
               <div className="text-gray-500">Transport</div>
               <div className="text-cyan-300 font-mono break-all">
@@ -163,13 +169,28 @@ export default function BootstrapView({ marketId, onBack }: BootstrapViewProps) 
               <div className="text-gray-500">Sync Path</div>
               <div className="text-white font-mono">
                 {syncPeerCount} peers / {seedPeerCount} seeds
+                {swarmSyncPeerCount > 0 ? ` (${swarmSyncPeerCount} swarm)` : ''}
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500">Swarm Manifest</div>
+              <div className={swarmPullOk || manifestLoaded ? 'text-green-400' : 'text-amber-400'}>
+                {swarmPullOk
+                  ? `LIVE (${Number(swarmPull?.merged_peer_count || swarmPull?.peer_count || 0)} peers)`
+                  : manifestLoaded
+                    ? 'LOCAL FILE'
+                    : swarmPull?.skipped
+                      ? 'WAITING'
+                      : bootstrapState === 'connecting'
+                        ? 'CONNECTING'
+                        : 'LOCAL ONLY'}
               </div>
             </div>
           </div>
           <div className="mt-3 flex flex-col md:flex-row md:items-center gap-3">
             <div className="flex-1 text-[11px] text-gray-500 leading-relaxed">
               {nodeEnabled
-                ? `Infonet sync is ${syncOutcome || 'active'}${lastPeerUrl ? ` via ${lastPeerUrl}` : ''}.`
+                ? (bootstrapDetail || `Infonet sync is ${syncOutcome || 'active'}${lastPeerUrl ? ` via ${lastPeerUrl}` : ''}.`)
                 : 'Start a local participant node to sync through available Wormhole onion/RNS peers while this backend is running.'}
             </div>
             <button

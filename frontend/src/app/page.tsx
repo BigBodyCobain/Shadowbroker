@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { motion } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import WorldviewLeftPanel from '@/components/WorldviewLeftPanel';
 
@@ -12,15 +12,16 @@ import FilterPanel from '@/components/FilterPanel';
 import FindLocateBar from '@/components/FindLocateBar';
 import TopRightControls from '@/components/TopRightControls';
 import TimelinePanel from '@/components/TimelinePanel';
-import SettingsPanel from '@/components/SettingsPanel';
 import MapLegend from '@/components/MapLegend';
 import ScaleBar from '@/components/ScaleBar';
-import MeshTerminal from '@/components/MeshTerminal';
 import MeshChat from '@/components/MeshChat';
-import InfonetTerminal from '@/components/InfonetTerminal';
-import { leaveWormhole, fetchWormholeState } from '@/mesh/wormholeClient';
-import { teardownWormholeOnClose } from '@/lib/wormholeTeardown';
+import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import ShodanPanel from '@/components/ShodanPanel';
+import ReconPanel from '@/components/ReconPanel';
+import ScmPanel from '@/components/ScmPanel';
+import CyberThreatPanel from '@/components/CyberThreatPanel';
+import EntityGraphPanel from '@/components/EntityGraphPanel';
+import { isEntityGraphEligible } from '@/lib/entityGraph';
 import AIIntelPanel from '@/components/AIIntelPanel';
 import GlobalTicker from '@/components/GlobalTicker';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -28,12 +29,24 @@ import OnboardingModal, { useOnboarding } from '@/components/OnboardingModal';
 import ChangelogModal, { useChangelog } from '@/components/ChangelogModal';
 import StartupWarmupModal, { useStartupWarmupNotice } from '@/components/StartupWarmupModal';
 import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
+import {
+  getDefaultActiveLayers,
+  getDefaultMapStyle,
+  loadActiveFilters,
+  loadActiveLayers,
+  loadMapStyle,
+  saveActiveFilters,
+  saveActiveLayers,
+  saveMapStyle,
+  type MapStyle,
+} from '@/lib/layerPreferences';
 import type { ShodanSearchMatch } from '@/types/shodan';
 import { API_BASE } from '@/lib/api';
 import { useDataPolling, LAYER_TOGGLE_EVENT } from '@/hooks/useDataPolling';
 import { useBackendStatus, useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useRegionDossier } from '@/hooks/useRegionDossier';
+import { useGtDossier } from '@/hooks/useGtDossier';
 import { useAgentActions } from '@/hooks/useAgentActions';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -60,6 +73,10 @@ import SarAoiEditorModal from '@/components/SarAoiEditorModal';
 
 // Use dynamic loads for Maplibre to avoid SSR window is not defined errors
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
+// Heavy panels — defer until opened so they stay out of the critical path
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel'), { ssr: false });
+const MeshTerminal = dynamic(() => import('@/components/MeshTerminal'), { ssr: false });
+const InfonetTerminal = dynamic(() => import('@/components/InfonetTerminal'), { ssr: false });
 
 // LocateBar and SentinelInfoModal extracted to page-local modules (Sprint 4B)
 
@@ -71,6 +88,10 @@ export default function Dashboard() {
   useDataPolling();
   const { mouseCoords, locationLabel, handleMouseCoords } = useReverseGeocode();
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  const [showEntityGraph, setShowEntityGraph] = useState(false);
+  useEffect(() => {
+    setShowEntityGraph(false);
+  }, [selectedEntity]);
   const [trackedSdr, setTrackedSdr] = useState<KiwiSDR | null>(null);
   const [trackedScanner, setTrackedScanner] = useState<Scanner | null>(null);
   const { regionDossier, regionDossierLoading, handleMapRightClick } = useRegionDossier(
@@ -161,71 +182,66 @@ export default function Dashboard() {
   useEffect(() => subscribeMeshTerminalOpen(openInfonet), [openInfonet]);
 
   const toggleInfonet = useCallback(() => {
-    setInfonetOpen(prev => !prev);
+    setInfonetOpen((prev) => {
+      if (prev) {
+        void endInfonetTerminalSession();
+        return false;
+      }
+      return true;
+    });
   }, []);
 
-  const [activeLayers, setActiveLayers] = useState<ActiveLayers>({
-    // Aircraft — all ON
-    flights: true,
-    private: true,
-    jets: true,
-    military: true,
-    tracked: true,
-    gps_jamming: true,
-    // Maritime — all ON
-    ships_military: true,
-    ships_cargo: true,
-    ships_civilian: true,
-    ships_passenger: true,
-    ships_tracked_yachts: true,
-    fishing_activity: true,
-    // Space — only satellites
-    satellites: true,
-    gibs_imagery: false,
-    highres_satellite: false,
-    sentinel_hub: false,
-    viirs_nightlights: false,
-    // Hazards — no fire, rest ON
-    earthquakes: true,
-    firms: false,
-    ukraine_alerts: true,
-    weather_alerts: true,
-    volcanoes: true,
-    air_quality: true,
-    // Infrastructure — military bases + internet outages only
-    cctv: false,
-    datacenters: false,
-    internet_outages: true,
-    power_plants: false,
-    military_bases: true,
-    trains: false,
-    // SIGINT — all ON except HF digital spots
-    kiwisdr: true,
-    psk_reporter: false,
-    satnogs: true,
-    tinygs: true,
-    scanners: true,
-    sigint_meshtastic: true,
-    sigint_aprs: true,
-    // Overlays
-    ukraine_frontline: true,
-    global_incidents: true,
-    day_night: true,
-    correlations: true,
-    contradictions: true,
-    uap_sightings: true,
-    // Biosurveillance
-    wastewater: true,
-    // CrowdThreat is operator opt-in only.
-    crowdthreat: false,
-    snapmap_osint: false,
-    // Shodan
-    shodan_overlay: false,
-    // AI Intel
-    ai_intel: true,
-    // SAR (Synthetic Aperture Radar)
-    sar: true,
-  });
+  const [activeLayers, setActiveLayers] = useState<ActiveLayers>(getDefaultActiveLayers);
+  // Backend-driven layer overrides. Additive on top of activeLayers, never
+  // persisted and never pushed back — the operator's own toggles stay theirs.
+  const [layerOverrides, setLayerOverrides] = useState<Partial<ActiveLayers>>({});
+  const [activeStyle, setActiveStyle] = useState<MapStyle>(getDefaultMapStyle);
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  const [layerPrefsHydrated, setLayerPrefsHydrated] = useState(false);
+
+  // SSR/hydration cannot read localStorage in useState — load saved UI prefs after mount.
+  useEffect(() => {
+    setActiveLayers(loadActiveLayers());
+    setActiveStyle(loadMapStyle());
+    setActiveFilters(loadActiveFilters());
+    setLayerPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveActiveLayers(activeLayers);
+  }, [activeLayers, layerPrefsHydrated]);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveMapStyle(activeStyle);
+  }, [activeStyle, layerPrefsHydrated]);
+
+  useEffect(() => {
+    if (!layerPrefsHydrated) return;
+    saveActiveFilters(activeFilters);
+  }, [activeFilters, layerPrefsHydrated]);
+
+  const resetActiveLayers = useCallback(() => {
+    setActiveLayers(getDefaultActiveLayers());
+  }, []);
+  const enableLayers = useCallback((keys: (keyof ActiveLayers)[]) => {
+    setActiveLayers((prev) => {
+      const next = { ...prev };
+      for (const key of keys) next[key] = true;
+      return next;
+    });
+  }, []);
+  const regionLat =
+    selectedEntity?.type === 'region_dossier' ? selectedEntity.extra?.lat : undefined;
+  const regionLng =
+    selectedEntity?.type === 'region_dossier' ? selectedEntity.extra?.lng : undefined;
+  const { gtDossier, gtDossierLoading } = useGtDossier(
+    typeof regionLat === 'number' ? regionLat : undefined,
+    typeof regionLng === 'number' ? regionLng : undefined,
+    regionDossier?.country?.name,
+    activeLayers.gt_risk,
+  );
   const [shodanResults, setShodanResults] = useState<ShodanSearchMatch[]>([]);
   const [, setShodanQueryLabel] = useState('');
   const [shodanStyle, setShodanStyle] = useState<import('@/types/shodan').ShodanStyleConfig>({ shape: 'circle', color: '#16a34a', size: 'md' });
@@ -292,7 +308,7 @@ export default function Dashboard() {
   const layersTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLayerSyncRef = useRef(false);
   useEffect(() => {
-    if (!secondaryBootReady) return;
+    if (!secondaryBootReady || !layerPrefsHydrated) return;
     const syncLayers = (triggerRefetch: boolean) =>
       fetch(`${API_BASE}/api/layers`, {
         method: 'POST',
@@ -316,7 +332,28 @@ export default function Dashboard() {
     return () => {
       if (layersTimerRef.current) clearTimeout(layersTimerRef.current);
     };
-  }, [activeLayers, secondaryBootReady]);
+  }, [activeLayers, secondaryBootReady, layerPrefsHydrated]);
+
+  // Poll for backend layer overrides so an agent can switch an overlay on
+  // without the operator reloading. Overrides carry a TTL server-side, so a
+  // missed poll self-corrects and a dropped backend just lets them lapse.
+  useEffect(() => {
+    if (!secondaryBootReady) return;
+    let cancelled = false;
+    const pollOverrides = () =>
+      fetch(`${API_BASE}/api/layers`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (!cancelled) setLayerOverrides(d?.overrides ?? {});
+        })
+        .catch(() => {});
+    void pollOverrides();
+    const id = setInterval(pollOverrides, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [secondaryBootReady]);
 
   // Left panel accordion state
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
@@ -399,8 +436,6 @@ export default function Dashboard() {
     bloom: true,
   });
 
-  const [activeStyle, setActiveStyle] = useState('DEFAULT');
-
   const memoizedEffects = useMemo(
     () => ({ ...effects, bloom: effects.bloom && activeStyle !== 'DEFAULT', style: activeStyle }),
     [effects, activeStyle],
@@ -409,11 +444,31 @@ export default function Dashboard() {
   const [flyToLocation, setFlyToLocation] = useState<{
     lat: number;
     lng: number;
+    zoom?: number;
+    bounds?: [number, number, number, number];
     ts: number;
   } | null>(null);
 
   const handleFlyTo = useCallback(
     (lat: number, lng: number) => setFlyToLocation({ lat, lng, ts: Date.now() }),
+    [],
+  );
+
+  const handleExpandEntityGraph = useCallback(() => {
+    if (isEntityGraphEligible(selectedEntity)) setShowEntityGraph(true);
+  }, [selectedEntity]);
+
+  const handleArticleClick = useCallback(
+    (idx: number, lat?: number, lng?: number, title?: string) => {
+      if (lat !== undefined && lng !== undefined) {
+        setFlyToLocation({ lat, lng, ts: Date.now() });
+        // Also highlight the corresponding map alert
+        if (title) {
+          const alertKey = `${title}|${lat},${lng}`;
+          setSelectedEntity({ id: alertKey, type: 'news' });
+        }
+      }
+    },
     [],
   );
 
@@ -429,16 +484,17 @@ export default function Dashboard() {
   const cycleStyle = () => {
     setActiveStyle((prev) => {
       const idx = stylesList.indexOf(prev);
-      const next = stylesList[(idx + 1) % stylesList.length];
+      const next = stylesList[(idx + 1) % stylesList.length] as MapStyle;
       // Auto-toggle High-Res Satellite layer with SATELLITE style
       setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
       return next;
     });
   };
 
-  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({});
+  // Overrides merge last so they win over both the operator's toggles and the
+  // first-paint suppressions below.
   const firstPaintActiveLayers = useMemo<ActiveLayers>(() => {
-    if (secondaryBootReady) return activeLayers;
+    if (secondaryBootReady) return { ...activeLayers, ...layerOverrides };
     return {
       ...activeLayers,
       cctv: false,
@@ -447,17 +503,19 @@ export default function Dashboard() {
       highres_satellite: false,
       sentinel_hub: false,
       viirs_nightlights: false,
+      road_corridor_trends: false,
       psk_reporter: false,
       tinygs: false,
       datacenters: false,
       power_plants: false,
+      ...layerOverrides,
     };
-  }, [activeLayers, secondaryBootReady]);
+  }, [activeLayers, layerOverrides, secondaryBootReady]);
   // Agent fly_to handler (sar_focus_aoi etc.) — wired here now that
   // setFlyToLocation is in scope.  show_image is routed through
   // useAgentActions at the top of Dashboard.
-  useAgentActions(handleMapRightClick, ({ lat, lng }) => {
-    setFlyToLocation({ lat, lng, ts: Date.now() });
+  useAgentActions(handleMapRightClick, ({ lat, lng, zoom }) => {
+    setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
   }, secondaryBootReady);
 
   // Eavesdrop Mode State
@@ -566,8 +624,9 @@ export default function Dashboard() {
                 {secondaryBootReady ? (
                   <ErrorBoundary name="WorldviewLeftPanel">
                     <WorldviewLeftPanel
-                      activeLayers={activeLayers}
+                      activeLayers={firstPaintActiveLayers}
                       setActiveLayers={setActiveLayers}
+                      onResetLayers={resetActiveLayers}
                       shodanResultCount={shodanResults.length}
                       onSettingsClick={() => setSettingsOpen(true)}
                       onLegendClick={() => setLegendOpen(true)}
@@ -590,6 +649,7 @@ export default function Dashboard() {
                       setTrackedScanner={setTrackedScanner}
                       isMinimized={leftDataMinimized}
                       onMinimizedChange={setLeftDataMinimized}
+                      viewBoundsRef={viewBoundsRef}
                     />
                   </ErrorBoundary>
                 ) : (
@@ -600,7 +660,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* 2. MESH CHAT (Middle) */}
+              {/* 2. MESHTASTIC CHAT (Middle) */}
               {secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <MeshChat
@@ -609,6 +669,8 @@ export default function Dashboard() {
                     onExpandedChange={setLeftMeshExpanded}
                     onSettingsClick={() => setSettingsOpen(true)}
                     onTerminalToggle={openSecureTerminalLauncher}
+                    onOpenLiveGate={openLiveGateFromShell}
+                    onOpenDeadDrop={openDeadDropFromShell}
                     launchRequest={meshChatLaunchRequest}
                   />
                 </div>
@@ -634,7 +696,16 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* 4. AI INTEL (Below Shodan) */}
+              {/* 4. RECON + SCM */}
+              {secondaryBootReady && (
+                <div className="contents" style={{ direction: 'ltr' }}>
+                  <ReconPanel />
+                  <ScmPanel layerEnabled={activeLayers.scm_suppliers} />
+                  <CyberThreatPanel layerEnabled={activeLayers.cyber_threats} />
+                </div>
+              )}
+
+              {/* 5. AI INTEL */}
               {secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
                   <AIIntelPanel
@@ -735,6 +806,8 @@ export default function Dashboard() {
                   <FilterPanel
                     activeFilters={activeFilters}
                     setActiveFilters={setActiveFilters}
+                    activeLayers={activeLayers}
+                    onEnableLayers={enableLayers}
                   />
                 </ErrorBoundary>
               </div>
@@ -746,16 +819,10 @@ export default function Dashboard() {
                     selectedEntity={selectedEntity}
                     regionDossier={regionDossier}
                     regionDossierLoading={regionDossierLoading}
-                    onArticleClick={(idx, lat, lng, title) => {
-                      if (lat !== undefined && lng !== undefined) {
-                        setFlyToLocation({ lat, lng, ts: Date.now() });
-                        // Also highlight the corresponding map alert
-                        if (title) {
-                          const alertKey = `${title}|${lat},${lng}`;
-                          setSelectedEntity({ id: alertKey, type: 'news' });
-                        }
-                      }
-                    }}
+                    gtDossier={gtDossier}
+                    gtDossierLoading={gtDossierLoading}
+                    onExpandEntityGraph={handleExpandEntityGraph}
+                    onArticleClick={handleArticleClick}
                   />
                 </ErrorBoundary>
               </div>
@@ -771,7 +838,7 @@ export default function Dashboard() {
               >
                 {/* LOCATE BAR — search by coordinates or place name */}
                 <LocateBar
-                  onLocate={(lat, lng) => setFlyToLocation({ lat, lng, ts: Date.now() })}
+                  onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
                   onOpenChange={setLocateBarOpen}
                 />
 
@@ -938,7 +1005,7 @@ export default function Dashboard() {
         {/* AIS UPSTREAM OUTAGE BANNER — renders only when AIS is configured
             but the WebSocket upstream is unreachable. Tells users the empty
             ocean isn't their fault. */}
-        <AisUpstreamBanner />
+        <AisUpstreamBanner onOpenApiKeys={() => setSettingsOpen(true)} />
 
         {/* ONBOARDING MODAL */}
         {showOnboarding && (
@@ -987,13 +1054,16 @@ export default function Dashboard() {
           onSettingsClick={() => setSettingsOpen(true)}
         />
 
+        {showEntityGraph && selectedEntity && isEntityGraphEligible(selectedEntity) && (
+          <EntityGraphPanel entity={selectedEntity} onClose={() => setShowEntityGraph(false)} />
+        )}
+
         {/* INFONET TERMINAL */}
         <InfonetTerminal
           isOpen={infonetOpen}
           onClose={() => {
             setInfonetOpen(false);
-            // Shut down Wormhole when the terminal closes so it doesn't stay running
-            void teardownWormholeOnClose(fetchWormholeState, leaveWormhole);
+            void endInfonetTerminalSession();
           }}
           onOpenLiveGate={openLiveGateFromShell}
           onOpenDeadDrop={openDeadDropFromShell}

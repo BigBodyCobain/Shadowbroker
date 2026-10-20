@@ -216,19 +216,19 @@ def test_authenticated_wormhole_status_can_request_diagnostic_private_delivery_s
     assert item["meta"]["peer_id"] == "bob"
 
 
-def test_dm_pubkey_lookup_token_ordinary_response_omits_resolved_agent_id(monkeypatch):
+def test_dm_pubkey_lookup_token_ordinary_response_includes_resolved_agent_id(monkeypatch):
     monkeypatch.setattr(main, "_check_scoped_auth", lambda *_args, **_kwargs: (False, "no"))
     monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
         "services.mesh.mesh_dm_relay.dm_relay.get_dh_key_by_lookup",
-        lambda _lookup_token: ({"dh_pub": "pub", "dh_algo": "X25519"}, "peer-123"),
+        lambda _lookup_token: ({"dh_pub_key": "pub", "dh_algo": "X25519"}, "peer-123"),
     )
 
     result = asyncio.run(main.dm_get_pubkey(_request("/api/mesh/dm/pubkey"), lookup_token="invite-handle"))
 
     assert result["ok"] is True
     assert result["lookup_mode"] == "invite_lookup_handle"
-    assert "agent_id" not in result
+    assert result["agent_id"] == "peer-123"
 
 
 def test_dm_pubkey_lookup_token_diagnostic_response_exposes_resolved_agent_id(monkeypatch):
@@ -249,7 +249,7 @@ def test_dm_pubkey_lookup_token_diagnostic_response_exposes_resolved_agent_id(mo
     assert result["agent_id"] == "peer-123"
 
 
-def test_prekey_bundle_lookup_token_ordinary_response_omits_resolved_agent_id(monkeypatch):
+def test_prekey_bundle_lookup_token_ordinary_response_includes_resolved_agent_id(monkeypatch):
     monkeypatch.setattr(main, "_check_scoped_auth", lambda *_args, **_kwargs: (False, "no"))
     monkeypatch.setattr(main, "_is_debug_test_request", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
@@ -273,7 +273,7 @@ def test_prekey_bundle_lookup_token_ordinary_response_omits_resolved_agent_id(mo
 
     assert result["ok"] is True
     assert result["lookup_mode"] == "invite_lookup_handle"
-    assert "agent_id" not in result
+    assert result["agent_id"] == "peer-456"
     assert result["trust_fingerprint"] == "aa" * 16
 
 

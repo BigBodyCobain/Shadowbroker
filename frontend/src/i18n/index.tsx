@@ -1,11 +1,15 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import en from './translations/en.json';
 import zhCN from './translations/zh-CN.json';
 import fr from './translations/fr.json';
+import fa from './translations/fa.json';
 
-export type Locale = 'en' | 'zh-CN' | 'fr';
+export type Locale = 'en' | 'zh-CN' | 'fr' | 'fa';
+
+/** Locales that read right-to-left. Used to set <html dir> and lang. */
+const RTL_LOCALES: ReadonlySet<Locale> = new Set(['fa']);
 
 /**
  * Registry of available locales for the UI language toggle.
@@ -20,7 +24,12 @@ export type Locale = 'en' | 'zh-CN' | 'fr';
  *   2. Import it above and add to `translations` below
  *   3. Add an entry here
  *   4. Extend the `Locale` type
- *   5. Read CONTRIBUTING.md — translations must be technically faithful
+ *   5. If the language is RTL, add its code to `RTL_LOCALES`
+ *   6. Map the locale in `backend/services/telegram_translate.py`
+ *      (`_LOCALE_TO_GOOGLE` + `_SOURCE_LANG_LABELS`) and the fallback
+ *      labels in `TelegramOsintPopup.tsx` so Telegram OSINT posts
+ *      translate into the UI language
+ *   7. Read CONTRIBUTING.md — translations must be technically faithful
  *      to the English source. Politically loaded substitutions or
  *      framing aligned with state propaganda from ANY country will
  *      be rejected.
@@ -29,9 +38,15 @@ export const LOCALES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'en', label: 'English' },
   { code: 'zh-CN', label: '中文 (简体)' },
   { code: 'fr', label: 'Français' },
+  { code: 'fa', label: 'فارسی' },
 ];
 
-const translations: Record<Locale, Record<string, Record<string, string>>> = { en, 'zh-CN': zhCN, fr };
+const translations: Record<Locale, Record<string, Record<string, string>>> = {
+  en,
+  'zh-CN': zhCN,
+  fr,
+  fa,
+};
 
 function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && LOCALES.some((entry) => entry.code === value);
@@ -97,6 +112,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('sb_locale', newLocale);
     }
   }, []);
+
+  // Keep <html dir>/<html lang> in sync with the active locale.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const t = useCallback(
     (key: string): string => {

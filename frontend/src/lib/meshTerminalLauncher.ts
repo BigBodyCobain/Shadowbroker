@@ -1,5 +1,6 @@
 const MESH_TERMINAL_OPEN_EVENT = 'oracle:open-mesh-terminal';
 const SECURE_MESH_TERMINAL_LAUNCHER_EVENT = 'oracle:open-secure-mesh-terminal-launcher';
+const INFONET_SESSION_END_EVENT = 'oracle:infonet-session-end';
 
 export function requestMeshTerminalOpen(source = 'ui'): void {
   if (typeof window === 'undefined') return;
@@ -37,4 +38,23 @@ export function subscribeSecureMeshTerminalLauncherOpen(handler: () => void): ()
   const listener = () => handler();
   window.addEventListener(SECURE_MESH_TERMINAL_LAUNCHER_EVENT, listener);
   return () => window.removeEventListener(SECURE_MESH_TERMINAL_LAUNCHER_EVENT, listener);
+}
+
+export function notifyInfonetSessionEnd(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent(INFONET_SESSION_END_EVENT, {
+      detail: { at: Date.now() },
+    }),
+  );
+}
+
+export function subscribeInfonetSessionEnd(handler: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const listener = () => handler();
+  window.addEventListener(INFONET_SESSION_END_EVENT, listener);
+  return () => window.removeEventListener(INFONET_SESSION_END_EVENT, listener);
 }

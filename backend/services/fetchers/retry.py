@@ -11,15 +11,20 @@ import random
 import logging
 import functools
 import requests
+from requests.exceptions import ChunkedEncodingError, ConnectionError as RequestsConnectionError
+from requests.exceptions import Timeout as RequestsTimeout
 
 logger = logging.getLogger(__name__)
 
-# Only retry on transient network/OS errors — not on parse errors, key errors, etc.
+# Only retry on transient network/OS errors — not parse/key errors or HTTP 4xx/5xx.
+# requests.HTTPError (from raise_for_status) is intentionally excluded.
 TRANSIENT_ERRORS = (
     TimeoutError,
     ConnectionError,
     OSError,
-    requests.RequestException,
+    RequestsConnectionError,
+    RequestsTimeout,
+    ChunkedEncodingError,
 )
 
 
@@ -43,6 +48,8 @@ def with_retry(max_retries: int = 3, base_delay: float = 2.0, max_delay: float =
             for attempt in range(1 + max_retries):
                 try:
                     return func(*args, **kwargs)
+                except requests.HTTPError:
+                    raise
                 except TRANSIENT_ERRORS as exc:
                     last_exc = exc
                     if attempt < max_retries:

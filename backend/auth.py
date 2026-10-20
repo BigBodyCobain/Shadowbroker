@@ -521,33 +521,32 @@ _KNOWN_COMPROMISED_PEER_PUSH_SECRET_SHA256 = (
 def _validate_admin_startup() -> None:
     admin_key = _current_admin_key()
 
-    if not admin_key or len(admin_key) < 32:
-        import secrets
+    if not admin_key:
+        logger.warning(
+            "ADMIN_KEY is not set. Local-operator/admin endpoints will reject "
+            "remote callers until ADMIN_KEY is configured."
+        )
+        return
 
-        reason = "not set" if not admin_key else f"too short ({len(admin_key)} chars, minimum 32)"
-        new_key = secrets.token_hex(32)  # 64-char hex string
+    if len(admin_key) < 32:
+        reason = f"too short ({len(admin_key)} chars, minimum 32)"
         try:
-            from routers.ai_intel import _write_env_value
-
-            _write_env_value("ADMIN_KEY", new_key)
-            os.environ["ADMIN_KEY"] = new_key
-            logger.info(
-                "ADMIN_KEY was %s — auto-generated a strong 64-character key and "
-                "saved it to .env. Admin/mesh endpoints are now secured.",
-                reason,
-            )
-            # Clear settings cache so the rest of startup picks up the new key
-            try:
-                get_settings.cache_clear()
-            except Exception:
-                pass
-        except Exception as exc:
+            debug_mode = bool(getattr(get_settings(), "MESH_DEBUG_MODE", False))
+        except Exception:
+            debug_mode = False
+        if debug_mode:
             logger.warning(
-                "ADMIN_KEY is %s and could not auto-generate: %s. "
-                "Admin/mesh endpoints may be unavailable.",
+                "ADMIN_KEY is %s. Debug mode is enabled, so startup will continue, "
+                "but production deployments must use a 32+ character key.",
                 reason,
-                exc,
             )
+            return
+        logger.error(
+            "ADMIN_KEY is %s. Refusing to start because auto-generating a backend-only "
+            "replacement would desynchronize the frontend and backend containers.",
+            reason,
+        )
+        raise SystemExit(1)
 
 
 def _validate_insecure_admin_startup() -> None:
@@ -863,7 +862,9 @@ _ROUTE_TRANSPORT_POLICY: dict[tuple[str, str], RouteTransportPolicy] = {
     ("POST", "/api/wormhole/gate/messages/decrypt"): _local_only_route_policy("private_control_only"),
     # ── Wormhole DM (strong) ──────────────────────────────────────────
     ("POST", "/api/wormhole/dm/compose"): _local_only_route_policy("private_control_only"),
+    ("POST", "/api/wormhole/dm/connect-contact"): _local_only_route_policy("private_control_only"),
     ("POST", "/api/wormhole/dm/decrypt"): _local_only_route_policy("private_control_only"),
+    ("POST", "/api/wormhole/dm/mls-key-package"): _local_only_route_policy("private_control_only"),
     ("POST", "/api/wormhole/dm/register-key"): _local_only_route_policy("private_control_only"),
     ("POST", "/api/wormhole/dm/prekey/register"): _local_only_route_policy("private_control_only"),
     ("POST", "/api/wormhole/dm/bootstrap-encrypt"): _local_only_route_policy("private_control_only"),
@@ -1403,6 +1404,27 @@ def _peer_hmac_url_from_request(request: Request) -> str:
     if header_url:
         return header_url
     return ""
+
+
+def _verify_peer_transport_hmac(request: Request, body_bytes: bytes) -> bool:
+    """Verify HMAC-SHA256 peer authentication without an allowlist check."""
+    provided = str(request.headers.get("x-peer-hmac", "") or "").strip()
+    if not provided:
+        return False
+
+    peer_url = _peer_hmac_url_from_request(request)
+    if not peer_url:
+        return False
+    peer_key = resolve_peer_key_for_url(peer_url)
+    if not peer_key:
+        return False
+
+    expected = _hmac_mod.new(
+        peer_key,
+        body_bytes,
+        _hashlib_mod.sha256,
+    ).hexdigest()
+    return _hmac_mod.compare_digest(provided.lower(), expected.lower())
 
 
 def _verify_peer_push_hmac(request: Request, body_bytes: bytes) -> bool:

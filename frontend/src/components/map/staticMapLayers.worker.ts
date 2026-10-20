@@ -21,6 +21,8 @@ import {
   buildUapSightingsGeoJSON,
   buildWastewaterGeoJSON,
   buildCrowdThreatGeoJSON,
+  buildMalwareGeoJSON,
+  buildTelegramOsintGeoJSON,
 } from '@/components/map/geoJSONBuilders';
 import type {
   AirQualityStation,
@@ -44,6 +46,7 @@ import type {
   VIIRSChangeNode,
   Volcano,
   CrowdThreatItem,
+  MalwareThreat,
 } from '@/types/dashboard';
 
 type BoundsTuple = [number, number, number, number];
@@ -71,6 +74,17 @@ export type StaticMapLayersDataPayload = {
   uapSightings?: UAPSighting[];
   wastewater?: WastewaterPlant[];
   crowdthreat?: CrowdThreatItem[];
+  malwareThreats?: MalwareThreat[];
+  telegramOsintPosts?: Array<{
+    id: string;
+    title?: string;
+    description?: string;
+    link?: string;
+    source?: string;
+    channel?: string;
+    risk_score?: number;
+    coords?: [number, number] | null;
+  }>;
 };
 
 export type StaticMapLayersBuildPayload = {
@@ -95,6 +109,8 @@ export type StaticMapLayersBuildPayload = {
     uap_sightings: boolean;
     wastewater: boolean;
     crowdthreat: boolean;
+    malware_c2: boolean;
+    telegram_osint: boolean;
   };
 };
 
@@ -119,6 +135,8 @@ export type StaticMapLayersResult = {
   uapSightingsGeoJSON: FC;
   wastewaterGeoJSON: FC;
   crowdthreatGeoJSON: FC;
+  malwareGeoJSON: FC;
+  telegramOsintGeoJSON: FC;
 };
 
 type SyncRequest = {
@@ -191,6 +209,12 @@ function buildStaticLayers(payload: StaticMapLayersBuildPayload): StaticMapLayer
     uapSightingsGeoJSON: payload.activeLayers.uap_sightings ? buildUapSightingsGeoJSON(staticData.uapSightings) : null,
     wastewaterGeoJSON: payload.activeLayers.wastewater ? buildWastewaterGeoJSON(staticData.wastewater) : null,
     crowdthreatGeoJSON: payload.activeLayers.crowdthreat ? buildCrowdThreatGeoJSON(staticData.crowdthreat, inView) : null,
+    malwareGeoJSON: payload.activeLayers.malware_c2
+      ? buildMalwareGeoJSON({ threats: staticData.malwareThreats }, inView)
+      : null,
+  telegramOsintGeoJSON: payload.activeLayers.telegram_osint
+      ? buildTelegramOsintGeoJSON({ posts: staticData.telegramOsintPosts })
+      : null,
   };
 }
 

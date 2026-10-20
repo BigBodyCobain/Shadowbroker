@@ -167,6 +167,11 @@ def cmd_hash(args: argparse.Namespace) -> int:
     print("")
     print("Updater pin:")
     print(f"MESH_UPDATE_SHA256={digest}")
+    print("")
+    print("Release checklist:")
+    print("  - add this digest to SHA256SUMS.txt for the GitHub release")
+    print("  - add/update backend/data/release_digests.json for bundled updater verification")
+    print("  - keep MESH_UPDATE_SHA256 available as the operator override path")
     return 0 if asset_matches else 2
 
 

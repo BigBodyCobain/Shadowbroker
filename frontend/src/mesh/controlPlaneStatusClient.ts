@@ -1,4 +1,5 @@
 import { controlPlaneJson } from '@/lib/controlPlane';
+import { generateNodeKeys, getNodeIdentity } from '@/mesh/meshIdentity';
 
 export interface PrivacyProfileSnapshot {
   profile?: string;
@@ -14,6 +15,8 @@ export interface RnsStatusSnapshot {
 
 export interface InfonetBootstrapSnapshot {
   node_mode?: string;
+  bootstrap_state?: string;
+  bootstrap_detail?: string;
   manifest_loaded?: boolean;
   manifest_signer_id?: string;
   manifest_valid_until?: number;
@@ -24,6 +27,19 @@ export interface InfonetBootstrapSnapshot {
   bootstrap_seed_peer_count?: number;
   default_sync_peer_count?: number;
   last_bootstrap_error?: string;
+  swarm_sync_peer_count?: number;
+  swarm_push_peer_count?: number;
+  swarm_manifest_pull?: {
+    ok?: boolean;
+    skipped?: boolean;
+    reason?: string;
+    detail?: string;
+    retrying?: boolean;
+    tried_seed_count?: number;
+    peer_count?: number;
+    merged_peer_count?: number;
+    seed_peer_url?: string;
+  };
 }
 
 export interface InfonetSyncRuntimeSnapshot {
@@ -235,4 +251,50 @@ export async function startTorHiddenService(): Promise<TorHiddenServiceSnapshot>
     method: 'POST',
     requireAdminSession: false,
   });
+}
+
+export async function stopTorHiddenService(): Promise<TorHiddenServiceSnapshot> {
+  return controlPlaneJson<TorHiddenServiceSnapshot>('/api/settings/tor/stop', {
+    method: 'POST',
+    requireAdminSession: false,
+  });
+}
+
+export interface InfonetSwarmJoinSnapshot {
+  ok?: boolean;
+  detail?: string;
+  announce?: {
+    ok?: boolean;
+    peer_url?: string;
+    skipped?: boolean;
+    results?: Array<{ seed_peer_url?: string; ok?: boolean; status_code?: number }>;
+  };
+  manifest_pull?: {
+    ok?: boolean;
+    peer_count?: number;
+    merged_peer_count?: number;
+    seed_peer_url?: string;
+    detail?: string;
+  };
+}
+
+/** Register with the fleet seed and pull the signed peer manifest. */
+export async function joinInfonetSwarm(): Promise<InfonetSwarmJoinSnapshot> {
+  const result = await controlPlaneJson<InfonetSwarmJoinSnapshot>('/api/mesh/infonet/swarm/join', {
+    method: 'POST',
+    requireAdminSession: false,
+  });
+  invalidateInfonetNodeStatusCache();
+  return result;
+}
+
+/** Warm Tor/Arti, enable the node, and join the private Infonet swarm. */
+export async function ensureInfonetParticipantNodeReady(): Promise<void> {
+  if (!getNodeIdentity()) {
+    await generateNodeKeys().catch(() => null);
+  }
+  await startTorHiddenService().catch(() => null);
+  await setInfonetNodeEnabled(true);
+  await joinInfonetSwarm().catch(() => null);
+  await fetchInfonetNodeStatusSnapshot(true).catch(() => null);
 }

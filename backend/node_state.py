@@ -148,12 +148,15 @@ def _is_private_infonet_transport(transport: str) -> bool:
 
 def _configured_bootstrap_seed_peer_urls() -> list[str]:
     from services.config import get_settings
+    from services.mesh.mesh_fleet_defaults import configured_bootstrap_seed_peers_with_fleet_default
     from services.mesh.mesh_router import parse_configured_relay_peers
 
     settings = get_settings()
     primary = str(getattr(settings, "MESH_BOOTSTRAP_SEED_PEERS", "") or "").strip()
     legacy = str(getattr(settings, "MESH_DEFAULT_SYNC_PEERS", "") or "").strip()
-    return parse_configured_relay_peers(primary or legacy)
+    return configured_bootstrap_seed_peers_with_fleet_default(
+        parse_configured_relay_peers(primary or legacy)
+    )
 
 
 def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:

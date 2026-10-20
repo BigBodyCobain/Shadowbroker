@@ -98,7 +98,7 @@ struct GroupState {
 }
 
 struct CommitState {
-    family_id: FamilyId,
+    _family_id: FamilyId,
     commit_message: Vec<u8>,
     welcome_messages: Vec<Vec<u8>>,
     joined_group_handles: Vec<GroupHandle>,
@@ -282,7 +282,7 @@ fn make_client(label: &[u8]) -> Result<(PrivacyClient, SigningIdentity, Vec<u8>)
 }
 
 fn make_client_from_parts(
-    label: &[u8],
+    _label: &[u8],
     signing_identity: SigningIdentity,
     signer_secret_bytes: &[u8],
 ) -> Result<PrivacyClient, String> {
@@ -542,7 +542,7 @@ pub fn add_member(
     commits().lock().expect("commits mutex poisoned").insert(
         commit_handle,
         CommitState {
-            family_id,
+            _family_id: family_id,
             commit_message: commit_output
                 .commit_message
                 .mls_encode_to_vec()
@@ -612,7 +612,7 @@ pub fn remove_member(
     commits().lock().expect("commits mutex poisoned").insert(
         commit_handle,
         CommitState {
-            family_id,
+            _family_id: family_id,
             commit_message: commit_output
                 .commit_message
                 .mls_encode_to_vec()

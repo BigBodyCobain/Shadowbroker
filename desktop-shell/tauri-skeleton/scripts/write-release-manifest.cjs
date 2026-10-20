@@ -94,6 +94,11 @@ function writeUpdaterManifest(files) {
       };
     })
     .filter(Boolean)
+    .filter((artifact) => {
+      const version = readReleaseVersion();
+      const versionToken = `_${version}_`;
+      return artifact.relativePath.includes(versionToken) || artifact.relativePath.includes(`_${version}.`);
+    })
     .sort((a, b) => updaterArtifactPriority(a.relativePath) - updaterArtifactPriority(b.relativePath));
 
   const platforms = {};

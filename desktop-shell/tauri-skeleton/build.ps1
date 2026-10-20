@@ -132,7 +132,7 @@ try {
   ) {
     $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -LiteralPath $localUpdaterKey -Raw
     if (($null -eq $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) -and (Test-Path $localUpdaterKeyPassword)) {
-      $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = Get-Content -LiteralPath $localUpdaterKeyPassword -Raw
+      $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = (Get-Content -LiteralPath $localUpdaterKeyPassword -Raw).Trim()
     }
   }
 

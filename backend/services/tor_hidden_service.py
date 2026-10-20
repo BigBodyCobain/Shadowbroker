@@ -33,6 +33,52 @@ TOR_INSTALL_DIR = TOR_DIR / "tor_bin"
 _STARTUP_TIMEOUT_S = 90
 _POLL_INTERVAL_S = 1.0
 
+
+def _arti_socks_port() -> int:
+    from services.config import get_settings
+
+    return int(get_settings().MESH_ARTI_SOCKS_PORT or 9050)
+
+
+def _torrc_socks_line(socks_port: int) -> str:
+    return f"SocksPort {socks_port}\n"
+
+
+def _torrc_has_socks_port(socks_port: int) -> bool:
+    if not TORRC_PATH.exists():
+        return False
+    return _torrc_socks_line(socks_port) in TORRC_PATH.read_text(encoding="utf-8")
+
+
+def _local_socks_listening(socks_port: int) -> bool:
+    return _local_socks_handshake_ready(socks_port, timeout=0.75)
+
+
+def _local_socks_handshake_ready(socks_port: int, *, timeout: float = 5.0) -> bool:
+    import socket
+
+    try:
+        with socket.create_connection(("127.0.0.1", socks_port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall(b"\x05\x01\x00")
+            return sock.recv(2) == b"\x05\x00"
+    except OSError:
+        return False
+
+
+def _write_torrc(*, target_port: int, socks_port: int) -> None:
+    TOR_DIR.mkdir(parents=True, exist_ok=True)
+    hidden_service_dir = TOR_DIR / "hidden_service"
+    hidden_service_dir.mkdir(parents=True, exist_ok=True)
+    torrc_content = (
+        f"DataDirectory {TOR_DATA_DIR.as_posix()}\n"
+        f"HiddenServiceDir {hidden_service_dir.as_posix()}\n"
+        f"HiddenServicePort {target_port} 127.0.0.1:{target_port}\n"
+        f"{_torrc_socks_line(socks_port)}"
+        "Log notice stderr\n"
+    )
+    TORRC_PATH.write_text(torrc_content, encoding="utf-8")
+
 # Windows x86_64 Tor Expert Bundle URLs. Keep a fallback so first-run
 # onboarding does not break when Tor rotates point releases.
 _TOR_EXPERT_BUNDLE_URLS = [
@@ -357,12 +403,28 @@ class TorHiddenService:
     def start(self, target_port: int = 8000) -> dict:
         """Start Tor hidden service pointing to target_port on localhost."""
         with self._lock:
+            socks_port = _arti_socks_port()
             if self._running and self._process and self._process.poll() is None:
-                return {
-                    "ok": True,
-                    "onion_address": self._onion_address,
-                    "detail": "already running",
-                }
+                if _torrc_has_socks_port(socks_port) and _local_socks_handshake_ready(socks_port, timeout=1.5):
+                    return {
+                        "ok": True,
+                        "onion_address": self._onion_address,
+                        "detail": "already running",
+                    }
+                logger.info(
+                    "Tor is running without a ready SOCKS proxy on port %s — restarting",
+                    socks_port,
+                )
+                try:
+                    self._process.terminate()
+                    self._process.wait(timeout=10)
+                except Exception:
+                    try:
+                        self._process.kill()
+                    except Exception:
+                        pass
+                self._process = None
+                self._running = False
 
             self._error = ""
             tor_bin = _find_tor_binary()
@@ -388,14 +450,9 @@ class TorHiddenService:
                 except OSError:
                     pass
 
-            torrc_content = (
-                f"DataDirectory {TOR_DATA_DIR.as_posix()}\n"
-                f"HiddenServiceDir {hidden_service_dir.as_posix()}\n"
-                f"HiddenServicePort {target_port} 127.0.0.1:{target_port}\n"
-                "SocksPort 9050\n"
-                "Log notice stderr\n"
-            )
-            TORRC_PATH.write_text(torrc_content, encoding="utf-8")
+            # Mesh "Arti" transport uses Tor's local SOCKS proxy for .onion peers.
+            # Always publish SocksPort — MESH_ARTI_ENABLED only gates callers, not Tor.
+            _write_torrc(target_port=target_port, socks_port=socks_port)
 
             try:
                 self._process = subprocess.Popen(
@@ -428,15 +485,23 @@ class TorHiddenService:
                     hostname = HOSTNAME_PATH.read_text().strip()
                     if hostname.endswith(".onion"):
                         self._onion_address = f"http://{hostname}:8000"
-                        logger.info("Tor hidden service ready: %s", self._onion_address)
-                        return {
-                            "ok": True,
-                            "onion_address": self._onion_address,
-                        }
+                        if _local_socks_handshake_ready(socks_port, timeout=3.0):
+                            logger.info(
+                                "Tor hidden service ready: %s (SOCKS %s)",
+                                self._onion_address,
+                                socks_port,
+                            )
+                            return {
+                                "ok": True,
+                                "onion_address": self._onion_address,
+                            }
 
                 time.sleep(_POLL_INTERVAL_S)
 
-            self._error = f"Tor did not generate hostname within {_STARTUP_TIMEOUT_S}s"
+            self._error = (
+                f"Tor did not publish a ready hidden service and SOCKS proxy "
+                f"on port {socks_port} within {_STARTUP_TIMEOUT_S}s"
+            )
             self.stop()
             return {"ok": False, "detail": self._error}
 

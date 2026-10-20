@@ -2,6 +2,7 @@ import React from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { Earthquake, SelectedEntity, Ship, TrackedFlight, UAV } from '@/types/dashboard';
 import type { SpreadAlertItem } from '@/utils/alertSpread';
+import { TELEGRAM_MARKER_OFFSET } from '@/components/map/geoJSONBuilders';
 
 // Shared monospace label style base
 const LABEL_BASE: React.CSSProperties = {
@@ -387,7 +388,7 @@ export function ThreatMarkers({
                   borderRadius: '4px',
                   padding: '8px 20px 8px 12px',
                   color: riskColor,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: 'var(--font-jetbrains-mono), monospace',
                   fontSize: '12px',
                   fontWeight: 'bold',
                   textAlign: 'center',
@@ -473,3 +474,60 @@ export function ThreatMarkers({
     </>
   );
 }
+
+// -- Telegram OSINT pins (HTML, above threat alert boxes) --
+interface TelegramOsintMarkersProps {
+  features: GeoJSON.Feature[];
+  onEntityClick?: (entity: SelectedEntity | null) => void;
+}
+
+export function TelegramOsintMarkers({ features, onEntityClick }: TelegramOsintMarkersProps) {
+  if (!features.length) return null;
+
+  return (
+    <>
+      {features.map((feature) => {
+        if (feature.geometry?.type !== 'Point') return null;
+        const [lng, lat] = feature.geometry.coordinates as [number, number];
+        const props = feature.properties || {};
+        const id = String(props.id || '');
+        if (!id) return null;
+        const postCount = Number(props.post_count || 1);
+        const size = postCount > 1 ? Math.min(30, 16 + Math.log2(postCount) * 5) : 16;
+
+        return (
+          <Marker
+            key={`telegram-osint-${id}`}
+            longitude={lng}
+            latitude={lat}
+            anchor="center"
+            offset={TELEGRAM_MARKER_OFFSET}
+            style={{ zIndex: 95 }}
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              onEntityClick?.({
+                id,
+                type: 'telegram_osint',
+                name: String(props.name || 'Telegram OSINT'),
+              });
+            }}
+          >
+            <div
+              title={`Telegram OSINT${postCount > 1 ? ` (${postCount} posts)` : ''}`}
+              style={{
+                width: size,
+                height: size,
+                borderRadius: '50%',
+                background: '#ef4444',
+                border: '2.5px solid #fca5a5',
+                boxShadow: '0 0 14px rgba(239, 68, 68, 0.75)',
+                cursor: 'pointer',
+              }}
+            />
+          </Marker>
+        );
+      })}
+    </>
+  );
+}
+

@@ -5,7 +5,7 @@
  * 1. Document CSP remains hydration-safe for the Next.js runtime
  * 2. CSP is deterministic across repeated requests
  * 3. next.config.ts no longer owns a static CSP header
- * 4. Middleware does not break API/static routes (matcher exclusion)
+ * 4. Proxy screens API routes before handlers while static assets stay excluded
  * 5. Google Fonts domains are preserved in CSP
  * 6. Production CSP preserves required directives
  */
@@ -13,26 +13,26 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 
-import { middleware, config as middlewareConfig } from '@/middleware';
+import { proxy, config as proxyConfig } from '@/proxy';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Call middleware with a fake document request and return the response. */
-function callMiddleware(path = '/') {
+/** Call proxy with a fake document request and return the response. */
+function callProxy(path = '/') {
   const req = new NextRequest(`http://localhost${path}`, { method: 'GET' });
-  return middleware(req);
+  return proxy(req);
 }
 
-/** Extract the CSP header string from a middleware response. */
+/** Extract the CSP header string from a proxy response. */
 function getCsp(path = '/'): string {
-  return callMiddleware(path).headers.get('Content-Security-Policy') ?? '';
+  return callProxy(path).headers.get('Content-Security-Policy') ?? '';
 }
 
-/** Check whether the middleware matcher regex excludes a given path. */
+/** Check whether the proxy matcher regex excludes a given path. */
 function matcherExcludes(path: string): boolean {
-  const pattern = middlewareConfig.matcher[0];
+  const pattern = proxyConfig.matcher[0];
   // Next.js wraps the matcher in ^/<pattern>$ for path matching.
   // We replicate the essential check: the negative-lookahead prefix groups.
   const re = new RegExp(`^${pattern}$`);
@@ -55,7 +55,7 @@ describe('hydration-safe CSP header', () => {
     expect(csp).toMatch(/script-src [^;]*'unsafe-inline'/);
   });
 
-  it('middleware still returns a CSP header for document requests', () => {
+  it('proxy still returns a CSP header for document requests', () => {
     const csp = getCsp();
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self'");
@@ -117,12 +117,54 @@ describe('next.config.ts CSP removal', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Middleware does not break API/static routes
+// 4. Proxy screens APIs while keeping document/static behavior intact
 // ---------------------------------------------------------------------------
 
-describe('middleware matcher exclusions', () => {
-  it('excludes /api paths', () => {
-    expect(matcherExcludes('/api/mesh/events')).toBe(true);
+describe('proxy matcher and privileged API boundary', () => {
+  it('includes /api paths so the request-boundary security guard runs', () => {
+    expect(matcherExcludes('/api/mesh/events')).toBe(false);
+  });
+
+  it('non-sensitive API requests pass through without document CSP', () => {
+    expect(getCsp('/api/mesh/events')).toBe('');
+  });
+
+  it('rejects hostile cross-origin privileged API requests before route handling', () => {
+    const req = new NextRequest('http://localhost/api/settings/tor/reset-identity', {
+      method: 'POST',
+      headers: {
+        host: 'localhost',
+        origin: 'https://evil.example',
+        'sec-fetch-site': 'cross-site',
+      },
+    });
+    const response = proxy(req);
+    expect(response.status).toBe(403);
+    expect(response.headers.get('Content-Security-Policy')).toBeNull();
+  });
+
+  it('preserves a legitimate reverse-proxy Forwarded host on an internal direct Host', () => {
+    const req = new NextRequest('http://frontend:3000/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'frontend:3000',
+        origin: 'https://shadowbroker.example',
+        forwarded: 'for=172.18.0.1;proto=https;host="shadowbroker.example"',
+      },
+    });
+    expect(proxy(req).status).not.toBe(403);
+  });
+
+  it('does not trust spoofed X-Forwarded-Host on a public direct Host', () => {
+    const req = new NextRequest('https://shadowbroker.example/api/settings/api-keys', {
+      method: 'GET',
+      headers: {
+        host: 'shadowbroker.example',
+        origin: 'https://evil.example',
+        'x-forwarded-host': 'evil.example',
+      },
+    });
+    expect(proxy(req).status).toBe(403);
   });
 
   it('excludes /_next/static paths', () => {
@@ -147,18 +189,18 @@ describe('middleware matcher exclusions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Google Fonts domains are preserved in CSP
+// 5. Runtime Google Fonts domains are not required in CSP
 // ---------------------------------------------------------------------------
 
-describe('Google Fonts domains in CSP', () => {
-  it('style-src includes https://fonts.googleapis.com', () => {
+describe('local font CSP', () => {
+  it('style-src does not allow https://fonts.googleapis.com', () => {
     const csp = getCsp();
-    expect(csp).toContain('https://fonts.googleapis.com');
+    expect(csp).not.toContain('https://fonts.googleapis.com');
   });
 
-  it('font-src includes https://fonts.gstatic.com', () => {
+  it('font-src does not allow https://fonts.gstatic.com', () => {
     const csp = getCsp();
-    expect(csp).toContain('https://fonts.gstatic.com');
+    expect(csp).not.toContain('https://fonts.gstatic.com');
   });
 });
 
@@ -178,9 +220,9 @@ describe('production CSP directive completeness', () => {
     expect(csp).not.toMatch(/script-src [^;]*'nonce-/);
   });
 
-  it('has style-src with unsafe-inline and fonts.googleapis.com', () => {
+  it('has style-src with hydration-compatible inline styles only', () => {
     expect(csp).toMatch(/style-src [^;]*'unsafe-inline'/);
-    expect(csp).toMatch(/style-src [^;]*https:\/\/fonts\.googleapis\.com/);
+    expect(csp).not.toMatch(/style-src [^;]*https:\/\/fonts\.googleapis\.com/);
   });
 
   it('has worker-src self blob:', () => {

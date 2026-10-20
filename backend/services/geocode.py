@@ -171,7 +171,7 @@ def search_geocode(query: str, limit: int = 5, local_only: bool = False) -> List
     if not q:
         return []
     limit = max(1, min(int(limit or 5), 10))
-    key = f"search:{q.lower()}:{limit}:{int(local_only)}"
+    key = f"search2:{q.lower()}:{limit}:{int(local_only)}"
     cached = _get_cache(key)
     if cached is not None:
         return cached
@@ -180,7 +180,7 @@ def search_geocode(query: str, limit: int = 5, local_only: bool = False) -> List
         _set_cache(key, results)
         return results
 
-    params = urlencode({"q": q, "format": "json", "limit": str(limit)})
+    params = urlencode({"q": q, "format": "jsonv2", "limit": str(limit)})
     url = f"https://nominatim.openstreetmap.org/search?{params}"
     try:
         res = fetch_with_curl(
@@ -207,15 +207,23 @@ def search_geocode(query: str, limit: int = 5, local_only: bool = False) -> List
             data = res.json() or []
             for item in data:
                 try:
-                    results.append(
-                        {
-                            "label": item.get("display_name"),
-                            "lat": float(item.get("lat")),
-                            "lng": float(item.get("lon")),
-                        }
-                    )
+                    entry = {
+                        "label": item.get("display_name"),
+                        "lat": float(item.get("lat")),
+                        "lng": float(item.get("lon")),
+                    }
                 except (TypeError, ValueError):
                     continue
+                # Extent metadata the frontend uses to size the camera. Absent
+                # for local_only results, so every field stays optional.
+                bbox = item.get("boundingbox")
+                if isinstance(bbox, list) and len(bbox) == 4:
+                    entry["bbox"] = [str(value) for value in bbox]
+                if isinstance(item.get("place_rank"), int):
+                    entry["place_rank"] = item["place_rank"]
+                if item.get("addresstype"):
+                    entry["addresstype"] = str(item["addresstype"])
+                results.append(entry)
         except Exception:
             results = []
 

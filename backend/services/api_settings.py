@@ -6,6 +6,7 @@ Keys are stored in the backend .env file and loaded via python-dotenv.
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
 
 # Path to the backend .env file
@@ -18,6 +19,10 @@ if not DATA_DIR.is_absolute():
 OPERATOR_KEYS_ENV_PATH = Path(
     os.environ.get("SHADOWBROKER_OPERATOR_KEYS_ENV", str(DATA_DIR / "operator_api_keys.env"))
 )
+OPENCLAW_ENV_PATH = Path(
+    os.environ.get("SHADOWBROKER_OPENCLAW_ENV", str(DATA_DIR / "openclaw.env"))
+)
+OPENCLAW_PERSISTED_KEYS = frozenset({"OPENCLAW_HMAC_SECRET", "OPENCLAW_ACCESS_TIER"})
 _ENV_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 # ---------------------------------------------------------------------------
@@ -52,6 +57,24 @@ API_REGISTRY = [
         "required": True,
     },
     {
+        "id": "aishub_username",
+        "env_key": "AISHUB_USERNAME",
+        "name": "AISHub Username (backup)",
+        "description": "Free AISHub account username used as a slow REST backup when AISStream is silent or offline. Does not replace live AIS — polls about every 20 minutes into the same ships layer. Register at aishub.net/api.",
+        "category": "Maritime",
+        "url": "https://www.aishub.net/api",
+        "required": False,
+    },
+    {
+        "id": "gfw_api_token",
+        "env_key": "GFW_API_TOKEN",
+        "name": "Global Fishing Watch",
+        "description": "Bearer token for Global Fishing Watch fishing-vessel activity events (Fishing Activity map layer). Free registration at globalfishingwatch.org.",
+        "category": "Maritime",
+        "url": "https://globalfishingwatch.org/our-apis/",
+        "required": False,
+    },
+    {
         "id": "adsb_lol",
         "env_key": None,
         "name": "ADS-B Exchange (adsb.lol)",
@@ -67,6 +90,24 @@ API_REGISTRY = [
         "description": "Real-time earthquake data feed from the United States Geological Survey. No key required.",
         "category": "Geophysical",
         "url": "https://earthquake.usgs.gov/",
+        "required": False,
+    },
+    {
+        "id": "firms_map_key",
+        "env_key": "FIRMS_MAP_KEY",
+        "name": "NASA FIRMS — MAP Key (optional)",
+        "description": "Optional NASA Earthdata MAP key for country-scoped VIIRS fire enrichment. Global VIIRS hotspots work without a key; set this only if you want per-country FIRMS detail. Free from NASA Earthdata.",
+        "category": "Geophysical",
+        "url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+        "required": False,
+    },
+    {
+        "id": "airframes_api_key",
+        "env_key": "AIRFRAMES_API_KEY",
+        "name": "Airframes.io — API Key",
+        "description": "ACARS/VDL datalink for plane dossiers. ShadowBroker bulk-ingests the global Airframes firehose (up to 100 messages per API call, one call every 2s, refill every 15 minutes) and indexes by tail/ICAO. Opening a dossier with no cache queues a single-plane lookup. Get a key at app.airframes.io → Dashboard → API Key.",
+        "category": "Aviation",
+        "url": "https://app.airframes.io/user/dashboard",
         "required": False,
     },
     {
@@ -112,6 +153,15 @@ API_REGISTRY = [
         "description": "Aggregates from NPR, BBC, Al Jazeera, NYT, Reuters, and AP for global news coverage. No key required.",
         "category": "Intelligence",
         "url": None,
+        "required": False,
+    },
+    {
+        "id": "xquik_api_key",
+        "env_key": "XQUIK_API_KEY",
+        "name": "Xquik — API Key",
+        "description": "Server-side key for opt-in X post search in the shared news and threat feed.",
+        "category": "Intelligence",
+        "url": "https://docs.xquik.com/",
         "required": False,
     },
     {
@@ -173,6 +223,15 @@ API_REGISTRY = [
         "description": "OAuth2 client secret paired with the Client ID above. Used by the backend to mint short-lived access tokens against the CDSE identity provider. Stored in the backend .env; never sent to the browser.",
         "category": "Imagery",
         "url": "https://dataspace.copernicus.eu/",
+        "required": False,
+    },
+    {
+        "id": "carto_api_key",
+        "env_key": "CARTO_API_KEY",
+        "name": "CARTO Basemaps",
+        "description": "Optional CARTO raster-basemap override. ShadowBroker defaults to the keyless OpenFreeMap dark/light styles when this is unset. When configured, the browser receives this key from GET /api/basemap-config and sends it to CARTO on tile requests.",
+        "category": "Imagery",
+        "url": "https://carto.com/basemaps/apikey",
         "required": False,
     },
 ]
@@ -257,6 +316,34 @@ def load_persisted_api_keys_into_environ() -> None:
             os.environ[key] = value
 
 
+def load_persisted_openclaw_into_environ() -> None:
+    """Load OpenClaw secrets from the data volume when env is unset/empty.
+
+    Docker Compose often injects ``OPENCLAW_HMAC_SECRET=`` as an empty string,
+    which blocks pydantic from reading backend/.env. Persisting bootstrap output
+    under ``data/openclaw.env`` (on the backend_data volume) keeps remote HMAC
+    working across container restarts (#424).
+    """
+    persisted = _parse_env_file(OPENCLAW_ENV_PATH)
+    if not persisted.get("OPENCLAW_HMAC_SECRET"):
+        # One-time migration from legacy backend/.env writes inside the image.
+        persisted = {**_parse_env_file(ENV_PATH), **persisted}
+
+    for key, value in persisted.items():
+        if key not in OPENCLAW_PERSISTED_KEYS:
+            continue
+        cleaned = str(value or "").strip()
+        if cleaned and not str(os.environ.get(key, "")).strip():
+            os.environ[key] = cleaned
+
+
+def persist_openclaw_env_value(key: str, value: str) -> None:
+    """Persist OpenClaw runtime settings to the data volume."""
+    if key not in OPENCLAW_PERSISTED_KEYS:
+        return
+    _write_env_values(OPENCLAW_ENV_PATH, {key: value})
+
+
 def get_env_path_info() -> dict:
     """Return absolute paths for the backend .env and .env.example template.
 
@@ -277,6 +364,10 @@ def get_env_path_info() -> dict:
         "operator_keys_env_path_exists": OPERATOR_KEYS_ENV_PATH.exists(),
         "operator_keys_env_path_writable": os.access(OPERATOR_KEYS_ENV_PATH.parent, os.W_OK)
             and (not OPERATOR_KEYS_ENV_PATH.exists() or os.access(OPERATOR_KEYS_ENV_PATH, os.W_OK)),
+        "openclaw_env_path": str(OPENCLAW_ENV_PATH.resolve()),
+        "openclaw_env_path_exists": OPENCLAW_ENV_PATH.exists(),
+        "openclaw_env_path_writable": os.access(OPENCLAW_ENV_PATH.parent, os.W_OK)
+            and (not OPENCLAW_ENV_PATH.exists() or os.access(OPENCLAW_ENV_PATH, os.W_OK)),
     }
 
 
@@ -307,6 +398,13 @@ def get_api_keys():
             entry["is_set"] = bool(raw)
         result.append(entry)
     return result
+
+
+def get_basemap_config() -> dict:
+    """Public config for the browser map: the CARTO key (or empty when unset)."""
+    load_persisted_api_keys_into_environ()
+    key = os.environ.get("CARTO_API_KEY", "").strip()
+    return {"carto": {"configured": bool(key), "key": key}}
 
 
 def save_api_keys(updates: dict[str, str]) -> dict:
@@ -346,6 +444,17 @@ def save_api_keys(updates: dict[str, str]) -> dict:
             flights.opensky_client.client_secret = os.environ.get("OPENSKY_CLIENT_SECRET", "")
             flights.opensky_client.token = None
             flights.opensky_client.expires_at = 0
+        except Exception:
+            pass
+    if "AIRFRAMES_API_KEY" in clean:
+        try:
+            from services.fetchers.airframes import sync_airframes_messages
+
+            threading.Thread(
+                target=lambda: sync_airframes_messages(force=True),
+                daemon=True,
+                name="airframes-initial-sync",
+            ).start()
         except Exception:
             pass
 

@@ -19,6 +19,7 @@ import concurrent.futures
 import json
 import math
 import os
+import random
 import threading
 import time
 from datetime import datetime, timedelta
@@ -75,6 +76,8 @@ from services.fetchers.infrastructure import (  # noqa: F401
     fetch_tinygs,
     fetch_psk_reporter,
 )
+from services.fetchers.road_corridor_sat import fetch_road_corridor_trends  # noqa: F401
+from services.fetchers.airframes import sync_airframes_messages  # noqa: F401
 from services.fetchers.geo import (  # noqa: F401
     fetch_ships,
     fetch_airports,
@@ -99,7 +102,11 @@ from services.fetchers.crowdthreat import fetch_crowdthreat  # noqa: F401
 from services.fetchers.wastewater import fetch_wastewater  # noqa: F401
 from services.fetchers.sar_catalog import fetch_sar_catalog  # noqa: F401
 from services.fetchers.sar_products import fetch_sar_products  # noqa: F401
+from services.fetchers.malware import fetch_malware_threats  # noqa: F401
+from services.fetchers.telegram_osint import fetch_telegram_osint  # noqa: F401
 from services.fetchers.snapmap_osint import fetch_snapmap_osint, scan_interval_minutes as _snapmap_interval  # noqa: F401
+from services.fetchers.cyber_status import fetch_cyber_threats  # noqa: F401
+from services.scm.suppliers import fetch_scm_suppliers  # noqa: F401
 from services.ais_stream import prune_stale_vessels  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -145,12 +152,17 @@ _STARTUP_HEAVY_REFRESH_DELAY_S = float(os.environ.get("SHADOWBROKER_STARTUP_HEAV
 _STARTUP_HEAVY_REFRESH_STARTED = False
 _STARTUP_HEAVY_REFRESH_LOCK = threading.Lock()
 _FETCH_WORKERS = int(os.environ.get("SHADOWBROKER_FETCH_WORKERS", "8"))
+_HEAVY_FETCH_WORKERS = int(os.environ.get("SHADOWBROKER_HEAVY_FETCH_WORKERS", "2"))
 _SLOW_FETCH_CONCURRENCY = int(os.environ.get("SHADOWBROKER_SLOW_FETCH_CONCURRENCY", "4"))
 _STARTUP_HEAVY_CONCURRENCY = int(os.environ.get("SHADOWBROKER_STARTUP_HEAVY_CONCURRENCY", "2"))
 
-# Shared thread pool — reused across all fetch cycles instead of creating/destroying per tick
+# Fast-tier pool (flights, ships, sigint, …). Slow / heavy work uses a separate pool
+# so Playwright, GDELT, CCTV ingest, etc. cannot starve the 60s refresh path (#375).
 _SHARED_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=max(2, _FETCH_WORKERS), thread_name_prefix="fetch"
+)
+_SLOW_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=max(1, _HEAVY_FETCH_WORKERS), thread_name_prefix="fetch-slow"
 )
 
 
@@ -320,10 +332,49 @@ def seed_startup_caches() -> None:
 # ---------------------------------------------------------------------------
 # Scheduler & Orchestration
 # ---------------------------------------------------------------------------
+def _executor_for_task_label(label: str) -> concurrent.futures.ThreadPoolExecutor:
+    if label.startswith(("slow-tier", "startup-heavy")):
+        return _SLOW_EXECUTOR
+    return _SHARED_EXECUTOR
+
+
+def _run_task_with_health_on_executor(
+    executor: concurrent.futures.ThreadPoolExecutor,
+    func,
+    name: str | None = None,
+) -> None:
+    """Run a scheduled job on the given pool so it cannot starve fast-tier workers."""
+    task_name = name or getattr(func, "__name__", "task")
+    future = executor.submit(func)
+    start = time.perf_counter()
+    try:
+        future.result(timeout=_TASK_HARD_TIMEOUT_S)
+        duration = time.perf_counter() - start
+        from services.fetch_health import record_success
+
+        record_success(task_name, duration_s=duration)
+        if duration > _SLOW_FETCH_S:
+            logger.warning("task slow: %s took %.2fs", task_name, duration)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        duration = time.perf_counter() - start
+        from services.fetch_health import record_failure
+
+        record_failure(task_name, error=TimeoutError(f"{task_name} timed out"), duration_s=duration)
+        logger.error("task timed out: %s (%.2fs)", task_name, duration)
+    except Exception as e:
+        duration = time.perf_counter() - start
+        from services.fetch_health import record_failure
+
+        record_failure(task_name, error=e, duration_s=duration)
+        logger.exception("task failed: %s", task_name)
+
+
 def _run_tasks(label: str, funcs: list, *, max_concurrency: int | None = None):
     """Run tasks concurrently and log any exceptions (do not fail silently)."""
     if not funcs:
         return
+    executor = _executor_for_task_label(label)
     if max_concurrency is None:
         if label.startswith("slow-tier"):
             max_concurrency = _SLOW_FETCH_CONCURRENCY
@@ -331,12 +382,13 @@ def _run_tasks(label: str, funcs: list, *, max_concurrency: int | None = None):
             max_concurrency = _STARTUP_HEAVY_CONCURRENCY
         else:
             max_concurrency = len(funcs)
-    max_concurrency = max(1, min(max_concurrency, len(funcs)))
+    pool_workers = getattr(executor, "_max_workers", len(funcs))
+    max_concurrency = max(1, min(max_concurrency, len(funcs), pool_workers))
 
     remaining_funcs = list(funcs)
     while remaining_funcs:
         batch, remaining_funcs = remaining_funcs[:max_concurrency], remaining_funcs[max_concurrency:]
-        futures = {_SHARED_EXECUTOR.submit(func): (func.__name__, time.perf_counter()) for func in batch}
+        futures = {executor.submit(func): (func.__name__, time.perf_counter()) for func in batch}
         _drain_task_futures(label, futures)
 
 
@@ -353,6 +405,13 @@ def _drain_task_futures(label: str, futures: dict):
             record_success(name, duration_s=duration)
             if duration > _SLOW_FETCH_S:
                 logger.warning(f"{label} task slow: {name} took {duration:.2f}s")
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            duration = time.perf_counter() - start
+            from services.fetch_health import record_failure
+
+            record_failure(name, error=TimeoutError(f"{name} timed out"), duration_s=duration)
+            logger.error("%s task timed out: %s (%.2fs)", label, name, duration)
         except Exception as e:
             duration = time.perf_counter() - start
             from services.fetch_health import record_failure
@@ -406,7 +465,6 @@ def update_slow_data():
     logger.info("Slow-tier data update starting...")
     slow_funcs = [
         fetch_news,
-        fetch_prediction_markets,
         fetch_earthquakes,
         fetch_firms_fires,
         fetch_firms_country_fires,
@@ -423,23 +481,35 @@ def update_slow_data():
         fetch_military_bases,
         fetch_scanners,
         fetch_psk_reporter,
-        fetch_weather_alerts,
+        # weather_alerts + ukraine_alerts: owned by dedicated scheduler jobs
+        # (5 min and 2 min) — keep off slow tier to avoid duplicate upstream work.
         fetch_air_quality,
         fetch_fishing_activity,
         fetch_power_plants,
-        fetch_ukraine_air_raid_alerts,
+        fetch_malware_threats,
+        fetch_cyber_threats,
+        fetch_scm_suppliers,
     ]
     _run_tasks("slow-tier", slow_funcs)
-    # Run correlation engine after all data is fresh
+    # Run correlation engine after all data is fresh (skip when overlay is off).
     try:
+        from services.fetchers._store import is_any_active
         from services.correlation_engine import compute_correlations
-        with _data_lock:
-            snapshot = dict(latest_data)
-        correlations = compute_correlations(snapshot)
-        with _data_lock:
-            latest_data["correlations"] = correlations
+
+        if is_any_active("correlations"):
+            with _data_lock:
+                snapshot = dict(latest_data)
+            correlations = compute_correlations(snapshot)
+            with _data_lock:
+                latest_data["correlations"] = correlations
     except Exception as e:
         logger.error("Correlation engine failed: %s", e)
+    try:
+        from analytics.integration import maybe_refresh_gt_analytics
+
+        maybe_refresh_gt_analytics()
+    except Exception as e:
+        logger.error("GT analytics refresh failed: %s", e)
     from services.fetchers._store import bump_data_version
     bump_data_version()
     _save_intel_startup_cache()
@@ -471,6 +541,15 @@ def _load_cctv_cache_for_startup() -> None:
         logger.warning("Startup CCTV cache load failed (non-fatal): %s", e)
 
 
+def _load_static_infrastructure_for_startup() -> None:
+    """Disk-backed reference layers — instant, no network."""
+    for func in (fetch_datacenters, fetch_military_bases, fetch_power_plants):
+        try:
+            func()
+        except Exception as e:
+            logger.warning("Startup static infrastructure load failed for %s: %s", func.__name__, e)
+
+
 def _run_delayed_startup_heavy_refresh() -> None:
     if _STARTUP_HEAVY_REFRESH_DELAY_S > 0:
         logger.info(
@@ -483,6 +562,7 @@ def _run_delayed_startup_heavy_refresh() -> None:
         "startup-heavy",
         [
             update_slow_data,
+            fetch_telegram_osint,
             fetch_volcanoes,
             fetch_viirs_change_nodes,
             fetch_unusual_whales,
@@ -521,6 +601,7 @@ def update_all_data(*, startup_mode: bool = False):
     logger.info("Full data update starting (parallel)...")
     # Preload Meshtastic map cache immediately (instant, from disk)
     seed_startup_caches()
+    _load_static_infrastructure_for_startup()
     with _data_lock:
         meshtastic_seeded = bool(latest_data.get("meshtastic_map_nodes"))
     if startup_mode:
@@ -597,22 +678,9 @@ def update_all_data(*, startup_mode: bool = False):
     # (the scheduled job also runs every 10 min for ongoing refresh).
     if startup_mode:
         try:
-            from services.cctv_pipeline import (
-                TFLJamCamIngestor, LTASingaporeIngestor, AustinTXIngestor,
-                NYCDOTIngestor, CaltransIngestor, ColoradoDOTIngestor,
-                WSDOTIngestor, GeorgiaDOTIngestor, IllinoisDOTIngestor,
-                MichiganDOTIngestor, WindyWebcamsIngestor, DGTNationalIngestor,
-                MadridCityIngestor, OSMTrafficCameraIngestor, get_all_cameras,
-            )
-            from services.cctv_pipeline import OSMALPRCameraIngestor
-            _startup_ingestors = [
-                TFLJamCamIngestor(), LTASingaporeIngestor(), AustinTXIngestor(),
-                NYCDOTIngestor(), CaltransIngestor(), ColoradoDOTIngestor(),
-                WSDOTIngestor(), GeorgiaDOTIngestor(), IllinoisDOTIngestor(),
-                MichiganDOTIngestor(), WindyWebcamsIngestor(), DGTNationalIngestor(),
-                MadridCityIngestor(), OSMTrafficCameraIngestor(),
-                OSMALPRCameraIngestor(),
-            ]
+            from services.cctv_pipeline import get_all_cameras, scheduled_cctv_ingestors
+
+            _startup_ingestors = [ing for ing, _name in scheduled_cctv_ingestors()]
             logger.info("Running CCTV ingest at startup (%d ingestors)...", len(_startup_ingestors))
             ingest_futures = {
                 _SHARED_EXECUTOR.submit(ing.ingest): ing.__class__.__name__
@@ -748,6 +816,60 @@ def start_scheduler():
         misfire_grace_time=120,
     )
 
+    # Telegram OSINT — hourly t.me/s channel scrape (kept off the 5-minute slow tier).
+    _telegram_interval_m = max(15, int(os.environ.get("TELEGRAM_OSINT_INTERVAL_MINUTES", "60")))
+
+    def _fetch_telegram_osint_with_gt():
+        fetch_telegram_osint()
+        try:
+            from analytics.integration import maybe_refresh_gt_analytics
+
+            maybe_refresh_gt_analytics()
+        except Exception as exc:
+            logger.error("GT analytics refresh after telegram failed: %s", exc)
+
+    _scheduler.add_job(
+        lambda: _run_task_with_health(_fetch_telegram_osint_with_gt, "fetch_telegram_osint"),
+        "interval",
+        minutes=_telegram_interval_m,
+        next_run_time=datetime.utcnow() + timedelta(seconds=45),
+        id="telegram_osint",
+        max_instances=1,
+        misfire_grace_time=600,
+    )
+
+    # Snap Map OSINT — watch-zone density scan (own cadence, min 10 min, default 15).
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_snapmap_osint, "fetch_snapmap_osint"),
+        "interval",
+        minutes=_snapmap_interval(),
+        next_run_time=datetime.utcnow() + timedelta(seconds=90),
+        id="snapmap_osint",
+        max_instances=1,
+        misfire_grace_time=600,
+    )
+
+    # Prediction markets — own jittered cadence (Polymarket/Kalshi clearnet egress).
+    # Kept off the fixed 5-minute slow tier so poll timing is less fingerprintable.
+    from services.fetchers.prediction_markets import fetch_prediction_markets
+
+    _pm_interval_m = max(5, int(os.environ.get("PREDICTION_MARKETS_INTERVAL_MINUTES", "7")))
+    _pm_jitter_s = max(0, int(os.environ.get("PREDICTION_MARKETS_SCHEDULER_JITTER_S", "240")))
+    _pm_initial_max_s = max(0, int(os.environ.get("PREDICTION_MARKETS_INITIAL_DELAY_MAX_S", "180")))
+    _pm_first_run = datetime.utcnow() + timedelta(
+        seconds=random.randint(30, max(30, _pm_initial_max_s))
+    )
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_prediction_markets, "fetch_prediction_markets"),
+        "interval",
+        minutes=_pm_interval_m,
+        jitter=_pm_jitter_s,
+        next_run_time=_pm_first_run,
+        id="prediction_markets",
+        max_instances=1,
+        misfire_grace_time=300,
+    )
+
     # Weather alerts — every 5 minutes (time-critical, separate from slow tier)
     _scheduler.add_job(
         lambda: _run_task_with_health(fetch_weather_alerts, "fetch_weather_alerts"),
@@ -844,16 +966,71 @@ def start_scheduler():
     )
 
     # GDELT — every 30 minutes (downloads 32 ZIP files per call, avoid rate limits)
+    def _fetch_gdelt_with_gt():
+        fetch_gdelt()
+        try:
+            from analytics.integration import maybe_refresh_gt_analytics
+
+            maybe_refresh_gt_analytics()
+        except Exception as exc:
+            logger.error("GT analytics refresh after gdelt failed: %s", exc)
+
     _scheduler.add_job(
-        lambda: _run_task_with_health(fetch_gdelt, "fetch_gdelt"),
+        lambda: _run_task_with_health_on_executor(_SLOW_EXECUTOR, _fetch_gdelt_with_gt, "fetch_gdelt"),
         "interval",
         minutes=30,
         id="gdelt",
         max_instances=1,
         misfire_grace_time=120,
     )
+
+    # GT analytics — Louvain herding/coordination clusters (feature-flagged).
+    def _recompute_gt_clusters():
+        try:
+            from analytics.integration import recompute_gt_herding_clusters
+
+            recompute_gt_herding_clusters()
+        except Exception as exc:
+            logger.error("GT Louvain recompute failed: %s", exc)
+
+    def _freeze_gt_weekly_snapshot():
+        try:
+            from analytics.integration import maybe_freeze_gt_weekly_snapshot
+
+            maybe_freeze_gt_weekly_snapshot()
+        except Exception as exc:
+            logger.error("GT rolling weekly freeze failed: %s", exc)
+
+    try:
+        from analytics.settings import get_gt_settings, gt_engine_operational
+
+        _gt_settings = get_gt_settings()
+        if gt_engine_operational():
+            _scheduler.add_job(
+                _recompute_gt_clusters,
+                "interval",
+                minutes=_gt_settings.louvain_interval_minutes,
+                id="gt_analytics_louvain",
+                max_instances=1,
+                misfire_grace_time=300,
+                next_run_time=datetime.utcnow() + timedelta(minutes=3),
+            )
+            _scheduler.add_job(
+                _freeze_gt_weekly_snapshot,
+                "cron",
+                day_of_week="mon",
+                hour=0,
+                minute=5,
+                id="gt_rolling_weekly_freeze",
+                max_instances=1,
+                misfire_grace_time=3600,
+            )
+    except Exception as exc:
+        logger.warning("GT Louvain scheduler not registered: %s", exc)
     _scheduler.add_job(
-        lambda: _run_task_with_health(update_liveuamap, "update_liveuamap"),
+        lambda: _run_task_with_health_on_executor(
+            _SLOW_EXECUTOR, update_liveuamap, "update_liveuamap"
+        ),
         "interval",
         minutes=30,
         id="liveuamap",
@@ -863,39 +1040,9 @@ def start_scheduler():
 
     # CCTV pipeline refresh — runs all ingestors, then refreshes in-memory data.
     # Delay the first run slightly so startup serves cached/DB-backed data first.
-    from services.cctv_pipeline import (
-        TFLJamCamIngestor,
-        LTASingaporeIngestor,
-        AustinTXIngestor,
-        NYCDOTIngestor,
-        CaltransIngestor,
-        ColoradoDOTIngestor,
-        WSDOTIngestor,
-        GeorgiaDOTIngestor,
-        IllinoisDOTIngestor,
-        MichiganDOTIngestor,
-        WindyWebcamsIngestor,
-        DGTNationalIngestor,
-        MadridCityIngestor,
-        OSMTrafficCameraIngestor,
-    )
+    from services.cctv_pipeline import scheduled_cctv_ingestors
 
-    _cctv_ingestors = [
-        (TFLJamCamIngestor(), "cctv_tfl"),
-        (LTASingaporeIngestor(), "cctv_lta"),
-        (AustinTXIngestor(), "cctv_atx"),
-        (NYCDOTIngestor(), "cctv_nyc"),
-        (CaltransIngestor(), "cctv_caltrans"),
-        (ColoradoDOTIngestor(), "cctv_codot"),
-        (WSDOTIngestor(), "cctv_wsdot"),
-        (GeorgiaDOTIngestor(), "cctv_gdot"),
-        (IllinoisDOTIngestor(), "cctv_idot"),
-        (MichiganDOTIngestor(), "cctv_mdot"),
-        (WindyWebcamsIngestor(), "cctv_windy"),
-        (DGTNationalIngestor(), "cctv_dgt"),
-        (MadridCityIngestor(), "cctv_madrid"),
-        (OSMTrafficCameraIngestor(), "cctv_osm"),
-    ]
+    _cctv_ingestors = scheduled_cctv_ingestors()
 
     def _run_cctv_ingest_cycle():
         from services.fetchers._store import is_any_active
@@ -914,7 +1061,9 @@ def start_scheduler():
             logger.warning(f"CCTV post-ingest refresh failed: {e}")
 
     _scheduler.add_job(
-        _run_cctv_ingest_cycle,
+        lambda: _run_task_with_health_on_executor(
+            _SLOW_EXECUTOR, _run_cctv_ingest_cycle, "cctv_ingest_cycle"
+        ),
         "interval",
         minutes=10,
         id="cctv_ingest",
@@ -984,6 +1133,16 @@ def start_scheduler():
         misfire_grace_time=600,
     )
 
+    # Sentinel-2 road corridor freight trends — daily (opt-in, heavy CDSE usage)
+    _scheduler.add_job(
+        lambda: _run_task_with_health(fetch_road_corridor_trends, "fetch_road_corridor_trends"),
+        "interval",
+        hours=24,
+        id="road_corridor_trends",
+        max_instances=1,
+        misfire_grace_time=3600,
+    )
+
     # FIMI disinformation index — every 12 hours (weekly editorial feed)
     _scheduler.add_job(
         lambda: _run_task_with_health(fetch_fimi, "fetch_fimi"),
@@ -994,9 +1153,9 @@ def start_scheduler():
         misfire_grace_time=600,
     )
 
-    # UAP sightings (NUFORC) — weekly on Mondays at 12:00 UTC. The layer is a
-    # rolling last-60-days digest; refreshing once a week is enough cadence
-    # for human-readable map exploration and keeps load on nuforc.org light.
+    # UAP sightings (NUFORC) — weekly Mondays 12:00 UTC. Rolling ~60-day window;
+    # each self-hosted install pulls live nuforc.org so operators see current
+    # reports (typically ~400–500 mappable pins). Disk cache TTL defaults to 7d.
     _scheduler.add_job(
         lambda: _run_task_with_health(
             lambda: fetch_uap_sightings(force_refresh=True),
@@ -1031,17 +1190,6 @@ def start_scheduler():
         id="crowdthreat_daily",
         max_instances=1,
         misfire_grace_time=3600,
-    )
-
-    # Snap Map OSINT — watch-zone density scan (own cadence, min 10 min, default 15).
-    _scheduler.add_job(
-        lambda: _run_task_with_health(fetch_snapmap_osint, "fetch_snapmap_osint"),
-        "interval",
-        minutes=_snapmap_interval(),
-        next_run_time=datetime.utcnow() + timedelta(seconds=90),
-        id="snapmap_osint",
-        max_instances=1,
-        misfire_grace_time=600,
     )
 
     # SAR catalog (Mode A) — every hour, free metadata from ASF Search.
@@ -1128,6 +1276,17 @@ def start_scheduler():
         next_run_time=datetime.utcnow() + timedelta(minutes=5),  # first snapshot 5m after startup
     )
 
+    _airframes_interval_m = max(5, int(os.environ.get("AIRFRAMES_SYNC_INTERVAL_MINUTES", "15")))
+    _scheduler.add_job(
+        lambda: _run_task_with_health(sync_airframes_messages, "sync_airframes_messages"),
+        "interval",
+        minutes=_airframes_interval_m,
+        id="airframes_datalink",
+        max_instances=1,
+        misfire_grace_time=120,
+        next_run_time=datetime.utcnow() + timedelta(seconds=90),
+    )
+
     _scheduler.start()
     logger.info("Scheduler started.")
 
@@ -1142,7 +1301,10 @@ def start_scheduler():
 def stop_scheduler():
     if _scheduler:
         _scheduler.shutdown(wait=False)
+    _SLOW_EXECUTOR.shutdown(wait=False, cancel_futures=True)
 
 
 def get_latest_data():
-    return get_latest_data_subset(*latest_data.keys())
+    from services.fetchers._store import get_latest_data_deepcopy_snapshot
+
+    return get_latest_data_deepcopy_snapshot()

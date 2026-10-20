@@ -12,9 +12,11 @@ Polling interval deliberately kept low (4h) to be respectful to the service.
 
 import json
 import logging
+import threading
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -29,9 +31,6 @@ _MAX_AGE_HOURS = 24  # discard nodes not seen within this window
 # Skip network fetch if cached data is fresher than this — the API is a
 # one-person hobby service, so we prefer stale data over hammering it.
 _CACHE_TRUST_HOURS = 20
-
-# Track when we last fetched so the frontend can show staleness
-_last_fetch_ts: float = 0.0
 
 
 def _parse_node(node: dict) -> dict | None:
@@ -132,7 +131,43 @@ def _save_cache(nodes: list[dict], fetch_ts: float):
         logger.warning(f"Failed to save meshtastic cache: {e}")
 
 
-def fetch_meshtastic_nodes():
+# Track when we last fetched so the frontend can show staleness
+_last_fetch_ts: float = 0.0
+_scan_lock = threading.Lock()
+_scan_in_progress = False
+
+
+def get_meshtastic_map_status() -> dict[str, Any]:
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    snap = get_latest_data_subset_refs("meshtastic_map_nodes", "meshtastic_map_fetched_at")
+    nodes = snap.get("meshtastic_map_nodes") or []
+    fetched_at = snap.get("meshtastic_map_fetched_at")
+    return {
+        "node_count": len(nodes) if isinstance(nodes, list) else 0,
+        "fetched_at": fetched_at,
+        "scan_in_progress": _scan_in_progress,
+    }
+
+
+def start_meshtastic_planet_scan() -> dict[str, Any]:
+    if not _scan_lock.acquire(blocking=False):
+        return {"ok": False, "status": "scan already in progress"}
+
+    def _run() -> None:
+        global _scan_in_progress
+        try:
+            _scan_in_progress = True
+            fetch_meshtastic_nodes(force=True)
+        finally:
+            _scan_in_progress = False
+            _scan_lock.release()
+
+    threading.Thread(target=_run, daemon=True, name="meshtastic-planet-scan").start()
+    return {"ok": True, "status": "scanning"}
+
+
+def fetch_meshtastic_nodes(*, force: bool = False):
     """Fetch global Meshtastic node positions from Liam Cottle's map API.
 
     Stores processed nodes in latest_data["meshtastic_map_nodes"].
@@ -140,39 +175,40 @@ def fetch_meshtastic_nodes():
     """
     from services.fetchers._store import is_any_active
 
-    if not is_any_active("sigint_meshtastic"):
+    if not force and not is_any_active("sigint_meshtastic"):
         return
     global _last_fetch_ts
 
     # Trust a recent cache on disk — avoids hammering the upstream HTTP API
     # when every install polls on roughly the same cadence.
-    try:
-        if _CACHE_FILE.exists():
-            mtime = _CACHE_FILE.stat().st_mtime
-            if time.time() - mtime < _CACHE_TRUST_HOURS * 3600:
-                # If memory is empty (cold start), hydrate from cache and skip fetch.
-                with _data_lock:
-                    has_memory = bool(latest_data.get("meshtastic_map_nodes"))
-                if not has_memory:
-                    cached = _load_cache()
-                    if cached:
-                        with _data_lock:
-                            latest_data["meshtastic_map_nodes"] = cached
-                            latest_data["meshtastic_map_fetched_at"] = mtime
-                        _mark_fresh("meshtastic_map")
+    if not force:
+        try:
+            if _CACHE_FILE.exists():
+                mtime = _CACHE_FILE.stat().st_mtime
+                if time.time() - mtime < _CACHE_TRUST_HOURS * 3600:
+                    # If memory is empty (cold start), hydrate from cache and skip fetch.
+                    with _data_lock:
+                        has_memory = bool(latest_data.get("meshtastic_map_nodes"))
+                    if not has_memory:
+                        cached = _load_cache()
+                        if cached:
+                            with _data_lock:
+                                latest_data["meshtastic_map_nodes"] = cached
+                                latest_data["meshtastic_map_fetched_at"] = mtime
+                            _mark_fresh("meshtastic_map")
+                            logger.info(
+                                "Meshtastic map: cache fresh (<%.0fh), skipping network fetch",
+                                _CACHE_TRUST_HOURS,
+                            )
+                            return
+                    else:
                         logger.info(
                             "Meshtastic map: cache fresh (<%.0fh), skipping network fetch",
                             _CACHE_TRUST_HOURS,
                         )
                         return
-                else:
-                    logger.info(
-                        "Meshtastic map: cache fresh (<%.0fh), skipping network fetch",
-                        _CACHE_TRUST_HOURS,
-                    )
-                    return
-    except Exception as e:
-        logger.debug(f"Meshtastic cache freshness check failed: {e}")
+        except Exception as e:
+            logger.debug(f"Meshtastic cache freshness check failed: {e}")
 
     # Build a polite User-Agent. Historically this included the operator
     # callsign so meshtastic.org could rate-limit per-install; that's still
@@ -188,8 +224,8 @@ def fetch_meshtastic_nodes():
         callsign = ""
 
     send_callsign_header = str(
-        _os.environ.get("MESHTASTIC_SEND_CALLSIGN_HEADER", "true")
-    ).strip().lower() not in {"0", "false", "no", "off", ""}
+        _os.environ.get("MESHTASTIC_SEND_CALLSIGN_HEADER", "false")
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
     # Round 7a: outbound_user_agent already includes the per-install handle.
     # The optional Meshtastic callsign is appended as additional context so

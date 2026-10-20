@@ -32,14 +32,14 @@ logger = logging.getLogger(__name__)
 _REFRESH_SECONDS = 24 * 3600
 kiwisdr_cache: TTLCache = TTLCache(maxsize=1, ttl=_REFRESH_SECONDS)
 
-_SOURCE_URL = "http://rx.linkfanel.net/kiwisdr_com.js"
+_SOURCE_URL_HTTP = "http://rx.linkfanel.net/kiwisdr_com.js"
+_SOURCE_URL_HTTPS = "https://rx.linkfanel.net/kiwisdr_com.js"
 _CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "kiwisdr_cache.json"
 # Bundled fallback — shipped with the codebase so the KiwiSDR layer always
 # has something to render even when the upstream is unreachable, returns
-# garbage, or appears to have been tampered with. Issue #206: the upstream
-# only speaks HTTP, so we can't rely on TLS for integrity — instead we
-# validate the response's shape and fall back to this bundle if it doesn't
-# look right.
+# garbage, or appears to have been tampered with. Issue #206 / #364: try HTTPS
+# first, then HTTP; we still validate shape and fall back to this bundle if the
+# payload does not look right.
 _BUNDLED_FALLBACK = Path(__file__).resolve().parent.parent / "data" / "kiwisdr_directory.json"
 
 # Minimum number of receivers we expect from a healthy upstream response.
@@ -184,6 +184,29 @@ def _validate_fetched_nodes(nodes: list[dict]) -> bool:
     return True
 
 
+def _fetch_mirror_payload_text() -> str | None:
+    """Try HTTPS first, then HTTP. Shape validation still applies (#364)."""
+    from services.network_utils import fetch_with_curl
+
+    last_error: Exception | None = None
+    for url in (_SOURCE_URL_HTTPS, _SOURCE_URL_HTTP):
+        try:
+            res = fetch_with_curl(url, timeout=20)
+            if res and res.status_code == 200:
+                if url == _SOURCE_URL_HTTP:
+                    logger.info(
+                        "KiwiSDR: HTTPS mirror unavailable; using HTTP with shape validation"
+                    )
+                return res.text
+            last_error = RuntimeError(f"HTTP {getattr(res, 'status_code', 'unknown')}")
+        except Exception as e:
+            last_error = e
+            logger.debug("KiwiSDR mirror fetch failed for %s: %s", url, e)
+    if last_error is not None:
+        logger.warning("KiwiSDR mirror fetch failed: %s", last_error)
+    return None
+
+
 def _load_bundled_fallback() -> list[dict]:
     """Last-resort directory shipped with the codebase. Always returns a
     list (may be empty if the bundle is missing in older deployments)."""
@@ -202,9 +225,8 @@ def _load_bundled_fallback() -> list[dict]:
 def fetch_kiwisdr_nodes() -> list[dict]:
     """Return the KiwiSDR receiver list, refreshed at most once per day.
 
-    Layered fallback (issue #206 — upstream is HTTP-only, so we defend with
-    content validation + bundled static directory rather than trying to
-    upgrade the transport):
+    Layered fallback (issue #206 / #364 — HTTPS first, HTTP fallback, plus
+    content validation + bundled static directory):
 
       1. In-memory cache (handled by @cached on this function)
       2. On-disk cache if <24h old
@@ -216,8 +238,6 @@ def fetch_kiwisdr_nodes() -> list[dict]:
     tampered upstream returning garbage is caught by _validate_fetched_nodes()
     and falls through to whatever previously-trusted snapshot we have.
     """
-    from services.network_utils import fetch_with_curl
-
     # 1. Trust on-disk cache if fresh.
     cached_nodes = _load_disk_cache()
     if cached_nodes is not None:
@@ -230,14 +250,12 @@ def fetch_kiwisdr_nodes() -> list[dict]:
     fresh_nodes: list[dict] = []
     fetch_succeeded = False
     try:
-        res = fetch_with_curl(_SOURCE_URL, timeout=20)
-        if res and res.status_code == 200:
-            fresh_nodes = _parse_mirror_payload(res.text)
+        body = _fetch_mirror_payload_text()
+        if body:
+            fresh_nodes = _parse_mirror_payload(body)
             fetch_succeeded = True
         else:
-            logger.warning(
-                f"KiwiSDR fetch returned HTTP {res.status_code if res else 'no response'}"
-            )
+            logger.warning("KiwiSDR fetch returned no usable mirror payload")
     except (requests.RequestException, ConnectionError, TimeoutError, ValueError, KeyError) as e:
         logger.warning(f"KiwiSDR fetch exception: {e}")
 

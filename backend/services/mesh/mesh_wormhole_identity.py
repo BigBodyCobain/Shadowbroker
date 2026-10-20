@@ -549,6 +549,27 @@ def invite_identity_commitment_for_identity_material(
     return hashlib.sha256(_stable_json(material).encode("utf-8")).hexdigest()
 
 
+def _local_dm_lookup_peer_url() -> str:
+    """Return this node's fleet-reachable URL for invite-scoped prekey lookup."""
+    try:
+        from services.config import get_settings
+        from services.mesh.mesh_crypto import normalize_peer_url
+
+        configured = normalize_peer_url(str(getattr(get_settings(), "MESH_PUBLIC_PEER_URL", "") or ""))
+        if configured:
+            return configured
+        from services.tor_hidden_service import tor_service
+
+        onion = str(getattr(tor_service, "onion_address", "") or "").strip()
+        if onion:
+            if "://" not in onion:
+                onion = f"http://{onion}:8000"
+            return normalize_peer_url(onion)
+    except Exception:
+        pass
+    return ""
+
+
 def _dm_invite_payload(
     data: dict[str, Any],
     *,
@@ -930,6 +951,9 @@ def export_wormhole_dm_invite(*, label: str = "", expires_in_s: int = 0) -> dict
     # fetch our prekey bundle without using our stable agent_id.
     lookup_handle = secrets.token_hex(24)
     payload["prekey_lookup_handle"] = lookup_handle
+    lookup_peer_url = _local_dm_lookup_peer_url()
+    if lookup_peer_url:
+        payload["lookup_peer_url"] = lookup_peer_url
 
     # Persist the handle so it is included in future prekey registrations.
     existing_handles, _ = _normalize_prekey_lookup_handles(

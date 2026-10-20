@@ -1,4 +1,5 @@
 import base64
+import json
 import time
 
 from cryptography.hazmat.primitives import serialization
@@ -178,6 +179,31 @@ def test_private_dm_hashchain_rejects_non_sealed_ciphertext_shape(tmp_path, monk
         assert "sealed bytes" in str(exc)
     else:
         raise AssertionError("private DM append accepted non-base64 ciphertext")
+
+
+def test_private_dm_hashchain_accepts_x3dh1_prefixed_ciphertext(tmp_path, monkeypatch):
+    inf = _fresh_infonet(tmp_path, monkeypatch)
+    private_key, public_key, node_id = _keypair()
+    envelope = {
+        "h": {"ik_pub": "aGVsbG8=", "ek_pub": "d29ybGQ=", "spk_id": 1, "otk_id": 0},
+        "ct": base64.b64encode(b"\x00" * 32).decode("ascii"),
+    }
+    payload = _payload(msg_id="dm-x3dh-1")
+    payload["ciphertext"] = "x3dh1:" + base64.b64encode(
+        json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    event = inf.append_private_dm_message(
+        node_id=node_id,
+        payload=payload,
+        signature=_signature(private_key, node_id, 1, payload),
+        sequence=1,
+        public_key=public_key,
+        public_key_algo="Ed25519",
+        protocol_version=mesh_protocol.PROTOCOL_VERSION,
+        timestamp=float(payload["timestamp"]),
+    )
+    assert event["event_type"] == "dm_message"
+    assert str(event["payload"]["ciphertext"]).startswith("x3dh1:")
 
 
 def test_hydrate_dm_relay_from_chain_delivers_to_poll_claim(tmp_path, monkeypatch):

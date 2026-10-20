@@ -5,223 +5,59 @@
       "category": "Business"
     },
     {
-      "name": "United States of America 747/757",
-      "category": "Government"
-    },
-    {
-      "name": "Elon Musk",
-      "category": "People"
-    },
-    {
-      "name": "Dallas Mavericks",
+      "name": "Aaron Rogers",
       "category": "Sports"
     },
     {
-      "name": "Alex Rodriguez",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Alabama",
-      "category": "State/Law"
-    },
-    {
-      "name": "Rolls Royce Test Bed",
-      "category": "Other"
-    },
-    {
-      "name": "Bombardier Global 7500",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "CitationMax",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Bernie Ecclestone",
-      "category": "Formula 1"
+      "name": "Abbott Labratories",
+      "category": "Business"
     },
     {
       "name": "AbbVie",
       "category": "Business"
     },
     {
-      "name": "FBI (Federal Bureau of Investigation)",
-      "category": "Government"
-    },
-    {
-      "name": "Bill Gates",
-      "category": "People"
-    },
-    {
-      "name": "Arizona Cardinals Football",
-      "category": "Sports"
-    },
-    {
-      "name": "Blake Shelton",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Alaska",
-      "category": "State/Law"
-    },
-    {
-      "name": "Zero G Plane",
-      "category": "Other"
-    },
-    {
-      "name": "Gulfstream G700",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Premier1Driver",
+      "name": "Accidental Aviator",
       "category": "YouTubers"
     },
     {
-      "name": "Chalerm Yoovidhya",
-      "category": "Formula 1"
+      "name": "Adam Scott",
+      "category": "Sports"
+    },
+    {
+      "name": "Adam Weitsman",
+      "category": "People"
     },
     {
       "name": "Adobe",
       "category": "Business"
     },
     {
-      "name": "DOJ (Dept. of Justice)",
-      "category": "Government"
-    },
-    {
-      "name": "Melinda Gates",
-      "category": "People"
-    },
-    {
-      "name": "Patriots",
-      "category": "Sports"
-    },
-    {
-      "name": "Dan Bilzerian",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Arizona",
-      "category": "State/Law"
-    },
-    {
-      "name": "Orbis Flying Eye Hospital",
-      "category": "Other"
-    },
-    {
-      "name": "Honeywell 757 Test Bed",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Baron Pilot",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Crown Prince Salman bin Hamad bin Isa Al Khalifa",
-      "category": "Formula 1"
-    },
-    {
       "name": "Aflac",
       "category": "Business"
     },
     {
-      "name": "USDHS (Dept. Homeland Sec.)",
+      "name": "Air Force Materiel Command-GRUMMAN",
       "category": "Government"
-    },
-    {
-      "name": "Larry Ellison",
-      "category": "People"
-    },
-    {
-      "name": "Colts",
-      "category": "Sports"
-    },
-    {
-      "name": "Dr. Phil & Son",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Arkansas",
-      "category": "State/Law"
-    },
-    {
-      "name": "Samaritan's Purse",
-      "category": "Other"
-    },
-    {
-      "name": "Boeing 777-9",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Stevie Triesenberg",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Dietrich Mateschitz",
-      "category": "Formula 1"
     },
     {
       "name": "Air Lease Corp.",
       "category": "Business"
     },
     {
-      "name": "USCG (Coast Guard)",
-      "category": "Government"
-    },
-    {
-      "name": "Mark Cuban",
-      "category": "People"
-    },
-    {
-      "name": "Dallas Cowboys",
-      "category": "Sports"
-    },
-    {
-      "name": "Taylor Swift",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of California",
-      "category": "State/Law"
-    },
-    {
       "name": "Airbus Beluga",
       "category": "Other"
     },
     {
-      "name": "Textron/Beechcraft Denali",
+      "name": "Airbus Racer",
       "category": "Test Aircraft"
     },
     {
-      "name": "Matt Guthmiller",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Fernando Alonso",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Allen & Company",
-      "category": "Business"
-    },
-    {
-      "name": "U.S. Marshals (JPATS/Prisoner Transport)",
-      "category": "Government"
-    },
-    {
-      "name": "Roman Abramovich",
+      "name": "Aiyawatt Srivaddhanaprabha",
       "category": "People"
     },
     {
-      "name": "Ron DeSantis",
-      "category": "Government"
-    },
-    {
-      "name": "Oleg Deripaska",
-      "category": "People"
-    },
-    {
-      "name": "Arkady Rotenberg",
+      "name": "Alan Waxman Sixth Street Partners",
       "category": "People"
     },
     {
@@ -229,1431 +65,67 @@
       "category": "People"
     },
     {
-      "name": "JR Motorsports",
-      "category": "Sports"
+      "name": "Alberto Rodríguez Baldi (Baldi Hot Springs Hotel)",
+      "category": "People"
     },
     {
-      "name": "Drake",
+      "name": "Alejandro Roemmers",
+      "category": "People"
+    },
+    {
+      "name": "Alex Rodriguez",
       "category": "Celebrity"
     },
     {
-      "name": "State of Colorado",
-      "category": "State/Law"
+      "name": "Alexander Abramov",
+      "category": "Oligarch"
     },
     {
-      "name": "Boeing Dreamlifter",
-      "category": "Other"
+      "name": "Alexey Mordashov",
+      "category": "Oligarch"
     },
     {
-      "name": "Gulfstream G800",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "steveo1kinevo",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Flavio Briatore",
-      "category": "Formula 1"
-    },
-    {
-      "name": "American Express",
-      "category": "Business"
-    },
-    {
-      "name": "Government of France",
-      "category": "Government"
+      "name": "Aliko Dangote",
+      "category": "People"
     },
     {
       "name": "Alisher Usmanov",
       "category": "People"
     },
     {
-      "name": "Houston Rockets",
-      "category": "Sports"
-    },
-    {
-      "name": "State of Connecticut",
-      "category": "State/Law"
-    },
-    {
-      "name": "International Air Response",
-      "category": "Other"
-    },
-    {
-      "name": "Falcon 6X",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Angle of Attack",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Abbott Labratories",
+      "name": "Allen & Company",
       "category": "Business"
-    },
-    {
-      "name": "Government of India",
-      "category": "Government"
-    },
-    {
-      "name": "Steve Wynn/Wynn Resorts",
-      "category": "People"
-    },
-    {
-      "name": "WWE",
-      "category": "Sports"
-    },
-    {
-      "name": "Floyd Mayweather",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Delaware",
-      "category": "State/Law"
-    },
-    {
-      "name": "AN124",
-      "category": "Other"
-    },
-    {
-      "name": "Eviation Alice",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Trent Palmer",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Gene Haas",
-      "category": "Formula 1"
-    },
-    {
-      "name": "American Family Insurance",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Qatar",
-      "category": "Government"
-    },
-    {
-      "name": "Tom Gores",
-      "category": "People"
-    },
-    {
-      "name": "Philadelphia Eagles",
-      "category": "Sports"
-    },
-    {
-      "name": "Garth Brooks",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Florida",
-      "category": "State/Law"
-    },
-    {
-      "name": "Swiss Air Ambulance",
-      "category": "Other"
-    },
-    {
-      "name": "Cessna C700",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Dave Sparks / HeavyD",
-      "category": "YouTubers"
-    },
-    {
-      "name": "John Malone",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Amgen",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Abu Dhabi",
-      "category": "Government"
-    },
-    {
-      "name": "Paul Tudor Jones",
-      "category": "People"
-    },
-    {
-      "name": "Tony Stewart",
-      "category": "Sports"
-    },
-    {
-      "name": "George Strait",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Georgia",
-      "category": "State/Law"
-    },
-    {
-      "name": "LifeFlightNetwork",
-      "category": "Other"
-    },
-    {
-      "name": "Boeing 737-10 MAX",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Don Av8's",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Lance Stroll",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Andreessen Horowitz",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Saudi Arabia",
-      "category": "Government"
-    },
-    {
-      "name": "Grant Cardone",
-      "category": "People"
-    },
-    {
-      "name": "Chase Elliot",
-      "category": "Sports"
-    },
-    {
-      "name": "Harrison Ford",
-      "category": "Celebrity"
-    },
-    {
-      "name": "DLR - German Aerospace Center",
-      "category": "Other"
-    },
-    {
-      "name": "MQ-20 Avenger",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "MojoGrip",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Lawrence Stroll",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Apollo Global Management",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Equatorial Guinea",
-      "category": "Government"
-    },
-    {
-      "name": "Jared Isaacman",
-      "category": "People"
-    },
-    {
-      "name": "Brad Keselowski",
-      "category": "Sports"
-    },
-    {
-      "name": "J Balvin",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Idaho",
-      "category": "State/Law"
-    },
-    {
-      "name": "Lyden Air Cargo",
-      "category": "Other"
-    },
-    {
-      "name": "Joby Aviation eVTOL",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Stefan Drury",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Max Verstappen",
-      "category": "Formula 1"
-    },
-    {
-      "name": "AT&T",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Japan",
-      "category": "Government"
-    },
-    {
-      "name": "Marco Andretti",
-      "category": "Sports"
-    },
-    {
-      "name": "Jackie Chan",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Illinois",
-      "category": "State/Law"
-    },
-    {
-      "name": "Pratt & Whitney Canada 747SP",
-      "category": "Other"
-    },
-    {
-      "name": "Bell V-280 Valor",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "ENTP LIFE",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Michael Schumacher",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Bank of America",
-      "category": "Business"
-    },
-    {
-      "name": "Government State of Kuwait",
-      "category": "Government"
-    },
-    {
-      "name": "Jack Ma",
-      "category": "People"
-    },
-    {
-      "name": "Dale Earnhardt Family",
-      "category": "Sports"
-    },
-    {
-      "name": "Jerry Seinfeld",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Indiana",
-      "category": "State/Law"
-    },
-    {
-      "name": "Dassault Falcon Response Team",
-      "category": "Other"
-    },
-    {
-      "name": "Sikorsky SB-1 Defiant",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Plane and Dirt Simple",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Nelson Piquet",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Bass Pro Shop",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Russia",
-      "category": "Government"
-    },
-    {
-      "name": "Ken Griffin",
-      "category": "People"
-    },
-    {
-      "name": "Joe Gibbs Racing",
-      "category": "Sports"
-    },
-    {
-      "name": "Jim Carrey",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Iowa",
-      "category": "State/Law"
-    },
-    {
-      "name": "Phoenix Air Gulfstream II",
-      "category": "Other"
     },
     {
       "name": "Alyssa Miller",
       "category": "YouTubers"
     },
     {
-      "name": "Piero Ferrari",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Berkshire Hathaway",
+      "name": "American Express",
       "category": "Business"
     },
     {
-      "name": "Government of Turkey",
-      "category": "Government"
+      "name": "American Family Insurance",
+      "category": "Business"
     },
     {
-      "name": "Kimbal Musk",
+      "name": "Amgen",
+      "category": "Business"
+    },
+    {
+      "name": "Amnon Shashua",
       "category": "People"
     },
     {
-      "name": "Denny Hamlin Racing",
-      "category": "Sports"
-    },
-    {
-      "name": "Jimmy Buffet",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Kansas",
-      "category": "State/Law"
-    },
-    {
-      "name": "Calspan Flight Research",
+      "name": "AN124",
       "category": "Other"
     },
     {
-      "name": "Leonardo AW609",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "JR Garage (JR Aviation)",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Rubens Barrichello",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Berrada Properties",
+      "name": "Andreessen Horowitz",
       "category": "Business"
     },
     {
-      "name": "Government of the Netherlands",
-      "category": "Government"
-    },
-    {
-      "name": "Stephen Schwarzman",
-      "category": "People"
-    },
-    {
-      "name": "Hendrick Motorsports",
-      "category": "Sports"
-    },
-    {
-      "name": "John Travolta",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Kentucky",
-      "category": "State/Law"
-    },
-    {
-      "name": "Surveillance Australia",
-      "category": "Other"
-    },
-    {
-      "name": "Scaled Composites Proteus",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Pickle Driver (SF50)",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Scuderia AlphaTauri",
-      "category": "Formula 1"
-    },
-    {
-      "name": "BIC Lighters and Pens",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Bangladesh",
-      "category": "Government"
-    },
-    {
-      "name": "Steve Witkoff",
-      "category": "People"
-    },
-    {
-      "name": "Stewart-Haas Racing",
-      "category": "Sports"
-    },
-    {
-      "name": "Julio Iglesias",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Louisiana",
-      "category": "State/Law"
-    },
-    {
-      "name": "Mayo Clinic",
-      "category": "Other"
-    },
-    {
-      "name": "Textron AirLand Scorpion",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Fly With Own (Non-owner Pilot)",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Sergio Perez",
-      "category": "Formula 1"
-    },
-    {
-      "name": "BlackRock",
-      "category": "Business"
-    },
-    {
-      "name": "Government of South Africa",
-      "category": "Government"
-    },
-    {
-      "name": "George Lucas",
-      "category": "People"
-    },
-    {
-      "name": "Penske Racing",
-      "category": "Sports"
-    },
-    {
-      "name": "Keith Urban",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Maine",
-      "category": "State/Law"
-    },
-    {
-      "name": "NAV Canada Flight Inspection",
-      "category": "Other"
-    },
-    {
-      "name": "BETA Tech eVTOL",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Ricky Gutierrez & JR Garage",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Blackstone",
-      "category": "Business"
-    },
-    {
-      "name": "Royal Air Force",
-      "category": "Government"
-    },
-    {
-      "name": "James Simmons",
-      "category": "People"
-    },
-    {
-      "name": "Richard Childress Racing",
-      "category": "Sports"
-    },
-    {
-      "name": "Kenny Chesney",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Maryland",
-      "category": "State/Law"
-    },
-    {
-      "name": "Life Lion (Hershey Medical Center)",
-      "category": "Other"
-    },
-    {
-      "name": "Boeing 737-7 MAX",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "christophe jouany",
-      "category": "YouTubers"
-    },
-    {
-      "name": "BMW Automotive",
-      "category": "Business"
-    },
-    {
-      "name": "National Nuclear Security Administration",
-      "category": "Government"
-    },
-    {
-      "name": "Magic Johnson",
-      "category": "People"
-    },
-    {
-      "name": "Victory Aviation (NASCAR)",
-      "category": "Sports"
-    },
-    {
-      "name": "Kid Rock",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Massachusetts",
-      "category": "State/Law"
-    },
-    {
-      "name": "NASA",
-      "category": "Other"
-    },
-    {
-      "name": "Boeing 777 EcoDemonstrator",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Blue Star Airways",
-      "category": "YouTubers"
-    },
-    {
-      "name": "BNSF Railway",
-      "category": "Business"
-    },
-    {
-      "name": "New Zealand Air Force",
-      "category": "Government"
-    },
-    {
-      "name": "Johnny Ive",
-      "category": "People"
-    },
-    {
-      "name": "Aaron Rogers",
-      "category": "Sports"
-    },
-    {
-      "name": "Kim Kardashian",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Michigan",
-      "category": "State/Law"
-    },
-    {
-      "name": "Boeing 787-8 Test Bed",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "SlowAsianDriver",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Calspan Defense Corp",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Ukraine",
-      "category": "Government"
-    },
-    {
-      "name": "Craig McCaw",
-      "category": "People"
-    },
-    {
-      "name": "Troy Aikman",
-      "category": "Sports"
-    },
-    {
-      "name": "Kylie Jenner",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Minnesota",
-      "category": "State/Law"
-    },
-    {
-      "name": "National Science Foundation",
-      "category": "Other"
-    },
-    {
-      "name": "Stratos 716",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Grant Baker",
-      "category": "YouTubers"
-    },
-    {
-      "name": "CarMax",
-      "category": "Business"
-    },
-    {
-      "name": "Israel Air Force",
-      "category": "Government"
-    },
-    {
-      "name": "John McCaw",
-      "category": "People"
-    },
-    {
-      "name": "Russell Wilson",
-      "category": "Sports"
-    },
-    {
-      "name": "Luke Bryan",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Mississippi",
-      "category": "State/Law"
-    },
-    {
-      "name": "Innovation First Research and Development Inc",
-      "category": "Other"
-    },
-    {
-      "name": "Boeing 757 (F-22 Testbed)",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Ginger the Plane",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Carrier Corp",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Iran",
-      "category": "Government"
-    },
-    {
-      "name": "Phil Knight (NIKE)",
-      "category": "People"
-    },
-    {
-      "name": "Las Vegas Golden Knights",
-      "category": "Sports"
-    },
-    {
-      "name": "Mark Wahlberg",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Missouri",
-      "category": "State/Law"
-    },
-    {
-      "name": "T2 Aviation (Oil Spill Response",
-      "category": "Other"
-    },
-    {
-      "name": "Micke Lang",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Carvana/DriveTime",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Canada",
-      "category": "Government"
-    },
-    {
-      "name": "Rick Caruso",
-      "category": "People"
-    },
-    {
-      "name": "Sergio Garcia",
-      "category": "Sports"
-    },
-    {
-      "name": "Michael Jordan",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Montana",
-      "category": "State/Law"
-    },
-    {
-      "name": "FAAM Airborne Laboratory",
-      "category": "Other"
-    },
-    {
-      "name": "Gulfstream G400",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Meet Kevin",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Caterpillar Inc.",
-      "category": "Business"
-    },
-    {
-      "name": "Royal Australian Air Force",
-      "category": "Government"
-    },
-    {
-      "name": "Eric Schmidt",
-      "category": "People"
-    },
-    {
-      "name": "Tennessee Titans",
-      "category": "Sports"
-    },
-    {
-      "name": "Oprah Winfrey",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Nebraska",
-      "category": "State/Law"
-    },
-    {
-      "name": "Airbus Racer",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "MATCH1N",
-      "category": "YouTubers"
-    },
-    {
-      "name": "CBS Media",
-      "category": "Business"
-    },
-    {
-      "name": "Government/Police of Mexico",
-      "category": "Government"
-    },
-    {
-      "name": "DeVos Family",
-      "category": "People"
-    },
-    {
-      "name": "Drew Brees",
-      "category": "Sports"
-    },
-    {
-      "name": "Ozuna",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Nevada",
-      "category": "State/Law"
-    },
-    {
-      "name": "Excalibur Testbed",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Mike Patey",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Chevron",
-      "category": "Business"
-    },
-    {
-      "name": "Government of North Korea",
-      "category": "Government"
-    },
-    {
-      "name": "Yusaku Mazawa",
-      "category": "People"
-    },
-    {
-      "name": "LA Chargers",
-      "category": "Sports"
-    },
-    {
-      "name": "Pitbull",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of New Hampshire",
-      "category": "State/Law"
-    },
-    {
-      "name": "Hermeus Quarterhorse",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "Wifi-Money",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Chick-Fil-A",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Malaysia",
-      "category": "Government"
-    },
-    {
-      "name": "Richard Branson",
-      "category": "People"
-    },
-    {
-      "name": "Riley Herbst",
-      "category": "Sports"
-    },
-    {
-      "name": "Playboy",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of New Jersey",
-      "category": "State/Law"
-    },
-    {
-      "name": "Blue Max Six",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Chipotle",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Egypt",
-      "category": "Government"
-    },
-    {
-      "name": "Tony Robbins",
-      "category": "People"
-    },
-    {
-      "name": "Robert Penske",
-      "category": "Sports"
-    },
-    {
-      "name": "Jay-Z",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of New Mexico",
-      "category": "State/Law"
-    },
-    {
-      "name": "Gear Down",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Choice Hotels",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Zambia",
-      "category": "Government"
-    },
-    {
-      "name": "Tiger Woods",
-      "category": "People"
-    },
-    {
-      "name": "Jim Crane/Houston Astros",
-      "category": "Sports"
-    },
-    {
-      "name": "Rick Ross",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of New York",
-      "category": "State/Law"
-    },
-    {
-      "name": "Becki and Chris",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Cisco Systems",
-      "category": "Business"
-    },
-    {
-      "name": "Government of the United Kingdom",
-      "category": "Government"
-    },
-    {
-      "name": "Sebastian Kulczyk",
-      "category": "People"
-    },
-    {
-      "name": "John Henry/Boston Red Sox",
-      "category": "Sports"
-    },
-    {
-      "name": "Rihanna",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of North Carolina",
-      "category": "State/Law"
-    },
-    {
-      "name": "Blaze Grubbs",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Citigroup",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Spain",
-      "category": "Government"
-    },
-    {
-      "name": "Kilmer Management LP",
-      "category": "Sports"
-    },
-    {
-      "name": "State of North Dakota",
-      "category": "State/Law"
-    },
-    {
-      "name": "Accidental Aviator",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Clayton Homes",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Croatia",
-      "category": "Government"
-    },
-    {
-      "name": "Olympia Aviation (Detroit Red Wings/Tigers)",
-      "category": "Sports"
-    },
-    {
-      "name": "Sammy Hagar",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Ohio",
-      "category": "State/Law"
-    },
-    {
-      "name": "Coca-Cola",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Bulgaria",
-      "category": "Government"
-    },
-    {
-      "name": "David Rubenstein",
-      "category": "People"
-    },
-    {
-      "name": "John Mara/NY Giants",
-      "category": "Sports"
-    },
-    {
-      "name": "Sebastian Maniscalco",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Oklahoma",
-      "category": "State/Law"
-    },
-    {
-      "name": "Congra Brands",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Czech Republic",
-      "category": "Government"
-    },
-    {
-      "name": "Vasil Bojkov",
-      "category": "People"
-    },
-    {
-      "name": "Saints/Pelicans",
-      "category": "Sports"
-    },
-    {
-      "name": "Shaq",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Oregon",
-      "category": "State/Law"
-    },
-    {
-      "name": "Conoco",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Poland",
-      "category": "Government"
-    },
-    {
-      "name": "Mark Zuckerberg",
-      "category": "People"
-    },
-    {
-      "name": "Ron Fowler/San Diego Padres",
-      "category": "Sports"
-    },
-    {
-      "name": "Steven Spielberg",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Pennsylvania",
-      "category": "State/Law"
-    },
-    {
-      "name": "ConocoPhillips",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Slovenia",
-      "category": "Government"
-    },
-    {
-      "name": "Mike Bloomberg",
-      "category": "People"
-    },
-    {
-      "name": "John Middleton/Phillies",
-      "category": "Sports"
-    },
-    {
-      "name": "Toby Kieth",
-      "category": "Celebrity"
-    },
-    {
-      "name": "Costar Realty",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Cote d'Ivoire",
-      "category": "Government"
-    },
-    {
-      "name": "Jim Ovia",
-      "category": "People"
-    },
-    {
-      "name": "Cristiano Ronaldo",
-      "category": "Sports"
-    },
-    {
-      "name": "Tom Cruise",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of South Carolina",
-      "category": "State/Law"
-    },
-    {
-      "name": "Business",
-      "category": "Business"
-    },
-    {
-      "name": "Government",
-      "category": "Government"
-    },
-    {
-      "name": "People",
-      "category": "People"
-    },
-    {
-      "name": "Sports",
-      "category": "Sports"
-    },
-    {
-      "name": "Celebrity",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State Govt./Law",
-      "category": "State/Law"
-    },
-    {
-      "name": "Other",
-      "category": "Other"
-    },
-    {
-      "name": "Test Aircraft",
-      "category": "Test Aircraft"
-    },
-    {
-      "name": "YouTubers",
-      "category": "YouTubers"
-    },
-    {
-      "name": "Formula 1 VIP's",
-      "category": "Formula 1"
-    },
-    {
-      "name": "Silver Lake Technology Management",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Nigeria",
-      "category": "Government"
-    },
-    {
-      "name": "David Geffen",
-      "category": "People"
-    },
-    {
-      "name": "Jody Allen/Seahawks & Trail Blazers (Paul Allen Estate)",
-      "category": "Sports"
-    },
-    {
-      "name": "Tyler Perry",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of South Dakota",
-      "category": "State/Law"
-    },
-    {
-      "name": "Costco Wholesale",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Pakistan",
-      "category": "Government"
-    },
-    {
-      "name": "Laurene Powell Jobs",
-      "category": "People"
-    },
-    {
-      "name": "Rory McIlroy",
-      "category": "Sports"
-    },
-    {
-      "name": "Dierks Bentley",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Tennessee",
-      "category": "State/Law"
-    },
-    {
-      "name": "COX TV/Communications",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Gabon",
-      "category": "Government"
-    },
-    {
-      "name": "Ralph Lauren",
-      "category": "People"
-    },
-    {
-      "name": "John Elway",
-      "category": "Sports"
-    },
-    {
-      "name": "Paris Hilton",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Texas",
-      "category": "State/Law"
-    },
-    {
-      "name": "Cracker Barrel",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Brazil",
-      "category": "Government"
-    },
-    {
-      "name": "Adam Weitsman",
-      "category": "People"
-    },
-    {
-      "name": "Adam Scott",
-      "category": "Sports"
-    },
-    {
-      "name": "DJ Khaled",
-      "category": "Celebrity"
-    },
-    {
-      "name": "State of Utah",
-      "category": "State/Law"
-    },
-    {
-      "name": "Cummins Inc",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Panama",
-      "category": "Government"
-    },
-    {
-      "name": "Nancy Walton",
-      "category": "People"
-    },
-    {
-      "name": "David Tepper",
-      "category": "Sports"
-    },
-    {
-      "name": "CVS",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Italy",
-      "category": "Government"
-    },
-    {
-      "name": "Tim Gillean",
-      "category": "People"
-    },
-    {
-      "name": "Robert Kraft",
-      "category": "Sports"
-    },
-    {
-      "name": "State of Virginia",
-      "category": "State/Law"
-    },
-    {
-      "name": "Dell",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Switzerland",
-      "category": "Government"
-    },
-    {
-      "name": "Ha Du Long",
-      "category": "People"
-    },
-    {
-      "name": "Jason Kelce",
-      "category": "Sports"
-    },
-    {
-      "name": "State of Washington",
-      "category": "State/Law"
-    },
-    {
-      "name": "Dick's Sporting Goods",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Hungary",
-      "category": "Government"
-    },
-    {
-      "name": "Nick Woodman",
-      "category": "People"
-    },
-    {
-      "name": "Craig Leipold/Minnesota Wild",
-      "category": "Sports"
-    },
-    {
-      "name": "State of West Virginia",
-      "category": "State/Law"
-    },
-    {
-      "name": "DigitalBridge",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Ireland",
-      "category": "Government"
-    },
-    {
-      "name": "Sawiris Family",
-      "category": "People"
-    },
-    {
-      "name": "Detroit Red Wings",
-      "category": "Sports"
-    },
-    {
-      "name": "State of Wisconsin",
-      "category": "State/Law"
-    },
-    {
-      "name": "Dillards Dept. Stores",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Chile",
-      "category": "Government"
-    },
-    {
-      "name": "Ted Turner",
-      "category": "People"
-    },
-    {
-      "name": "Patrick Mahomes (Part Owner)",
-      "category": "Sports"
-    },
-    {
-      "name": "State of Wyoming",
-      "category": "State/Law"
-    },
-    {
-      "name": "Dippin Dots",
-      "category": "Business"
-    },
-    {
-      "name": "Johor Royal Family",
-      "category": "Government"
-    },
-    {
-      "name": "Tilman Fertitta",
-      "category": "People"
-    },
-    {
-      "name": "Lionel Messi",
-      "category": "Sports"
-    },
-    {
-      "name": "Discovery Land Company Real Estate",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Ecuador",
-      "category": "Government"
-    },
-    {
-      "name": "Shahid Khan",
-      "category": "People"
-    },
-    {
-      "name": "Disney",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Thailand",
-      "category": "Government"
-    },
-    {
-      "name": "Santo Domingo Family",
-      "category": "People"
-    },
-    {
-      "name": "DMB Associates Real Estate",
+      "name": "Andretti Autosport Aviation Inc",
       "category": "Business"
     },
     {
@@ -1661,23 +133,39 @@
       "category": "People"
     },
     {
-      "name": "Dollar General",
-      "category": "Business"
-    },
-    {
-      "name": "Kingdom of Eswatini",
-      "category": "Government"
-    },
-    {
-      "name": "Steve Ballmer",
+      "name": "André Esteves",
       "category": "People"
     },
     {
-      "name": "Dollar Tree",
+      "name": "Andy Albright",
+      "category": "People"
+    },
+    {
+      "name": "Angle of Attack",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Antonio Gracias (Valor Equity Partners)",
+      "category": "People"
+    },
+    {
+      "name": "Apollo Global Management",
       "category": "Business"
     },
     {
-      "name": "Government of Belarus",
+      "name": "Arizona Cardinals Football",
+      "category": "Sports"
+    },
+    {
+      "name": "Arkady Rotenberg",
+      "category": "People"
+    },
+    {
+      "name": "Army ARES Bombardier Global",
+      "category": "Government"
+    },
+    {
+      "name": "ARTEMIS Platform",
       "category": "Government"
     },
     {
@@ -1685,79 +173,31 @@
       "category": "People"
     },
     {
-      "name": "Domino's",
+      "name": "AT&T",
       "category": "Business"
     },
     {
-      "name": "Government of Germany",
+      "name": "Auburn University",
+      "category": "Sports"
+    },
+    {
+      "name": "AVdef",
       "category": "Government"
     },
     {
-      "name": "John W. Henry",
-      "category": "People"
-    },
-    {
-      "name": "Draft Kings",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Algeria",
+      "name": "B-1B",
       "category": "Government"
     },
     {
-      "name": "Jim Crane",
-      "category": "People"
-    },
-    {
-      "name": "DS Advisors (Equitec)",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Angola",
+      "name": "B-29 Superfortress",
       "category": "Government"
     },
     {
-      "name": "Jimmy Johnson",
-      "category": "People"
-    },
-    {
-      "name": "Duke Energy",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Argentina",
+      "name": "B-52",
       "category": "Government"
     },
     {
-      "name": "Stan Kronke",
-      "category": "People"
-    },
-    {
-      "name": "Dutch Bros Coffee",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Armenia",
-      "category": "Government"
-    },
-    {
-      "name": "Sergey Brin",
-      "category": "People"
-    },
-    {
-      "name": "Eli Lilly and Company",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Azerbaijan",
-      "category": "Government"
-    },
-    {
-      "name": "Ted Leonsis",
-      "category": "People"
-    },
-    {
-      "name": "Enterprise Car Rental",
+      "name": "Bad Human",
       "category": "Business"
     },
     {
@@ -1765,231 +205,183 @@
       "category": "Government"
     },
     {
-      "name": "Phil Ruffin",
-      "category": "People"
-    },
-    {
-      "name": "ExxonMobile",
+      "name": "Bank of America",
       "category": "Business"
     },
     {
-      "name": "Government of Belgium",
-      "category": "Government"
+      "name": "Baron Pilot",
+      "category": "YouTubers"
     },
     {
-      "name": "Paul L. Foster",
-      "category": "People"
-    },
-    {
-      "name": "FedEx",
+      "name": "Bass Pro Shop",
       "category": "Business"
     },
     {
-      "name": "Government of Bolivia",
-      "category": "Government"
+      "name": "Becki and Chris",
+      "category": "YouTubers"
     },
     {
-      "name": "Wesley Edens",
-      "category": "People"
-    },
-    {
-      "name": "First Horizon Bank",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Tanzania",
-      "category": "Government"
-    },
-    {
-      "name": "Jeff Bezos",
-      "category": "People"
-    },
-    {
-      "name": "Five Guys",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Turkmenistan",
-      "category": "Government"
-    },
-    {
-      "name": "Fertitta (Casinos + Houston Rockets)",
-      "category": "People"
-    },
-    {
-      "name": "Ford",
-      "category": "Business"
-    },
-    {
-      "name": "Republic of Tatarstan(RU)",
-      "category": "Government"
-    },
-    {
-      "name": "David MacNeil",
-      "category": "People"
-    },
-    {
-      "name": "Franklin Templeton Investments",
-      "category": "Business"
-    },
-    {
-      "name": "Government of Jordan",
-      "category": "Government"
-    },
-    {
-      "name": "Mike Lindell",
-      "category": "People"
-    },
-    {
-      "name": "GAP Inc.",
-      "category": "Business"
-    },
-    {
-      "name": "John Paulson",
-      "category": "People"
-    },
-    {
-      "name": "General Dynamics",
-      "category": "Business"
-    },
-    {
-      "name": "Joe Manchin",
-      "category": "People"
-    },
-    {
-      "name": "Globus Medical",
-      "category": "Business"
-    },
-    {
-      "name": "Dennis Washington",
-      "category": "People"
-    },
-    {
-      "name": "Goldman Sachs",
-      "category": "Business"
-    },
-    {
-      "name": "Murdoch Family",
-      "category": "People"
-    },
-    {
-      "name": "Goodyear Tire & Rubber Company",
-      "category": "Business"
-    },
-    {
-      "name": "Dan Newlin",
-      "category": "People"
-    },
-    {
-      "name": "Google",
-      "category": "Business"
-    },
-    {
-      "name": "Leon Black",
-      "category": "People"
-    },
-    {
-      "name": "Grady White Boats",
-      "category": "Business"
-    },
-    {
-      "name": "Great Clips",
-      "category": "Business"
-    },
-    {
-      "name": "Mark Benioff",
-      "category": "People"
-    },
-    {
-      "name": "Guggenheim Partners",
-      "category": "Business"
-    },
-    {
-      "name": "Jim Breyer",
-      "category": "People"
-    },
-    {
-      "name": "Hallmark Cards",
-      "category": "Business"
-    },
-    {
-      "name": "John Staluppi",
-      "category": "People"
-    },
-    {
-      "name": "Hard Rock",
-      "category": "Business"
-    },
-    {
-      "name": "Jeffrey Soffer",
-      "category": "People"
-    },
-    {
-      "name": "Hershey Foods",
-      "category": "Business"
-    },
-    {
-      "name": "Gulfstream C-37A",
-      "category": "Government"
-    },
-    {
-      "name": "Peter Thiel",
-      "category": "People"
-    },
-    {
-      "name": "Hess Corp",
-      "category": "Business"
-    },
-    {
-      "name": "Gulfstream C-37B",
-      "category": "Government"
-    },
-    {
-      "name": "George William Davies",
-      "category": "People"
-    },
-    {
-      "name": "Hilton Hotels",
-      "category": "Business"
-    },
-    {
-      "name": "Gulfstream C-20C",
-      "category": "Government"
-    },
-    {
-      "name": "Winklevoss Twins (Crypto)",
-      "category": "People"
-    },
-    {
-      "name": "Hobby Lobby",
-      "category": "Business"
-    },
-    {
-      "name": "Gulfstream C-20H",
-      "category": "Government"
-    },
-    {
-      "name": "Jacob Arabo",
-      "category": "People"
-    },
-    {
-      "name": "Honeywell",
-      "category": "Business"
-    },
-    {
-      "name": "Cessna UC-35A/B",
-      "category": "Government"
-    },
-    {
-      "name": "Donald Trump",
-      "category": "People"
-    },
-    {
-      "name": "HP",
-      "category": "Business"
+      "name": "Bell V-280 Valor",
+      "category": "Test Aircraft"
     },
     {
       "name": "Beoing E4B",
+      "category": "Government"
+    },
+    {
+      "name": "Berkshire Hathaway",
+      "category": "Business"
+    },
+    {
+      "name": "Bernie Ecclestone",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Berrada Properties",
+      "category": "Business"
+    },
+    {
+      "name": "BETA Tech eVTOL",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "BIC Lighters and Pens",
+      "category": "Business"
+    },
+    {
+      "name": "Bill Gates",
+      "category": "People"
+    },
+    {
+      "name": "BlackRock",
+      "category": "Business"
+    },
+    {
+      "name": "Blackstone",
+      "category": "Business"
+    },
+    {
+      "name": "Blake Shelton",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Blaze Grubbs",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Blue Max Six",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Blue Star Airways",
+      "category": "YouTubers"
+    },
+    {
+      "name": "BMW Automotive",
+      "category": "Business"
+    },
+    {
+      "name": "BNSF Railway",
+      "category": "Business"
+    },
+    {
+      "name": "Boeing 737-10 MAX",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing 737-7 MAX",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing 757 (F-22 Testbed)",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing 777 EcoDemonstrator",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing 777-9",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing 787-8 Test Bed",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Boeing C-40A/B Clipper",
+      "category": "Government"
+    },
+    {
+      "name": "Boeing Dreamlifter",
+      "category": "Other"
+    },
+    {
+      "name": "Boeing E-3G Sentry",
+      "category": "Government"
+    },
+    {
+      "name": "Bombardier E-11A",
+      "category": "Government"
+    },
+    {
+      "name": "Bombardier Global 7500",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Brad Keselowski",
+      "category": "Sports"
+    },
+    {
+      "name": "Brad Keywell (Groupon and Uptake Tech)",
+      "category": "People"
+    },
+    {
+      "name": "Business",
+      "category": "Business"
+    },
+    {
+      "name": "C-9B Skytrain II",
+      "category": "Government"
+    },
+    {
+      "name": "Calspan Defense Corp",
+      "category": "Business"
+    },
+    {
+      "name": "Calspan Flight Research",
+      "category": "Other"
+    },
+    {
+      "name": "CarMax",
+      "category": "Business"
+    },
+    {
+      "name": "Carrier Corp",
+      "category": "Business"
+    },
+    {
+      "name": "Carvana/DriveTime",
+      "category": "Business"
+    },
+    {
+      "name": "Caterpillar Inc.",
+      "category": "Business"
+    },
+    {
+      "name": "CBS Media",
+      "category": "Business"
+    },
+    {
+      "name": "Celebrity",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Cessna C700",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Cessna UC-35A/B",
       "category": "Government"
     },
     {
@@ -1997,19 +389,335 @@
       "category": "People"
     },
     {
-      "name": "Huntsman Jet",
-      "category": "Business"
+      "name": "Chalerm Yoovidhya",
+      "category": "Formula 1"
     },
     {
-      "name": "Bombardier E-11A",
-      "category": "Government"
-    },
-    {
-      "name": "Trevor Milton",
+      "name": "Charles Hoskinson",
       "category": "People"
     },
     {
-      "name": "Hy-Vee Grocery",
+      "name": "Charles Simonyi",
+      "category": "People"
+    },
+    {
+      "name": "Chase Coleman",
+      "category": "People"
+    },
+    {
+      "name": "Chase Elliot",
+      "category": "Sports"
+    },
+    {
+      "name": "Chevron",
+      "category": "Business"
+    },
+    {
+      "name": "Chick-Fil-A",
+      "category": "Business"
+    },
+    {
+      "name": "Chipotle",
+      "category": "Business"
+    },
+    {
+      "name": "Choice Hotels",
+      "category": "Business"
+    },
+    {
+      "name": "Chris Sacca",
+      "category": "People"
+    },
+    {
+      "name": "christophe jouany",
+      "category": "YouTubers"
+    },
+    {
+      "name": "CIA Linked",
+      "category": "Government"
+    },
+    {
+      "name": "Cisco Systems",
+      "category": "Business"
+    },
+    {
+      "name": "CitationMax",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Citigroup",
+      "category": "Business"
+    },
+    {
+      "name": "Clayton Homes",
+      "category": "Business"
+    },
+    {
+      "name": "Clemson University",
+      "category": "Sports"
+    },
+    {
+      "name": "Cleveland Browns",
+      "category": "Sports"
+    },
+    {
+      "name": "Coca-Cola",
+      "category": "Business"
+    },
+    {
+      "name": "Cohen Brothers",
+      "category": "People"
+    },
+    {
+      "name": "Colts",
+      "category": "Sports"
+    },
+    {
+      "name": "COMCO",
+      "category": "Government"
+    },
+    {
+      "name": "Congra Brands",
+      "category": "Business"
+    },
+    {
+      "name": "Conoco",
+      "category": "Business"
+    },
+    {
+      "name": "ConocoPhillips",
+      "category": "Business"
+    },
+    {
+      "name": "Costar Realty",
+      "category": "Business"
+    },
+    {
+      "name": "Costco Wholesale",
+      "category": "Business"
+    },
+    {
+      "name": "COX TV/Communications",
+      "category": "Business"
+    },
+    {
+      "name": "Cracker Barrel",
+      "category": "Business"
+    },
+    {
+      "name": "Craig Leipold/Minnesota Wild",
+      "category": "Sports"
+    },
+    {
+      "name": "Craig McCaw",
+      "category": "People"
+    },
+    {
+      "name": "Cristiano Ronaldo",
+      "category": "Sports"
+    },
+    {
+      "name": "Crown Prince Salman bin Hamad bin Isa Al Khalifa",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Cummins Inc",
+      "category": "Business"
+    },
+    {
+      "name": "CVS",
+      "category": "Business"
+    },
+    {
+      "name": "Dale Earnhardt Family",
+      "category": "Sports"
+    },
+    {
+      "name": "Dallas Cowboys",
+      "category": "Sports"
+    },
+    {
+      "name": "Dallas Mavericks",
+      "category": "Sports"
+    },
+    {
+      "name": "Dan Bilzerian",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Dan Newlin",
+      "category": "People"
+    },
+    {
+      "name": "Dan Snyder",
+      "category": "People"
+    },
+    {
+      "name": "Danny Jenkins",
+      "category": "People"
+    },
+    {
+      "name": "Dassault Falcon Response Team",
+      "category": "Other"
+    },
+    {
+      "name": "Dave Sparks / HeavyD",
+      "category": "YouTubers"
+    },
+    {
+      "name": "David Ellison",
+      "category": "People"
+    },
+    {
+      "name": "David Geffen",
+      "category": "People"
+    },
+    {
+      "name": "David Grain",
+      "category": "People"
+    },
+    {
+      "name": "David Katzman (SmileDirect)",
+      "category": "People"
+    },
+    {
+      "name": "David MacNeil",
+      "category": "People"
+    },
+    {
+      "name": "David Rubenstein",
+      "category": "People"
+    },
+    {
+      "name": "David Sacks",
+      "category": "People"
+    },
+    {
+      "name": "David Tepper",
+      "category": "Sports"
+    },
+    {
+      "name": "Dell",
+      "category": "Business"
+    },
+    {
+      "name": "Dennis Washington",
+      "category": "People"
+    },
+    {
+      "name": "Denny Hamlin Racing",
+      "category": "Sports"
+    },
+    {
+      "name": "Detroit Red Wings",
+      "category": "Sports"
+    },
+    {
+      "name": "DeVos Family",
+      "category": "People"
+    },
+    {
+      "name": "Dick's Sporting Goods",
+      "category": "Business"
+    },
+    {
+      "name": "Dierks Bentley",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Dietrich Mateschitz",
+      "category": "Formula 1"
+    },
+    {
+      "name": "DigitalBridge",
+      "category": "Business"
+    },
+    {
+      "name": "Dillards Dept. Stores",
+      "category": "Business"
+    },
+    {
+      "name": "Dippin Dots",
+      "category": "Business"
+    },
+    {
+      "name": "Discovery Land Company Real Estate",
+      "category": "Business"
+    },
+    {
+      "name": "Disney",
+      "category": "Business"
+    },
+    {
+      "name": "DJ Khaled",
+      "category": "Celebrity"
+    },
+    {
+      "name": "DLR - German Aerospace Center",
+      "category": "Other"
+    },
+    {
+      "name": "DMB Associates Real Estate",
+      "category": "Business"
+    },
+    {
+      "name": "Dmitry Balyasny",
+      "category": "People"
+    },
+    {
+      "name": "Dmitry Rybolovlev",
+      "category": "Oligarch"
+    },
+    {
+      "name": "DOJ (Dept. of Justice)",
+      "category": "Government"
+    },
+    {
+      "name": "Dollar General",
+      "category": "Business"
+    },
+    {
+      "name": "Dollar Tree",
+      "category": "Business"
+    },
+    {
+      "name": "Domino's",
+      "category": "Business"
+    },
+    {
+      "name": "Don Av8's",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Donald Trump",
+      "category": "People"
+    },
+    {
+      "name": "Dr. Phil & Son",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Draft Kings",
+      "category": "Business"
+    },
+    {
+      "name": "Drake",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Drew Brees",
+      "category": "Sports"
+    },
+    {
+      "name": "DS Advisors (Equitec)",
+      "category": "Business"
+    },
+    {
+      "name": "Duke Energy",
+      "category": "Business"
+    },
+    {
+      "name": "Dutch Bros Coffee",
       "category": "Business"
     },
     {
@@ -2017,8 +725,556 @@
       "category": "Government"
     },
     {
-      "name": "Ted Waitt",
+      "name": "Ed DeBartolo",
       "category": "People"
+    },
+    {
+      "name": "Edward Norton",
+      "category": "People"
+    },
+    {
+      "name": "Eli Lilly and Company",
+      "category": "Business"
+    },
+    {
+      "name": "Elon Musk",
+      "category": "People"
+    },
+    {
+      "name": "Elton John",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Enterprise Car Rental",
+      "category": "Business"
+    },
+    {
+      "name": "ENTP LIFE",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Eric Lefkofsky (Groupon)",
+      "category": "People"
+    },
+    {
+      "name": "Eric Schmidt",
+      "category": "People"
+    },
+    {
+      "name": "Erik Prince",
+      "category": "People"
+    },
+    {
+      "name": "Eugene Shvidler",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Eviation Alice",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Excalibur Testbed",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "ExxonMobile",
+      "category": "Business"
+    },
+    {
+      "name": "Eytan Stibbe",
+      "category": "People"
+    },
+    {
+      "name": "FAA",
+      "category": "Government"
+    },
+    {
+      "name": "FAAM Airborne Laboratory",
+      "category": "Other"
+    },
+    {
+      "name": "Falcon 6X",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "FBI (Federal Bureau of Investigation)",
+      "category": "Government"
+    },
+    {
+      "name": "FedEx",
+      "category": "Business"
+    },
+    {
+      "name": "Fernando Alonso",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Fertitta (Casinos + Houston Rockets)",
+      "category": "People"
+    },
+    {
+      "name": "FEST (Foreign Emergency Support Team)",
+      "category": "Government"
+    },
+    {
+      "name": "First Horizon Bank",
+      "category": "Business"
+    },
+    {
+      "name": "Five Guys",
+      "category": "Business"
+    },
+    {
+      "name": "Flavio Briatore",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Floyd Mayweather",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Fly With Own (Non-owner Pilot)",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Folorunso Alakija",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Ford",
+      "category": "Business"
+    },
+    {
+      "name": "Formula 1 VIP's",
+      "category": "Formula 1"
+    },
+    {
+      "name": "France Presidency (COTAM)",
+      "category": "Government"
+    },
+    {
+      "name": "Frank Lowry",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Franklin Templeton Investments",
+      "category": "Business"
+    },
+    {
+      "name": "Fred Luddy",
+      "category": "People"
+    },
+    {
+      "name": "GAP Inc.",
+      "category": "Business"
+    },
+    {
+      "name": "Garth Brooks",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Gear Down",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Gene Haas",
+      "category": "Formula 1"
+    },
+    {
+      "name": "General Dynamics",
+      "category": "Business"
+    },
+    {
+      "name": "George Lucas",
+      "category": "People"
+    },
+    {
+      "name": "George Strait",
+      "category": "Celebrity"
+    },
+    {
+      "name": "George William Davies",
+      "category": "People"
+    },
+    {
+      "name": "Germany Chancellery (Flugbereitschaft)",
+      "category": "Government"
+    },
+    {
+      "name": "Ginger the Plane",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Glennon Crowell Jr.",
+      "category": "People"
+    },
+    {
+      "name": "Globus Medical",
+      "category": "Business"
+    },
+    {
+      "name": "Goldman Sachs",
+      "category": "Business"
+    },
+    {
+      "name": "Goodyear Tire & Rubber Company",
+      "category": "Business"
+    },
+    {
+      "name": "Google",
+      "category": "Business"
+    },
+    {
+      "name": "Government",
+      "category": "Government"
+    },
+    {
+      "name": "Government 707",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Abu Dhabi",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Algeria",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Angola",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Argentina",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Armenia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Azerbaijan",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Bangladesh",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Belarus",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Belgium",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Bolivia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Brazil",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Bulgaria",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Canada",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Chile",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Cote d'Ivoire",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Croatia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Czech Republic",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Ecuador",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Egypt",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Equatorial Guinea",
+      "category": "Government"
+    },
+    {
+      "name": "Government of France",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Gabon",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Germany",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Hungary",
+      "category": "Government"
+    },
+    {
+      "name": "Government of India",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Iran",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Ireland",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Italy",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Japan",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Jordan",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Malaysia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Nigeria",
+      "category": "Government"
+    },
+    {
+      "name": "Government of North Korea",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Pakistan",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Panama",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Poland",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Qatar",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Russia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Saudi Arabia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Slovenia",
+      "category": "Government"
+    },
+    {
+      "name": "Government of South Africa",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Spain",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Switzerland",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Tanzania",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Thailand",
+      "category": "Government"
+    },
+    {
+      "name": "Government of the Netherlands",
+      "category": "Government"
+    },
+    {
+      "name": "Government of the United Kingdom",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Turkey",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Turkmenistan",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Ukraine",
+      "category": "Government"
+    },
+    {
+      "name": "Government of Zambia",
+      "category": "Government"
+    },
+    {
+      "name": "Government State of Kuwait",
+      "category": "Government"
+    },
+    {
+      "name": "Government/Police of Mexico",
+      "category": "Government"
+    },
+    {
+      "name": "Grady White Boats",
+      "category": "Business"
+    },
+    {
+      "name": "Grant Baker",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Grant Cardone",
+      "category": "People"
+    },
+    {
+      "name": "Great Clips",
+      "category": "Business"
+    },
+    {
+      "name": "Greensill Capital",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Greg Wyler (OneWeb)",
+      "category": "People"
+    },
+    {
+      "name": "Grosvenor Estates",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Guggenheim Partners",
+      "category": "Business"
+    },
+    {
+      "name": "Gulfstream C-20C",
+      "category": "Government"
+    },
+    {
+      "name": "Gulfstream C-20H",
+      "category": "Government"
+    },
+    {
+      "name": "Gulfstream C-37A",
+      "category": "Government"
+    },
+    {
+      "name": "Gulfstream C-37B",
+      "category": "Government"
+    },
+    {
+      "name": "Gulfstream G400",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Gulfstream G700",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Gulfstream G800",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Gwyenn Shotwell (SpaceX)",
+      "category": "People"
+    },
+    {
+      "name": "Ha Du Long",
+      "category": "People"
+    },
+    {
+      "name": "Haim Saban",
+      "category": "People"
+    },
+    {
+      "name": "Hallmark Cards",
+      "category": "Business"
+    },
+    {
+      "name": "Hard Rock",
+      "category": "Business"
+    },
+    {
+      "name": "Harrison Ford",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Hendrick Motorsports",
+      "category": "Sports"
+    },
+    {
+      "name": "Hermeus Quarterhorse",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Hershey Foods",
+      "category": "Business"
+    },
+    {
+      "name": "Hess Corp",
+      "category": "Business"
+    },
+    {
+      "name": "Hilton Hotels",
+      "category": "Business"
+    },
+    {
+      "name": "Hobby Lobby",
+      "category": "Business"
+    },
+    {
+      "name": "Honeywell",
+      "category": "Business"
+    },
+    {
+      "name": "Honeywell 757 Test Bed",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Houston Rockets",
+      "category": "Sports"
+    },
+    {
+      "name": "HP",
+      "category": "Business"
+    },
+    {
+      "name": "Huntsman Jet",
+      "category": "Business"
+    },
+    {
+      "name": "Hy-Vee Grocery",
+      "category": "Business"
     },
     {
       "name": "Hyundai",
@@ -2029,67 +1285,191 @@
       "category": "Government"
     },
     {
-      "name": "Stanley Druckenmiller",
-      "category": "People"
-    },
-    {
       "name": "IBM",
       "category": "Business"
     },
     {
-      "name": "Army ARES Bombardier Global",
-      "category": "Government"
+      "name": "Indianapolis Colts",
+      "category": "Sports"
     },
     {
-      "name": "Thomas Siebel",
-      "category": "People"
+      "name": "Innovation First Research and Development Inc",
+      "category": "Other"
     },
     {
       "name": "Intel Air Shuttle (Intel)",
       "category": "Business"
     },
     {
-      "name": "C-9B Skytrain II",
+      "name": "International Air Response",
+      "category": "Other"
+    },
+    {
+      "name": "Israel Air Force",
       "category": "Government"
     },
     {
-      "name": "Josh Altman",
+      "name": "J Balvin",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jack Ma",
       "category": "People"
+    },
+    {
+      "name": "Jackie Chan",
+      "category": "Celebrity"
     },
     {
       "name": "Jacksons Food Stores",
       "category": "Business"
     },
     {
-      "name": "RC-12X Guardrail",
+      "name": "Jacob Arabo",
+      "category": "People"
+    },
+    {
+      "name": "James Dyson",
+      "category": "People"
+    },
+    {
+      "name": "James Simmons",
+      "category": "People"
+    },
+    {
+      "name": "James Williamson",
+      "category": "People"
+    },
+    {
+      "name": "Jan Koum",
+      "category": "People"
+    },
+    {
+      "name": "Japan Prime Minister",
       "category": "Government"
     },
     {
-      "name": "Peter Lim",
+      "name": "Jared Isaacman",
       "category": "People"
+    },
+    {
+      "name": "Jared Kushner",
+      "category": "People"
+    },
+    {
+      "name": "Jason Kelce",
+      "category": "Sports"
+    },
+    {
+      "name": "Jay Penske",
+      "category": "People"
+    },
+    {
+      "name": "Jay Z",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jay-Z",
+      "category": "Celebrity"
     },
     {
       "name": "JCB Manufacturing",
       "category": "Business"
     },
     {
-      "name": "COMCO",
-      "category": "Government"
-    },
-    {
-      "name": "Robert F. Smith",
-      "category": "People"
-    },
-    {
       "name": "JDS Development",
       "category": "Business"
     },
     {
-      "name": "FEST (Foreign Emergency Support Team)",
-      "category": "Government"
+      "name": "Jeff Bezos",
+      "category": "People"
     },
     {
-      "name": "David Grain",
+      "name": "Jeff Swickard",
+      "category": "People"
+    },
+    {
+      "name": "Jeffrey Soffer",
+      "category": "People"
+    },
+    {
+      "name": "Jeffrey Vinik",
+      "category": "People"
+    },
+    {
+      "name": "Jerry Jones",
+      "category": "People"
+    },
+    {
+      "name": "Jerry Moss",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jerry Savelle (televangelist )",
+      "category": "People"
+    },
+    {
+      "name": "Jerry Seinfeld",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jerry Yang",
+      "category": "People"
+    },
+    {
+      "name": "Jim Breyer",
+      "category": "People"
+    },
+    {
+      "name": "Jim Carrey",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jim Crane",
+      "category": "People"
+    },
+    {
+      "name": "Jim Crane/Houston Astros",
+      "category": "Sports"
+    },
+    {
+      "name": "Jim Ovia",
+      "category": "People"
+    },
+    {
+      "name": "Jimmy Buffet",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Jimmy John Liautaud",
+      "category": "People"
+    },
+    {
+      "name": "Jimmy Johnson",
+      "category": "People"
+    },
+    {
+      "name": "Joby Aviation eVTOL",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Jody Allen/Seahawks & Trail Blazers (Paul Allen Estate)",
+      "category": "Sports"
+    },
+    {
+      "name": "Joe Gibbs Racing",
+      "category": "Sports"
+    },
+    {
+      "name": "Joe Manchin",
+      "category": "People"
+    },
+    {
+      "name": "Joe Tsai",
+      "category": "People"
+    },
+    {
+      "name": "John A. Sobrato",
       "category": "People"
     },
     {
@@ -2097,11 +1477,59 @@
       "category": "Business"
     },
     {
-      "name": "RQ-4 Global Hawk",
-      "category": "Government"
+      "name": "John Doerr",
+      "category": "People"
     },
     {
-      "name": "David Sacks",
+      "name": "John Elway",
+      "category": "Sports"
+    },
+    {
+      "name": "John Henry/Boston Red Sox",
+      "category": "Sports"
+    },
+    {
+      "name": "John Malone",
+      "category": "Formula 1"
+    },
+    {
+      "name": "John Mara/NY Giants",
+      "category": "Sports"
+    },
+    {
+      "name": "John McCaw",
+      "category": "People"
+    },
+    {
+      "name": "John Middleton/Phillies",
+      "category": "Sports"
+    },
+    {
+      "name": "John Paulson",
+      "category": "People"
+    },
+    {
+      "name": "John Ruiz",
+      "category": "People"
+    },
+    {
+      "name": "John Schnatter (Papa Johns)",
+      "category": "People"
+    },
+    {
+      "name": "John Staluppi",
+      "category": "People"
+    },
+    {
+      "name": "John Travolta",
+      "category": "Celebrity"
+    },
+    {
+      "name": "John W. Henry",
+      "category": "People"
+    },
+    {
+      "name": "Johnny Ive",
       "category": "People"
     },
     {
@@ -2109,363 +1537,15 @@
       "category": "Business"
     },
     {
-      "name": "WC-135R Constant Phoenix",
-      "category": "Government"
-    },
-    {
-      "name": "Tommy Hilfiger",
-      "category": "People"
-    },
-    {
       "name": "Johnson Development",
       "category": "Business"
-    },
-    {
-      "name": "U.S. Marines C-40A",
-      "category": "Government"
-    },
-    {
-      "name": "Edward Norton",
-      "category": "People"
     },
     {
       "name": "Johnsonville Brats",
       "category": "Business"
     },
     {
-      "name": "CIA Linked",
-      "category": "Government"
-    },
-    {
-      "name": "Ed DeBartolo",
-      "category": "People"
-    },
-    {
-      "name": "JP Morgan",
-      "category": "Business"
-    },
-    {
-      "name": "U.S. Govt. Special Missions",
-      "category": "Government"
-    },
-    {
-      "name": "Jerry Jones",
-      "category": "People"
-    },
-    {
-      "name": "JRK Property Holdings",
-      "category": "Business"
-    },
-    {
-      "name": "B-29 Superfortress",
-      "category": "Government"
-    },
-    {
-      "name": "Fred Luddy",
-      "category": "People"
-    },
-    {
-      "name": "L-3 Communications",
-      "category": "Government"
-    },
-    {
-      "name": "Dan Snyder",
-      "category": "People"
-    },
-    {
-      "name": "Khosla Ventures",
-      "category": "Business"
-    },
-    {
-      "name": "L3 Harris Technologies",
-      "category": "Government"
-    },
-    {
-      "name": "Alejandro Roemmers",
-      "category": "People"
-    },
-    {
-      "name": "Kiewit Engineering Co.",
-      "category": "Business"
-    },
-    {
-      "name": "Tenax Aerospace",
-      "category": "Government"
-    },
-    {
-      "name": "Paul Randy",
-      "category": "People"
-    },
-    {
-      "name": "Knight-Swift Trucking",
-      "category": "Business"
-    },
-    {
-      "name": "ARTEMIS Platform",
-      "category": "Government"
-    },
-    {
-      "name": "Charles Hoskinson",
-      "category": "People"
-    },
-    {
-      "name": "Koch Industries",
-      "category": "Business"
-    },
-    {
-      "name": "USAF/Big Safari/SierraNevCor",
-      "category": "Government"
-    },
-    {
-      "name": "Jimmy John Liautaud",
-      "category": "People"
-    },
-    {
-      "name": "Kohler Co.",
-      "category": "Business"
-    },
-    {
-      "name": "Ukraine War Survalliance Plane",
-      "category": "Government"
-    },
-    {
-      "name": "Chase Coleman",
-      "category": "People"
-    },
-    {
-      "name": "Kroger",
-      "category": "Business"
-    },
-    {
-      "name": "Lockheed Gulfstream",
-      "category": "Government"
-    },
-    {
-      "name": "Andy Albright",
-      "category": "People"
-    },
-    {
-      "name": "Las Vegas Sands",
-      "category": "Business"
-    },
-    {
-      "name": "Top Aces F16's",
-      "category": "Government"
-    },
-    {
-      "name": "Dmitry Balyasny",
-      "category": "People"
-    },
-    {
-      "name": "Leisure Pools",
-      "category": "Business"
-    },
-    {
-      "name": "AVdef",
-      "category": "Government"
-    },
-    {
-      "name": "John Ruiz",
-      "category": "People"
-    },
-    {
-      "name": "LG Electronics",
-      "category": "Business"
-    },
-    {
-      "name": "Northrup Grumman",
-      "category": "Government"
-    },
-    {
-      "name": "Mark Juncosa (SpaceX VP)",
-      "category": "People"
-    },
-    {
-      "name": "Liberty Mutual Insurance",
-      "category": "Business"
-    },
-    {
-      "name": "Air Force Materiel Command-GRUMMAN",
-      "category": "Government"
-    },
-    {
-      "name": "Jan Koum",
-      "category": "People"
-    },
-    {
-      "name": "Lockheed Martin",
-      "category": "Business"
-    },
-    {
-      "name": "Military HALO Gulfstreams",
-      "category": "Government"
-    },
-    {
-      "name": "Taylor Gerring",
-      "category": "People"
-    },
-    {
-      "name": "Lowes",
-      "category": "Business"
-    },
-    {
-      "name": "Government 707",
-      "category": "Government"
-    },
-    {
-      "name": "Chris Sacca",
-      "category": "People"
-    },
-    {
-      "name": "Maersk Shipping Company",
-      "category": "Business"
-    },
-    {
-      "name": "MIT Lincoln Lab",
-      "category": "Government"
-    },
-    {
-      "name": "John Doerr",
-      "category": "People"
-    },
-    {
-      "name": "Mandalay Vegas Resorts",
-      "category": "Business"
-    },
-    {
-      "name": "Marriott Hotels",
-      "category": "Business"
-    },
-    {
-      "name": "Larry Page",
-      "category": "People"
-    },
-    {
-      "name": "Mary Kay Inc.",
-      "category": "Business"
-    },
-    {
-      "name": "Jerry Yang",
-      "category": "People"
-    },
-    {
-      "name": "McDonalds",
-      "category": "Business"
-    },
-    {
-      "name": "Robert Pera",
-      "category": "People"
-    },
-    {
-      "name": "McNeil Consumer Healthcare (Tylenol)",
-      "category": "Business"
-    },
-    {
-      "name": "Roleof Botha",
-      "category": "People"
-    },
-    {
-      "name": "Plumb Bill Pay",
-      "category": "Business"
-    },
-    {
-      "name": "Phillip Sarofim",
-      "category": "People"
-    },
-    {
-      "name": "Meijer Stores",
-      "category": "Business"
-    },
-    {
-      "name": "Joe Tsai",
-      "category": "People"
-    },
-    {
-      "name": "Menards",
-      "category": "Business"
-    },
-    {
-      "name": "Learjet C-21A",
-      "category": "Government"
-    },
-    {
-      "name": "Amnon Shashua",
-      "category": "People"
-    },
-    {
-      "name": "Merck",
-      "category": "Business"
-    },
-    {
-      "name": "Eytan Stibbe",
-      "category": "People"
-    },
-    {
-      "name": "Micron",
-      "category": "Business"
-    },
-    {
-      "name": "Woody Johnson",
-      "category": "People"
-    },
-    {
-      "name": "Miliken",
-      "category": "Business"
-    },
-    {
-      "name": "Boeing C-40A/B Clipper",
-      "category": "Government"
-    },
-    {
-      "name": "Mark Burnett",
-      "category": "People"
-    },
-    {
-      "name": "Morgan and Morgan Law Firm",
-      "category": "Business"
-    },
-    {
-      "name": "André Esteves",
-      "category": "People"
-    },
-    {
-      "name": "Morgan Stanley",
-      "category": "Business"
-    },
-    {
-      "name": "Nick Marietta",
-      "category": "People"
-    },
-    {
-      "name": "Nanoworks",
-      "category": "Business"
-    },
-    {
-      "name": "Boeing E-3G Sentry",
-      "category": "Government"
-    },
-    {
-      "name": "Nestle USA",
-      "category": "Business"
-    },
-    {
-      "name": "Jared Kushner",
-      "category": "People"
-    },
-    {
-      "name": "Netflix",
-      "category": "Business"
-    },
-    {
-      "name": "Charles Simonyi",
-      "category": "People"
-    },
-    {
-      "name": "Niagara Water Bottling",
-      "category": "Business"
-    },
-    {
-      "name": "FAA",
+      "name": "Johor Royal Family",
       "category": "Government"
     },
     {
@@ -2473,411 +1553,39 @@
       "category": "People"
     },
     {
-      "name": "Nike",
-      "category": "Business"
-    },
-    {
-      "name": "Kevin Harvey",
+      "name": "Jon Gray",
       "category": "People"
-    },
-    {
-      "name": "Norfolk Southern Railroad",
-      "category": "Business"
-    },
-    {
-      "name": "Jeffrey Vinik",
-      "category": "People"
-    },
-    {
-      "name": "Oaktree Capital",
-      "category": "Business"
-    },
-    {
-      "name": "B-52",
-      "category": "Government"
-    },
-    {
-      "name": "Greg Wyler (OneWeb)",
-      "category": "People"
-    },
-    {
-      "name": "Oracle",
-      "category": "Business"
-    },
-    {
-      "name": "B-1B",
-      "category": "Government"
-    },
-    {
-      "name": "Meet Kevin (YouTuber)",
-      "category": "People"
-    },
-    {
-      "name": "OtterBox",
-      "category": "Business"
-    },
-    {
-      "name": "Gwyenn Shotwell (SpaceX)",
-      "category": "People"
-    },
-    {
-      "name": "PACCAR",
-      "category": "Business"
-    },
-    {
-      "name": "Antonio Gracias (Valor Equity Partners)",
-      "category": "People"
-    },
-    {
-      "name": "Palantir",
-      "category": "Business"
-    },
-    {
-      "name": "David Katzman (SmileDirect)",
-      "category": "People"
-    },
-    {
-      "name": "Panda Express",
-      "category": "Business"
-    },
-    {
-      "name": "Wes Edens",
-      "category": "People"
-    },
-    {
-      "name": "Papé Machinery",
-      "category": "Business"
-    },
-    {
-      "name": "Remon Voss",
-      "category": "People"
-    },
-    {
-      "name": "Paramount Pictures",
-      "category": "Business"
     },
     {
       "name": "Joseph Edelman",
       "category": "People"
     },
     {
-      "name": "Pasaca Capital",
+      "name": "Josh Altman",
+      "category": "People"
+    },
+    {
+      "name": "JP Morgan",
       "category": "Business"
     },
     {
-      "name": "Glennon Crowell Jr.",
-      "category": "People"
+      "name": "JR Garage (JR Aviation)",
+      "category": "YouTubers"
     },
     {
-      "name": "Patek Philippe SA",
+      "name": "JR Motorsports",
+      "category": "Sports"
+    },
+    {
+      "name": "JRK Property Holdings",
       "category": "Business"
     },
     {
-      "name": "Pritzker Family",
-      "category": "People"
+      "name": "Judge Judy",
+      "category": "Celebrity"
     },
     {
-      "name": "PayPal",
-      "category": "Business"
-    },
-    {
-      "name": "Aliko Dangote",
-      "category": "People"
-    },
-    {
-      "name": "Penn National Gaming",
-      "category": "Business"
-    },
-    {
-      "name": "John Schnatter (Papa Johns)",
-      "category": "People"
-    },
-    {
-      "name": "Pepsi",
-      "category": "Business"
-    },
-    {
-      "name": "Stephanie Shojaee (Shoma Real Estate)",
-      "category": "People"
-    },
-    {
-      "name": "Perenco",
-      "category": "Business"
-    },
-    {
-      "name": "Nelson Peltz",
-      "category": "People"
-    },
-    {
-      "name": "Peterson Companies",
-      "category": "Business"
-    },
-    {
-      "name": "Jerry Savelle (televangelist )",
-      "category": "People"
-    },
-    {
-      "name": "Pfizer",
-      "category": "Business"
-    },
-    {
-      "name": "Michael Niederst (Real estate)",
-      "category": "People"
-    },
-    {
-      "name": "Prada",
-      "category": "Business"
-    },
-    {
-      "name": "Eric Lefkofsky (Groupon)",
-      "category": "People"
-    },
-    {
-      "name": "Precision Castparts",
-      "category": "Business"
-    },
-    {
-      "name": "Brad Keywell (Groupon and Uptake Tech)",
-      "category": "People"
-    },
-    {
-      "name": "Prime Inc.",
-      "category": "Business"
-    },
-    {
-      "name": "James Williamson",
-      "category": "People"
-    },
-    {
-      "name": "Principal Financial",
-      "category": "Business"
-    },
-    {
-      "name": "Michael Saylor (MicroStrategy)",
-      "category": "People"
-    },
-    {
-      "name": "Proctor & Gamble",
-      "category": "Business"
-    },
-    {
-      "name": "Michael Milken",
-      "category": "People"
-    },
-    {
-      "name": "Prudential Insurance",
-      "category": "Business"
-    },
-    {
-      "name": "Patrick Dovigi",
-      "category": "People"
-    },
-    {
-      "name": "Publix Supermarkets",
-      "category": "Business"
-    },
-    {
-      "name": "John A. Sobrato",
-      "category": "People"
-    },
-    {
-      "name": "Puma",
-      "category": "Business"
-    },
-    {
-      "name": "Ty Warner",
-      "category": "People"
-    },
-    {
-      "name": "Purina Petcare",
-      "category": "Business"
-    },
-    {
-      "name": "Louis Bacon",
-      "category": "People"
-    },
-    {
-      "name": "Qualcomm",
-      "category": "Business"
-    },
-    {
-      "name": "Laurence Escalante (theleecollection)",
-      "category": "People"
-    },
-    {
-      "name": "Quest Diagnostics (BE58)",
-      "category": "Business"
-    },
-    {
-      "name": "Mohamed El Enein",
-      "category": "People"
-    },
-    {
-      "name": "Quest Diagnostics (Other)",
-      "category": "Business"
-    },
-    {
-      "name": "Kris Krohn",
-      "category": "People"
-    },
-    {
-      "name": "Quest Diagnostics (PC12)",
-      "category": "Business"
-    },
-    {
-      "name": "Danny Jenkins",
-      "category": "People"
-    },
-    {
-      "name": "Raytheon",
-      "category": "Business"
-    },
-    {
-      "name": "Erik Prince",
-      "category": "People"
-    },
-    {
-      "name": "RealPage Real Estate",
-      "category": "Business"
-    },
-    {
-      "name": "Alan Waxman Sixth Street Partners",
-      "category": "People"
-    },
-    {
-      "name": "Related Companies (Stephen Ross)",
-      "category": "Business"
-    },
-    {
-      "name": "Pierre Omidyar",
-      "category": "People"
-    },
-    {
-      "name": "Resturant Brands Intl.",
-      "category": "Business"
-    },
-    {
-      "name": "Richard T. Santulli",
-      "category": "People"
-    },
-    {
-      "name": "Rocket Lab Helicopters",
-      "category": "Business"
-    },
-    {
-      "name": "Vick Tipnes",
-      "category": "People"
-    },
-    {
-      "name": "Tom and Steuart Walton",
-      "category": "People"
-    },
-    {
-      "name": "Rooms to Go",
-      "category": "Business"
-    },
-    {
-      "name": "Cohen Brothers",
-      "category": "People"
-    },
-    {
-      "name": "RTW Investments",
-      "category": "Business"
-    },
-    {
-      "name": "Ronald Perelman",
-      "category": "People"
-    },
-    {
-      "name": "RyanAir Support Aircraft",
-      "category": "Business"
-    },
-    {
-      "name": "Tom Werner",
-      "category": "People"
-    },
-    {
-      "name": "S C Johnson",
-      "category": "Business"
-    },
-    {
-      "name": "Jon Gray",
-      "category": "People"
-    },
-    {
-      "name": "Samsung",
-      "category": "Business"
-    },
-    {
-      "name": "Robert Herjavec",
-      "category": "People"
-    },
-    {
-      "name": "ScottsMiracle-Gro",
-      "category": "Business"
-    },
-    {
-      "name": "Jeff Swickard",
-      "category": "People"
-    },
-    {
-      "name": "Shell Oil",
-      "category": "Business"
-    },
-    {
-      "name": "Haim Saban",
-      "category": "People"
-    },
-    {
-      "name": "Sierra Pacific Industries",
-      "category": "Business"
-    },
-    {
-      "name": "Steven Rattner",
-      "category": "People"
-    },
-    {
-      "name": "Simon Property Group (Malls)",
-      "category": "Business"
-    },
-    {
-      "name": "David Ellison",
-      "category": "People"
-    },
-    {
-      "name": "Snapchat/Evan Spiegel",
-      "category": "Business"
-    },
-    {
-      "name": "Alberto Rodríguez Baldi (Baldi Hot Springs Hotel)",
-      "category": "People"
-    },
-    {
-      "name": "South Park Media",
-      "category": "Business"
-    },
-    {
-      "name": "James Dyson",
-      "category": "People"
-    },
-    {
-      "name": "SpaceX",
-      "category": "Business"
-    },
-    {
-      "name": "Aiyawatt Srivaddhanaprabha",
-      "category": "People"
-    },
-    {
-      "name": "Standard Industries",
-      "category": "Business"
-    },
-    {
-      "name": "Jay Penske",
-      "category": "People"
-    },
-    {
-      "name": "Travis Scott",
+      "name": "Julio Iglesias",
       "category": "Celebrity"
     },
     {
@@ -2885,7 +1593,1383 @@
       "category": "Celebrity"
     },
     {
+      "name": "Keith Urban",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Ken Griffin",
+      "category": "People"
+    },
+    {
+      "name": "Kenny Chesney",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Kevin Harvey",
+      "category": "People"
+    },
+    {
+      "name": "Khosla Ventures",
+      "category": "Business"
+    },
+    {
+      "name": "Kid Rock",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Kiewit Engineering Co.",
+      "category": "Business"
+    },
+    {
+      "name": "Kilmer Management LP",
+      "category": "Sports"
+    },
+    {
+      "name": "Kim Kardashian",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Kimbal Musk",
+      "category": "People"
+    },
+    {
+      "name": "Kingdom of Eswatini",
+      "category": "Government"
+    },
+    {
+      "name": "Knight-Swift Trucking",
+      "category": "Business"
+    },
+    {
+      "name": "Koch Industries",
+      "category": "Business"
+    },
+    {
+      "name": "Kohler Co.",
+      "category": "Business"
+    },
+    {
+      "name": "Kris Krohn",
+      "category": "People"
+    },
+    {
+      "name": "Kroger",
+      "category": "Business"
+    },
+    {
+      "name": "Kylie Jenner",
+      "category": "Celebrity"
+    },
+    {
+      "name": "L-3 Communications",
+      "category": "Government"
+    },
+    {
+      "name": "L3 Harris Technologies",
+      "category": "Government"
+    },
+    {
+      "name": "LA Chargers",
+      "category": "Sports"
+    },
+    {
+      "name": "Lady Moura",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Lance Stroll",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Larry Ellison",
+      "category": "People"
+    },
+    {
+      "name": "Larry Page",
+      "category": "People"
+    },
+    {
+      "name": "Las Vegas Golden Knights",
+      "category": "Sports"
+    },
+    {
+      "name": "Las Vegas Sands",
+      "category": "Business"
+    },
+    {
+      "name": "Laurence Escalante (theleecollection)",
+      "category": "People"
+    },
+    {
+      "name": "Laurene Powell Jobs",
+      "category": "People"
+    },
+    {
+      "name": "Lawrence Stroll",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Learjet C-21A",
+      "category": "Government"
+    },
+    {
+      "name": "Leisure Pools",
+      "category": "Business"
+    },
+    {
+      "name": "Len Blavatnik",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Leon Black",
+      "category": "People"
+    },
+    {
+      "name": "Leonard Blavatnik",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Leonardo AW609",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Leonid Mikhelson",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Lewis Hamilton",
+      "category": "Celebrity"
+    },
+    {
+      "name": "LG Electronics",
+      "category": "Business"
+    },
+    {
+      "name": "Liberty Mutual Insurance",
+      "category": "Business"
+    },
+    {
+      "name": "Life Lion (Hershey Medical Center)",
+      "category": "Other"
+    },
+    {
+      "name": "LifeFlightNetwork",
+      "category": "Other"
+    },
+    {
+      "name": "Lionel Messi",
+      "category": "Sports"
+    },
+    {
+      "name": "Lockheed Gulfstream",
+      "category": "Government"
+    },
+    {
+      "name": "Lockheed Martin",
+      "category": "Business"
+    },
+    {
+      "name": "Louis Bacon",
+      "category": "People"
+    },
+    {
+      "name": "Lowes",
+      "category": "Business"
+    },
+    {
+      "name": "LSU",
+      "category": "Sports"
+    },
+    {
+      "name": "Luke Bryan",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Lyden Air Cargo",
+      "category": "Other"
+    },
+    {
+      "name": "Maersk Shipping Company",
+      "category": "Business"
+    },
+    {
+      "name": "Magic Johnson",
+      "category": "People"
+    },
+    {
+      "name": "Mandalay Vegas Resorts",
+      "category": "Business"
+    },
+    {
+      "name": "Marco Andretti",
+      "category": "Sports"
+    },
+    {
+      "name": "Mario Andretti",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Mark Benioff",
+      "category": "People"
+    },
+    {
+      "name": "Mark Burnett",
+      "category": "People"
+    },
+    {
+      "name": "Mark Cuban",
+      "category": "People"
+    },
+    {
+      "name": "Mark Juncosa (SpaceX VP)",
+      "category": "People"
+    },
+    {
+      "name": "Mark Wahlberg",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Mark Zuckerberg",
+      "category": "People"
+    },
+    {
+      "name": "Marriott Hotels",
+      "category": "Business"
+    },
+    {
+      "name": "Mary Kay Inc.",
+      "category": "Business"
+    },
+    {
+      "name": "MATCH1N",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Matt Guthmiller",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Max Verstappen",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Mayo Clinic",
+      "category": "Other"
+    },
+    {
+      "name": "McDonalds",
+      "category": "Business"
+    },
+    {
+      "name": "McNeil Consumer Healthcare (Tylenol)",
+      "category": "Business"
+    },
+    {
+      "name": "Meet Kevin",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Meet Kevin (YouTuber)",
+      "category": "People"
+    },
+    {
+      "name": "Meijer Stores",
+      "category": "Business"
+    },
+    {
+      "name": "Melinda Gates",
+      "category": "People"
+    },
+    {
+      "name": "Menards",
+      "category": "Business"
+    },
+    {
+      "name": "Merck",
+      "category": "Business"
+    },
+    {
+      "name": "Michael Dell",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Michael Jordan",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Michael Milken",
+      "category": "People"
+    },
+    {
+      "name": "Michael Niederst (Real estate)",
+      "category": "People"
+    },
+    {
+      "name": "Michael Saylor (MicroStrategy)",
+      "category": "People"
+    },
+    {
+      "name": "Michael Schumacher",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Micke Lang",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Micron",
+      "category": "Business"
+    },
+    {
+      "name": "Mike Bloomberg",
+      "category": "People"
+    },
+    {
+      "name": "Mike Lindell",
+      "category": "People"
+    },
+    {
+      "name": "Mike Patey",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Mikhail Fridman",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Miliken",
+      "category": "Business"
+    },
+    {
+      "name": "Military HALO Gulfstreams",
+      "category": "Government"
+    },
+    {
+      "name": "MIT Lincoln Lab",
+      "category": "Government"
+    },
+    {
+      "name": "Mohamed El Enein",
+      "category": "People"
+    },
+    {
+      "name": "MojoGrip",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Monaco Royal Family",
+      "category": "Royal"
+    },
+    {
+      "name": "Morgan and Morgan Law Firm",
+      "category": "Business"
+    },
+    {
+      "name": "Morgan Stanley",
+      "category": "Business"
+    },
+    {
+      "name": "MQ-20 Avenger",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Mukesh Ambani",
+      "category": "Business"
+    },
+    {
+      "name": "Murdoch Family",
+      "category": "People"
+    },
+    {
+      "name": "Nancy Walton",
+      "category": "People"
+    },
+    {
+      "name": "Nanoworks",
+      "category": "Business"
+    },
+    {
+      "name": "NASA",
+      "category": "Other"
+    },
+    {
+      "name": "National Nuclear Security Administration",
+      "category": "Government"
+    },
+    {
+      "name": "National Science Foundation",
+      "category": "Other"
+    },
+    {
+      "name": "NAV Canada Flight Inspection",
+      "category": "Other"
+    },
+    {
+      "name": "Nelson Peltz",
+      "category": "People"
+    },
+    {
+      "name": "Nelson Piquet",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Nestle USA",
+      "category": "Business"
+    },
+    {
+      "name": "Netflix",
+      "category": "Business"
+    },
+    {
+      "name": "New Zealand Air Force",
+      "category": "Government"
+    },
+    {
+      "name": "Niagara Water Bottling",
+      "category": "Business"
+    },
+    {
+      "name": "Nick Marietta",
+      "category": "People"
+    },
+    {
+      "name": "Nick Woodman",
+      "category": "People"
+    },
+    {
+      "name": "Nike",
+      "category": "Business"
+    },
+    {
+      "name": "Norfolk Southern Railroad",
+      "category": "Business"
+    },
+    {
+      "name": "Norilsk Nikel",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Northrup Grumman",
+      "category": "Government"
+    },
+    {
+      "name": "Oaktree Capital",
+      "category": "Business"
+    },
+    {
+      "name": "Oleg Deripaska",
+      "category": "People"
+    },
+    {
+      "name": "Oleg Tinkov",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Olympia Aviation (Detroit Red Wings/Tigers)",
+      "category": "Sports"
+    },
+    {
+      "name": "Oprah Winfrey",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Oracle",
+      "category": "Business"
+    },
+    {
+      "name": "Orbis Flying Eye Hospital",
+      "category": "Other"
+    },
+    {
+      "name": "Other",
+      "category": "Other"
+    },
+    {
+      "name": "OtterBox",
+      "category": "Business"
+    },
+    {
+      "name": "Ozuna",
+      "category": "Celebrity"
+    },
+    {
+      "name": "P. Diddy",
+      "category": "Celebrity"
+    },
+    {
+      "name": "PACCAR",
+      "category": "Business"
+    },
+    {
+      "name": "Palantir",
+      "category": "Business"
+    },
+    {
+      "name": "Panda Express",
+      "category": "Business"
+    },
+    {
+      "name": "Papé Machinery",
+      "category": "Business"
+    },
+    {
+      "name": "Paramount Pictures",
+      "category": "Business"
+    },
+    {
+      "name": "Paris Hilton",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Pasaca Capital",
+      "category": "Business"
+    },
+    {
+      "name": "Patek Philippe SA",
+      "category": "Business"
+    },
+    {
+      "name": "Patrick Dovigi",
+      "category": "People"
+    },
+    {
+      "name": "Patrick Mahomes (Part Owner)",
+      "category": "Sports"
+    },
+    {
+      "name": "Patriots",
+      "category": "Sports"
+    },
+    {
+      "name": "Paul L. Foster",
+      "category": "People"
+    },
+    {
+      "name": "Paul Randy",
+      "category": "People"
+    },
+    {
+      "name": "Paul Tudor Jones",
+      "category": "People"
+    },
+    {
+      "name": "PayPal",
+      "category": "Business"
+    },
+    {
+      "name": "Penn National Gaming",
+      "category": "Business"
+    },
+    {
+      "name": "Penske Racing",
+      "category": "Sports"
+    },
+    {
+      "name": "People",
+      "category": "People"
+    },
+    {
+      "name": "Pepsi",
+      "category": "Business"
+    },
+    {
+      "name": "Perenco",
+      "category": "Business"
+    },
+    {
+      "name": "Peter Lim",
+      "category": "People"
+    },
+    {
+      "name": "Peter Thiel",
+      "category": "People"
+    },
+    {
+      "name": "Peterson Companies",
+      "category": "Business"
+    },
+    {
+      "name": "Pfizer",
+      "category": "Business"
+    },
+    {
+      "name": "PGA Tour",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Phil Knight (NIKE)",
+      "category": "People"
+    },
+    {
+      "name": "Phil Ruffin",
+      "category": "People"
+    },
+    {
+      "name": "Philadelphia Eagles",
+      "category": "Sports"
+    },
+    {
+      "name": "Phillip Sarofim",
+      "category": "People"
+    },
+    {
+      "name": "Phoenix Air Gulfstream II",
+      "category": "Other"
+    },
+    {
+      "name": "Pickle Driver (SF50)",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Piero Ferrari",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Pierre Omidyar",
+      "category": "People"
+    },
+    {
+      "name": "Pitbull",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Plane and Dirt Simple",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Playboy",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Plumb Bill Pay",
+      "category": "Business"
+    },
+    {
+      "name": "Prada",
+      "category": "Business"
+    },
+    {
+      "name": "Pratt & Whitney Canada 747SP",
+      "category": "Other"
+    },
+    {
+      "name": "Precision Castparts",
+      "category": "Business"
+    },
+    {
+      "name": "Premier1Driver",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Prime Inc.",
+      "category": "Business"
+    },
+    {
+      "name": "Principal Financial",
+      "category": "Business"
+    },
+    {
+      "name": "Pritzker Family",
+      "category": "People"
+    },
+    {
+      "name": "Proctor & Gamble",
+      "category": "Business"
+    },
+    {
+      "name": "Prudential Insurance",
+      "category": "Business"
+    },
+    {
+      "name": "Publix Supermarkets",
+      "category": "Business"
+    },
+    {
+      "name": "Puma",
+      "category": "Business"
+    },
+    {
+      "name": "Purina Petcare",
+      "category": "Business"
+    },
+    {
+      "name": "Qualcomm",
+      "category": "Business"
+    },
+    {
+      "name": "Quest Diagnostics (BE58)",
+      "category": "Business"
+    },
+    {
+      "name": "Quest Diagnostics (Other)",
+      "category": "Business"
+    },
+    {
+      "name": "Quest Diagnostics (PC12)",
+      "category": "Business"
+    },
+    {
+      "name": "Ralph Lauren",
+      "category": "People"
+    },
+    {
+      "name": "Raytheon",
+      "category": "Business"
+    },
+    {
+      "name": "RC-12X Guardrail",
+      "category": "Government"
+    },
+    {
+      "name": "RealPage Real Estate",
+      "category": "Business"
+    },
+    {
+      "name": "Related Companies (Stephen Ross)",
+      "category": "Business"
+    },
+    {
+      "name": "Remon Voss",
+      "category": "People"
+    },
+    {
+      "name": "Republic of Tatarstan(RU)",
+      "category": "Government"
+    },
+    {
+      "name": "Resturant Brands Intl.",
+      "category": "Business"
+    },
+    {
+      "name": "Richard Branson",
+      "category": "People"
+    },
+    {
+      "name": "Richard Childress Racing",
+      "category": "Sports"
+    },
+    {
+      "name": "Richard T. Santulli",
+      "category": "People"
+    },
+    {
+      "name": "Rick Caruso",
+      "category": "People"
+    },
+    {
+      "name": "Rick Ross",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Ricky Gutierrez & JR Garage",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Rihanna",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Riley Herbst",
+      "category": "Sports"
+    },
+    {
+      "name": "Robert F. Smith",
+      "category": "People"
+    },
+    {
+      "name": "Robert Herjavec",
+      "category": "People"
+    },
+    {
+      "name": "Robert Kraft",
+      "category": "Sports"
+    },
+    {
+      "name": "Robert Penske",
+      "category": "Sports"
+    },
+    {
+      "name": "Robert Pera",
+      "category": "People"
+    },
+    {
+      "name": "Rocket Lab Helicopters",
+      "category": "Business"
+    },
+    {
+      "name": "Roleof Botha",
+      "category": "People"
+    },
+    {
+      "name": "Rolls Royce Test Bed",
+      "category": "Other"
+    },
+    {
+      "name": "Roman Abramovich",
+      "category": "People"
+    },
+    {
+      "name": "Ron DeSantis",
+      "category": "Government"
+    },
+    {
+      "name": "Ron Fowler/San Diego Padres",
+      "category": "Sports"
+    },
+    {
+      "name": "Ronald Perelman",
+      "category": "People"
+    },
+    {
+      "name": "Rooms to Go",
+      "category": "Business"
+    },
+    {
+      "name": "Rory McIlroy",
+      "category": "Sports"
+    },
+    {
+      "name": "Royal Air Force",
+      "category": "Government"
+    },
+    {
+      "name": "Royal Australian Air Force",
+      "category": "Government"
+    },
+    {
+      "name": "RQ-4 Global Hawk",
+      "category": "Government"
+    },
+    {
+      "name": "RTW Investments",
+      "category": "Business"
+    },
+    {
+      "name": "Rubens Barrichello",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Russell Wilson",
+      "category": "Sports"
+    },
+    {
+      "name": "RyanAir Support Aircraft",
+      "category": "Business"
+    },
+    {
+      "name": "S C Johnson",
+      "category": "Business"
+    },
+    {
+      "name": "Saints/Pelicans",
+      "category": "Sports"
+    },
+    {
+      "name": "Samaritan's Purse",
+      "category": "Other"
+    },
+    {
+      "name": "Sammy Hagar",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Samsung",
+      "category": "Business"
+    },
+    {
+      "name": "Santo Domingo Family",
+      "category": "People"
+    },
+    {
       "name": "Saudi Royal Flight",
+      "category": "Government"
+    },
+    {
+      "name": "Sawiris Family",
+      "category": "People"
+    },
+    {
+      "name": "Scaled Composites Proteus",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "ScottsMiracle-Gro",
+      "category": "Business"
+    },
+    {
+      "name": "Scuderia AlphaTauri",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Sebastian Kulczyk",
+      "category": "People"
+    },
+    {
+      "name": "Sebastian Maniscalco",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Seminole Boosters Inc.",
+      "category": "Sports"
+    },
+    {
+      "name": "Sergey Brin",
+      "category": "People"
+    },
+    {
+      "name": "Sergio Garcia",
+      "category": "Sports"
+    },
+    {
+      "name": "Sergio Perez",
+      "category": "Formula 1"
+    },
+    {
+      "name": "Shahid Khan",
+      "category": "People"
+    },
+    {
+      "name": "Shaq",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Shell Oil",
+      "category": "Business"
+    },
+    {
+      "name": "Sierra Pacific Industries",
+      "category": "Business"
+    },
+    {
+      "name": "Sikorsky SB-1 Defiant",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Silver Lake Technology Management",
+      "category": "Business"
+    },
+    {
+      "name": "Simon Property Group (Malls)",
+      "category": "Business"
+    },
+    {
+      "name": "SlowAsianDriver",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Snapchat/Evan Spiegel",
+      "category": "Business"
+    },
+    {
+      "name": "South Park Media",
+      "category": "Business"
+    },
+    {
+      "name": "SpaceX",
+      "category": "Business"
+    },
+    {
+      "name": "Sports",
+      "category": "Sports"
+    },
+    {
+      "name": "Stan Kroenke",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Stan Kronke",
+      "category": "People"
+    },
+    {
+      "name": "Standard Industries",
+      "category": "Business"
+    },
+    {
+      "name": "Stanley Druckenmiller",
+      "category": "People"
+    },
+    {
+      "name": "State Govt./Law",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Alabama",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Alaska",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Arizona",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Arkansas",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of California",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Colorado",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Connecticut",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Delaware",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Florida",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Georgia",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Idaho",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Illinois",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Indiana",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Iowa",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Kansas",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Kentucky",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Louisiana",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Maine",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Maryland",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Massachusetts",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Michigan",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Minnesota",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Mississippi",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Missouri",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Montana",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Nebraska",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Nevada",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of New Hampshire",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of New Jersey",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of New Mexico",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of New York",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of North Carolina",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of North Dakota",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Ohio",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Oklahoma",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Oregon",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Pennsylvania",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of South Carolina",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of South Dakota",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Tennessee",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Texas",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Utah",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Virginia",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Washington",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of West Virginia",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Wisconsin",
+      "category": "State/Law"
+    },
+    {
+      "name": "State of Wyoming",
+      "category": "State/Law"
+    },
+    {
+      "name": "Stefan Drury",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Stephanie Shojaee (Shoma Real Estate)",
+      "category": "People"
+    },
+    {
+      "name": "Stephen Schwarzman",
+      "category": "People"
+    },
+    {
+      "name": "Steve Ballmer",
+      "category": "People"
+    },
+    {
+      "name": "Steve Witkoff",
+      "category": "People"
+    },
+    {
+      "name": "Steve Wynn/Wynn Resorts",
+      "category": "People"
+    },
+    {
+      "name": "Steven Rattner",
+      "category": "People"
+    },
+    {
+      "name": "Steven Spielberg",
+      "category": "Celebrity"
+    },
+    {
+      "name": "steveo1kinevo",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Stevie Triesenberg",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Stewart-Haas Racing",
+      "category": "Sports"
+    },
+    {
+      "name": "Stratos 716",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Suleiman Kerimov",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Surveillance Australia",
+      "category": "Other"
+    },
+    {
+      "name": "Swiss Air Ambulance",
+      "category": "Other"
+    },
+    {
+      "name": "T2 Aviation (Oil Spill Response",
+      "category": "Other"
+    },
+    {
+      "name": "Taylor Gerring",
+      "category": "People"
+    },
+    {
+      "name": "Taylor Swift",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Ted Leonsis",
+      "category": "People"
+    },
+    {
+      "name": "Ted Turner",
+      "category": "People"
+    },
+    {
+      "name": "Ted Waitt",
+      "category": "People"
+    },
+    {
+      "name": "Tenax Aerospace",
+      "category": "Government"
+    },
+    {
+      "name": "Tennessee Titans",
+      "category": "Sports"
+    },
+    {
+      "name": "Test Aircraft",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Textron AirLand Scorpion",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Textron/Beechcraft Denali",
+      "category": "Test Aircraft"
+    },
+    {
+      "name": "Thomas Siebel",
+      "category": "People"
+    },
+    {
+      "name": "Tiger Woods",
+      "category": "People"
+    },
+    {
+      "name": "Tilman Fertitta",
+      "category": "People"
+    },
+    {
+      "name": "Tim Gillean",
+      "category": "People"
+    },
+    {
+      "name": "Toby Kieth",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Tom and Steuart Walton",
+      "category": "People"
+    },
+    {
+      "name": "Tom Cruise",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Tom Gores",
+      "category": "People"
+    },
+    {
+      "name": "Tom Werner",
+      "category": "People"
+    },
+    {
+      "name": "Tommy Hilfiger",
+      "category": "People"
+    },
+    {
+      "name": "Tony Robbins",
+      "category": "People"
+    },
+    {
+      "name": "Tony Stewart",
+      "category": "Sports"
+    },
+    {
+      "name": "Top Aces F16's",
+      "category": "Government"
+    },
+    {
+      "name": "Travis Scott",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Trent Palmer",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Trevor Milton",
+      "category": "People"
+    },
+    {
+      "name": "Troy Aikman",
+      "category": "Sports"
+    },
+    {
+      "name": "Ty Warner",
+      "category": "People"
+    },
+    {
+      "name": "Tyler Perry",
+      "category": "Celebrity"
+    },
+    {
+      "name": "U.S. Govt. Special Missions",
+      "category": "Government"
+    },
+    {
+      "name": "U.S. Marines C-40A",
+      "category": "Government"
+    },
+    {
+      "name": "U.S. Marshals (JPATS/Prisoner Transport)",
       "category": "Government"
     },
     {
@@ -2893,16 +2977,104 @@
       "category": "Government"
     },
     {
-      "name": "France Presidency (COTAM)",
+      "name": "Ukraine War Survalliance Plane",
       "category": "Government"
     },
     {
-      "name": "Germany Chancellery (Flugbereitschaft)",
+      "name": "United States of America 747/757",
       "category": "Government"
     },
     {
-      "name": "Japan Prime Minister",
+      "name": "University of Tennessee",
+      "category": "Sports"
+    },
+    {
+      "name": "USAF/Big Safari/SierraNevCor",
       "category": "Government"
+    },
+    {
+      "name": "USCG (Coast Guard)",
+      "category": "Government"
+    },
+    {
+      "name": "USDHS (Dept. Homeland Sec.)",
+      "category": "Government"
+    },
+    {
+      "name": "Vagit Alekperov",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Vasil Bojkov",
+      "category": "People"
+    },
+    {
+      "name": "Vick Tipnes",
+      "category": "People"
+    },
+    {
+      "name": "Victory Aviation (NASCAR)",
+      "category": "Sports"
+    },
+    {
+      "name": "Viktor Medvedchuk",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Viktor Vekselberg",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Vivek Ramaswamy",
+      "category": "Celebrity"
+    },
+    {
+      "name": "Vladimir Lisin",
+      "category": "Oligarch"
+    },
+    {
+      "name": "Vladimir Potanin",
+      "category": "Oligarch"
+    },
+    {
+      "name": "WC-135R Constant Phoenix",
+      "category": "Government"
+    },
+    {
+      "name": "Wes Edens",
+      "category": "People"
+    },
+    {
+      "name": "Wesley Edens",
+      "category": "People"
+    },
+    {
+      "name": "Wifi-Money",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Winklevoss Twins (Crypto)",
+      "category": "People"
+    },
+    {
+      "name": "Woody Johnson",
+      "category": "People"
+    },
+    {
+      "name": "WWE",
+      "category": "Sports"
+    },
+    {
+      "name": "YouTubers",
+      "category": "YouTubers"
+    },
+    {
+      "name": "Yusaku Mazawa",
+      "category": "People"
+    },
+    {
+      "name": "Zero G Plane",
+      "category": "Other"
     }
   ],
   "details": {
@@ -2936,7 +3108,11 @@
         "N8628",
         "N8628T",
         "N272BG",
-        "N502SX"
+        "N502SX",
+        "N310SX",
+        "N812SX",
+        "N840SX",
+        "N928SX"
       ],
       "socials": {
         "twitter": "elonmusk",
@@ -3347,7 +3523,8 @@
     "Dallas Cowboys": {
       "category": "Sports",
       "registrations": [
-        "N1DC"
+        "N1DC",
+        "N290CL"
       ]
     },
     "Taylor Swift": {
@@ -3479,13 +3656,18 @@
     "Oleg Deripaska": {
       "category": "People",
       "registrations": [
-        "RA-09618"
+        "RA-09618",
+        "M-AKAR",
+        "M-ALAY",
+        "M-UGIC",
+        "M-SAWO"
       ]
     },
     "Arkady Rotenberg": {
       "category": "People",
       "registrations": [
-        "RA-73555"
+        "RA-73555",
+        "M-MAVP"
       ]
     },
     "Albert Avdolyan": {
@@ -3649,7 +3831,8 @@
     "Floyd Mayweather": {
       "category": "Celebrity",
       "registrations": [
-        "N305DG"
+        "N305DG",
+        "N151SD"
       ],
       "socials": {
         "twitter": "FloydMayweather",
@@ -4973,7 +5156,8 @@
     "Luke Bryan": {
       "category": "Celebrity",
       "registrations": [
-        "N69FH"
+        "N69FH",
+        "N506AB"
       ],
       "socials": {
         "twitter": "LukeBryanOnline",
@@ -5505,7 +5689,8 @@
     "Rick Ross": {
       "category": "Celebrity",
       "registrations": [
-        "N33055"
+        "N33055",
+        "N676AS"
       ],
       "socials": {
         "twitter": "RickRoss",
@@ -5942,7 +6127,8 @@
     "Cristiano Ronaldo": {
       "category": "Sports",
       "registrations": [
-        "LX-GOL"
+        "LX-GOL",
+        "EC-KBC"
       ],
       "socials": {
         "twitter": "Cristiano",
@@ -5952,7 +6138,8 @@
     "Tom Cruise": {
       "category": "Celebrity",
       "registrations": [
-        "N77VA"
+        "N77VA",
+        "N808T"
       ],
       "socials": {
         "twitter": "TomCruise",
@@ -6322,7 +6509,8 @@
       "registrations": [
         "N616KG",
         "N618KG",
-        "N605KG"
+        "N605KG",
+        "N615KG"
       ]
     },
     "State of Virginia": {
@@ -7115,7 +7303,8 @@
     "Mark Benioff": {
       "category": "People",
       "registrations": [
-        "N808XX"
+        "N808XX",
+        "N650HA"
       ],
       "socials": {
         "twitter": "Benioff",
@@ -7175,7 +7364,8 @@
     "Peter Thiel": {
       "category": "People",
       "registrations": [
-        "N41127"
+        "N41127",
+        "N878DB"
       ],
       "socials": {
         "twitter": "peterthiel"
@@ -8379,7 +8569,8 @@
     "Jeffrey Vinik": {
       "category": "People",
       "registrations": [
-        "N167TV"
+        "N167TV",
+        "N223TV"
       ]
     },
     "Oaktree Capital": {
@@ -9198,9 +9389,15 @@
       ]
     },
     "UK Royal Family (RAF)": {
-      "category": "Government",
+      "category": "Royal",
       "registrations": [
-        "G-XWBG"
+        "G-XWBG",
+        "G-XXEC",
+        "GZ-100",
+        "ZE700",
+        "ZE701",
+        "ZE707",
+        "ZE708"
       ]
     },
     "France Presidency (COTAM)": {
@@ -9219,6 +9416,274 @@
       "category": "Government",
       "registrations": [
         "80-1111"
+      ]
+    },
+    "Vagit Alekperov": {
+      "category": "Oligarch",
+      "registrations": [
+        "RA-02775",
+        "VP-CLO",
+        "VP-CLS",
+        "VP-CLZ"
+      ]
+    },
+    "Norilsk Nikel": {
+      "category": "Oligarch",
+      "registrations": [
+        "RA-25101",
+        "RA-25103"
+      ]
+    },
+    "Mikhail Fridman": {
+      "category": "Oligarch",
+      "registrations": [
+        "RA-25777"
+      ]
+    },
+    "Alexander Abramov": {
+      "category": "Oligarch",
+      "registrations": [
+        "D-APGS",
+        "D-ARKO",
+        "D-ALEX",
+        "D-ALXX",
+        "D-ANEO",
+        "VP-BKG",
+        "OE-IGS"
+      ]
+    },
+    "Suleiman Kerimov": {
+      "category": "Oligarch",
+      "registrations": [
+        "VP-BBW"
+      ]
+    },
+    "Grosvenor Estates": {
+      "category": "Celebrity",
+      "registrations": [
+        "G-GARE"
+      ]
+    },
+    "Folorunso Alakija": {
+      "category": "Celebrity",
+      "registrations": [
+        "VP-CTO"
+      ]
+    },
+    "Greensill Capital": {
+      "category": "Celebrity",
+      "registrations": [
+        "M-GFGC"
+      ]
+    },
+    "Oleg Tinkov": {
+      "category": "Oligarch",
+      "registrations": [
+        "M-TINK"
+      ]
+    },
+    "Dmitry Rybolovlev": {
+      "category": "Oligarch",
+      "registrations": [
+        "M-KATE"
+      ]
+    },
+    "Elton John": {
+      "category": "Celebrity",
+      "registrations": [
+        "M-EDZE"
+      ]
+    },
+    "Alexey Mordashov": {
+      "category": "Oligarch",
+      "registrations": [
+        "M-YSSF"
+      ]
+    },
+    "Vladimir Lisin": {
+      "category": "Oligarch",
+      "registrations": [
+        "OE-INL"
+      ]
+    },
+    "Vladimir Potanin": {
+      "category": "Oligarch",
+      "registrations": [
+        "OE-IPE",
+        "OE-LUC"
+      ]
+    },
+    "Viktor Medvedchuk": {
+      "category": "Oligarch",
+      "registrations": [
+        "P4-GEM"
+      ]
+    },
+    "Viktor Vekselberg": {
+      "category": "Oligarch",
+      "registrations": [
+        "P4-MIS"
+      ]
+    },
+    "Eugene Shvidler": {
+      "category": "Oligarch",
+      "registrations": [
+        "LX-FLY"
+      ]
+    },
+    "Auburn University": {
+      "category": "Sports",
+      "registrations": [
+        "N10AU"
+      ]
+    },
+    "Indianapolis Colts": {
+      "category": "Sports",
+      "registrations": [
+        "N102TD"
+      ]
+    },
+    "P. Diddy": {
+      "category": "Celebrity",
+      "registrations": [
+        "N1969C"
+      ]
+    },
+    "Seminole Boosters Inc.": {
+      "category": "Sports",
+      "registrations": [
+        "N199FS",
+        "N851FS"
+      ]
+    },
+    "Vivek Ramaswamy": {
+      "category": "Celebrity",
+      "registrations": [
+        "N411NB"
+      ]
+    },
+    "Jay Z": {
+      "category": "Celebrity",
+      "registrations": [
+        "N444SC"
+      ]
+    },
+    "Jerry Moss": {
+      "category": "Celebrity",
+      "registrations": [
+        "N5811M"
+      ]
+    },
+    "LSU": {
+      "category": "Sports",
+      "registrations": [
+        "N599TA"
+      ]
+    },
+    "Len Blavatnik": {
+      "category": "Celebrity",
+      "registrations": [
+        "N600EB"
+      ]
+    },
+    "Leonid Mikhelson": {
+      "category": "Oligarch",
+      "registrations": [
+        "N650GL"
+      ]
+    },
+    "Leonard Blavatnik": {
+      "category": "Oligarch",
+      "registrations": [
+        "N671LE",
+        "N737LE",
+        "N761LE",
+        "N777UK"
+      ]
+    },
+    "Cleveland Browns": {
+      "category": "Sports",
+      "registrations": [
+        "N715CB"
+      ]
+    },
+    "University of Tennessee": {
+      "category": "Sports",
+      "registrations": [
+        "N794UT",
+        "N865UT"
+      ]
+    },
+    "Bad Human": {
+      "category": "Business",
+      "registrations": [
+        "N830EC"
+      ]
+    },
+    "Clemson University": {
+      "category": "Sports",
+      "registrations": [
+        "N934CT"
+      ]
+    },
+    "Stan Kroenke": {
+      "category": "Celebrity",
+      "registrations": [
+        "N959KF"
+      ]
+    },
+    "Michael Dell": {
+      "category": "Celebrity",
+      "registrations": [
+        "N28ZD"
+      ]
+    },
+    "Lady Moura": {
+      "category": "Celebrity",
+      "registrations": [
+        "VP-CNR"
+      ]
+    },
+    "Lewis Hamilton": {
+      "category": "Celebrity",
+      "registrations": [
+        "G-OFOM"
+      ]
+    },
+    "Mario Andretti": {
+      "category": "Celebrity",
+      "registrations": [
+        "N500MA"
+      ]
+    },
+    "Frank Lowry": {
+      "category": "Celebrity",
+      "registrations": [
+        "N613LF"
+      ]
+    },
+    "Mukesh Ambani": {
+      "category": "Celebrity",
+      "registrations": [
+        "VT-AKV"
+      ]
+    },
+    "Judge Judy": {
+      "category": "Celebrity",
+      "registrations": [
+        "N555QB"
+      ]
+    },
+    "Monaco Royal Family": {
+      "category": "Royal",
+      "registrations": [
+        "3A-MGA"
+      ]
+    },
+    "PGA Tour": {
+      "category": "Sports",
+      "registrations": [
+        "N795HG"
       ]
     }
   }

@@ -1,14 +1,20 @@
-"""Function Keys — anonymous citizenship proof.
+"""Function Keys — anonymous credential scaffolding.
 
 Source of truth: ``infonet-economy/IMPLEMENTATION_PLAN.md`` §4.4,
 ``infonet-economy/BRAINDUMP.md`` §11 item 9.
 
-A citizen should be able to prove "I am a UBI-eligible Infonet
-citizen" to a real-world operator (food bank, community service)
-**without revealing their Infonet identity**. The naive approach
-(scramble a public key, record each redemption on chain) leaks
-identity through metadata correlation (time, location, operator,
-frequency).
+A citizen should eventually be able to prove "I am a UBI-eligible
+Infonet citizen" to a real-world operator (food bank, community
+service) **without revealing their Infonet identity**. The current
+Python implementation wires the accounting, nullifier, receipt, and
+operator flows, but its HMAC challenge-response is a placeholder for
+integration tests. It is not a production anonymous or zero-knowledge
+citizenship proof until blind signatures or anonymous credentials are
+selected and wired.
+
+The naive approach (scramble a public key, record each redemption on
+chain) leaks identity through metadata correlation (time, location,
+operator, frequency).
 
 The full design has six pieces; five are implemented in pure Python
 here. The remaining piece — issuance via blind signatures or
@@ -27,7 +33,8 @@ Pieces:
    operator: tracked via ``NullifierTracker``.
 3. **Challenge-response** (`challenge_response.py`) — operator
    issues a fresh nonce, key-holder signs with the Function Key's
-   secret. Prevents screenshot attacks, key sharing, replay.
+   secret. This is HMAC placeholder plumbing for screenshot/replay
+   resistance, not the final anonymous credential proof.
 4. **Two-phase commit receipts** (`receipt.py`) — Phase 1
    verification receipt (operator-signed, day-level date NOT
    timestamp, no node_id). Phase 2 fulfillment receipt (citizen

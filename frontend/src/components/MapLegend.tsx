@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import ExternalImage from '@/components/ExternalImage';
 import { useTranslation } from '@/i18n';
@@ -113,7 +113,7 @@ const LEGEND: LegendCategory[] = [
       { svg: heli('#32CD32'), label: 'Medical / Fire / Rescue (lime)' },
       { svg: airliner('yellow'), label: 'Military / Intelligence (yellow)' },
       { svg: airliner('#222'), label: 'PIA — Privacy / Stealth (black)' },
-      { svg: airliner('#FF8C00'), label: 'Private Flights / Joe Cool (orange)' },
+      { svg: airliner('#FF8C00'), label: 'As Seen on TV / Joe Cool (orange)' },
       { svg: airliner('white'), label: 'Climate Crisis (white)' },
       { svg: airliner('#9B59B6'), label: 'Private Jets / Historic / Other (purple)' },
     ],
@@ -183,6 +183,7 @@ const LEGEND: LegendCategory[] = [
     color: 'text-red-400 border-red-500/30',
     items: [
       { svg: triangle('#ffaa00'), label: 'GDELT / LiveUA event (yellow)' },
+      { svg: dot('#ef4444'), label: 'Telegram OSINT post (red, geolocated)' },
       { svg: triangle('#ff0000'), label: 'Violent / Kinetic event (red)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#ffff00" stroke="#ff0000" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>`,

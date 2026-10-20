@@ -173,6 +173,8 @@ export interface MeshChatProps {
   onExpandedChange?: (expanded: boolean) => void;
   onSettingsClick?: () => void;
   onTerminalToggle?: () => void;
+  onOpenLiveGate?: (gate: string) => void;
+  onOpenDeadDrop?: (peerId: string, options?: { showSas?: boolean }) => void;
   launchRequest?: { tab: Tab; gate?: string; peerId?: string; showSas?: boolean; nonce: number } | null;
 }
 

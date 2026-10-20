@@ -125,8 +125,8 @@ def dm_lookup_response_view(
             view.pop("lookup_mode", None)
             view.pop("removal_target", None)
             return view
-        if invite_lookup:
-            view.pop("agent_id", None)
+        # Successful invite lookups keep agent_id: the handle is the capability and
+        # first-contact messaging needs a delivery target. Failures stay generic.
     return view
 
 

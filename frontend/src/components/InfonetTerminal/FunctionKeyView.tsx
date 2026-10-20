@@ -38,19 +38,17 @@ export default function FunctionKeyView({ onBack }: FunctionKeyViewProps) {
           <ChevronLeft size={14} className="mr-1" /> BACK
         </button>
         <div className="text-sm text-purple-400 font-bold uppercase tracking-widest flex items-center gap-2">
-          <KeyRound size={16} /> FUNCTION KEYS — Anonymous Citizenship Proof
+          <KeyRound size={16} /> FUNCTION KEYS — Credential Scaffolding
         </div>
         <div />
       </div>
 
       <div className="flex-1 overflow-y-auto pr-3 space-y-4">
         <div className="text-xs text-gray-400 leading-relaxed">
-          A citizen proves &quot;I am an Infonet citizen&quot; to a real-world
-          operator <span className="text-purple-400">without revealing their Infonet identity</span>.
-          The naive approach (scramble a public key, record each redemption on chain) leaks
-          identity through metadata correlation. The Function Keys design is six pieces;
-          five are implemented; one (issuance via blind signatures / anonymous credentials)
-          waits on a cryptographic primitive decision.
+          Function Keys wire the nullifier, receipt, and settlement plumbing for future
+          anonymous credential proofs. The current challenge-response is an HMAC placeholder,
+          not production zero-knowledge citizenship. True unlinkable issuance still waits on
+          blind signatures or anonymous credentials.
         </div>
 
         {status && (

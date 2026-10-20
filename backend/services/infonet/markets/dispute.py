@@ -28,6 +28,7 @@ Two effects:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Iterable
 
 from services.infonet.config import CONFIG
@@ -36,6 +37,15 @@ from services.infonet.config import CONFIG
 def _payload(event: dict[str, Any]) -> dict[str, Any]:
     p = event.get("payload")
     return p if isinstance(p, dict) else {}
+
+
+def _finite_float(value: Any) -> float | None:
+    """Parse a chain numeric, rejecting malformed and non-finite values."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return parsed if isfinite(parsed) else None
 
 
 @dataclass
@@ -87,18 +97,18 @@ def collect_disputes(
     if not open_events:
         return []
 
-    # Build by dispute_id keyed off the open event.
+    # Build by dispute_id keyed off the open event. A malformed
+    # authoritative open must not be normalized into active state.
     disputes: dict[str, DisputeView] = {}
     open_id_by_market_event: dict[str, str] = {}
     for ev in open_events:
         p = _payload(ev)
+        cstake = _finite_float(p.get("challenger_stake"))
+        opened_at = _finite_float(ev.get("timestamp"))
+        if cstake is None or opened_at is None:
+            continue
         did = _dispute_id(ev)
         challenger = ev.get("node_id") or ""
-        try:
-            cstake = float(p.get("challenger_stake") or 0.0)
-        except (TypeError, ValueError):
-            cstake = 0.0
-        opened_at = float(ev.get("timestamp") or 0.0)
         disputes[did] = DisputeView(
             dispute_id=did, market_id=str(market_id),
             challenger_id=str(challenger), challenger_stake=cstake,
@@ -120,11 +130,8 @@ def collect_disputes(
         rep_type = p.get("rep_type")
         if rep_type not in ("oracle", "common"):
             continue
-        try:
-            amount = float(p.get("amount") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        if amount <= 0:
+        amount = _finite_float(p.get("amount"))
+        if amount is None or amount <= 0:
             continue
         record = {
             "node_id": ev.get("node_id") or "",
@@ -134,7 +141,8 @@ def collect_disputes(
         target = disputes[did].confirm_stakes if side == "confirm" else disputes[did].reverse_stakes
         target.append(record)
 
-    # Resolution events.
+    # Resolution events. Invalid resolution timestamps fail closed:
+    # they cannot exert consensus authority through resolved_outcome.
     for ev in chain_list:
         if ev.get("event_type") != "dispute_resolve":
             continue
@@ -145,8 +153,11 @@ def collect_disputes(
         outcome = p.get("outcome")
         if outcome not in ("upheld", "reversed", "tie"):
             continue
+        resolved_at = _finite_float(ev.get("timestamp"))
+        if resolved_at is None:
+            continue
         disputes[did].resolved_outcome = outcome
-        disputes[did].resolved_at = float(ev.get("timestamp") or 0.0)
+        disputes[did].resolved_at = resolved_at
 
     return sorted(disputes.values(), key=lambda d: (d.opened_at, d.dispute_id))
 

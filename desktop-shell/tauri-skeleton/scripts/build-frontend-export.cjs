@@ -17,7 +17,7 @@ const excludedPaths = [
   '.next',
   'out',
   'src/app/api',
-  'src/middleware.ts',
+  'src/proxy.ts',
 ];
 
 function normalizeRelativePath(target) {

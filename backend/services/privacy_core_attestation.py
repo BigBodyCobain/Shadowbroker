@@ -213,7 +213,7 @@ def validate_privacy_core_startup(settings: Any | None = None) -> None:
 
     attestation = privacy_core_attestation(snapshot)
     state = str(attestation.get("attestation_state", "") or "").strip()
-    if state == "attested_current":
+    if state in {"attested_current", "development_override"}:
         return
 
     logger.critical(

@@ -79,6 +79,165 @@ def _warn_legacy_prekey_lookup(agent_id: str) -> None:
     )
 
 
+def _fleet_peer_lookup_user_agent() -> str:
+    custom = str(os.environ.get("SHADOWBROKER_MESH_PEER_USER_AGENT") or "").strip()
+    if custom:
+        return custom
+    return "Mozilla/5.0 (compatible; ShadowbrokerMesh/1.0)"
+
+
+_INVITE_LOOKUP_MAX_ELAPSED_S = 120
+_INVITE_LOOKUP_MAX_BOOTSTRAP_PEERS = 3
+_INVITE_LOOKUP_MAX_PUSH_PEERS = 16
+_INVITE_LOOKUP_PARALLEL_WORKERS = 8
+
+
+def _invite_lookup_request_timeout(peer_url: str) -> tuple[int, int]:
+    from services.mesh.mesh_router import peer_transport_kind
+
+    if peer_transport_kind(peer_url) == "onion":
+        return (10, 35)
+    return (5, 15)
+
+
+def _bootstrap_seed_peer_urls() -> set[str]:
+    try:
+        from services.config import get_settings
+        from services.mesh.mesh_fleet_defaults import configured_bootstrap_seed_peers_with_fleet_default
+        from services.mesh.mesh_router import parse_configured_relay_peers
+
+        seeds: set[str] = set()
+        raw = str(getattr(get_settings(), "MESH_BOOTSTRAP_SEED_PEERS", "") or "")
+        for peer in configured_bootstrap_seed_peers_with_fleet_default(parse_configured_relay_peers(raw)):
+            normalized = str(peer or "").strip().rstrip("/")
+            if normalized:
+                seeds.add(normalized)
+        return seeds
+    except Exception:
+        return set()
+
+
+def _discovered_push_peer_urls(*, limit: int = _INVITE_LOOKUP_MAX_PUSH_PEERS) -> list[str]:
+    try:
+        from services.mesh.mesh_router import authenticated_push_peer_urls
+
+        seeds = _bootstrap_seed_peer_urls()
+        peers: list[str] = []
+        for peer in authenticated_push_peer_urls():
+            normalized = str(peer or "").strip().rstrip("/")
+            if not normalized or normalized in seeds:
+                continue
+            peers.append(normalized)
+            if len(peers) >= max(1, int(limit or 1)):
+                break
+        return peers
+    except Exception:
+        return []
+
+
+def _prioritized_invite_lookup_peer_urls(*, preferred: list[str] | None = None) -> list[str]:
+    preferred_urls = [
+        str(peer or "").strip().rstrip("/")
+        for peer in list(preferred or [])
+        if str(peer or "").strip()
+    ]
+    configured = _configured_public_lookup_peer_urls()
+    seeds = _bootstrap_seed_peer_urls()
+    active: list[str] = []
+    bootstrap: list[str] = []
+    push_discovery: list[str] = []
+    seen = set(preferred_urls)
+    for peer in configured:
+        if peer in seen:
+            continue
+        seen.add(peer)
+        if peer in seeds:
+            bootstrap.append(peer)
+        else:
+            active.append(peer)
+    for peer in _discovered_push_peer_urls():
+        if peer in seen:
+            continue
+        seen.add(peer)
+        push_discovery.append(peer)
+    ordered = list(preferred_urls)
+    ordered.extend(active)
+    ordered.extend(push_discovery)
+    ordered.extend(bootstrap[:_INVITE_LOOKUP_MAX_BOOTSTRAP_PEERS])
+    return ordered
+
+
+def _preferred_invite_lookup_peer_urls(lookup_token: str) -> list[str]:
+    token = str(lookup_token or "").strip()
+    if not token:
+        return []
+    try:
+        from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+    except Exception:
+        return []
+    peers: list[str] = []
+    for contact in list_wormhole_dm_contacts() or []:
+        if not isinstance(contact, dict):
+            continue
+        if str(contact.get("invitePinnedPrekeyLookupHandle", "") or "").strip() != token:
+            continue
+        peer_url = str(contact.get("invitePinnedLookupPeerUrl", "") or "").strip().rstrip("/")
+        if peer_url and peer_url not in peers:
+            peers.append(peer_url)
+    return peers
+
+
+def _peer_http_request(
+    method: str,
+    peer_url: str,
+    *,
+    body_bytes: bytes | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: int | tuple[int, int] = 45,
+):
+    """HTTP to a fleet peer, using Tor SOCKS when the URL is an onion address."""
+    import requests
+
+    from services.mesh.mesh_crypto import normalize_peer_url
+    from urllib.parse import urlparse
+
+    raw_peer_url = str(peer_url or "").strip()
+    parsed = urlparse(raw_peer_url)
+    if parsed.path and parsed.path not in {"", "/"}:
+        # Full request URLs include invite lookup query params; do not
+        # normalize them away when deriving the peer base URL.
+        normalized = raw_peer_url
+    else:
+        normalized = normalize_peer_url(raw_peer_url)
+    if not normalized:
+        raise OSError("invalid peer url")
+    if isinstance(timeout, tuple):
+        connect_timeout, read_timeout = timeout
+        resolved_timeout: int | tuple[int, int] = (
+            max(1, int(connect_timeout or 5)),
+            max(1, int(read_timeout or 15)),
+        )
+    else:
+        resolved_timeout = max(1, int(timeout or 45))
+    request_kwargs: dict[str, Any] = {
+        "headers": dict(headers or {}),
+        "timeout": resolved_timeout,
+    }
+    try:
+        from main import _infonet_peer_requests_proxies
+
+        proxy_peer_url = normalize_peer_url(f"{parsed.scheme}://{parsed.netloc}")
+        proxies = _infonet_peer_requests_proxies(proxy_peer_url)
+        if proxies:
+            request_kwargs["proxies"] = proxies
+    except Exception:
+        pass
+    if method.upper() == "GET":
+        return requests.get(normalized, **request_kwargs)
+    request_kwargs["data"] = body_bytes or b""
+    return requests.post(normalized, **request_kwargs)
+
+
 def _fetch_dm_prekey_bundle_from_peer_lookup(lookup_token: str) -> dict[str, Any]:
     """Fetch an invite-scoped prekey bundle from configured authenticated peers.
 
@@ -95,12 +254,12 @@ def _fetch_dm_prekey_bundle_from_peer_lookup(lookup_token: str) -> dict[str, Any
             normalize_peer_url,
             resolve_peer_key_for_url,
         )
-        from services.mesh.mesh_router import configured_relay_peer_urls
+        from services.mesh.mesh_router import authenticated_push_peer_urls
 
         settings = get_settings()
         # Issue #256: secret check moved per-peer below. We still bail out
         # cleanly when there are no peers configured at all.
-        peers = configured_relay_peer_urls()
+        peers = authenticated_push_peer_urls()
         if not peers:
             return {"ok": False, "detail": "peer prekey lookup unavailable"}
         timeout = max(1, _safe_int(getattr(settings, "MESH_RELAY_PUSH_TIMEOUT_S", 10) or 10, 10))
@@ -132,17 +291,17 @@ def _fetch_dm_prekey_bundle_from_peer_lookup(lookup_token: str) -> dict[str, Any
             "X-Peer-Url": sender_peer_url,
             "X-Peer-HMAC": hmac.new(peer_key, body, hashlib.sha256).hexdigest(),
         }
-        request = urllib.request.Request(
-            f"{normalized_peer_url}/api/mesh/dm/prekey-peer-lookup",
-            data=body,
-            headers=headers,
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                raw = response.read(256 * 1024)
+            response = _peer_http_request(
+                "POST",
+                f"{normalized_peer_url}/api/mesh/dm/prekey-peer-lookup",
+                body_bytes=body,
+                headers=headers,
+                timeout=timeout,
+            )
+            raw = response.content[: 256 * 1024]
             payload = json.loads(raw.decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        except (json.JSONDecodeError, OSError, Exception) as exc:
             last_detail = str(exc) or type(exc).__name__
             continue
         if isinstance(payload, dict) and payload.get("ok"):
@@ -160,13 +319,25 @@ def _configured_public_lookup_peer_urls() -> list[str]:
         from services.mesh.mesh_router import active_sync_peer_urls, parse_configured_relay_peers
 
         settings = get_settings()
+        from services.mesh.mesh_fleet_defaults import configured_bootstrap_seed_peers_with_fleet_default
+
         candidates: list[str] = []
+        # Operator-configured peers first, then recently active fleet nodes.
+        # Invite handles are minted on a specific node; cold bootstrap seeds
+        # rarely have them cached and should not be tried before contacts.
         for raw in (
-            getattr(settings, "MESH_BOOTSTRAP_SEED_PEERS", ""),
             getattr(settings, "MESH_DEFAULT_SYNC_PEERS", ""),
         ):
             candidates.extend(parse_configured_relay_peers(str(raw or "")))
         candidates.extend(active_sync_peer_urls())
+        for raw in (
+            getattr(settings, "MESH_BOOTSTRAP_SEED_PEERS", ""),
+        ):
+            candidates.extend(
+                configured_bootstrap_seed_peers_with_fleet_default(
+                    parse_configured_relay_peers(str(raw or ""))
+                )
+            )
     except Exception:
         return []
 
@@ -204,7 +375,50 @@ def _normalize_remote_lookup_bundle(payload: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def _fetch_dm_prekey_bundle_from_public_lookup(lookup_token: str) -> dict[str, Any]:
+def _try_public_prekey_lookup_peer(
+    peer_url: str,
+    encoded: str,
+    *,
+    timeout: int | tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    normalized_peer_url = str(peer_url or "").strip().rstrip("/")
+    if not normalized_peer_url:
+        return {"ok": False, "detail": "invalid peer url"}
+    resolved_timeout = timeout or _invite_lookup_request_timeout(normalized_peer_url)
+    try:
+        response = _peer_http_request(
+            "GET",
+            f"{normalized_peer_url}/api/mesh/dm/prekey-bundle?{encoded}",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": _fleet_peer_lookup_user_agent(),
+            },
+            timeout=resolved_timeout,
+        )
+        raw = response.content[: 256 * 1024]
+        payload = json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, OSError, Exception) as exc:
+        logger.debug("public prekey lookup failed for %s: %s", normalized_peer_url, type(exc).__name__)
+        return {"ok": False, "detail": "peer prekey lookup unavailable"}
+    if not isinstance(payload, dict):
+        return {"ok": False, "detail": "invalid peer response"}
+    if payload.get("pending") or str(payload.get("status", "") or "") == "preparing_private_lane":
+        return {"ok": False, "detail": "peer prekey lookup still preparing"}
+    if not payload.get("ok"):
+        return {
+            "ok": False,
+            "detail": str(payload.get("detail", "") or "Prekey bundle not found"),
+        }
+    if not isinstance(payload.get("bundle"), dict):
+        return {"ok": False, "detail": "Prekey bundle not found"}
+    return _normalize_remote_lookup_bundle(payload)
+
+
+def _fetch_dm_prekey_bundle_from_public_lookup(
+    lookup_token: str,
+    *,
+    extra_preferred_peer_urls: list[str] | None = None,
+) -> dict[str, Any]:
     """Fetch an invite-scoped prekey bundle from bootstrap/sync peers.
 
     The token is high-entropy and invite-scoped. This path does not expose a
@@ -212,61 +426,69 @@ def _fetch_dm_prekey_bundle_from_public_lookup(lookup_token: str) -> dict[str, A
     derive it from the signed identity public key and validate the bundle before
     accepting it.
     """
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
     token = str(lookup_token or "").strip()
     if not token:
         return {"ok": False, "detail": "lookup token required"}
-    peers = _configured_public_lookup_peer_urls()
+    preferred = list(_preferred_invite_lookup_peer_urls(token))
+    for peer in list(extra_preferred_peer_urls or []):
+        normalized = str(peer or "").strip().rstrip("/")
+        if normalized and normalized not in preferred:
+            preferred.insert(0, normalized)
+    peers = _prioritized_invite_lookup_peer_urls(preferred=preferred)
     if not peers:
         return {"ok": False, "detail": "peer prekey lookup unavailable"}
-    try:
-        from services.config import get_settings
-
-        timeout = max(1, _safe_int(getattr(get_settings(), "MESH_SYNC_TIMEOUT_S", 5) or 5, 5))
-    except Exception:
-        timeout = 5
 
     encoded = urllib.parse.urlencode({"lookup_token": token})
     last_detail = ""
-    for peer_url in peers:
-        normalized_peer_url = str(peer_url or "").strip().rstrip("/")
-        if not normalized_peer_url:
-            continue
-        # Generic UA: any peer-facing crypto request should not carry a
-        # fork-specific identifier — that turns prekey lookups into a
-        # software-fingerprinting beacon.
-        from services.network_utils import DEFAULT_USER_AGENT
-        request = urllib.request.Request(
-            f"{normalized_peer_url}/api/mesh/dm/prekey-bundle?{encoded}",
-            headers={
-                "Accept": "application/json",
-                "User-Agent": DEFAULT_USER_AGENT,
-            },
-            method="GET",
+    hinted_only = bool(list(extra_preferred_peer_urls or []))
+    hint_timeout = (5, 20)
+    for peer_url in preferred:
+        hinted = _try_public_prekey_lookup_peer(
+            peer_url,
+            encoded,
+            timeout=hint_timeout if hinted_only else None,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                raw = response.read(256 * 1024)
-            payload = json.loads(raw.decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-            logger.debug("public prekey lookup failed for %s: %s", normalized_peer_url, type(exc).__name__)
-            last_detail = "peer prekey lookup unavailable"
-            continue
-        if not isinstance(payload, dict):
-            last_detail = "invalid peer response"
-            continue
-        if payload.get("pending") or str(payload.get("status", "") or "") == "preparing_private_lane":
-            last_detail = "peer prekey lookup still preparing"
-            continue
-        if not payload.get("ok"):
-            last_detail = str(payload.get("detail", "") or last_detail or "Prekey bundle not found")
-            continue
-        if not isinstance(payload.get("bundle"), dict):
-            last_detail = "Prekey bundle not found"
-            continue
-        normalized = _normalize_remote_lookup_bundle(payload)
-        if normalized.get("ok"):
-            return normalized
-        last_detail = str(normalized.get("detail", "") or last_detail)
+        if hinted.get("ok"):
+            return hinted
+        if isinstance(hinted, dict):
+            last_detail = str(hinted.get("detail", "") or last_detail)
+    remaining_peers = [peer for peer in peers if peer not in set(preferred)]
+    if not remaining_peers:
+        return {"ok": False, "detail": last_detail or "Prekey bundle not found"}
+    if hinted_only:
+        return {"ok": False, "detail": last_detail or "Prekey bundle not found"}
+    deadline = time.time() + _INVITE_LOOKUP_MAX_ELAPSED_S
+    workers = min(_INVITE_LOOKUP_PARALLEL_WORKERS, max(1, len(remaining_peers)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(_try_public_prekey_lookup_peer, peer_url, encoded): peer_url
+            for peer_url in remaining_peers
+        }
+        while futures and time.time() < deadline:
+            done, _ = wait(
+                futures,
+                timeout=max(0.1, deadline - time.time()),
+                return_when=FIRST_COMPLETED,
+            )
+            if not done:
+                break
+            for future in done:
+                futures.pop(future, None)
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    last_detail = str(exc) or type(exc).__name__
+                    continue
+                if isinstance(result, dict) and result.get("ok"):
+                    for pending in futures:
+                        pending.cancel()
+                    return result
+                if isinstance(result, dict):
+                    last_detail = str(result.get("detail", "") or last_detail)
+        for pending in futures:
+            pending.cancel()
     return {"ok": False, "detail": last_detail or "Prekey bundle not found"}
 
 
@@ -1019,6 +1241,7 @@ def fetch_dm_prekey_bundle(
     lookup_token: str = "",
     *,
     allow_peer_lookup: bool = True,
+    lookup_peer_urls: list[str] | None = None,
 ) -> dict[str, Any]:
     from services.mesh.mesh_dm_relay import dm_relay
 
@@ -1043,12 +1266,18 @@ def fetch_dm_prekey_bundle(
             resolved_id = found_id
             lookup_mode = "invite_lookup_handle"
         elif allow_peer_lookup:
-            peer_found = _fetch_dm_prekey_bundle_from_peer_lookup(resolved_lookup)
-            if peer_found.get("ok"):
-                return peer_found
-            public_found = _fetch_dm_prekey_bundle_from_public_lookup(resolved_lookup)
+            preferred_peer_urls = list(lookup_peer_urls or [])
+            public_found = _fetch_dm_prekey_bundle_from_public_lookup(
+                resolved_lookup,
+                extra_preferred_peer_urls=preferred_peer_urls,
+            )
             if public_found.get("ok"):
                 return public_found
+            peer_found: dict[str, Any] = {"ok": False, "detail": ""}
+            if not preferred_peer_urls:
+                peer_found = _fetch_dm_prekey_bundle_from_peer_lookup(resolved_lookup)
+                if peer_found.get("ok"):
+                    return peer_found
             if str(public_found.get("detail", "") or "").strip():
                 return {"ok": False, "detail": str(public_found.get("detail", "") or "Prekey bundle not found")}
             return {"ok": False, "detail": str(peer_found.get("detail", "") or "Prekey bundle not found")}
@@ -1134,12 +1363,24 @@ def _classify_root_attestation_failure(peer_id: str) -> tuple[str, bool]:
     return "", False
 
 
-def bootstrap_encrypt_for_peer(peer_id: str, plaintext: str) -> dict[str, Any]:
-    fetched_bundle = fetch_dm_prekey_bundle(str(peer_id or "").strip())
+def bootstrap_encrypt_for_peer(
+    peer_id: str,
+    plaintext: str,
+    *,
+    lookup_token: str = "",
+    fetched_bundle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    token = str(lookup_token or "").strip()
+    peer = str(peer_id or "").strip()
+    if fetched_bundle is None:
+        fetched_bundle = fetch_dm_prekey_bundle(
+            agent_id=peer if not token else "",
+            lookup_token=token,
+        )
     if not fetched_bundle.get("ok"):
         detail = str(fetched_bundle.get("detail", "") or "")
         if "root attestation" in detail.lower():
-            trust_level, trust_changed = _classify_root_attestation_failure(str(peer_id or "").strip())
+            trust_level, trust_changed = _classify_root_attestation_failure(peer or token)
             if trust_level:
                 return {
                     "ok": False,
@@ -1152,32 +1393,68 @@ def bootstrap_encrypt_for_peer(peer_id: str, plaintext: str) -> dict[str, Any]:
 
     from services.mesh.mesh_dm_relay import dm_relay
 
-    resolved_peer_id = str(fetched_bundle.get("agent_id", peer_id) or peer_id).strip()
+    resolved_peer_id = str(fetched_bundle.get("agent_id", peer) or peer).strip()
     stored = dm_relay.get_prekey_bundle(resolved_peer_id)
     if not stored:
-        return {"ok": False, "detail": "Peer prekey bundle not found"}
+        remote_bundle = dict(fetched_bundle.get("bundle") or {})
+        if not remote_bundle and fetched_bundle.get("identity_dh_pub_key"):
+            remote_bundle = fetched_bundle
+        if remote_bundle:
+            stored = {
+                "bundle": remote_bundle,
+                "signature": str(fetched_bundle.get("signature", "") or ""),
+                "public_key": str(fetched_bundle.get("public_key", "") or ""),
+                "public_key_algo": str(fetched_bundle.get("public_key_algo", "") or ""),
+                "sequence": _safe_int(fetched_bundle.get("sequence", 0) or 0),
+            }
+        else:
+            return {"ok": False, "detail": "Peer prekey bundle not found"}
     validated_record = {**dict(stored), "agent_id": resolved_peer_id}
     ok, reason = _validate_bundle_record(validated_record)
     if not ok:
         return {"ok": False, "detail": reason}
     trust_state = observe_remote_prekey_bundle(resolved_peer_id, validated_record)
     trust_level = str(trust_state.get("trust_level", "") or "")
-    from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
+    consent_handshake = False
+    try:
+        from services.mesh.mesh_wormhole_dead_drop import parse_contact_consent
 
-    verified_first_contact = verified_first_contact_requirement(
-        resolved_peer_id,
-        trust_level=trust_level,
-    )
-    if not verified_first_contact.get("ok"):
-        return {
-            "ok": False,
-            "peer_id": resolved_peer_id,
-            "detail": str(verified_first_contact.get("detail", "") or "verified first contact required"),
-            "trust_changed": trust_level in ("mismatch", "continuity_broken"),
-            "trust_level": str(verified_first_contact.get("trust_level", "") or trust_level or "unpinned"),
+        consent = parse_contact_consent(str(plaintext or "")) or {}
+        consent_handshake = str(consent.get("kind", "") or "") in {
+            "contact_offer",
+            "contact_accept",
+            "contact_deny",
         }
+    except Exception:
+        consent_handshake = False
+    if not consent_handshake:
+        from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
+
+        verified_first_contact = verified_first_contact_requirement(
+            resolved_peer_id,
+            trust_level=trust_level,
+        )
+        if not verified_first_contact.get("ok"):
+            return {
+                "ok": False,
+                "peer_id": resolved_peer_id,
+                "detail": str(
+                    verified_first_contact.get("detail", "") or "verified first contact required"
+                ),
+                "trust_changed": trust_level in ("mismatch", "continuity_broken"),
+                "trust_level": str(
+                    verified_first_contact.get("trust_level", "") or trust_level or "unpinned"
+                ),
+            }
     peer_bundle_stored = dm_relay.consume_one_time_prekey(resolved_peer_id)
     if not peer_bundle_stored:
+        remote_bundle = dict(stored.get("bundle") or {})
+        otks = list(remote_bundle.get("one_time_prekeys") or [])
+        peer_bundle_stored = {
+            "bundle": remote_bundle,
+            "claimed_one_time_prekey": dict(otks[0] or {}) if otks else {},
+        }
+    if not peer_bundle_stored.get("bundle"):
         return {"ok": False, "detail": "Peer prekey bundle not found"}
     peer_bundle = dict(peer_bundle_stored.get("bundle") or {})
     peer_static = str(peer_bundle.get("identity_dh_pub_key", "") or "")

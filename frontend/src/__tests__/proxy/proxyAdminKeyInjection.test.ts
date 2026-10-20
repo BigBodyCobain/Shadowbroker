@@ -7,7 +7,7 @@
  *   - /api/tools/*     (Sprint 1C addition)
  *   - /api/wormhole/*  (pre-existing, regression)
  *   - /api/settings/*  (pre-existing, regression)
- *   - /api/layers, /api/ais/feed, /api/ai/agent-actions
+ *   - /api/layers, /api/ais/feed, /api/ai/*, /api/sar/mode-b/*
  *
  * Also verifies that:
  *   - non-sensitive mesh paths (e.g. mesh/events) do NOT receive injected key
@@ -338,6 +338,99 @@ describe('proxy admin-key injection coverage', () => {
     });
     const res = await proxyGet(req, {
       params: Promise.resolve({ path: ['ai', 'agent-actions'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+  });
+
+  it('GET /api/ai/pins with valid session injects X-Admin-Key', async () => {
+    const cookie = await mintSession(ADMIN_KEY);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, pins: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost/api/ai/pins?limit=500', {
+      method: 'GET',
+      headers: { cookie },
+    });
+    const res = await proxyGet(req, {
+      params: Promise.resolve({ path: ['ai', 'pins'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+  });
+
+  it('GET /api/ai/layers with valid session injects X-Admin-Key', async () => {
+    const cookie = await mintSession(ADMIN_KEY);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, layers: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost/api/ai/layers', {
+      method: 'GET',
+      headers: { cookie },
+    });
+    const res = await proxyGet(req, {
+      params: Promise.resolve({ path: ['ai', 'layers'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+  });
+
+  it('GET /api/ai/timemachine/config with valid session injects X-Admin-Key', async () => {
+    const cookie = await mintSession(ADMIN_KEY);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, config: {} }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost/api/ai/timemachine/config', {
+      method: 'GET',
+      headers: { cookie },
+    });
+    const res = await proxyGet(req, {
+      params: Promise.resolve({ path: ['ai', 'timemachine', 'config'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+  });
+
+  it('POST /api/sar/mode-b/enable with valid session injects X-Admin-Key', async () => {
+    const cookie = await mintSession(ADMIN_KEY);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost/api/sar/mode-b/enable', {
+      method: 'POST',
+      body: JSON.stringify({ earthdata_user: 'operator', earthdata_token: 'token' }),
+      headers: { cookie, 'Content-Type': 'application/json' },
+    });
+    const res = await proxyPost(req, {
+      params: Promise.resolve({ path: ['sar', 'mode-b', 'enable'] }),
     });
 
     expect(res.status).toBe(200);

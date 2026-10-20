@@ -6,26 +6,26 @@
  *    inline fallback required by the Next.js production runtime
  * 2. Dev CSP retains 'unsafe-inline' and 'unsafe-eval'
  * 3. Unchanged directives (style-src, font-src, worker-src, etc.) intact
- * 4. API/static route exclusions remain intact
+ * 4. API security-boundary matching and static route exclusions remain intact
  * 5. isDev is evaluated per-request (not cached at module load)
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-import { middleware, config as middlewareConfig } from '@/middleware';
+import { proxy, config as proxyConfig } from '@/proxy';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function callMiddleware(path = '/') {
+function callProxy(path = '/') {
   const req = new NextRequest(`http://localhost${path}`, { method: 'GET' });
-  return middleware(req);
+  return proxy(req);
 }
 
 function getCsp(path = '/'): string {
-  return callMiddleware(path).headers.get('Content-Security-Policy') ?? '';
+  return callProxy(path).headers.get('Content-Security-Policy') ?? '';
 }
 
 /** Extract a single CSP directive by name. */
@@ -36,7 +36,7 @@ function getDirective(name: string, csp?: string): string {
 }
 
 function matcherExcludes(path: string): boolean {
-  const pattern = middlewareConfig.matcher[0];
+  const pattern = proxyConfig.matcher[0];
   const re = new RegExp(`^${pattern}$`);
   return !re.test(path);
 }
@@ -130,16 +130,17 @@ describe('unchanged directives in production', () => {
     vi.unstubAllEnvs();
   });
 
-  it('style-src preserves unsafe-inline and Google Fonts', () => {
+  it('style-src preserves unsafe-inline without runtime Google Fonts', () => {
     const styleSrc = getDirective('style-src');
     expect(styleSrc).toContain("'unsafe-inline'");
-    expect(styleSrc).toContain('https://fonts.googleapis.com');
+    expect(styleSrc).not.toContain('https://fonts.googleapis.com');
   });
 
-  it('font-src preserves data: and fonts.gstatic.com', () => {
+  it('font-src preserves self and data without runtime Google Fonts', () => {
     const fontSrc = getDirective('font-src');
+    expect(fontSrc).toContain("'self'");
     expect(fontSrc).toContain('data:');
-    expect(fontSrc).toContain('https://fonts.gstatic.com');
+    expect(fontSrc).not.toContain('https://fonts.gstatic.com');
   });
 
   it('worker-src self blob:', () => {
@@ -176,12 +177,12 @@ describe('unchanged directives in production', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. API/static route exclusions remain intact
+// 4. API security boundary / static route exclusions remain intact
 // ---------------------------------------------------------------------------
 
-describe('matcher exclusions unchanged', () => {
-  it('excludes /api paths', () => {
-    expect(matcherExcludes('/api/mesh/events')).toBe(true);
+describe('matcher security boundary and exclusions', () => {
+  it('includes /api paths so privileged requests can be screened', () => {
+    expect(matcherExcludes('/api/mesh/events')).toBe(false);
   });
 
   it('excludes /_next/static paths', () => {

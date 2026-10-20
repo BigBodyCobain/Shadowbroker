@@ -59,7 +59,7 @@ import {
   type CompanionStatus,
 } from '@/lib/desktopCompanion';
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Settings,
   ExternalLink,
@@ -170,6 +170,40 @@ function migratePrivacySensitiveBrowserState(): void {
 }
 
 const MAX_FEEDS = 50;
+
+function formatFeedSettingsError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : String(error || '');
+  if (!message) return fallback;
+  if (message === 'admin_session_required') {
+    return 'Admin key required — paste ADMIN_KEY in Settings and unlock operator tools.';
+  }
+  if (message === 'backend_unavailable' || message === 'local_control_plane_unavailable') {
+    return 'Backend unavailable — check that the backend container is running.';
+  }
+  if (message === 'control_plane_rate_limited') {
+    return 'Too many requests — wait a moment and try again.';
+  }
+  return message;
+}
+
+function validateFeedEntries(feeds: FeedEntry[]): string | null {
+  for (const [idx, feed] of feeds.entries()) {
+    const name = feed.name.trim();
+    const url = feed.url.trim();
+    if (!name || !url) {
+      return `Feed ${idx + 1} needs both a name and URL before saving.`;
+    }
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return `Feed ${idx + 1} must use an http:// or https:// URL.`;
+      }
+    } catch {
+      return `Feed ${idx + 1} has an invalid URL.`;
+    }
+  }
+  return null;
+}
 
 // Category colors for the tactical UI
 const CATEGORY_COLORS: Record<string, string> = {
@@ -606,7 +640,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
 
   const fetchFeeds = useCallback(async () => {
     try {
-      setFeeds(await controlPlaneJson<FeedEntry[]>('/api/settings/news-feeds'));
+      setFeeds(
+        await controlPlaneJson<FeedEntry[]>('/api/settings/news-feeds', {
+          requireAdminSession: false,
+        }),
+      );
       setFeedsDirty(false);
       return true;
     } catch (e) {
@@ -769,11 +807,10 @@ const SettingsPanel = React.memo(function SettingsPanel({
       void fetchEnvMeta();
       return;
     }
-    if (!adminSessionReady) return;
     if (activeTab === 'news-feeds') {
       void fetchFeeds();
     }
-  }, [isOpen, adminSessionReady, activeTab, fetchKeys, fetchEnvMeta, fetchFeeds]);
+  }, [isOpen, activeTab, fetchKeys, fetchEnvMeta, fetchFeeds]);
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'protocol' || !showOperatorTools) return;
@@ -828,6 +865,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
   };
 
   const saveFeeds = async () => {
+    const validationError = validateFeedEntries(feeds);
+    if (validationError) {
+      setFeedMsg({ type: 'err', text: validationError });
+      return;
+    }
     setFeedSaving(true);
     setFeedMsg(null);
     try {
@@ -835,6 +877,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(feeds),
+        requireAdminSession: false,
       });
       if (res.ok) {
         setFeedsDirty(false);
@@ -844,28 +887,45 @@ const SettingsPanel = React.memo(function SettingsPanel({
         });
       } else {
         const d = await res.json().catch(() => ({}));
-        setFeedMsg({ type: 'err', text: d.message || 'Save failed' });
+        setFeedMsg({
+          type: 'err',
+          text: String(d.message || d.detail || 'Save failed'),
+        });
       }
-    } catch {
-      setFeedMsg({ type: 'err', text: 'Network error' });
+    } catch (error) {
+      setFeedMsg({
+        type: 'err',
+        text: formatFeedSettingsError(error, 'Could not reach the settings API'),
+      });
     } finally {
       setFeedSaving(false);
     }
   };
 
   const resetFeeds = async () => {
+    setFeedMsg(null);
     try {
       const res = await controlPlaneFetch('/api/settings/news-feeds/reset', {
         method: 'POST',
+        requireAdminSession: false,
       });
       if (res.ok) {
         const d = await res.json();
         setFeeds(d.feeds || []);
         setFeedsDirty(false);
         setFeedMsg({ type: 'ok', text: 'Reset to defaults' });
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setFeedMsg({
+          type: 'err',
+          text: String(d.message || d.detail || 'Reset failed'),
+        });
       }
-    } catch {
-      setFeedMsg({ type: 'err', text: 'Reset failed' });
+    } catch (error) {
+      setFeedMsg({
+        type: 'err',
+        text: formatFeedSettingsError(error, 'Could not reach the settings API'),
+      });
     }
   };
 
@@ -1124,7 +1184,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -300 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 w-[480px] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border-r border-cyan-900/50 z-[9999] flex flex-col shadow-[4px_0_40px_rgba(0,0,0,0.3)]"
+            className="fixed left-0 top-0 bottom-0 w-[480px] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border-r border-cyan-900/50 z-[9999] flex flex-col overflow-hidden shadow-[4px_0_40px_rgba(0,0,0,0.3)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-primary)]/80">
@@ -1302,51 +1362,51 @@ const SettingsPanel = React.memo(function SettingsPanel({
               </div>
             )}
 
-            <div className="flex border-b border-[var(--border-primary)]/60">
+            <div className="grid grid-cols-5 min-w-0 shrink-0 border-b border-[var(--border-primary)]/60">
               <button
                 onClick={() => setActiveTab('api-keys')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Key size={10} />
-                {t('settings.general').toUpperCase()}
+                <Key size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.general').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('news-feeds')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Rss size={10} />
-                {t('settings.feeds').toUpperCase()}
+                <Rss size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.feeds').toUpperCase()}</span>
                 {feedsDirty && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                  <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-orange-400 animate-pulse" />
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('sentinel')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Satellite size={10} />
-                SENTINEL
+                <Satellite size={10} className="shrink-0" />
+                <span className="truncate">SENTINEL</span>
               </button>
               <button
                 onClick={() => setActiveTab('sar')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Radar size={10} />
-                {t('settings.sar').toUpperCase()}
+                <Radar size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.sar').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('protocol')}
-                className={`flex-1 px-4 py-2.5 text-sm font-mono tracking-widest font-bold transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Shield size={10} />
-                {t('settings.infonet').toUpperCase()}
+                <Shield size={10} className="shrink-0" />
+                <span className="truncate">{t('settings.infonet').toUpperCase()}</span>
               </button>
             </div>
 
             {/* ==================== API KEYS TAB ==================== */}
             {/* ==================== MESH PROTOCOL TAB ==================== */}
             {activeTab === 'protocol' && (
-              <div className="flex-1 flex flex-col overflow-y-auto styled-scrollbar">
+              <div className="flex-1 min-h-0 flex flex-col overflow-y-auto styled-scrollbar">
                 <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/12">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -1905,7 +1965,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
                         </div>
                         <div className="text-[var(--text-muted)] leading-relaxed">
                           Mesh Terminal stays read-only for sensitive posting and DM actions while
-                          the hidden transport policy is active. Use MeshChat for the hardened path.
+                          the hidden transport policy is active. Use Meshtastic Chat for the hardened path.
                         </div>
                         <div className="text-[var(--text-muted)] leading-relaxed">
                           Relay fallback reduces metadata protection compared with direct obfuscated
@@ -2885,6 +2945,9 @@ function SarSettingsTab() {
   const [loading, setLoading] = useState(true);
   const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [disabling, setDisabling] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [earthdataUser, setEarthdataUser] = useState('');
+  const [earthdataToken, setEarthdataToken] = useState('');
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -2900,9 +2963,62 @@ function SarSettingsTab() {
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   const products = (status?.products ?? {}) as Record<string, unknown>;
-  const modeBEnabled = !!products.enabled;
+  const tokenSet = Boolean(products.earthdata_token_set);
+  const fullyConfigured = Boolean(products.fully_configured);
+  const optInEnabled = Boolean(products.enabled);
+  const runtimeStoreExists = Boolean(products.runtime_store_exists);
   const catalogEnabled = !!(status?.catalog as Record<string, unknown>)?.enabled;
   const openclawEnabled = !!status?.openclaw_enabled;
+  const missing = Array.isArray(products.missing)
+    ? (products.missing as string[])
+    : [];
+
+  const modeBStatusLabel = (() => {
+    if (fullyConfigured) return 'Active — credentials configured';
+    if (optInEnabled && !tokenSet) return 'Opt-in on — Earthdata token missing';
+    if (tokenSet && !optInEnabled) return 'Token present — enable Mode B below';
+    return 'Not configured';
+  })();
+
+  const handleEnable = async () => {
+    if (earthdataToken.trim().length < 8) {
+      setActionMsg({ type: 'err', text: 'Earthdata token looks too short. Paste the full token string.' });
+      return;
+    }
+    setSubmitting(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/sar/mode-b/enable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          earthdata_user: earthdataUser.trim(),
+          earthdata_token: earthdataToken.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        let msg = `HTTP ${res.status}`;
+        const d = body?.detail;
+        if (typeof d === 'string') msg = d;
+        else if (Array.isArray(d) && d.length > 0) {
+          msg = d.map((item: { msg?: string; loc?: string[] }) => item?.msg || 'invalid').join('; ');
+        }
+        throw new Error(msg);
+      }
+      setEarthdataToken('');
+      setActionMsg({ type: 'ok', text: 'Mode B enabled. Credentials saved on this node.' });
+      await fetchStatus();
+    } catch (e) {
+      setActionMsg({
+        type: 'err',
+        text: e instanceof Error ? e.message : 'Failed to save SAR credentials',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleDisable = async () => {
     setDisabling(true);
@@ -2916,6 +3032,8 @@ function SarSettingsTab() {
         const body = await res.json().catch(() => ({}));
         throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`);
       }
+      setEarthdataUser('');
+      setEarthdataToken('');
       setActionMsg({ type: 'ok', text: 'Mode B disabled. Credentials wiped.' });
       await fetchStatus();
     } catch (e) {
@@ -2955,77 +3073,118 @@ function SarSettingsTab() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${modeBEnabled ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    fullyConfigured ? 'bg-green-400' : optInEnabled || tokenSet ? 'bg-yellow-400' : 'bg-gray-500'
+                  }`}
+                />
                 <span className="text-[11px]">
                   <span className="text-amber-300 font-bold">Mode B</span> (Anomalies):{' '}
-                  {modeBEnabled ? 'Active — credentials stored' : 'Not configured'}
+                  {modeBStatusLabel}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${openclawEnabled ? 'bg-green-400' : 'bg-gray-500'}`} />
                 <span className="text-[11px]">
-                  OpenClaw SAR integration:{' '}
+                  AI agent SAR integration:{' '}
                   {openclawEnabled ? 'Enabled' : 'Disabled'}
                 </span>
               </div>
             </div>
+            {missing.length > 0 && !fullyConfigured && (
+              <p className="text-[10px] text-amber-200/60 pt-1">
+                Still needed: {missing.join(' · ')}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Mode B Controls */}
-      {modeBEnabled && (
-        <div className="mx-4 mt-3 p-3 border border-amber-900/20 bg-amber-950/5 space-y-3">
-          <p className="text-[11px] font-mono text-amber-300 font-bold tracking-wide">
-            MODE B CREDENTIALS
-          </p>
-          <p className="text-[11px] font-mono text-[var(--text-muted)]">
-            Earthdata credentials are stored server-side in{' '}
-            <span className="text-amber-400/80">backend/data/sar_runtime.json</span>.
-            Disabling Mode B wipes them from disk.
-          </p>
-          <div className="flex gap-2">
+      {/* Mode B credential entry — always visible */}
+      <div className="mx-4 mt-3 p-3 border border-amber-900/20 bg-amber-950/5 space-y-3">
+        <p className="text-[11px] font-mono text-amber-300 font-bold tracking-wide">
+          MODE B — EARTHDATA CREDENTIALS
+        </p>
+        <p className="text-[11px] font-mono text-[var(--text-muted)] leading-relaxed">
+          Free NASA Earthdata Login required for OPERA ground-change products. Paste your user
+          token below — stored only on this node
+          {runtimeStoreExists ? ' in the runtime credentials file' : ' (created on first save)'}.
+        </p>
+
+        <ol className="list-decimal list-inside space-y-1 text-[11px] font-mono text-[var(--text-secondary)]">
+          <li>
+            Register at{' '}
+            <a
+              href="https://urs.earthdata.nasa.gov/users/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 underline hover:text-amber-300"
+            >
+              urs.earthdata.nasa.gov
+            </a>
+          </li>
+          <li>
+            Generate a user token from your{' '}
+            <a
+              href="https://urs.earthdata.nasa.gov/profile"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 underline hover:text-amber-300"
+            >
+              Earthdata profile
+            </a>
+          </li>
+        </ol>
+
+        <div className="space-y-2">
+          <label htmlFor="sar-settings-earthdata-user" className="block text-[11px] text-amber-200/80">
+            Earthdata username (optional)
+          </label>
+          <input
+            id="sar-settings-earthdata-user"
+            type="text"
+            value={earthdataUser}
+            onChange={(e) => setEarthdataUser(e.target.value)}
+            placeholder="yourname"
+            autoComplete="off"
+            className="w-full rounded border border-amber-400/30 bg-zinc-900 px-3 py-2 text-xs text-amber-100 placeholder:text-amber-100/30 focus:border-amber-400/70 focus:outline-none cursor-text"
+          />
+
+          <label htmlFor="sar-settings-earthdata-token" className="block text-[11px] text-amber-200/80 mt-2">
+            Earthdata user token (required)
+          </label>
+          <input
+            id="sar-settings-earthdata-token"
+            type="password"
+            value={earthdataToken}
+            onChange={(e) => setEarthdataToken(e.target.value)}
+            placeholder={tokenSet ? '••••••••  (enter new token to rotate)' : 'eyJ0eXAiOiJKV1QiLCJhbGciOi...'}
+            autoComplete="off"
+            className="w-full rounded border border-amber-400/30 bg-zinc-900 px-3 py-2 text-xs text-amber-100 placeholder:text-amber-100/30 focus:border-amber-400/70 focus:outline-none font-mono cursor-text"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleEnable()}
+            disabled={submitting || earthdataToken.trim().length < 8}
+            className="px-3 py-1.5 text-[10px] font-mono font-bold tracking-wide border border-amber-400/50 text-amber-200 hover:bg-amber-500/10 transition disabled:opacity-50"
+          >
+            {submitting ? 'SAVING...' : fullyConfigured ? 'UPDATE CREDENTIALS' : 'ENABLE MODE B'}
+          </button>
+          {(fullyConfigured || optInEnabled || tokenSet) && (
             <button
               type="button"
-              onClick={handleDisable}
+              onClick={() => void handleDisable()}
               disabled={disabling}
               className="px-3 py-1.5 text-[10px] font-mono font-bold tracking-wide border border-red-500/40 text-red-400 hover:bg-red-500/10 transition disabled:opacity-50"
             >
               {disabling ? 'DISABLING...' : 'REVOKE & DISABLE MODE B'}
             </button>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Setup Guide (when Mode B not active) */}
-      {!modeBEnabled && (
-        <div className="mx-4 mt-3 p-3 border border-amber-900/20 bg-amber-950/5 space-y-3">
-          <p className="text-[11px] font-mono text-amber-300 font-bold tracking-wide">
-            ENABLE MODE B
-          </p>
-          <p className="text-[11px] font-mono text-[var(--text-muted)]">
-            Mode B requires a free NASA Earthdata account. To set up:
-          </p>
-          <ol className="list-decimal list-inside space-y-1 text-[11px] font-mono text-[var(--text-secondary)]">
-            <li>
-              Register at{' '}
-              <a
-                href="https://urs.earthdata.nasa.gov/users/new"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-amber-400 underline hover:text-amber-300"
-              >
-                urs.earthdata.nasa.gov
-              </a>
-            </li>
-            <li>Generate a user token from your Earthdata profile page</li>
-            <li>
-              Toggle the <span className="text-white">SAR Ground-Change</span> layer ON
-              in the left panel — the first-run wizard will prompt for your token
-            </li>
-          </ol>
-        </div>
-      )}
+      </div>
 
       {/* Action feedback */}
       {actionMsg && (

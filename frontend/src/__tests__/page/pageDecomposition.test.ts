@@ -2,7 +2,7 @@
  * Sprint 4B regression tests — page.tsx decomposition boundary checks.
  *
  * These tests validate the frozen contract for page.tsx decomposition:
- *  1. InfonetTerminal onClose still calls leaveWormhole when wormhole is ready/running
+ *  1. InfonetTerminal onClose ends the terminal session (wormhole + node + tor)
  *  2. Initial /api/layers sync does NOT dispatch LAYER_TOGGLE_EVENT on first mount
  *  3. launchMeshChatTab preserves atomic leftOpen + leftMeshExpanded + meshChatLaunchRequest
  *  4. LocateBar extracted to page-local module
@@ -60,30 +60,19 @@ describe('page.tsx decomposition — extraction targets', () => {
 describe('page.tsx decomposition — InfonetTerminal onClose wormhole teardown', () => {
   const page = readAppFile('page.tsx');
 
-  it('InfonetTerminal onClose delegates to teardownWormholeOnClose', () => {
+  it('InfonetTerminal onClose ends the terminal session', () => {
     const infonetSection = page.slice(
       page.indexOf('<InfonetTerminal'),
       page.indexOf('</InfonetTerminal>') !== -1
         ? page.indexOf('</InfonetTerminal>')
         : page.indexOf('/>', page.indexOf('<InfonetTerminal')) + 2,
     );
-    expect(infonetSection).toContain('teardownWormholeOnClose');
-    expect(infonetSection).toContain('fetchWormholeState');
-    expect(infonetSection).toContain('leaveWormhole');
+    expect(infonetSection).toContain('endInfonetTerminalSession');
   });
 
-  it('page.tsx imports teardownWormholeOnClose from wormholeTeardown', () => {
+  it('page.tsx imports endInfonetTerminalSession from infonetTerminalSession', () => {
     expect(page).toMatch(
-      /import\s*\{[^}]*teardownWormholeOnClose[^}]*\}\s*from\s+['"]@\/lib\/wormholeTeardown['"]/,
-    );
-  });
-
-  it('page.tsx imports leaveWormhole and fetchWormholeState from wormholeClient', () => {
-    expect(page).toMatch(
-      /import\s*\{[^}]*leaveWormhole[^}]*\}\s*from\s+['"]@\/mesh\/wormholeClient['"]/,
-    );
-    expect(page).toMatch(
-      /import\s*\{[^}]*fetchWormholeState[^}]*\}\s*from\s+['"]@\/mesh\/wormholeClient['"]/,
+      /import\s*\{[^}]*endInfonetTerminalSession[^}]*\}\s*from\s+['"]@\/lib\/infonetTerminalSession['"]/,
     );
   });
 });
@@ -203,6 +192,34 @@ describe('page.tsx decomposition — no admin-session/proxy regression', () => {
     const locateBar = readAppFile('LocateBar.tsx');
     expect(locateBar).toContain('API_BASE');
     expect(locateBar).toContain('/api/geocode/search');
+    expect(locateBar).not.toContain('nominatim.openstreetmap.org');
+  });
+
+  it('LocateBar sizes the camera from typed precision and place extent', () => {
+    const locateBar = readAppFile('LocateBar.tsx');
+    expect(locateBar).toContain('parseCoordinateInput');
+    expect(locateBar).toContain('boundsForCoordinate');
+    expect(locateBar).toContain('sanitizeGeocodeBbox');
+    expect(locateBar).toContain('boundsForPlaceRank');
+    // The extent fields must survive the fetch mapping.
+    expect(locateBar).toContain('place_rank');
+  });
+
+  it('page.tsx forwards LocateBar bounds to the map', () => {
+    const page = readAppFile('page.tsx');
+    expect(page).toMatch(/onLocate=\{\(lat, lng, bounds\)/);
+  });
+
+  it('useRegionDossier uses backend dossier APIs (no browser-direct enrichment)', () => {
+    const hook = fs.readFileSync(
+      path.resolve(__dirname, '../../hooks/useRegionDossier.ts'),
+      'utf-8',
+    );
+    expect(hook).toContain('/api/region-dossier');
+    expect(hook).toContain('/api/sentinel2/search');
+    expect(hook).not.toContain('nominatim.openstreetmap.org');
+    expect(hook).not.toContain('planetarycomputer.microsoft.com');
+    expect(hook).not.toContain('restcountries.com');
   });
 });
 

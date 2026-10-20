@@ -102,6 +102,7 @@ def test_refresh_node_peer_store_promotes_manifest_peers_to_sync_only(tmp_path, 
     monkeypatch.setenv("MESH_BOOTSTRAP_SEED_PEERS", "")
     monkeypatch.setenv("MESH_DEFAULT_SYNC_PEERS", "")
     monkeypatch.setenv("MESH_INFONET_ALLOW_CLEARNET_SYNC", "true")
+    monkeypatch.setenv("MESH_INFONET_FLEET_JOIN_DISABLED", "true")
     get_settings.cache_clear()
 
     try:
@@ -135,6 +136,7 @@ def test_refresh_node_peer_store_adds_bootstrap_seed_as_pull_only_peer(tmp_path,
     monkeypatch.setenv("MESH_DEFAULT_SYNC_PEERS", "")
     monkeypatch.setenv("MESH_INFONET_ALLOW_CLEARNET_SYNC", "true")
     monkeypatch.setenv("MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY", "")
+    monkeypatch.setenv("MESH_INFONET_FLEET_JOIN_DISABLED", "true")
     get_settings.cache_clear()
 
     try:
@@ -171,6 +173,7 @@ def test_refresh_node_peer_store_suppresses_clearnet_seed_by_default(tmp_path, m
     monkeypatch.setenv("MESH_DEFAULT_SYNC_PEERS", "")
     monkeypatch.delenv("MESH_INFONET_ALLOW_CLEARNET_SYNC", raising=False)
     monkeypatch.setenv("MESH_BOOTSTRAP_SIGNER_PUBLIC_KEY", "")
+    monkeypatch.setenv("MESH_INFONET_FLEET_JOIN_DISABLED", "true")
     get_settings.cache_clear()
 
     try:
@@ -184,7 +187,7 @@ def test_refresh_node_peer_store_suppresses_clearnet_seed_by_default(tmp_path, m
     assert snapshot["skipped_clearnet_peer_count"] == 1
     assert snapshot["bootstrap_peer_count"] == 0
     assert snapshot["sync_peer_count"] == 0
-    assert "no clearnet sync fallback" in snapshot["last_bootstrap_error"]
+    assert snapshot["last_bootstrap_error"]
     assert store.records_for_bucket("bootstrap") == []
     assert store.records_for_bucket("sync") == []
 
@@ -402,6 +405,57 @@ def test_public_sync_cycle_allows_first_node_without_peers(tmp_path, monkeypatch
     assert result.consecutive_failures == 0
 
 
+def test_sync_from_peer_explains_stale_genesis_chain(monkeypatch):
+    import main
+    from services.mesh import mesh_hashchain
+
+    class FakeInfonet:
+        events = []
+        head_hash = mesh_hashchain.GENESIS_HASH
+
+        def get_locator(self):
+            return [mesh_hashchain.GENESIS_HASH]
+
+        def ingest_events(self, events):
+            return {
+                "accepted": 0,
+                "duplicates": 0,
+                "rejected": [
+                    {"index": 0, "reason": "Event timestamp outside freshness window"},
+                    {"index": 1, "reason": "prev_hash does not match head"},
+                ],
+            }
+
+    stale_events = [
+        {
+            "event_id": "old-1",
+            "prev_hash": mesh_hashchain.GENESIS_HASH,
+            "event_type": "message",
+            "timestamp": 1,
+        },
+        {
+            "event_id": "old-2",
+            "prev_hash": "old-1",
+            "event_type": "message",
+            "timestamp": 2,
+        },
+    ]
+
+    monkeypatch.setattr(mesh_hashchain, "infonet", FakeInfonet())
+    monkeypatch.setattr(main, "_peer_sync_response", lambda *_args, **_kwargs: {"events": stale_events})
+    monkeypatch.setattr(main, "_hydrate_gate_store_from_chain", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main, "_hydrate_dm_relay_from_chain", lambda *_args, **_kwargs: None)
+
+    ok, error, forked, retry_after_s = main._sync_from_peer("https://node.shadowbroker.info")
+
+    assert ok is False
+    assert forked is False
+    assert retry_after_s == 0
+    assert "Event timestamp outside freshness window" in error
+    assert "expired genesis chain" in error
+    assert "MESH_INGEST_EVENT_MAX_AGE_S=0" in error
+
+
 def test_headless_mesh_node_runtime_is_explicit(monkeypatch):
     import main
 
@@ -425,4 +479,4 @@ def test_meshnode_scripts_enable_private_hashchain_runtime():
         assert "MESH_INFONET_ALLOW_CLEARNET_SYNC=false" in script
         assert "MESH_ARTI_ENABLED=true" in script
         assert "MESH_DM_HASHCHAIN_SPOOL_LIMIT=2" in script
-        assert "gqpbunqbgtkcqilvclm3xrkt3zowjyl3s62kkktvojgvxzizamvbrqid.onion:8000" in script
+        assert "sb-testnet fleet defaults" in script

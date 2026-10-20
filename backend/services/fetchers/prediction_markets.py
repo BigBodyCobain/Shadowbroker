@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+import random
 import threading
 import time
 from urllib.parse import urlencode
@@ -21,23 +22,34 @@ _prev_probabilities: dict[str, float] = {}
 _market_cache = TTLCache(maxsize=1, ttl=300)
 _POLYMARKET_PAGE_DELAY_S = float(os.environ.get("MESH_POLYMARKET_PAGE_DELAY_S", "0.02"))
 _KALSHI_PAGE_DELAY_S = float(os.environ.get("MESH_KALSHI_PAGE_DELAY_S", "0.08"))
+_POLYMARKET_PAGE_DELAY_JITTER_S = float(os.environ.get("MESH_POLYMARKET_PAGE_DELAY_JITTER_S", "0.08"))
+_KALSHI_PAGE_DELAY_JITTER_S = float(os.environ.get("MESH_KALSHI_PAGE_DELAY_JITTER_S", "0.2"))
+# Random delay before each full Polymarket+Kalshi cycle (decorrelates from other slow-tier jobs).
+_PRE_FETCH_JITTER_S = float(os.environ.get("PREDICTION_MARKETS_PRE_FETCH_JITTER_S", "90"))
+# Random pause between finishing Polymarket pagination and starting Kalshi.
+_PROVIDER_GAP_JITTER_S = float(os.environ.get("PREDICTION_MARKETS_PROVIDER_GAP_JITTER_S", "45"))
 _provider_pace_lock = threading.Lock()
 _provider_last_request_at: dict[str, float] = {}
 
 
 def prediction_markets_fetch_enabled() -> bool:
-    """Return True only when the operator explicitly opts into Polymarket/Kalshi pulls."""
-    return str(os.environ.get("PREDICTION_MARKETS_ENABLED", "")).strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    """Return True when UI opt-in or PREDICTION_MARKETS_ENABLED enables pulls."""
+    from services.prediction_markets_settings import prediction_markets_fetch_enabled as _enabled
+
+    return _enabled()
 
 
 def _pace_provider(provider: str, min_interval_s: float) -> None:
     if min_interval_s <= 0:
         return
+    jitter_s = (
+        _POLYMARKET_PAGE_DELAY_JITTER_S
+        if provider == "polymarket"
+        else _KALSHI_PAGE_DELAY_JITTER_S
+        if provider == "kalshi"
+        else 0.0
+    )
+    min_interval_s += random.uniform(0.0, jitter_s) if jitter_s > 0 else 0.0
     with _provider_pace_lock:
         now = time.monotonic()
         wait_s = min_interval_s - (now - _provider_last_request_at.get(provider, 0.0))
@@ -45,6 +57,24 @@ def _pace_provider(provider: str, min_interval_s: float) -> None:
             time.sleep(wait_s)
             now = time.monotonic()
         _provider_last_request_at[provider] = now
+
+
+def _apply_pre_fetch_jitter() -> None:
+    if _PRE_FETCH_JITTER_S <= 0:
+        return
+    delay = random.uniform(0.0, _PRE_FETCH_JITTER_S)
+    if delay >= 1.0:
+        logger.debug("Prediction markets: pre-fetch jitter %.1fs", delay)
+    time.sleep(delay)
+
+
+def _apply_provider_gap_jitter() -> None:
+    if _PROVIDER_GAP_JITTER_S <= 0:
+        return
+    delay = random.uniform(0.0, _PROVIDER_GAP_JITTER_S)
+    if delay >= 1.0:
+        logger.debug("Prediction markets: provider gap jitter %.1fs", delay)
+    time.sleep(delay)
 
 
 def _finite_or_none(value):
@@ -750,7 +780,9 @@ def _merge_markets(poly_events: list[dict], kalshi_events: list[dict]) -> list[d
 @cached(_market_cache)
 def fetch_prediction_markets_raw() -> list[dict]:
     """Fetch and merge prediction markets from both sources. Cached 5 min."""
+    _apply_pre_fetch_jitter()
     poly = _fetch_polymarket_events()
+    _apply_provider_gap_jitter()
     kalshi = _fetch_kalshi_events()
     merged = _merge_markets(poly, kalshi)
     logger.info(

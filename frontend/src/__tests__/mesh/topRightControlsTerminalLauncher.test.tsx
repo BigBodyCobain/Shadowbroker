@@ -51,6 +51,8 @@ const controlPlaneFetch = vi.fn();
 vi.mock('@/mesh/wormholeIdentityClient', () => ({
   fetchWormholeStatus,
   prepareWormholeInteractiveLane,
+  isWormholePrepAbortedError: (error: unknown) =>
+    error instanceof Error && error.message === 'wormhole_prep_aborted',
 }));
 
 vi.mock('@/mesh/wormholeClient', () => ({
@@ -76,6 +78,7 @@ vi.mock('@/mesh/controlPlaneStatusClient', () => ({
 vi.mock('@/lib/meshTerminalLauncher', () => ({
   requestMeshTerminalOpen,
   subscribeSecureMeshTerminalLauncherOpen,
+  subscribeInfonetSessionEnd: vi.fn(() => () => {}),
 }));
 
 vi.mock('@/lib/updateRuntime', () => ({

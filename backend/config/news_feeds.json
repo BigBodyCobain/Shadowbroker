@@ -7,7 +7,7 @@
     },
     {
       "name": "BBC",
-      "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
       "weight": 3
     },
     {
@@ -47,7 +47,7 @@
     },
     {
       "name": "Xinhua",
-      "url": "http://www.news.cn/english/rss/worldrss.xml",
+      "url": "https://www.news.cn/english/rss/worldrss.xml",
       "weight": 2
     },
     {

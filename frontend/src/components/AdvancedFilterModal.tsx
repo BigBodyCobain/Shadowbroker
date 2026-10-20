@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { motion } from '@/lib/motion';
 import { Search, X, Check, GripHorizontal } from 'lucide-react';
 
 interface FilterField {
@@ -11,6 +11,11 @@ interface FilterField {
   optionLabels?: Record<string, string>;
 }
 
+// Option lists come straight from live data (vessel names run to tens of
+// thousands); rendering every row as a button makes the dialog take seconds
+// to open, so only the head of the list is mounted until the search narrows it.
+export const MAX_RENDERED_OPTIONS = 300;
+
 interface AdvancedFilterModalProps {
   title: string;
   icon: React.ReactNode;
@@ -18,6 +23,9 @@ interface AdvancedFilterModalProps {
   accentColorName: string; // tailwind name e.g. 'cyan'
   fields: FilterField[];
   activeFilters: Record<string, string[]>;
+  /** Layers this filter acts on. Omit to skip the layer-state UI entirely. */
+  layers?: { id: string; label: string; enabled: boolean }[];
+  onEnableLayer?: (id: string) => void;
   onApply: (filters: Record<string, string[]>) => void;
   onClose: () => void;
 }
@@ -29,6 +37,8 @@ export default function AdvancedFilterModal({
   accentColorName,
   fields,
   activeFilters,
+  layers,
+  onEnableLayer,
   onApply,
   onClose,
 }: AdvancedFilterModalProps) {
@@ -55,8 +65,8 @@ export default function AdvancedFilterModal({
   const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Center on mount, clamped so it doesn't overlap the bottom status bar (~48px)
-  useEffect(() => {
+  // Center before first paint, clamped so it doesn't overlap the bottom status bar (~48px)
+  useLayoutEffect(() => {
     if (modalRef.current) {
       const rect = modalRef.current.getBoundingClientRect();
       const pad = 52; // status bar + small gap
@@ -142,6 +152,12 @@ export default function AdvancedFilterModal({
 
   const totalSelected = Object.values(draft).reduce((acc, s) => acc + s.size, 0);
 
+  // Option lists are built from live data, so a disabled layer means an empty
+  // list and nothing to search. Enabling from here refetches within a few
+  // seconds and the list fills in place.
+  const disabledLayers = layers?.filter((l) => !l.enabled) ?? [];
+  const anyLayerEnabled = !layers || layers.some((l) => l.enabled);
+
   const activeField = fields.find((f) => f.key === activeTab);
   const filteredOptions = useMemo(() => {
     if (!activeField) return [];
@@ -153,6 +169,12 @@ export default function AdvancedFilterModal({
       return displayLabel.toLowerCase().includes(term);
     });
   }, [activeField, activeTab, searchTerms]);
+
+  const visibleOptions = useMemo(
+    () => filteredOptions.slice(0, MAX_RENDERED_OPTIONS),
+    [filteredOptions],
+  );
+  const hiddenCount = filteredOptions.length - visibleOptions.length;
 
   // Tailwind color map for dynamic classes
   const colorMap: Record<
@@ -250,6 +272,34 @@ export default function AdvancedFilterModal({
               <X size={14} />
             </button>
           </div>
+
+          {disabledLayers.length > 0 && (
+            <div
+              role="status"
+              className="px-4 py-2 flex flex-col gap-2 text-[9px] tracking-widest text-amber-400 bg-amber-500/10 border-b border-amber-500/30 flex-shrink-0"
+            >
+              <span>
+                {disabledLayers.map((l) => l.label.toUpperCase()).join(' + ')} LAYER
+                {disabledLayers.length > 1 ? 'S ARE' : ' IS'} OFF —{' '}
+                {anyLayerEnabled
+                  ? 'THIS FILTER ONLY AFFECTS THE ENABLED LAYERS'
+                  : 'THIS FILTER WILL NOT CHANGE THE MAP UNTIL A LAYER IS ENABLED'}
+              </span>
+              {onEnableLayer && (
+                <span className="flex flex-wrap gap-1.5">
+                  {disabledLayers.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => onEnableLayer(l.id)}
+                      className="border border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/30 px-2 py-1 text-amber-300 transition-colors"
+                    >
+                      ENABLE {l.label.toUpperCase()}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* ── Tab Bar (for multi-field categories) ── */}
           {fields.length > 1 && (
@@ -351,11 +401,15 @@ export default function AdvancedFilterModal({
           >
             {filteredOptions.length === 0 ? (
               <div className="text-center py-8 text-[var(--text-muted)] text-[10px] tracking-widest">
-                NO MATCHING RESULTS
+                {!anyLayerEnabled
+                  ? 'LAYER IS OFF — ENABLE IT ABOVE TO LOAD OPTIONS'
+                  : activeField && activeField.options.length === 0
+                    ? 'WAITING FOR DATA…'
+                    : 'NO MATCHING RESULTS'}
               </div>
             ) : (
               <div className="flex flex-col gap-px">
-                {filteredOptions.map((option) => {
+                {visibleOptions.map((option) => {
                   const isChecked = draft[activeTab]?.has(option);
                   return (
                     <button
@@ -383,6 +437,12 @@ export default function AdvancedFilterModal({
                     </button>
                   );
                 })}
+                {hiddenCount > 0 && (
+                  <div className="text-center py-3 text-[var(--text-muted)] text-[10px] tracking-widest">
+                    SHOWING {visibleOptions.length.toLocaleString()} OF{' '}
+                    {filteredOptions.length.toLocaleString()} — SEARCH TO NARROW
+                  </div>
+                )}
               </div>
             )}
           </div>

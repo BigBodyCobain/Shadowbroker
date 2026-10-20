@@ -49,11 +49,11 @@ _CATEGORY_COLOR: dict[str, str] = {
     "Head of State": "#ff1493",
     "Royal Aircraft": "#ff1493",
     "Don't you know who I am?": "#ff1493",
-    "As Seen on TV": "#ff1493",
     "Bizjets": "#ff1493",
     "Vanity Plate": "#ff1493",
     "Football": "#ff1493",
-    # ORANGE — Joe Cool
+    # ORANGE — corporate / novelty / Joe Cool / As Seen on TV
+    "As Seen on TV": "orange",
     "Joe Cool": "orange",
     # WHITE — Climate Crisis
     "Climate Crisis": "white",
@@ -338,6 +338,10 @@ def enrich_with_tracked_names(flight: dict) -> dict:
             flight["alert_color"] = "blue"
         elif is_med:
             flight["alert_color"] = "#32cd32"
+        elif match.get("category") == "Oligarch":
+            flight["alert_color"] = "red"
+        elif match.get("category") in {"Royal", "Celebrity", "People"}:
+            flight["alert_color"] = "#ff1493"
         elif "alert_color" not in flight:
             flight["alert_color"] = "pink"
 

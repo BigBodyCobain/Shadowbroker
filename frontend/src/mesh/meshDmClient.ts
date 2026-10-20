@@ -89,6 +89,13 @@ export type DmSendResponse = {
   private_transport_pending?: boolean;
 };
 
+export type DmConnectIntent =
+  | 'invite_short_address'
+  | 'invite_import'
+  | 'contact_request'
+  | 'contact_accept'
+  | 'contact_offer';
+
 export type DmSendRequest = {
   apiBase: string;
   identity: NodeIdentity;
@@ -102,6 +109,8 @@ export type DmSendRequest = {
   useSealedSender?: boolean;
   format?: 'mls1' | 'dm1';
   sessionWelcome?: string;
+  connectIntent?: DmConnectIntent;
+  lookupPeerUrl?: string;
 };
 
 const KEY_DM_BUNDLE_FINGERPRINT = 'sb_dm_bundle_fingerprint';
@@ -373,14 +382,54 @@ export async function ensureRegisteredDmKey(
   };
 }
 
+function prekeyBundleToPublicKey(data: Record<string, unknown>): DmPublicKeyBundle | null {
+  if (!data?.ok) return null;
+  const bundle = (data.bundle && typeof data.bundle === 'object' ? data.bundle : data) as Record<
+    string,
+    unknown
+  >;
+  const dhPubKey = String(
+    bundle.identity_dh_pub_key || data.identity_dh_pub_key || data.dh_pub_key || '',
+  ).trim();
+  const agentId = String(data.agent_id || '').trim();
+  if (!dhPubKey || !agentId) return null;
+  return {
+    ok: true,
+    agent_id: agentId,
+    lookup_mode: String(data.lookup_mode || 'invite_lookup_handle'),
+    dh_pub_key: dhPubKey,
+    dh_algo: String(data.dh_algo || bundle.dh_algo || 'X25519'),
+    timestamp: Number(data.timestamp || 0) || undefined,
+    signature: String(data.signature || ''),
+    public_key: String(data.public_key || ''),
+    public_key_algo: String(data.public_key_algo || ''),
+    sequence: Number(data.sequence || 0) || undefined,
+    prekey_transparency_head: String(data.prekey_transparency_head || ''),
+    prekey_transparency_size: Number(data.prekey_transparency_size || 0) || undefined,
+  };
+}
+
+async function fetchDmPublicKeyFromPrekeyBundle(
+  apiBase: string,
+  lookupToken: string,
+): Promise<DmPublicKeyBundle | null> {
+  const params = new URLSearchParams({ lookup_token: lookupToken });
+  const res = await fetch(`${apiBase}/api/mesh/dm/prekey-bundle?${params.toString()}`);
+  const data = (await res.json()) as Record<string, unknown>;
+  return prekeyBundleToPublicKey(data);
+}
+
 export async function fetchDmPublicKey(
   apiBase: string,
   agentId: string,
   lookupToken?: string,
-  options?: { allowLegacyAgentId?: boolean },
+  options?: { allowLegacyAgentId?: boolean; lookupPeerUrl?: string },
 ): Promise<DmPublicKeyBundle | null> {
   const normalizedLookupToken = String(lookupToken || '').trim();
   const normalizedAgentId = String(agentId || '').trim();
+  const normalizedLookupPeerUrl = String(options?.lookupPeerUrl || '')
+    .trim()
+    .replace(/\/$/, '');
   if (!normalizedLookupToken && !options?.allowLegacyAgentId) {
     return null;
   }
@@ -388,12 +437,25 @@ export async function fetchDmPublicKey(
   if (normalizedLookupToken) {
     params.set('lookup_token', normalizedLookupToken);
   }
+  if (normalizedLookupPeerUrl) {
+    params.set('lookup_peer_url', normalizedLookupPeerUrl);
+  }
   if (normalizedAgentId && !normalizedLookupToken && options?.allowLegacyAgentId) {
     params.set('agent_id', normalizedAgentId);
   }
   const res = await fetch(`${apiBase}/api/mesh/dm/pubkey?${params.toString()}`);
-  const data = await res.json();
-  return data.ok ? data : null;
+  const data = (await res.json()) as DmPublicKeyBundle;
+  if (data.ok && data.dh_pub_key) {
+    if (!data.agent_id && normalizedLookupToken) {
+      const fromPrekey = await fetchDmPublicKeyFromPrekeyBundle(apiBase, normalizedLookupToken);
+      if (fromPrekey) return fromPrekey;
+    }
+    return data;
+  }
+  if (normalizedLookupToken) {
+    return fetchDmPublicKeyFromPrekeyBundle(apiBase, normalizedLookupToken);
+  }
+  return null;
 }
 
 function spreadClaimPositions(totalClaims: number, spreadClaims: number): Set<number> {
@@ -684,6 +746,8 @@ export async function sendDmMessage(request: DmSendRequest): Promise<DmSendRespo
       signature: signed.signature,
       sequence: signed.sequence,
       protocol_version: senderSeal && senderToken ? '' : signed.protocolVersion,
+      ...(request.connectIntent ? { connect_intent: request.connectIntent } : {}),
+      ...(request.lookupPeerUrl ? { lookup_peer_url: request.lookupPeerUrl } : {}),
     }),
   });
   return res.json();

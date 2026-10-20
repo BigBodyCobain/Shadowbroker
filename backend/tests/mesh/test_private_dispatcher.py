@@ -71,7 +71,11 @@ def test_dispatcher_chooses_dm_relay_when_direct_path_unavailable_but_lane_floor
     assert len(deposit_calls) == 1
 
 
-def test_dispatcher_does_not_release_dm_below_private_strong():
+def test_dispatcher_does_not_release_dm_below_private_transitional_when_rns_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": False},
+    )
     result = attempt_private_release(
         lane="dm",
         current_tier="private_control_only",
@@ -80,7 +84,22 @@ def test_dispatcher_does_not_release_dm_below_private_strong():
 
     assert result["ok"] is False
     assert result["no_acceptable_path"] is True
-    assert result["policy_reason_code"] == "dm_release_waiting_for_private_strong"
+    assert result["policy_reason_code"] == "dm_release_waiting_for_private_transitional"
+    assert result["required_tier"] == "private_transitional"
+
+
+def test_dispatcher_still_requires_private_strong_when_rns_enabled(monkeypatch):
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": True},
+    )
+    result = attempt_private_release(
+        lane="dm",
+        current_tier="private_transitional",
+        payload={"msg_id": "dm-transitional"},
+    )
+
+    assert result["ok"] is False
     assert result["required_tier"] == "private_strong"
 
 

@@ -77,3 +77,62 @@ def test_ingest_updates_existing_rows_in_persistent_data_dir(tmp_path, monkeypat
     assert len(cameras) == 1
     assert cameras[0]["media_url"] == "https://example.com/live.m3u8"
     assert cameras[0]["media_type"] == "hls"
+
+
+def test_scheduled_cctv_ingestors_include_asfinag_and_alpr():
+    names = {ing.__class__.__name__ for ing, _ in cctv_pipeline.scheduled_cctv_ingestors()}
+    assert "AsfinagIngestor" in names
+    assert "OSMALPRCameraIngestor" in names
+    assert "OSMTrafficCameraIngestor" in names
+    assert "Ontario511Ingestor" in names
+    assert "Alberta511Ingestor" in names
+    assert "Florida511Ingestor" in names
+    assert "AustraliaLiveTrafficIngestor" in names
+    assert "NetherlandsRWSIngestor" in names
+    assert len(names) == 21
+
+
+def test_fetch_traveliq_v2_cameras_parses_views(monkeypatch):
+    class FakeResp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return [
+                {
+                    "Id": 9,
+                    "Latitude": 45.0,
+                    "Longitude": -75.0,
+                    "Location": "Test Highway",
+                    "Views": [
+                        {
+                            "Id": 42,
+                            "Url": "/map/Cctv/42",
+                            "Status": "Enabled",
+                            "Description": "Northbound",
+                        }
+                    ],
+                }
+            ]
+
+    monkeypatch.setattr(cctv_pipeline, "fetch_with_curl", lambda *a, **k: FakeResp())
+    cameras = cctv_pipeline._fetch_traveliq_v2_cameras(
+        api_url="https://511on.ca/api/v2/get/cameras",
+        base_url="https://511on.ca",
+        id_prefix="ON511",
+        source_agency="511 Ontario",
+    )
+    assert len(cameras) == 1
+    assert cameras[0]["id"] == "ON511-9-42"
+    assert cameras[0]["media_url"] == "https://511on.ca/map/Cctv/42"
+
+
+def test_ensure_https_upgrades_http_media_urls():
+    assert (
+        cctv_pipeline._ensure_https_url("http://example.com/camera.jpg")
+        == "https://example.com/camera.jpg"
+    )
+    assert (
+        cctv_pipeline._ensure_https_url("https://secure.example.com/live.m3u8")
+        == "https://secure.example.com/live.m3u8"
+    )

@@ -29,7 +29,7 @@ def main() -> None:
         from services.network_utils import outbound_user_agent
         ua = outbound_user_agent("release-script-power-plants")
     except Exception:
-        ua = "Shadowbroker/0.9 (release-script-power-plants; +https://github.com/BigBodyCobain/Shadowbroker/issues)"
+        ua = "operator-release-script (purpose: power-plants)"
     req = urllib.request.Request(CSV_URL, headers={"User-Agent": ua})
     with urllib.request.urlopen(req, timeout=60) as resp:
         raw = resp.read().decode("utf-8")

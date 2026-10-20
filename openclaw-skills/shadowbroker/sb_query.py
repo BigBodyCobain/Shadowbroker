@@ -5,6 +5,9 @@ the ShadowBroker OSINT platform.
 
 For local access (same machine), no authentication is needed.
 For remote access, set SHADOWBROKER_HMAC_SECRET to enable HMAC-signed requests.
+Older ShadowBroker UI snippets used SHADOWBROKER_KEY; this client still accepts
+that value as an HMAC signing secret for compatibility. Never send either value
+as a raw bearer token, X-Admin-Key, query parameter, or unsigned header.
 
 Usage (inside an OpenClaw skill):
     from sb_query import ShadowBrokerClient
@@ -43,11 +46,17 @@ class ShadowBrokerClient:
 
     Supports both local (no auth) and remote (HMAC-signed) connections.
     Set SHADOWBROKER_HMAC_SECRET env var to enable remote authentication.
+    SHADOWBROKER_KEY is accepted only as a backwards-compatible HMAC-secret
+    alias for older copy snippets.
     """
 
     def __init__(self, base_url: str = SB_BASE, hmac_secret: str = ""):
         self.base = base_url.rstrip("/")
-        self._hmac_secret = hmac_secret or os.environ.get("SHADOWBROKER_HMAC_SECRET", "")
+        self._hmac_secret = (
+            hmac_secret
+            or os.environ.get("SHADOWBROKER_HMAC_SECRET", "")
+            or os.environ.get("SHADOWBROKER_KEY", "")
+        )
         self._client = None
         # Version tracking for incremental updates
         self._last_data_version: int | None = None
@@ -258,8 +267,100 @@ class ShadowBrokerClient:
         Returns:
             {ok, tier, reason, transport, pending_commands, pending_tasks, stats}
         """
+        # /api/ai/channel/status is local-operator only. HMAC-signed remote
+        # agents must probe via the command channel instead.
+        if self._hmac_secret:
+            resp = await self.send_command("get_summary", {"compact": True})
+            return {
+                "ok": bool(resp.get("ok")),
+                "tier": resp.get("tier"),
+                "status": resp.get("status"),
+                "transport": "http+hmac",
+                "reason": "remote_hmac_probe",
+            }
         r = await self._get("/api/ai/channel/status")
         return r.json()
+
+    @staticmethod
+    def unwrap_channel_result(resp: dict) -> dict:
+        """Extract inner command payload from /api/ai/channel/command response."""
+        if not isinstance(resp, dict):
+            return {}
+        result = resp.get("result")
+        if not isinstance(result, dict):
+            return {}
+        if result.get("ok"):
+            data = result.get("data")
+            return data if isinstance(data, dict) else {}
+        return result
+
+    async def get_fetch_health(self) -> dict:
+        """Get sanitized process-local fetch task outcomes."""
+        response = await self.send_command("get_fetch_health")
+        return self.unwrap_channel_result(response)
+
+    async def route_query(
+        self,
+        text: str,
+        *,
+        lat: float | None = None,
+        lng: float | None = None,
+        radius_km: float = 50,
+        compact: bool = True,
+    ) -> dict:
+        """Server-side intent routing — returns recommended command (no LLM)."""
+        args: dict[str, Any] = {"text": text, "radius_km": radius_km, "compact": compact}
+        if lat is not None:
+            args["lat"] = lat
+        if lng is not None:
+            args["lng"] = lng
+        resp = await self.send_command("route_query", args)
+        return self.unwrap_channel_result(resp)
+
+    async def run_playbook(self, name: str, args: dict | None = None) -> dict:
+        """Execute a named server playbook (batched, concurrent)."""
+        payload = {"name": name, **(args or {})}
+        resp = await self.send_command("run_playbook", payload)
+        return self.unwrap_channel_result(resp)
+
+    async def ask(
+        self,
+        question: str,
+        *,
+        lat: float | None = None,
+        lng: float | None = None,
+        radius_km: float = 50,
+        execute: bool = True,
+    ) -> dict:
+        """Natural-language read: route_query → recommended command (one round-trip or two)."""
+        route = await self.route_query(
+            question,
+            lat=lat,
+            lng=lng,
+            radius_km=radius_km,
+            compact=True,
+        )
+        if not route:
+            return {"ok": False, "detail": "route_query returned no plan"}
+
+        if not execute:
+            return {"ok": True, "route": route}
+
+        recommended = route.get("recommended") or {}
+        cmd = str(recommended.get("cmd", "") or "").strip()
+        cmd_args = recommended.get("args") or {}
+        if not cmd:
+            return {"ok": False, "detail": "route produced no command", "route": route}
+
+        exec_resp = await self.send_command(cmd, cmd_args)
+        exec_inner = exec_resp.get("result") if isinstance(exec_resp.get("result"), dict) else {}
+        return {
+            "ok": bool(exec_resp.get("ok") and exec_inner.get("ok")),
+            "route": route,
+            "command": cmd,
+            "args": cmd_args,
+            "result": exec_inner,
+        }
 
     async def send_batch(self, commands: list[dict]) -> dict:
         """Send multiple commands in a single HTTP round-trip.
@@ -466,6 +567,123 @@ class ShadowBrokerClient:
         r.raise_for_status()
         return r.json()
 
+    # ── Strategic Risk Analytics (game-theoretic early warning) ───────
+
+    async def gt_risk_heatmap(self) -> dict:
+        """Cached Bayesian risk heatmap (GeoJSON features + Louvain clusters)."""
+        return self.unwrap_channel_result(await self.send_command("gt_risk_heatmap", {}))
+
+    async def gt_dossier(self, region: str) -> dict:
+        """GT rationale, costly signals, and scenarios for a region."""
+        return self.unwrap_channel_result(
+            await self.send_command("gt_dossier", {"region": region}),
+        )
+
+    async def gt_analyze(
+        self,
+        *,
+        region: str = "",
+        refresh: bool = True,
+        feeds: list[dict] | None = None,
+    ) -> dict:
+        """Refresh GT beliefs from intel feeds and return heatmap/dossier."""
+        args: dict[str, Any] = {"refresh": refresh}
+        if region:
+            args["region"] = region
+        if feeds:
+            args["feeds"] = feeds
+        return self.unwrap_channel_result(await self.send_command("gt_analyze", args))
+
+    async def gt_backtest(
+        self,
+        *,
+        expanded: bool = True,
+        tune: bool = False,
+        target_confidence: float = 0.95,
+        alert_threshold: float | None = None,
+        include_cases: bool = False,
+    ) -> dict:
+        """Run labeled historical backtest; returns accuracy + Wilson 95% CI."""
+        args: dict[str, Any] = {
+            "expanded": expanded,
+            "tune": tune,
+            "target_confidence": target_confidence,
+            "include_cases": include_cases,
+            "compact": True,
+        }
+        if alert_threshold is not None:
+            args["alert_threshold"] = alert_threshold
+        return self.unwrap_channel_result(await self.send_command("gt_backtest", args))
+
+    async def gt_rolling_freeze(
+        self,
+        *,
+        week_id: str | None = None,
+        force: bool = False,
+    ) -> dict:
+        """Freeze current GT scores for the ISO week (operational validation)."""
+        args: dict[str, Any] = {"compact": True, "force": force}
+        if week_id:
+            args["week_id"] = week_id
+        return self.unwrap_channel_result(await self.send_command("gt_rolling_freeze", args))
+
+    async def gt_rolling_label(
+        self,
+        week_id: str,
+        *,
+        region: str = "",
+        label: str = "",
+        notes: str = "",
+        labels: list[dict] | None = None,
+    ) -> dict:
+        """Apply delayed outcome labels to a frozen operational week."""
+        args: dict[str, Any] = {"week_id": week_id}
+        if labels:
+            args["labels"] = labels
+        else:
+            args["region"] = region
+            args["label"] = label
+            args["notes"] = notes
+        return self.unwrap_channel_result(await self.send_command("gt_rolling_label", args))
+
+    async def gt_rolling_backtest(
+        self,
+        *,
+        weeks: int = 8,
+        target_confidence: float = 0.80,
+    ) -> dict:
+        """Rolling weekly operational accuracy trend (delayed labels)."""
+        return self.unwrap_channel_result(
+            await self.send_command(
+                "gt_rolling_backtest",
+                {
+                    "weeks": weeks,
+                    "target_confidence": target_confidence,
+                    "compact": True,
+                },
+            )
+        )
+
+    async def gt_top_alerts(self, *, limit: int = 8) -> dict:
+        """Ranked top GT risk regions with map coordinates."""
+        return self.unwrap_channel_result(
+            await self.send_command("gt_top_alerts", {"limit": limit, "compact": True})
+        )
+
+    async def gt_micro_rolling(
+        self,
+        *,
+        window_days: int = 3,
+        limit: int = 15,
+    ) -> dict:
+        """3-day rolling micro average — spot vs baseline, ignition regions."""
+        return self.unwrap_channel_result(
+            await self.send_command(
+                "gt_micro_rolling",
+                {"window_days": window_days, "limit": limit, "compact": True},
+            )
+        )
+
     # ── Geocoding ─────────────────────────────────────────────────────
 
     async def geocode(self, query: str) -> list[dict]:
@@ -498,56 +716,81 @@ class ShadowBrokerClient:
         r = await self._delete("/api/ai/inject", params=params)
         return r.json()
 
-    # ── Wormhole / InfoNet ────────────────────────────────────────────
+    # ── Wormhole / InfoNet (operator-delegated via command channel) ───
 
+    async def ensure_infonet_ready(self, *, join_swarm: bool = True) -> dict:
+        """Warm Tor, enable the node, and join the private Infonet swarm."""
+        resp = await self.send_command(
+            "ensure_infonet_ready",
+            {"join_swarm": join_swarm},
+        )
+        return resp.get("result") if isinstance(resp.get("result"), dict) else resp
+
+    async def join_infonet_swarm(self) -> dict:
+        """Announce to the fleet seed and pull the signed peer manifest."""
+        resp = await self.send_command("join_infonet_swarm", {})
+        return resp.get("result") if isinstance(resp.get("result"), dict) else resp
+
+    async def infonet_status(self) -> dict:
+        """Participant node + hashchain status snapshot."""
+        return self.unwrap_channel_result(await self.send_command("infonet_status", {}))
+
+    async def list_gates(self) -> dict:
+        """List encrypted gate channels."""
+        return self.unwrap_channel_result(await self.send_command("list_gates", {}))
+
+    async def read_gate_messages(
+        self,
+        gate_id: str,
+        *,
+        limit: int = 20,
+        decrypt: bool = False,
+    ) -> dict:
+        """Read gate messages (optionally decrypt with the operator MLS persona)."""
+        return self.unwrap_channel_result(
+            await self.send_command(
+                "read_gate_messages",
+                {"gate_id": gate_id, "limit": limit, "decrypt": decrypt},
+            )
+        )
+
+    async def post_to_gate(self, gate_id: str, message: str, *, reply_to: str = "") -> dict:
+        """Post an MLS-encrypted gate message on behalf of the operator."""
+        resp = await self.send_command(
+            "post_gate_message",
+            {
+                "gate_id": gate_id,
+                "plaintext": message,
+                "reply_to": reply_to,
+            },
+        )
+        return resp.get("result") if isinstance(resp.get("result"), dict) else resp
+
+    async def cast_vote(
+        self,
+        target_id: str,
+        vote: int,
+        *,
+        gate: str = "",
+    ) -> dict:
+        """Upvote (+1) or downvote (-1) a node; optional gate scope."""
+        resp = await self.send_command(
+            "cast_vote",
+            {"target_id": target_id, "vote": vote, "gate": gate},
+        )
+        return resp.get("result") if isinstance(resp.get("result"), dict) else resp
+
+    # Legacy aliases — prefer command-channel methods above
     async def join_wormhole(self) -> dict:
-        """Create a Wormhole identity and join the network."""
-        r = await self._post("/api/wormhole/join")
-        return r.json()
-
-    async def sign_event(self, event_type: str, payload: dict) -> dict:
-        """Sign an event with the Wormhole Ed25519 key."""
-        r = await self._post("/api/wormhole/sign", json={
-            "event_type": event_type,
-            "payload": payload,
-        })
-        r.raise_for_status()
-        return r.json()
+        return await self.ensure_infonet_ready(join_swarm=True)
 
     async def post_to_infonet(self, message: str, event_type: str = "message") -> dict:
-        """Post a signed event to the InfoNet ledger."""
-        signed = await self.sign_event(event_type, {"message": message})
-        r = await self._post("/api/mesh/infonet/ingest", json={
-            "events": [signed],
-        })
-        r.raise_for_status()
-        return r.json()
+        if event_type != "message":
+            raise RuntimeError("use post_to_gate for encrypted gate traffic")
+        return await self.post_to_gate("infonet", message)
 
-    async def read_infonet(self, limit: int = 20, gate: str = "") -> dict:
-        """Read recent InfoNet messages."""
-        params = {"limit": limit}
-        if gate:
-            params["gate"] = gate
-        r = await self._get("/api/mesh/infonet/messages", params=params)
-        return r.json()
-
-    async def list_gates(self) -> list:
-        """List available encrypted gate channels."""
-        r = await self._get("/api/mesh/gate/list")
-        return r.json()
-
-    async def post_to_gate(self, gate_id: str, message: str) -> dict:
-        """Compose and post an MLS-encrypted message to a gate."""
-        compose = await self._post("/api/wormhole/gate/message/compose", json={
-            "gate_id": gate_id,
-            "plaintext": message,
-        })
-        compose.raise_for_status()
-        envelope = compose.json()
-
-        post = await self._post(f"/api/mesh/gate/{gate_id}/message", json=envelope)
-        post.raise_for_status()
-        return post.json()
+    async def read_infonet(self, limit: int = 20, gate: str = "infonet") -> dict:
+        return await self.read_gate_messages(gate or "infonet", limit=limit, decrypt=True)
 
     # ── Meshtastic ────────────────────────────────────────────────────
 
@@ -713,21 +956,63 @@ class ShadowBrokerClient:
         r = await self._get("/api/ai/summary")
         return r.json()
 
+    async def osint_lookup(self, tool: str, **kwargs) -> dict:
+        """Run a passive OSINT recon lookup (IP, DNS, WHOIS, sanctions, CVE, etc.)."""
+        args = {"tool": tool, **kwargs}
+        result = await self.send_command("osint_lookup", args)
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_lookup failed")
+        return result.get("data") or result
+
+    async def osint_tools(self) -> dict:
+        """List available OSINT recon tools and entity-expand types."""
+        result = await self.send_command("osint_tools")
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_tools failed")
+        return result.get("data") or result
+
+    async def entity_expand(self, entity_type: str, entity_id: str, **kwargs) -> dict:
+        """Expand an entity relationship graph."""
+        args = {"type": entity_type, "id": entity_id, **kwargs}
+        result = await self.send_command("entity_expand", args)
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "entity_expand failed")
+        return result.get("data") or result
+
+    async def osint_sweep(self, ip: str, cidr: int = 24) -> dict:
+        """Active subnet device discovery (requires full OpenClaw access tier)."""
+        result = await self.send_command("osint_sweep", {"ip": ip, "cidr": cidr})
+        if not result.get("ok"):
+            raise RuntimeError(result.get("detail") or "osint_sweep failed")
+        return result.get("data") or result
+
     # ── Encrypted DMs ─────────────────────────────────────────────
 
-    async def send_encrypted_dm(self, recipient_pubkey: str, message: str) -> dict:
-        """Send an E2E encrypted direct message to another Wormhole identity."""
-        r = await self._post("/api/wormhole/dm/send", json={
-            "recipient": recipient_pubkey,
-            "plaintext": message,
-        })
-        r.raise_for_status()
-        return r.json()
+    async def send_encrypted_dm(
+        self,
+        peer_id: str,
+        message: str,
+        *,
+        delivery_class: str = "shared",
+        recipient_token: str = "",
+    ) -> dict:
+        """Send an E2E encrypted DM to another node (peer_id / !sb_...)."""
+        resp = await self.send_command(
+            "send_dm",
+            {
+                "peer_id": peer_id,
+                "plaintext": message,
+                "delivery_class": delivery_class,
+                "recipient_token": recipient_token,
+            },
+        )
+        return resp.get("result") if isinstance(resp.get("result"), dict) else resp
 
-    async def read_encrypted_dms(self, limit: int = 20) -> list:
-        """Read received encrypted direct messages."""
-        r = await self._get("/api/wormhole/dm/inbox", params={"limit": limit})
-        return r.json()
+    async def read_encrypted_dms(self, limit: int = 20) -> dict:
+        """Poll encrypted DMs for the operator identity."""
+        return self.unwrap_channel_result(
+            await self.send_command("poll_dms", {"limit": limit})
+        )
 
     # ── Dead Drop ─────────────────────────────────────────────────
 

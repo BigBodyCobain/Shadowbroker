@@ -19,6 +19,7 @@ class HealthResponse(BaseModel):
     # insecure-date path because the upstream Let's Encrypt cert is
     # expired. Empty dict / null means no status reported yet.
     ais_proxy: Optional[Dict[str, Any]] = None
+    runtime: Optional[Dict[str, Any]] = None
 
 
 class RefreshResponse(BaseModel):

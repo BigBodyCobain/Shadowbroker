@@ -168,9 +168,9 @@ def resolve_peer_key_for_url(peer_url: str) -> bytes:
     try:
         from services.config import get_settings
 
-        global_secret = str(
-            getattr(get_settings(), "MESH_PEER_PUSH_SECRET", "") or ""
-        ).strip()
+        from services.mesh.mesh_fleet_defaults import effective_peer_push_secret
+
+        global_secret = effective_peer_push_secret()
     except Exception:
         return b""
     if not global_secret:

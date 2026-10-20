@@ -1506,6 +1506,7 @@ class DMRelay:
         sender_token_hash: str = "",
         payload_format: str = "dm1",
         session_welcome: str = "",
+        replication_peer_urls: list[str] | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             self._refresh_from_shared_relay()
@@ -1573,46 +1574,214 @@ class DMRelay:
                 }
             if not msg_id:
                 msg_id = f"dm_{int(time.time() * 1000)}_{secrets.token_hex(6)}"
-            elif any(m.msg_id == msg_id for m in self._mailboxes[mailbox_key]):
-                return {"ok": True, "msg_id": msg_id}
-            relay_sender_id = (
-                f"sender_token:{sender_token_hash}"
-                if sender_token_hash
-                else sender_id
-            )
-            self._mailboxes[mailbox_key].append(
-                DMMessage(
-                    sender_id=relay_sender_id,
-                    ciphertext=ciphertext,
-                    timestamp=time.time(),
-                    msg_id=msg_id,
-                    delivery_class=delivery_class,
-                    sender_seal=sender_seal,
-                    sender_block_ref=sender_block_ref,
-                    payload_format=str(payload_format or "dm1"),
-                    session_welcome=str(session_welcome or ""),
+            duplicate_hit = any(m.msg_id == msg_id for m in self._mailboxes[mailbox_key])
+            if not duplicate_hit:
+                relay_sender_id = (
+                    f"sender_token:{sender_token_hash}"
+                    if sender_token_hash
+                    else sender_id
                 )
-            )
-            self._stats["messages_in_memory"] = sum(len(v) for v in self._mailboxes.values())
-            self._save()
-            # Cross-node mailbox replication: push the freshly-stored
-            # envelope to every authenticated relay peer so the recipient
-            # can log into ANY node and find their messages. The push is
-            # async (fire-and-forget thread) so deposit() returns
-            # immediately — slow Tor peers can't block the sender's UX.
-            # Each receiving peer re-enforces the per-sender cap on
-            # acceptance, so hostile relays can't widen the cap.
+                self._mailboxes[mailbox_key].append(
+                    DMMessage(
+                        sender_id=relay_sender_id,
+                        ciphertext=ciphertext,
+                        timestamp=time.time(),
+                        msg_id=msg_id,
+                        delivery_class=delivery_class,
+                        sender_seal=sender_seal,
+                        sender_block_ref=sender_block_ref,
+                        payload_format=str(payload_format or "dm1"),
+                        session_welcome=str(session_welcome or ""),
+                    )
+                )
+                self._stats["messages_in_memory"] = sum(len(v) for v in self._mailboxes.values())
+                self._save()
+            preferred_urls = list(replication_peer_urls or [])
+            envelope_for_push: dict[str, Any] | None = None
             try:
                 envelope_for_push = self.envelope_for_replication(
-                    mailbox_key=mailbox_key, msg_id=msg_id,
+                    mailbox_key=mailbox_key,
+                    msg_id=msg_id,
+                    recipient_id=recipient_id,
+                    recipient_token=recipient_token,
                 )
-                if envelope_for_push:
-                    self._replicate_envelope_to_peers_async(
-                        envelope=envelope_for_push,
-                    )
             except Exception:
                 metrics_inc("dm_replication_push_error")
-            return {"ok": True, "msg_id": msg_id}
+            deposit_result = {"ok": True, "msg_id": msg_id}
+            if duplicate_hit:
+                deposit_result["duplicate"] = True
+
+        if envelope_for_push:
+            # Invite-scoped connect traffic names an explicit recipient relay
+            # (lookup_peer_url). Block until that push completes so the
+            # recipient can poll their own node; fleet-wide fan-out stays
+            # async so dead manifest peers cannot wedge deposit().
+            if preferred_urls:
+                logger.info(
+                    "DM deposit awaiting scoped replicate to %d peer(s)",
+                    len(preferred_urls),
+                )
+                deposit_result["replicate"] = self._replicate_envelope_to_peers(
+                    envelope=envelope_for_push,
+                    preferred_peer_urls=preferred_urls,
+                )
+            else:
+                self._replicate_envelope_to_peers_async(
+                    envelope=envelope_for_push,
+                    preferred_peer_urls=[],
+                )
+        elif preferred_urls:
+            logger.warning(
+                "DM deposit skipped scoped replicate: envelope missing for msg_id=%s",
+                msg_id,
+            )
+        return deposit_result
+
+    def _replicate_envelope_to_peers(
+        self,
+        *,
+        envelope: dict[str, Any],
+        preferred_peer_urls: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Push an envelope to relay peers. Returns per-peer results."""
+        import hashlib
+        import hmac
+        import requests as _requests
+
+        from services.mesh.mesh_crypto import (
+            normalize_peer_url,
+            resolve_peer_key_for_url,
+        )
+        from services.mesh.mesh_router import authenticated_push_peer_urls
+
+        peers: list[str] = []
+        for raw_url in list(preferred_peer_urls or []):
+            normalized_preferred = normalize_peer_url(str(raw_url or "").strip())
+            if normalized_preferred and normalized_preferred not in peers:
+                peers.append(normalized_preferred)
+        if not peers:
+            for peer_url in authenticated_push_peer_urls():
+                normalized_peer = normalize_peer_url(str(peer_url or "").strip())
+                if normalized_peer and normalized_peer not in peers:
+                    peers.append(normalized_peer)
+        if not peers:
+            return {"ok": False, "detail": "no_relay_peers", "pushed": [], "failed": []}
+
+        logger.info(
+            "DM replicate push starting for %d peer(s): %s",
+            len(peers),
+            ", ".join(peers[:3]) + ("..." if len(peers) > 3 else ""),
+        )
+
+        payload = json.dumps(
+            {"envelope": envelope},
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        base_timeout = max(
+            1,
+            int(getattr(self._settings(), "MESH_RELAY_PUSH_TIMEOUT_S", 10) or 10),
+        )
+
+        from main import _infonet_peer_requests_proxies
+
+        preferred_set = {
+            normalize_peer_url(str(raw_url or "").strip())
+            for raw_url in list(preferred_peer_urls or [])
+        }
+        preferred_set.discard("")
+
+        pushed: list[str] = []
+        failed: list[dict[str, str]] = []
+        for peer_url in peers:
+            try:
+                normalized = normalize_peer_url(peer_url)
+                timeout = max(180 if ".onion" in normalized else 1, base_timeout)
+                headers = {"Content-Type": "application/json"}
+                peer_key = resolve_peer_key_for_url(normalized)
+                if peer_key:
+                    headers["X-Peer-Url"] = normalized
+                    headers["X-Peer-HMAC"] = hmac.new(
+                        peer_key, payload, hashlib.sha256
+                    ).hexdigest()
+                url = f"{peer_url}/api/mesh/dm/replicate-envelope"
+                request_kwargs: dict[str, Any] = {
+                    "data": payload,
+                    "timeout": timeout,
+                    "headers": headers,
+                }
+                proxies = _infonet_peer_requests_proxies(normalized)
+                if proxies:
+                    request_kwargs["proxies"] = proxies
+                resp = None
+                max_attempts = 3 if normalized in preferred_set else 2
+                last_exc = ""
+                for attempt in range(max_attempts):
+                    try:
+                        resp = _requests.post(url, **request_kwargs)
+                        break
+                    except Exception as exc:
+                        last_exc = str(exc) or type(exc).__name__
+                        if attempt + 1 < max_attempts:
+                            time.sleep(5.0 * (attempt + 1))
+                            continue
+                        logger.warning(
+                            "DM replicate push to %s failed: %s",
+                            peer_url,
+                            last_exc,
+                        )
+                        metrics_inc("dm_replication_push_error")
+                        resp = None
+                        break
+                if resp is None:
+                    failed.append({"url": peer_url, "detail": last_exc or "request_failed"})
+                    continue
+                if resp.status_code == 200:
+                    body_ok = True
+                    detail = ""
+                    try:
+                        body = resp.json()
+                        if isinstance(body, dict) and body.get("ok") is False:
+                            body_ok = False
+                            detail = str(body.get("detail", "") or "replicate rejected")[:200]
+                    except Exception:
+                        body_ok = True
+                    if body_ok:
+                        logger.info("DM replicate push to %s succeeded", peer_url)
+                        metrics_inc("dm_replication_push_ok")
+                        pushed.append(peer_url)
+                    else:
+                        logger.warning(
+                            "DM replicate push to %s rejected: %s",
+                            peer_url,
+                            detail,
+                        )
+                        metrics_inc("dm_replication_push_rejected")
+                        failed.append({"url": peer_url, "detail": detail or "replicate_rejected"})
+                else:
+                    detail = (resp.text or "")[:200]
+                    logger.warning(
+                        "DM replicate push to %s -> %s: %s",
+                        peer_url,
+                        resp.status_code,
+                        detail,
+                    )
+                    metrics_inc("dm_replication_push_rejected")
+                    failed.append({"url": peer_url, "detail": f"http_{resp.status_code}: {detail}"})
+            except Exception as exc:
+                logger.warning("DM replicate push outer failure for %s: %s", peer_url, exc)
+                metrics_inc("dm_replication_push_error")
+                failed.append({"url": peer_url, "detail": str(exc) or type(exc).__name__})
+
+        scoped = bool(preferred_set)
+        ok = bool(pushed) if scoped else bool(pushed) or not failed
+        return {
+            "ok": ok,
+            "scoped": scoped,
+            "pushed": pushed,
+            "failed": failed,
+        }
 
     def accept_replica(
         self,
@@ -1645,6 +1814,33 @@ class DMRelay:
         mailbox_key = str(envelope.get("mailbox_key", "") or "").strip()
         sender_block_ref = str(envelope.get("sender_block_ref", "") or "").strip()
         ciphertext = str(envelope.get("ciphertext", "") or "")
+        delivery_class = str(envelope.get("delivery_class", "") or "").strip().lower()
+        recipient_id = str(envelope.get("recipient_id", "") or "").strip()
+        recipient_token = str(envelope.get("recipient_token", "") or "").strip()
+        if delivery_class not in ("request", "shared", "self"):
+            if recipient_id and not recipient_token:
+                delivery_class = "request"
+            elif recipient_token:
+                delivery_class = "shared"
+        if delivery_class == "request":
+            if not recipient_id:
+                try:
+                    from services.mesh.mesh_wormhole_persona import get_dm_identity
+
+                    recipient_id = str((get_dm_identity() or {}).get("node_id") or "").strip()
+                except Exception:
+                    recipient_id = ""
+            if recipient_id:
+                mailbox_key = self.mailbox_key_for_delivery(
+                    recipient_id=recipient_id,
+                    delivery_class="request",
+                )
+        elif delivery_class == "shared" and recipient_token:
+            mailbox_key = self.mailbox_key_for_delivery(
+                recipient_id=recipient_id,
+                delivery_class="shared",
+                recipient_token=recipient_token,
+            )
         if not msg_id or not mailbox_key or not sender_block_ref or not ciphertext:
             return {"ok": False, "detail": "envelope missing required fields"}
 
@@ -1662,7 +1858,6 @@ class DMRelay:
             # Same per-class cap as the deposit path — defense in depth
             # against a peer that wraps a "deposit" as a "replica" to
             # bypass the class limit.
-            delivery_class = str(envelope.get("delivery_class", "") or "")
             if delivery_class in ("request", "shared", "self"):
                 class_limit = self._mailbox_limit_for_class(delivery_class)
             else:
@@ -1716,82 +1911,18 @@ class DMRelay:
         self,
         *,
         envelope: dict[str, Any],
+        preferred_peer_urls: list[str] | None = None,
     ) -> None:
-        """Push an outbound DM envelope to every authenticated relay peer.
-
-        Fire-and-forget: spawned in a background thread so ``deposit``
-        returns to the caller immediately. Per-peer errors are logged
-        and swallowed — the sender's UX must not block on slow Tor
-        peers, and a peer that's down today gets the next message
-        whenever it comes back. Inbound recipient polling from a healthy
-        peer keeps the system functional during peer failures.
-
-        Each peer is authed with the existing per-peer HMAC pattern
-        (#256) — same headers and key resolver gate-message replication
-        uses, so a hostile node that doesn't know any peer's HMAC key
-        can't impersonate a legitimate relay.
-        """
+        """Fire-and-forget fleet-wide replicate push (non-scoped traffic)."""
         import threading
 
-        def _do_push():
+        def _do_push() -> None:
             try:
-                import hashlib
-                import hmac
-                import requests as _requests
-
-                from services.mesh.mesh_crypto import (
-                    normalize_peer_url,
-                    resolve_peer_key_for_url,
+                self._replicate_envelope_to_peers(
+                    envelope=envelope,
+                    preferred_peer_urls=preferred_peer_urls,
                 )
-                from services.mesh.mesh_router import (
-                    authenticated_push_peer_urls,
-                )
-
-                peers = authenticated_push_peer_urls()
-                if not peers:
-                    return
-
-                payload = json.dumps(
-                    {"envelope": envelope},
-                    separators=(",", ":"),
-                    ensure_ascii=False,
-                ).encode("utf-8")
-
-                timeout = max(
-                    1,
-                    int(getattr(self._settings(), "MESH_RELAY_PUSH_TIMEOUT_S", 10) or 10),
-                )
-
-                for peer_url in peers:
-                    try:
-                        normalized = normalize_peer_url(peer_url)
-                        headers = {"Content-Type": "application/json"}
-                        peer_key = resolve_peer_key_for_url(normalized)
-                        if peer_key:
-                            headers["X-Peer-Url"] = normalized
-                            headers["X-Peer-HMAC"] = hmac.new(
-                                peer_key, payload, hashlib.sha256
-                            ).hexdigest()
-                        url = f"{peer_url}/api/mesh/dm/replicate-envelope"
-                        resp = _requests.post(
-                            url, data=payload, timeout=timeout, headers=headers,
-                        )
-                        if resp.status_code == 200:
-                            metrics_inc("dm_replication_push_ok")
-                        else:
-                            # 4xx including the structured cap_violation
-                            # rejection from accept_replica — sender's
-                            # relay learns and stops retrying this msg_id.
-                            metrics_inc("dm_replication_push_rejected")
-                    except Exception:
-                        # Per-peer failure is non-fatal — log to metrics
-                        # but don't break the loop. Other peers and a
-                        # future retry can still propagate the envelope.
-                        metrics_inc("dm_replication_push_error")
-                        continue
             except Exception:
-                # Outer guard — never let replication errors propagate
-                # back to the sender's deposit() caller.
                 metrics_inc("dm_replication_push_error")
 
         thread = threading.Thread(
@@ -1806,6 +1937,8 @@ class DMRelay:
         *,
         mailbox_key: str,
         msg_id: str,
+        recipient_id: str = "",
+        recipient_token: str | None = None,
     ) -> dict[str, Any] | None:
         """Return the wire-form envelope for a stored message, suitable
         for POSTing to a peer relay's replicate-envelope endpoint.
@@ -1822,6 +1955,8 @@ class DMRelay:
                     return {
                         "msg_id": m.msg_id,
                         "mailbox_key": mailbox_key,
+                        "recipient_id": str(recipient_id or "").strip(),
+                        "recipient_token": str(recipient_token or "").strip(),
                         "sender_id": m.sender_id,
                         "sender_block_ref": m.sender_block_ref,
                         "sender_seal": m.sender_seal,

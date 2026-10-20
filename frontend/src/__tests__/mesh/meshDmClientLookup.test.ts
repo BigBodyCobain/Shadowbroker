@@ -23,7 +23,12 @@ describe('fetchDmPublicKey lookup posture', () => {
 
   it('uses invite lookup handles without enabling legacy agent-id lookup', async () => {
     fetchMock.mockResolvedValueOnce({
-      json: async () => ({ ok: true, dh_pub_key: 'peer-dh', lookup_mode: 'invite_lookup_handle' }),
+      json: async () => ({
+        ok: true,
+        agent_id: '!sb_peer',
+        dh_pub_key: 'peer-dh',
+        lookup_mode: 'invite_lookup_handle',
+      }),
     });
     const mod = await import('@/mesh/meshDmClient');
 
@@ -37,6 +42,28 @@ describe('fetchDmPublicKey lookup posture', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:8000/api/mesh/dm/pubkey?lookup_token=invite-handle-123',
     );
+  });
+
+  it('falls back to prekey-bundle when pubkey lookup lacks agent_id', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        json: async () => ({ ok: true, dh_pub_key: 'peer-dh', lookup_mode: 'invite_lookup_handle' }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => ({
+          ok: true,
+          agent_id: '!sb_peer',
+          lookup_mode: 'invite_lookup_handle',
+          bundle: { identity_dh_pub_key: 'peer-dh' },
+        }),
+      });
+    const mod = await import('@/mesh/meshDmClient');
+
+    const result = await mod.fetchDmPublicKey('http://localhost:8000', '', 'invite-handle-123');
+
+    expect(result?.agent_id).toBe('!sb_peer');
+    expect(result?.dh_pub_key).toBe('peer-dh');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('still supports explicit legacy agent-id lookup for migration-only paths', async () => {

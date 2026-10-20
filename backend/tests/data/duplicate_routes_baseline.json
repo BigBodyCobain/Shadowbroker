@@ -38,18 +38,6 @@
       "main",
       "routers.health"
     ],
-    "GET /api/live-data": [
-      "main",
-      "routers.data"
-    ],
-    "GET /api/live-data/fast": [
-      "main",
-      "routers.data"
-    ],
-    "GET /api/live-data/slow": [
-      "main",
-      "routers.data"
-    ],
     "GET /api/mesh/channels": [
       "main",
       "routers.mesh_public"

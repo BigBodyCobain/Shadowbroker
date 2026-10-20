@@ -26,6 +26,46 @@ def _planetary_user_agent() -> str:
     return outbound_user_agent("sentinel2-planetary-computer")
 
 
+def _sign_planetary_href(href: str) -> str:
+    """Sign a Planetary Computer blob URL with a short-lived SAS token."""
+    if not href or "blob.core.windows.net" not in href:
+        return href
+    try:
+        account = href.split(".blob.core.windows.net")[0].split("//")[-1]
+        token_resp = requests.get(
+            f"https://planetarycomputer.microsoft.com/api/sas/v1/token/{account}",
+            timeout=5,
+            headers={"User-Agent": _planetary_user_agent()},
+        )
+        token_resp.raise_for_status()
+        token = token_resp.json().get("token", "")
+        if not token:
+            return href
+        sep = "&" if "?" in href else "?"
+        return f"{href}{sep}{token}"
+    except (requests.RequestException, ValueError, KeyError):
+        return href
+
+
+def _scene_from_stac_feature(item: dict) -> dict:
+    assets = item.get("assets", {}) or {}
+    rendered = assets.get("rendered_preview") or {}
+    thumbnail = assets.get("thumbnail") or {}
+    props = item.get("properties", {}) or {}
+    thumb_href = _sign_planetary_href(thumbnail.get("href") or rendered.get("href") or "")
+    full_href = _sign_planetary_href(rendered.get("href") or thumbnail.get("href") or "")
+    return {
+        "found": True,
+        "scene_id": item.get("id"),
+        "datetime": props.get("datetime"),
+        "cloud_cover": props.get("eo:cloud_cover"),
+        "thumbnail_url": thumb_href or None,
+        "fullres_url": full_href or None,
+        "bbox": list(item.get("bbox", [])) if item.get("bbox") else None,
+        "platform": props.get("platform", "Sentinel-2"),
+    }
+
+
 def _esri_imagery_fallback(lat: float, lng: float) -> dict:
     lat_span = 0.18
     lng_span = 0.24
@@ -53,14 +93,14 @@ def _esri_imagery_fallback(lat: float, lng: float) -> dict:
 
 
 def search_sentinel2_scene(lat: float, lng: float) -> dict:
-    """Search for the latest Sentinel-2 L2A scene covering a point."""
+    """Search for up to 3 recent Sentinel-2 L2A scenes covering a point."""
     cache_key = f"{round(lat, 2)}_{round(lng, 2)}"
     if cache_key in _sentinel_cache:
         return _sentinel_cache[cache_key]
 
     try:
         end = datetime.utcnow()
-        start = end - timedelta(days=30)
+        start = end - timedelta(days=60)
         search_payload = {
             "collections": ["sentinel-2-l2a"],
             "intersects": {"type": "Point", "coordinates": [lng, lat]},
@@ -83,26 +123,8 @@ def search_sentinel2_scene(lat: float, lng: float) -> dict:
             _sentinel_cache[cache_key] = result
             return result
 
-        item = features[0]
-        assets = item.get("assets", {}) or {}
-        rendered = assets.get("rendered_preview") or {}
-        thumbnail = assets.get("thumbnail") or {}
-
-        # Full-res image URL — what opens when user clicks
-        fullres_url = rendered.get("href") or thumbnail.get("href")
-        # Thumbnail URL — what shows in the popup card
-        thumb_url = thumbnail.get("href") or rendered.get("href")
-
-        result = {
-            "found": True,
-            "scene_id": item.get("id"),
-            "datetime": item.get("properties", {}).get("datetime"),
-            "cloud_cover": item.get("properties", {}).get("eo:cloud_cover"),
-            "thumbnail_url": thumb_url,
-            "fullres_url": fullres_url,
-            "bbox": list(item.get("bbox", [])) if item.get("bbox") else None,
-            "platform": item.get("properties", {}).get("platform", "Sentinel-2"),
-        }
+        scenes = [_scene_from_stac_feature(item) for item in features[:3]]
+        result = {**scenes[0], "scenes": scenes}
         _sentinel_cache[cache_key] = result
         return result
 

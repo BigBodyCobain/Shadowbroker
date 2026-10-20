@@ -67,6 +67,19 @@ export function getLiveDataBounds(): LiveDataBounds | null {
   return _current;
 }
 
+/** Stable cache key for the active bbox-scoped fetch window (1° quantization,
+ *  matching appendLiveDataBoundsParams / backend ETag). Returns null when
+ *  world-scale fetching is active. */
+export function liveDataBoundsKey(): string | null {
+  const b = _current;
+  if (!b) return null;
+  const s = Math.floor(b.south);
+  const w = Math.floor(b.west);
+  const n = Math.ceil(b.north);
+  const e = Math.ceil(b.east);
+  return `${s},${w},${n},${e}`;
+}
+
 /** Append `s/w/n/e` query params to a URL when bounds are set, otherwise
  *  return the URL unchanged. Centralised so all live-data callers stay in
  *  sync about quantization and the world-scale skip rule. */

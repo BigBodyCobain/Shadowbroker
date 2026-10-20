@@ -4,11 +4,51 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from limiter import limiter
 from auth import require_admin
-from services.data_fetcher import get_latest_data
 from services.schemas import HealthResponse
 import os
 
-APP_VERSION = os.environ.get("_HEALTH_APP_VERSION", "0.9.81")
+# Health/SLO probes only need counts + freshness — not a full dashboard deepcopy.
+_HEALTH_DATA_KEYS: tuple[str, ...] = (
+    "last_updated",
+    "commercial_flights",
+    "military_flights",
+    "private_jets",
+    "ships",
+    "satellites",
+    "earthquakes",
+    "cctv",
+    "news",
+    "uavs",
+    "firms_fires",
+    "liveuamap",
+    "gdelt",
+    "uap_sightings",
+    "wastewater",
+    "fimi",
+    "space_weather",
+    "weather_alerts",
+    "volcanoes",
+    "prediction_markets",
+)
+
+
+def _health_data_snapshot() -> dict:
+    from services.fetchers._store import get_latest_data_subset_refs
+    from services.slo import SLO_REGISTRY
+
+    keys = tuple(dict.fromkeys((*_HEALTH_DATA_KEYS, *SLO_REGISTRY.keys())))
+    return get_latest_data_subset_refs(*keys)
+
+
+def _health_row_count(value) -> int:
+    if value is None:
+        return 0
+    try:
+        return len(value)
+    except TypeError:
+        return 0
+
+APP_VERSION = os.environ.get("_HEALTH_APP_VERSION", "0.9.82")
 
 router = APIRouter()
 
@@ -41,7 +81,7 @@ async def health_check(request: Request):
     from services.fetchers._store import get_source_timestamps_snapshot
     from services.slo import compute_all_statuses, summarise_statuses
 
-    d = get_latest_data()
+    d = _health_data_snapshot()
     last = d.get("last_updated")
     timestamps = get_source_timestamps_snapshot()
     slo_statuses = compute_all_statuses(d, timestamps)
@@ -71,6 +111,12 @@ async def health_check(request: Request):
         ais_status = ais_proxy_status() or {}
     except Exception:
         ais_status = {}
+    try:
+        from services.fetchers.aishub_fallback import aishub_fallback_enabled
+
+        ais_status["aishub_configured"] = bool(aishub_fallback_enabled())
+    except Exception:
+        ais_status["aishub_configured"] = bool(str(os.environ.get("AISHUB_USERNAME", "") or "").strip())
     if ais_status.get("degraded_tls") and top_status == "ok":
         # Don't override a worse top-level status if SLOs already failed,
         # but escalate ok -> degraded so the field surfaces in dashboards.
@@ -85,33 +131,49 @@ async def health_check(request: Request):
     ):
         top_status = "degraded"
 
+    runtime: dict = {}
+    try:
+        from services.runtime_profile import get_runtime_profile
+        from analytics.settings import gt_analytics_status
+
+        runtime = {
+            **get_runtime_profile(),
+            "gt_analytics": gt_analytics_status(),
+        }
+    except Exception:
+        runtime = {}
+
     return {
         "status": top_status,
         "version": _get_app_version(),
         "last_updated": last,
         "sources": {
-            "flights": len(d.get("commercial_flights", [])),
-            "military": len(d.get("military_flights", [])),
-            "ships": len(d.get("ships", [])),
-            "satellites": len(d.get("satellites", [])),
-            "earthquakes": len(d.get("earthquakes", [])),
-            "cctv": len(d.get("cctv", [])),
-            "news": len(d.get("news", [])),
-            "uavs": len(d.get("uavs", [])),
-            "firms_fires": len(d.get("firms_fires", [])),
-            "liveuamap": len(d.get("liveuamap", [])),
-            "gdelt": len(d.get("gdelt", [])),
-            "uap_sightings": len(d.get("uap_sightings", [])),
+            "flights": _health_row_count(d.get("commercial_flights")),
+            "military": _health_row_count(d.get("military_flights")),
+            "ships": _health_row_count(d.get("ships")),
+            "satellites": _health_row_count(d.get("satellites")),
+            "earthquakes": _health_row_count(d.get("earthquakes")),
+            "cctv": _health_row_count(d.get("cctv")),
+            "news": _health_row_count(d.get("news")),
+            "uavs": _health_row_count(d.get("uavs")),
+            "firms_fires": _health_row_count(d.get("firms_fires")),
+            "liveuamap": _health_row_count(d.get("liveuamap")),
+            "gdelt": _health_row_count(d.get("gdelt")),
+            "uap_sightings": _health_row_count(d.get("uap_sightings")),
         },
         "freshness": timestamps,
         "uptime_seconds": round(_time_mod.time() - _get_start_time()),
         "slo": slo_statuses,
         "slo_summary": slo_summary,
         "ais_proxy": ais_status,
+        "runtime": runtime or None,
     }
 
 
 @router.get("/api/debug-latest", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def debug_latest_data(request: Request):
-    return list(get_latest_data().keys())
+    from services.fetchers._store import latest_data, _data_lock
+
+    with _data_lock:
+        return list(latest_data.keys())

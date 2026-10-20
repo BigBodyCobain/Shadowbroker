@@ -16,7 +16,7 @@ DATA_DIR = BACKEND_DIR / "data"
 DEFAULT_PEER_STORE_PATH = DATA_DIR / "peer_store.json"
 PEER_STORE_VERSION = 1
 ALLOWED_PEER_BUCKETS = {"bootstrap", "sync", "push"}
-ALLOWED_PEER_SOURCES = {"bundle", "operator", "bootstrap_promoted", "runtime"}
+ALLOWED_PEER_SOURCES = {"bundle", "operator", "bootstrap_promoted", "runtime", "swarm"}
 ALLOWED_PEER_TRANSPORTS = {"clearnet", "onion"}
 ALLOWED_PEER_ROLES = {"participant", "relay", "seed"}
 

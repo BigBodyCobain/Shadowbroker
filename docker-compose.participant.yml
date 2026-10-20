@@ -1,0 +1,27 @@
+# Fleet participant — Infonet swarm + DM relay. OSINT fetchers stay on unless
+# MESH_ONLY=true in .env (lean mode for DM-only E2E / low-memory nodes).
+services:
+  backend:
+    environment:
+      MESH_ONLY: "${MESH_ONLY:-false}"
+      SHADOWBROKER_MESH_NODE_RUNTIME: "${SHADOWBROKER_MESH_NODE_RUNTIME:-true}"
+      MESH_ARTI_ENABLED: "true"
+      MESH_INFONET_FLEET_JOIN: "${MESH_INFONET_FLEET_JOIN:-true}"
+      MESH_INFONET_FLEET_JOIN_DISABLED: "${MESH_INFONET_FLEET_JOIN_DISABLED:-false}"
+      MESH_WORMHOLE_TRUST_FILE_READY: "true"
+      PRIVACY_CORE_ALLOWED_SHA256: "5dd4b65a317277917842b12d7b430d49913789982ba906bd9a0ea6006d40e28a"
+      MESH_RELAY_PUSH_TIMEOUT_S: "300"
+      MESH_RELAY_MAX_FAILURES: "12"
+      MESH_DM_PENDING_PER_SENDER_LIMIT: "8"
+      MESH_DM_PERSIST_SPOOL: "true"
+      WORMHOLE_STARTUP_DEADLINE_S: "90"
+      GT_ANALYTICS_ENABLED: "false"
+      GT_ANALYTICS_PROFILE: "lean"
+      # Lean 1-vCPU nodes: fewer fetch worker threads reduces scheduler contention.
+      SHADOWBROKER_FETCH_WORKERS: "4"
+      SHADOWBROKER_HEAVY_FETCH_WORKERS: "1"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 4G

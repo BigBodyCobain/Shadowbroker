@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio, Bot, Copy, Check, Network } from 'lucide-react';
 
 const CURRENT_ONBOARDING_VERSION = '0.9.81-agentic-onboarding-1';
@@ -38,6 +38,34 @@ const API_GUIDES = [
     url: 'https://aisstream.io/authenticate',
     color: 'blue',
   },
+  {
+    name: 'AISHub (backup)',
+    icon: <Ship size={14} className="text-blue-300" />,
+    required: false,
+    description:
+      'Slow REST backup for the ships layer when AISStream is silent or offline. Uses the same map layer on a ~20 minute cadence.',
+    steps: [
+      'Create a free account at aishub.net',
+      'Open the API page and note your username',
+      'Paste the username into Quick Local Setup above or Settings → API Keys → Maritime',
+    ],
+    url: 'https://www.aishub.net/api',
+    color: 'blue',
+  },
+  {
+    name: 'Global Fishing Watch',
+    icon: <Ship size={14} className="text-teal-400" />,
+    required: false,
+    description:
+      'Fishing-vessel activity events for the Fishing Activity map layer. Optional but recommended for maritime OSINT.',
+    steps: [
+      'Create a free account at globalfishingwatch.org',
+      'Open Our APIs and create an API token',
+      'Paste the token into Quick Local Setup above or Settings → API Keys → Maritime',
+    ],
+    url: 'https://globalfishingwatch.org/our-apis/',
+    color: 'teal',
+  },
 ];
 
 const FREE_SOURCES = [
@@ -65,6 +93,8 @@ const OnboardingModal = React.memo(function OnboardingModal({
     OPENSKY_CLIENT_ID: '',
     OPENSKY_CLIENT_SECRET: '',
     AIS_API_KEY: '',
+    AISHUB_USERNAME: '',
+    GFW_API_TOKEN: '',
   });
   const [setupSaving, setSetupSaving] = useState(false);
   const [setupMsg, setSetupMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -110,7 +140,13 @@ const OnboardingModal = React.memo(function OnboardingModal({
       if (!res.ok || data?.ok === false) {
         throw new Error(data?.detail || 'Could not save API keys.');
       }
-      setSetupKeys({ OPENSKY_CLIENT_ID: '', OPENSKY_CLIENT_SECRET: '', AIS_API_KEY: '' });
+      setSetupKeys({
+        OPENSKY_CLIENT_ID: '',
+        OPENSKY_CLIENT_SECRET: '',
+        AIS_API_KEY: '',
+        AISHUB_USERNAME: '',
+        GFW_API_TOKEN: '',
+      });
       setSetupMsg({ type: 'ok', text: 'Keys saved locally. Restart or refresh feeds to use them.' });
     } catch (error) {
       setSetupMsg({
@@ -129,13 +165,16 @@ const OnboardingModal = React.memo(function OnboardingModal({
 
   const agentSnippet = [
     `SHADOWBROKER_URL=${agentEndpoint}`,
-    agentSecret ? `SHADOWBROKER_KEY=${agentSecret}` : 'SHADOWBROKER_KEY=<generate in ShadowBroker>',
+    agentSecret ? `SHADOWBROKER_HMAC_SECRET=${agentSecret}` : 'SHADOWBROKER_HMAC_SECRET=<generate in ShadowBroker>',
     `SHADOWBROKER_ACCESS=${agentTier}`,
     '',
     '# FIRST: load available tools',
     `GET ${agentEndpoint}/api/ai/tools`,
     '',
-    '# Auth: HMAC-SHA256 signed requests.',
+    '# Auth: SHADOWBROKER_HMAC_SECRET is not a raw API key.',
+    '# Sign every direct request with X-SB-Timestamp, X-SB-Nonce, and X-SB-Signature.',
+    '# Signature input: METHOD|path|timestamp|nonce|sha256(body).',
+    '# Do not send the secret as X-Admin-Key, Authorization, or a query parameter.',
     '# Restricted = read-only telemetry. Full = can write when asked.',
   ].join('\n');
   const remoteAgentNeedsTor = agentMode === 'remote' && !torAddress;
@@ -477,7 +516,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                         STEP 3 - COPY THIS INTO YOUR AGENT
                       </p>
                       <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1">
-                        Generate a local key, then copy these variables into OpenClaw, Hermes, or another HMAC agent.
+                        Generate a local key, then set these variables in your agent&apos;s environment (Hermes, Claude Code, or any HMAC-capable agent).
                       </p>
                     </div>
                     <button
@@ -554,8 +593,10 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       </p>
                       <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
                         OpenSky Network and AIS Stream are the free keys that make ShadowBroker
-                        useful immediately: live aircraft and vessel tracking. Paste them below or
-                        use Settings later; secrets stay on the local backend.
+                        useful immediately: live aircraft and vessel tracking. Optionally add an
+                        AISHub username as a slow ships-layer backup when AISStream is silent.
+                        Global Fishing Watch unlocks the fishing-activity layer. Paste them below
+                        or use Settings later; secrets stay on the local backend.
                       </p>
                     </div>
                   </div>
@@ -575,6 +616,8 @@ const OnboardingModal = React.memo(function OnboardingModal({
                     ['OPENSKY_CLIENT_ID', 'OpenSky Client ID'],
                     ['OPENSKY_CLIENT_SECRET', 'OpenSky Client Secret'],
                     ['AIS_API_KEY', 'AIS Stream API Key'],
+                    ['AISHUB_USERNAME', 'AISHub Username (optional backup)'],
+                    ['GFW_API_TOKEN', 'Global Fishing Watch API Token (optional)'],
                   ].map(([key, label]) => (
                     <input
                       key={key}
@@ -615,9 +658,15 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <div className="flex items-center gap-2">
                         {api.icon}
                         <span className="text-xs font-mono text-white font-bold">{api.name}</span>
-                        <span className="text-[12px] font-mono px-1.5 py-0.5 border border-yellow-500/30 text-yellow-400 bg-yellow-950/20">
-                          REQUIRED
-                        </span>
+                        {api.required ? (
+                          <span className="text-[12px] font-mono px-1.5 py-0.5 border border-yellow-500/30 text-yellow-400 bg-yellow-950/20">
+                            REQUIRED
+                          </span>
+                        ) : (
+                          <span className="text-[12px] font-mono px-1.5 py-0.5 border border-teal-500/30 text-teal-300 bg-teal-950/20">
+                            OPTIONAL
+                          </span>
+                        )}
                       </div>
                       <a
                         href={api.url}

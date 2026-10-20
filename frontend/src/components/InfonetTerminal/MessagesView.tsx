@@ -66,6 +66,7 @@ import {
   purgeBrowserContactGraph,
   purgeBrowserSigningMaterial,
   removeContact,
+  severContact,
   unblockContact,
   unwrapSenderSealPayload,
   updateContact,
@@ -74,6 +75,7 @@ import {
   type Contact,
   type NodeIdentity,
 } from '@/mesh/meshIdentity';
+import { connectDeliveryMeta, ensureDmOutboxReleased } from '@/mesh/dmConnectDelivery';
 import {
   getSenderRecoveryState,
   recoverSenderSealWithFallback,
@@ -1516,6 +1518,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             API_BASE,
             senderId,
             existingContact?.invitePinnedPrekeyLookupHandle,
+            { lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl },
           );
           if (senderKey?.dh_pub_key) {
             const sharedKey = await deriveSharedKey(String(senderKey.dh_pub_key));
@@ -1532,6 +1535,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           API_BASE,
           senderId,
           existingContact?.invitePinnedPrekeyLookupHandle,
+          { lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl },
         ).catch(() => null);
         if (senderKey?.dh_pub_key) {
           addContact(senderId, String(senderKey.dh_pub_key), undefined, senderKey.dh_algo);
@@ -2000,7 +2004,9 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           'This contact needs their full contact address once before messages can be sent. Paste it in Contacts and the app will handle the rest.',
         );
       }
-      const targetKey = await fetchDmPublicKey(API_BASE, recipient, lookupHandle);
+      const targetKey = await fetchDmPublicKey(API_BASE, recipient, lookupHandle, {
+        lookupPeerUrl: recipientContact?.invitePinnedLookupPeerUrl,
+      });
       if (!targetKey?.dh_pub_key) {
         queuePendingDeliveryMail({
           senderId: activeIdentity.nodeId,
@@ -2037,15 +2043,23 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       }
       const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
       const timestamp = Math.floor(Date.now() / 1000);
-      const sent = await sendOffLedgerConsentMessage({
-        apiBase: API_BASE,
-        identity: activeIdentity,
-        recipientId: recipient,
-        recipientDhPub: String(targetKey.dh_pub_key),
-        ciphertext,
-        msgId,
-        timestamp,
+      const connectMeta = connectDeliveryMeta({
+        intent: 'contact_request',
+        contact: recipientContact,
       });
+      const sent = await ensureDmOutboxReleased(
+        await sendOffLedgerConsentMessage({
+          apiBase: API_BASE,
+          identity: activeIdentity,
+          recipientId: recipient,
+          recipientDhPub: String(targetKey.dh_pub_key),
+          ciphertext,
+          msgId,
+          timestamp,
+          connectIntent: connectMeta.connectIntent,
+          lookupPeerUrl: connectMeta.lookupPeerUrl,
+        }),
+      );
       if (!sent.ok) {
         throw new Error(sent.detail || 'contact request failed');
       }
@@ -2110,7 +2124,9 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           throw new Error('Secure mail is still preparing your private identity.');
         }
         const { registration, myDhPub } = await ensureLocalDmKey(activeIdentity);
-        const targetKey = await fetchDmPublicKey(API_BASE, '', shortAddress);
+        const targetKey = await fetchDmPublicKey(API_BASE, '', shortAddress, {
+          allowLegacyAgentId: false,
+        });
         if (!targetKey?.dh_pub_key || !targetKey.agent_id) {
           throw new Error('That address is not reachable yet. Ask them to copy their address again while their device is online.');
         }
@@ -2136,15 +2152,18 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         }
         const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
         const timestamp = Math.floor(Date.now() / 1000);
-        const sent = await sendOffLedgerConsentMessage({
-          apiBase: API_BASE,
-          identity: activeIdentity,
-          recipientId: recipient,
-          recipientDhPub: String(targetKey.dh_pub_key),
-          ciphertext,
-          msgId,
-          timestamp,
-        });
+        const sent = await ensureDmOutboxReleased(
+          await sendOffLedgerConsentMessage({
+            apiBase: API_BASE,
+            identity: activeIdentity,
+            recipientId: recipient,
+            recipientDhPub: String(targetKey.dh_pub_key),
+            ciphertext,
+            msgId,
+            timestamp,
+            connectIntent: 'invite_short_address',
+          }),
+        );
         if (!sent.ok) {
           throw new Error(sent.detail || 'contact request failed');
         }
@@ -2224,6 +2243,12 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             invitePayload.prekey_lookup_handle ||
             '',
         ),
+        invitePinnedLookupPeerUrl: String(
+          resultContact.invitePinnedLookupPeerUrl ||
+            (invite as Record<string, unknown>).lookup_peer_url ||
+            invitePayload.lookup_peer_url ||
+            '',
+        ),
         dhPubKey: String(resultContact.dhPubKey || resultContact.invitePinnedDhPubKey || ''),
       };
       const mergedContacts = importedPeerId
@@ -2268,6 +2293,26 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       setInviteBusy(false);
     }
   }, [applyHydratedContacts, handleSendShortAddressRequest, inviteImportAlias, inviteImportBlob, loadBackendContacts, syncSecureMailRuntime]);
+
+  const handleSeverContact = useCallback(
+    async (peerId: string) => {
+      const name = displayNameForPeer(peerId, contacts);
+      setComposeError('');
+      setComposeStatus('');
+      try {
+        await severContact(peerId);
+        setContacts(getContacts());
+        setComposeStatus(
+          `Secure contact ended with ${name}. You can message again only after a new request and approval.`,
+        );
+      } catch (error) {
+        setComposeError(
+          error instanceof Error ? error.message : 'Could not end secure contact right now.',
+        );
+      }
+    },
+    [contacts],
+  );
 
   const refreshDmAddressHandles = useCallback(async () => {
     try {
@@ -2501,6 +2546,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           API_BASE,
           mail.senderId,
           existingContact?.invitePinnedPrekeyLookupHandle,
+          { lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl },
         ).catch(() => null);
         const dhPubKey = String(registry?.dh_pub_key || mail.requestDhPubKey || '').trim();
         const dhAlgo = String(registry?.dh_algo || mail.requestDhAlgo || 'X25519').trim();
@@ -2551,15 +2597,19 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
 
         const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
         const timestamp = Math.floor(Date.now() / 1000);
-        const sent = await sendOffLedgerConsentMessage({
-          apiBase: API_BASE,
-          identity: activeIdentity,
-          recipientId: mail.senderId,
-          recipientDhPub: dhPubKey,
-          ciphertext,
-          msgId,
-          timestamp,
-        });
+        const sent = await ensureDmOutboxReleased(
+          await sendOffLedgerConsentMessage({
+            apiBase: API_BASE,
+            identity: activeIdentity,
+            recipientId: mail.senderId,
+            recipientDhPub: dhPubKey,
+            ciphertext,
+            msgId,
+            timestamp,
+            connectIntent: 'contact_accept',
+            lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl,
+          }),
+        );
         if (!sent.ok) {
           throw new Error(sent.detail || 'contact accept failed');
         }
@@ -2715,7 +2765,9 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           <Mail size={24} className="mr-3" />
           SECURE MESSAGES
         </h1>
-        <p className="text-gray-500 text-sm mt-1">End-to-end encrypted peer-to-peer comms.</p>
+        <p className="text-gray-500 text-sm mt-1">
+          Copy your short address and send it to someone. They paste it here and tap Send Request — you tap Accept. No terminal required.
+        </p>
       </div>
 
       <div className="border border-cyan-900/30 bg-cyan-950/10 px-4 py-3 text-[11px] tracking-[0.16em] uppercase text-cyan-300 mb-4 shrink-0">
@@ -2755,7 +2807,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
                   </div>
                 </>
               ) : (
-                'Your contact address is being prepared automatically. Share it with someone so they can message you.'
+                'Your contact address is being prepared. Copy the short address above and send it to anyone you want to message you.'
               )}
             </div>
           </div>
@@ -3428,7 +3480,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
                             )}
                             {contact.sharedAlias && (
                               <div className="text-[11px] text-emerald-300 mt-2">
-                                Shared alias: {contact.sharedAlias}
+                                Shared lane open — you can exchange secure mail.
                               </div>
                             )}
                           </div>
@@ -3464,6 +3516,18 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
                                 className="px-3 py-2 border border-cyan-500/30 text-cyan-300 text-sm tracking-[0.18em] uppercase"
                               >
                                 {nextStep.label}
+                              </button>
+                            )}
+                            {contact.sharedAlias && (
+                              <button
+                                onClick={() => void handleSeverContact(peerId)}
+                                className="px-3 py-2 border border-violet-500/30 text-violet-200 text-sm tracking-[0.18em] uppercase"
+                                title="Close the shared lane. A fresh contact request and approval will be required to message again."
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  <ShieldOff size={14} />
+                                  End Contact
+                                </span>
                               </button>
                             )}
                             <button

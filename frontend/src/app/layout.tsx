@@ -1,8 +1,17 @@
 import type { Metadata } from 'next';
+import { JetBrains_Mono } from 'next/font/google';
 import DesktopBridgeBootstrap from '@/components/DesktopBridgeBootstrap';
+import MotionRoot from '@/components/MotionRoot';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { I18nProvider } from '@/i18n';
 import './globals.css';
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
+});
 
 export const metadata: Metadata = {
   title: 'WORLDVIEW // ORBITAL TRACKING',
@@ -22,16 +31,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="antialiased bg-[var(--bg-primary)]" suppressHydrationWarning>
+      <body className={`${jetBrainsMono.variable} antialiased bg-[var(--bg-primary)]`} suppressHydrationWarning>
         <I18nProvider>
           <ThemeProvider>
-            <DesktopBridgeBootstrap />
-            {children}
+            <MotionRoot>
+              <DesktopBridgeBootstrap />
+              {children}
+            </MotionRoot>
           </ThemeProvider>
         </I18nProvider>
       </body>

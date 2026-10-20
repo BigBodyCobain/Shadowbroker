@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from json import JSONDecodeError
 
-APP_VERSION = "0.9.81"
+APP_VERSION = "0.9.84"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -168,6 +168,7 @@ def _gate_privileged_access_status_snapshot_local() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 _SECRET_VARS = [
     "AIS_API_KEY",
+    "AISHUB_USERNAME",
     "OPENSKY_CLIENT_ID",
     "OPENSKY_CLIENT_SECRET",
     "LTA_ACCOUNT_KEY",
@@ -202,14 +203,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.background import BackgroundTask
 from contextlib import asynccontextmanager
-from services.data_fetcher import (
-    start_scheduler,
-    stop_scheduler,
-    get_latest_data,
-    seed_startup_caches,
-)
-from services.ais_stream import start_ais_stream, stop_ais_stream
-from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
+if not _MESH_ONLY:
+    from services.data_fetcher import (
+        start_scheduler,
+        stop_scheduler,
+        get_latest_data,
+        seed_startup_caches,
+    )
+    from services.ais_stream import start_ais_stream, stop_ais_stream
+    from services.carrier_tracker import start_carrier_tracker, stop_carrier_tracker
+else:
+    # Lean mesh/wormhole process — avoid importing the OSINT fetcher graph.
+    def start_scheduler(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_scheduler(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def get_latest_data():  # type: ignore[misc]
+        return {}
+
+    def seed_startup_caches(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def start_ais_stream(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_ais_stream(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def start_carrier_tracker(*_a, **_k):  # type: ignore[misc]
+        return None
+
+    def stop_carrier_tracker(*_a, **_k):  # type: ignore[misc]
+        return None
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from services.schemas import HealthResponse, RefreshResponse
@@ -244,6 +271,7 @@ from services.mesh.mesh_protocol import (
     PROTOCOL_VERSION,
     normalize_payload,
 )
+from services.mesh.mesh_hashchain import GENESIS_HASH
 from services.mesh.mesh_signed_events import (
     MeshWriteExemption,
     SignedWriteKind,
@@ -324,6 +352,7 @@ from auth import (
     _validate_insecure_admin_startup,
     _validate_peer_push_secret,
     _verify_peer_push_hmac,
+    _verify_peer_transport_hmac,
 )
 from node_state import (
     _NODE_BOOTSTRAP_STATE,
@@ -350,22 +379,49 @@ def _load_optional_router(module_name: str) -> APIRouter:
 
 
 health_router = _load_optional_router("routers.health")
-cctv_router = _load_optional_router("routers.cctv")
-radio_router = _load_optional_router("routers.radio")
-sigint_router = _load_optional_router("routers.sigint")
-tools_router = _load_optional_router("routers.tools")
-admin_router = _load_optional_router("routers.admin")
-data_router = _load_optional_router("routers.data")
 mesh_peer_sync_router = _load_optional_router("routers.mesh_peer_sync")
 mesh_operator_router = _load_optional_router("routers.mesh_operator")
 mesh_oracle_router = _load_optional_router("routers.mesh_oracle")
 mesh_dm_router = _load_optional_router("routers.mesh_dm")
 mesh_public_router = _load_optional_router("routers.mesh_public")
 wormhole_router = _load_optional_router("routers.wormhole")
-ai_intel_router = _load_optional_router("routers.ai_intel")
-sar_router = _load_optional_router("routers.sar")
 infonet_router = _load_optional_router("routers.infonet")
-snapmap_router = _load_optional_router("routers.snapmap")
+
+if _MESH_ONLY:
+    # Empty routers keep include_router() call sites unchanged without loading OSINT.
+    cctv_router = APIRouter()
+    radio_router = APIRouter()
+    sigint_router = APIRouter()
+    tools_router = APIRouter()
+    admin_router = APIRouter()
+    data_router = APIRouter()
+    ai_intel_router = APIRouter()
+    sar_router = APIRouter()
+    road_corridors_router = APIRouter()
+    osint_router = APIRouter()
+    scm_router = APIRouter()
+    entity_graph_router = APIRouter()
+    intel_feeds_router = APIRouter()
+    snapmap_router = APIRouter()
+    analytics_router = APIRouter()
+    agent_shell_router = APIRouter()
+else:
+    cctv_router = _load_optional_router("routers.cctv")
+    radio_router = _load_optional_router("routers.radio")
+    sigint_router = _load_optional_router("routers.sigint")
+    tools_router = _load_optional_router("routers.tools")
+    admin_router = _load_optional_router("routers.admin")
+    data_router = _load_optional_router("routers.data")
+    ai_intel_router = _load_optional_router("routers.ai_intel")
+    sar_router = _load_optional_router("routers.sar")
+    road_corridors_router = _load_optional_router("routers.road_corridors")
+    osint_router = _load_optional_router("routers.osint")
+    scm_router = _load_optional_router("routers.scm")
+    entity_graph_router = _load_optional_router("routers.entity_graph")
+    intel_feeds_router = _load_optional_router("routers.intel_feeds")
+    snapmap_router = _load_optional_router("routers.snapmap")
+    analytics_router = _load_optional_router("routers.analytics")
+    agent_shell_router = _load_optional_router("routers.agent_shell")
 
 
 # ---------------------------------------------------------------------------
@@ -1065,6 +1121,10 @@ def _release_gate_status(
 
 
 def _validate_privacy_core_startup() -> None:
+    # The wormhole child agent reuses this app on WORMHOLE_PORT; the parent
+    # backend already validated privacy-core before spawning it.
+    if os.environ.get("WORMHOLE_PORT"):
+        return
     from services.privacy_core_attestation import validate_privacy_core_startup
 
     validate_privacy_core_startup()
@@ -1236,6 +1296,26 @@ def _local_infonet_peer_url() -> str:
         return ""
 
 
+def _clear_stale_arti_sync_backoff() -> None:
+    """Drop cached Arti warmup errors once SOCKS transport is actually ready."""
+    from dataclasses import replace
+
+    with _NODE_RUNTIME_LOCK:
+        current = get_sync_state()
+        error_lower = str(current.last_error or "").lower()
+        if "arti" not in error_lower and "onion sync requires" not in error_lower:
+            return
+        set_sync_state(
+            replace(
+                current,
+                last_error="",
+                consecutive_failures=0,
+                next_sync_due_at=int(time.time()),
+                last_outcome="idle" if current.last_outcome == "error" else current.last_outcome,
+            )
+        )
+
+
 def _ensure_infonet_private_transport_ready(reason: str = "") -> bool:
     """Warm the local onion transport before private Infonet sync.
 
@@ -1264,14 +1344,36 @@ def _ensure_infonet_private_transport_ready(reason: str = "") -> bool:
 
         label = f" ({reason})" if reason else ""
         logger.info("Infonet private transport warmup starting%s", label)
-        tor_result = tor_service.start(target_port=8000)
-        if tor_result.get("ok"):
+        from services.wormhole_supervisor import invalidate_arti_ready_cache
+
+        for attempt in range(3):
+            tor_result = tor_service.start(target_port=8000)
+            if not tor_result.get("ok"):
+                logger.warning(
+                    "Infonet private transport warmup incomplete%s: %s",
+                    label,
+                    tor_result,
+                )
+                continue
             _write_env_value("MESH_ARTI_ENABLED", "true")
             get_settings.cache_clear()
-            if _check_arti_ready():
-                logger.info("Infonet private transport ready%s", label)
-                return True
-        logger.warning("Infonet private transport warmup incomplete%s: %s", label, tor_result)
+            invalidate_arti_ready_cache()
+            deadline = time.monotonic() + 30.0
+            while time.monotonic() < deadline:
+                if _check_arti_ready(force=True):
+                    logger.info("Infonet private transport ready%s", label)
+                    _clear_stale_arti_sync_backoff()
+                    threading.Thread(target=_swarm_bootstrap_after_transport_ready, daemon=True).start()
+                    _kick_public_sync_background(f"transport_ready{label}")
+                    return True
+                time.sleep(1.0)
+            logger.warning(
+                "Infonet private transport SOCKS not ready after Tor start (attempt %d/3)%s",
+                attempt + 1,
+                label,
+            )
+            tor_service.stop()
+        logger.warning("Infonet private transport warmup incomplete%s", label)
         return False
     except Exception as exc:
         logger.warning("Infonet private transport warmup failed: %s", exc)
@@ -1281,10 +1383,14 @@ def _ensure_infonet_private_transport_ready(reason: str = "") -> bool:
 
 
 def _configured_bootstrap_seed_peer_urls() -> list[str]:
+    from services.mesh.mesh_fleet_defaults import configured_bootstrap_seed_peers_with_fleet_default
+
     settings = get_settings()
     primary = str(getattr(settings, "MESH_BOOTSTRAP_SEED_PEERS", "") or "").strip()
     legacy = str(getattr(settings, "MESH_DEFAULT_SYNC_PEERS", "") or "").strip()
-    return parse_configured_relay_peers(primary or legacy)
+    return configured_bootstrap_seed_peers_with_fleet_default(
+        parse_configured_relay_peers(primary or legacy)
+    )
 
 
 def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
@@ -1411,6 +1517,16 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
     if private_transport_required and skipped_clearnet_peers and not bootstrap_error:
         bootstrap_error = _infonet_private_transport_error()
 
+    swarm_pull: dict[str, Any] = {}
+    try:
+        from services.mesh.mesh_swarm_runtime import refresh_swarm_manifest_from_seeds
+
+        swarm_pull = refresh_swarm_manifest_from_seeds(now=timestamp)
+        if swarm_pull.get("ok") and not swarm_pull.get("skipped"):
+            store.load()
+    except Exception as exc:
+        swarm_pull = {"ok": False, "detail": str(exc or type(exc).__name__)}
+
     store.save()
     bootstrap_records = store.records_for_bucket("bootstrap")
     sync_records = store.records_for_bucket("sync")
@@ -1419,9 +1535,23 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
         bootstrap_records = [record for record in bootstrap_records if _is_private_infonet_transport(record.transport)]
         sync_records = [record for record in sync_records if _is_private_infonet_transport(record.transport)]
         push_records = [record for record in push_records if _is_private_infonet_transport(record.transport)]
+    swarm_sync_peer_count = len([record for record in sync_records if str(record.source or "") == "swarm"])
+    swarm_push_peer_count = len([record for record in push_records if str(record.source or "") == "swarm"])
+    swarm_pull_ok = bool(swarm_pull.get("ok")) and not bool(swarm_pull.get("skipped"))
+    if swarm_pull_ok or manifest is not None or swarm_sync_peer_count > 0:
+        bootstrap_state = "ready"
+        bootstrap_detail = "Bootstrap peer discovery is ready."
+    elif bootstrap_seed_peers:
+        bootstrap_state = "connecting"
+        bootstrap_detail = "Bootstrap seeds are configured; local node stays active and retries in the background."
+    else:
+        bootstrap_state = "solo"
+        bootstrap_detail = "No bootstrap seeds configured; local node is running in solo mode."
     snapshot = {
         "node_mode": mode,
         "private_transport_required": private_transport_required,
+        "bootstrap_state": bootstrap_state,
+        "bootstrap_detail": bootstrap_detail,
         "skipped_clearnet_peer_count": skipped_clearnet_peers,
         "pruned_clearnet_peer_count": pruned_clearnet_peers,
         "manifest_loaded": manifest is not None,
@@ -1430,14 +1560,27 @@ def _refresh_node_peer_store(*, now: float | None = None) -> dict[str, Any]:
         "bootstrap_peer_count": len(bootstrap_records),
         "sync_peer_count": len(sync_records),
         "push_peer_count": len(push_records),
+        "swarm_sync_peer_count": swarm_sync_peer_count,
+        "swarm_push_peer_count": swarm_push_peer_count,
         "operator_peer_count": len(operator_peers),
         "bootstrap_seed_peer_count": len(bootstrap_seed_peers),
         "default_sync_peer_count": len(bootstrap_seed_peers),
         "last_bootstrap_error": bootstrap_error,
+        "swarm_manifest_pull": swarm_pull,
     }
     with _NODE_RUNTIME_LOCK:
         _NODE_BOOTSTRAP_STATE.update(snapshot)
     return snapshot
+
+
+def _swarm_bootstrap_after_transport_ready() -> None:
+    try:
+        from services.mesh.mesh_swarm_runtime import join_swarm_with_retries
+
+        join_swarm_with_retries(attempts=4, delay_s=15.0, force=True)
+        _refresh_node_peer_store()
+    except Exception:
+        logger.warning("swarm bootstrap after transport ready failed", exc_info=True)
 
 
 def _materialize_local_infonet_state() -> None:
@@ -1588,6 +1731,12 @@ def _hydrate_dm_relay_from_chain(events: list[dict]) -> int:
             f"hashchain-dm-sender|{event_id}|{canonical.get('node_id', '')}".encode("utf-8")
         ).hexdigest()
         try:
+            from services.mesh.mesh_dm_connect_delivery import relay_push_peer_urls_for_payload
+
+            replication_urls = relay_push_peer_urls_for_payload(dict(payload))
+        except Exception:
+            replication_urls = []
+        try:
             result = dm_relay.deposit(
                 sender_id=str(canonical.get("node_id", "") or ""),
                 raw_sender_id=str(canonical.get("node_id", "") or ""),
@@ -1600,6 +1749,7 @@ def _hydrate_dm_relay_from_chain(events: list[dict]) -> int:
                 sender_token_hash=sender_token_hash,
                 payload_format=str(payload.get("format", "dm1") or "dm1"),
                 session_welcome=str(payload.get("session_welcome", "") or ""),
+                replication_peer_urls=replication_urls,
             )
             if result.get("ok"):
                 count += 1
@@ -1664,7 +1814,29 @@ def _sync_from_peer(
         _hydrate_dm_relay_from_chain(events)
         rejected = list(result.get("rejected", []) or [])
         if rejected:
-            return False, f"sync ingest rejected {len(rejected)} event(s)", False, 0
+            reasons = [
+                str((item or {}).get("reason", "") or "").strip()
+                for item in rejected
+                if isinstance(item, dict)
+            ]
+            reason_summary = ", ".join(reason for reason in reasons if reason)
+            detail = f"sync ingest rejected {len(rejected)} event(s)"
+            if reason_summary:
+                detail = f"{detail}: {reason_summary}"
+            local_empty = len(infonet.events) == 0
+            stale_genesis = (
+                local_empty
+                and bool(events)
+                and str((events[0] or {}).get("prev_hash", "") or "") == GENESIS_HASH
+                and any("timestamp outside freshness window" in reason.lower() for reason in reasons)
+            )
+            if stale_genesis:
+                detail = (
+                    f"{detail}; peer appears to be serving an expired genesis chain. "
+                    "Refresh or reset the peer chain, or perform an explicit one-time migration "
+                    "with MESH_INGEST_EVENT_MAX_AGE_S=0."
+                )
+            return False, detail, False, 0
         if int(result.get("accepted", 0) or 0) == 0 and int(result.get("duplicates", 0) or 0) >= len(events):
             return True, "", False, 0
         if len(events) < page_limit:
@@ -1917,9 +2089,22 @@ def _propagate_public_event_to_peers(event_dict: dict[str, Any]) -> None:
     )
 
 
+def _propagate_ledger_event_to_peers(event_dict: dict[str, Any]) -> None:
+    if not _participant_node_enabled():
+        return
+    event_type = str(event_dict.get("event_type") or "")
+    if event_type in {"gate_message", "dm_message"}:
+        from services.mesh.mesh_swarm_runtime import push_infonet_events_to_http_peers
+
+        push_infonet_events_to_http_peers([event_dict])
+        _kick_public_sync_background("ledger_event")
+        return
+    _propagate_public_event_to_peers(event_dict)
+
+
 def _schedule_public_event_propagation(event_dict: dict[str, Any]) -> None:
     threading.Thread(
-        target=_propagate_public_event_to_peers,
+        target=_propagate_ledger_event_to_peers,
         args=(dict(event_dict),),
         daemon=True,
     ).start()
@@ -1955,6 +2140,7 @@ def _start_infonet_node_runtime(reason: str = "startup") -> None:
                 threading.Thread(target=_http_peer_push_loop, daemon=True).start()
                 threading.Thread(target=_http_gate_push_loop, daemon=True).start()
                 threading.Thread(target=_http_gate_pull_loop, daemon=True).start()
+                threading.Thread(target=_swarm_manifest_pull_loop, daemon=True).start()
                 _NODE_RUNTIME_THREADS_STARTED = True
             _kick_public_sync_background(reason)
         if not _NODE_PUBLIC_EVENT_HOOK_REGISTERED:
@@ -2060,6 +2246,22 @@ def _http_peer_push_loop() -> None:
         except Exception:
             logger.exception("HTTP peer push loop error")
         _NODE_SYNC_STOP.wait(_PEER_PUSH_INTERVAL_S)
+
+
+def _swarm_manifest_pull_loop() -> None:
+    """Background thread: pull signed peer manifests from bootstrap seeds."""
+    while not _NODE_SYNC_STOP.is_set():
+        try:
+            if _participant_node_enabled():
+                from services.mesh.mesh_swarm_runtime import refresh_swarm_manifest_from_seeds
+
+                result = refresh_swarm_manifest_from_seeds()
+                if result.get("ok") and not result.get("skipped"):
+                    _refresh_node_peer_store()
+        except Exception:
+            logger.exception("swarm manifest pull loop error")
+        interval_s = int(getattr(get_settings(), "MESH_SWARM_MANIFEST_PULL_INTERVAL_S", 0) or 300)
+        _NODE_SYNC_STOP.wait(max(30, interval_s))
 
 
 # â”€â”€â”€ Background Gate Message Pull Worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -2560,13 +2762,15 @@ async def lifespan(app: FastAPI):
         # in _scheduler_loop, so we do NOT call it again in the preload thread.
         start_carrier_tracker()
 
-        # Start SIGINT grid eagerly â€” APRS-IS TCP + Meshtastic MQTT connections
-        # take a few seconds to handshake and start receiving packets. By starting
-        # now, the bridges are already accumulating signals by the time the first
-        # fetch_sigint() reads them during the preload cycle.
-        from services.sigint_bridge import sigint_grid
+        # Route startup through the bounded production APRS bridge. The old
+        # SIGINTGrid.start() also opened an unbounded public APRS-IS feed.
+        from services.fetchers._store import is_any_active
+        from services.fetchers.sigint import _reconcile_sigint_bridges
 
-        sigint_grid.start()
+        _reconcile_sigint_bridges(
+            aprs_requested=is_any_active("sigint_aprs"),
+            mesh_requested=is_any_active("sigint_meshtastic"),
+        )
 
     # Start Reticulum bridge (optional)
     try:
@@ -2606,8 +2810,10 @@ async def lifespan(app: FastAPI):
     if not _MESH_ONLY:
         def _startup_wormhole_runtime():
             try:
+                from services.mesh.mesh_infonet_relay_bootstrap import ensure_infonet_relay_wormhole_ready
                 from services.wormhole_supervisor import get_wormhole_state, sync_wormhole_with_settings
 
+                ensure_infonet_relay_wormhole_ready(reason="startup_relay")
                 sync_wormhole_with_settings()
                 _resume_private_delivery_background_work(
                     current_tier=_current_private_lane_tier(get_wormhole_state()),
@@ -2696,7 +2902,11 @@ async def lifespan(app: FastAPI):
         stop_scheduler()
         stop_carrier_tracker()
         try:
+            from services.aprs_is_bridge import aprs_is_bridge
+            from services.sigint_bridge import sigint_grid
+
             sigint_grid.stop()
+            aprs_is_bridge.stop()
         except Exception:
             pass
     if not _MESH_ONLY:
@@ -3382,7 +3592,10 @@ def _request_private_surface_warmup(*, path: str, method: str, current_tier: str
 
 
 def _is_invite_scoped_prekey_bundle_lookup(request: Request, path: str) -> bool:
-    if request.method.upper() != "GET" or str(path or "").strip() != "/api/mesh/dm/prekey-bundle":
+    if request.method.upper() != "GET":
+        return False
+    normalized_path = str(path or "").strip()
+    if normalized_path not in {"/api/mesh/dm/prekey-bundle", "/api/mesh/dm/pubkey"}:
         return False
     try:
         lookup_token = str(request.query_params.get("lookup_token", "") or "").strip()
@@ -3483,6 +3696,14 @@ async def enforce_high_privacy_mesh(request: Request, call_next):
         except Exception:
             logger.debug("Private surface warm-up request failed", exc_info=True)
         required_tier = _minimum_transport_tier(path, request.method)
+        if required_tier:
+            from services.mesh.mesh_privacy_policy import runtime_route_enforcement_tier
+
+            required_tier = runtime_route_enforcement_tier(
+                path,
+                request.method,
+                static_tier=required_tier,
+            )
         if required_tier:
             if not _transport_tier_is_sufficient(current_tier, required_tier):
                 if request.method.upper() == "POST" and path == "/api/mesh/dm/send":
@@ -3642,7 +3863,14 @@ app.include_router(wormhole_router)
 app.include_router(ai_intel_router)
 app.include_router(sar_router)
 app.include_router(infonet_router)
+app.include_router(road_corridors_router)
+app.include_router(osint_router)
+app.include_router(scm_router)
+app.include_router(entity_graph_router)
+app.include_router(intel_feeds_router)
 app.include_router(snapmap_router)
+app.include_router(analytics_router)
+app.include_router(agent_shell_router)
 
 from services.data_fetcher import update_all_data
 
@@ -3766,7 +3994,9 @@ class LayerUpdate(BaseModel):
 async def update_layers(update: LayerUpdate, request: Request):
     """Receive frontend layer toggle state. Starts/stops streams accordingly."""
     from services.fetchers._store import active_layers, bump_active_layers_version, is_any_active
+    from services.layer_enable_refresh import refresh_newly_enabled_layers, snapshot_active_layers
 
+    layers_before = snapshot_active_layers()
     # Snapshot old stream states before applying changes
     old_ships = is_any_active(
         "ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts"
@@ -3807,6 +4037,7 @@ async def update_layers(update: LayerUpdate, request: Request):
 
     # Start/stop SIGINT bridges on transition
     from services.sigint_bridge import sigint_grid
+    from services.aprs_is_bridge import aprs_is_bridge
 
     if old_mesh and not new_mesh:
         try:
@@ -3837,445 +4068,24 @@ async def update_layers(update: LayerUpdate, request: Request):
             )
 
     if old_aprs and not new_aprs:
-        sigint_grid.aprs.stop()
-        logger.info("APRS bridge stopped (layer disabled)")
+        aprs_is_bridge.reconcile(False)
+        logger.info("Bounded APRS-IS bridge stopped (layer disabled)")
     elif not old_aprs and new_aprs:
-        sigint_grid.aprs.start()
-        logger.info("APRS bridge started (layer enabled)")
+        aprs_is_bridge.reconcile(True)
+        logger.info("Bounded APRS-IS bridge reconciled (layer enabled)")
 
     if not old_viirs and new_viirs:
         _queue_viirs_change_refresh()
         logger.info("VIIRS change refresh queued (layer enabled)")
 
+    if old_mesh != new_mesh or old_aprs != new_aprs:
+        from services.fetchers.sigint import fetch_sigint
+
+        threading.Thread(target=fetch_sigint, daemon=True, name="sigint-layer-refresh").start()
+
+    refresh_newly_enabled_layers(layers_before)
+
     return {"status": "ok"}
-
-
-@app.get("/api/live-data")
-@limiter.limit("120/minute")
-async def live_data(request: Request):
-    return get_latest_data()
-
-
-def _etag_response(request: Request, payload: dict, prefix: str = "", default=None):
-    """Serialize once, use data version for ETag, return 304 or full response.
-
-    Uses a monotonic version counter instead of MD5-hashing the full payload.
-    The 304 fast path avoids serialization entirely.
-    """
-    etag = _current_etag(prefix)
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-    content = json_mod.dumps(_json_safe(payload), default=default, allow_nan=False)
-    return Response(
-        content=content,
-        media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"},
-    )
-
-
-def _current_etag(prefix: str = "") -> str:
-    from services.fetchers._store import get_active_layers_version, get_data_version
-
-    return f"{prefix}v{get_data_version()}-l{get_active_layers_version()}"
-
-
-def _json_safe(value):
-    """Recursively replace non-finite floats with None so responses stay valid JSON."""
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        # Snapshot mutable mappings first so background fetcher updates do not
-        # invalidate iteration while we serialize a response.
-        return {k: _json_safe(v) for k, v in list(value.items())}
-    if isinstance(value, list):
-        return [_json_safe(v) for v in list(value)]
-    if isinstance(value, tuple):
-        return [_json_safe(v) for v in list(value)]
-    return value
-
-
-def _sanitize_payload(value):
-    """Thread-safe snapshot with NaNâ†’None. Cheaper than _json_safe: only deep-
-    copies dicts (for thread safety) and replaces non-finite floats. Lists are
-    shallow-copied â€” orjson handles the leaf serialisation natively."""
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        return {k: _sanitize_payload(v) for k, v in list(value.items())}
-    if isinstance(value, (list, tuple)):
-        return list(value)
-    return value
-
-
-def _bbox_filter(
-    items: list, s: float, w: float, n: float, e: float, lat_key: str = "lat", lng_key: str = "lng"
-) -> list:
-    """Filter a list of dicts to those within the bounding box (with 20% padding).
-    Handles antimeridian crossing (e.g. w=170, e=-170)."""
-    pad_lat = (n - s) * 0.2
-    pad_lng = (e - w) * 0.2 if e > w else ((e + 360 - w) * 0.2)
-    s2, n2 = s - pad_lat, n + pad_lat
-    w2, e2 = w - pad_lng, e + pad_lng
-    crosses_antimeridian = w2 > e2
-    out = []
-    for item in items:
-        lat = item.get(lat_key)
-        lng = item.get(lng_key)
-        if lat is None or lng is None:
-            out.append(item)  # Keep items without coords (don't filter them out)
-            continue
-        if not (s2 <= lat <= n2):
-            continue
-        if crosses_antimeridian:
-            if lng >= w2 or lng <= e2:
-                out.append(item)
-        else:
-            if w2 <= lng <= e2:
-                out.append(item)
-    return out
-
-
-def _bbox_filter_geojson_points(items: list, s: float, w: float, n: float, e: float) -> list:
-    """Filter GeoJSON Point features to a padded bounding box."""
-    pad_lat = (n - s) * 0.2
-    pad_lng = (e - w) * 0.2 if e > w else ((e + 360 - w) * 0.2)
-    s2, n2 = s - pad_lat, n + pad_lat
-    w2, e2 = w - pad_lng, e + pad_lng
-    crosses_antimeridian = w2 > e2
-    out = []
-    for item in items:
-        geometry = item.get("geometry") if isinstance(item, dict) else None
-        coords = geometry.get("coordinates") if isinstance(geometry, dict) else None
-        if not isinstance(coords, (list, tuple)) or len(coords) < 2:
-            out.append(item)
-            continue
-        lng, lat = coords[0], coords[1]
-        if lat is None or lng is None:
-            out.append(item)
-            continue
-        if not (s2 <= lat <= n2):
-            continue
-        if crosses_antimeridian:
-            if lng >= w2 or lng <= e2:
-                out.append(item)
-        else:
-            if w2 <= lng <= e2:
-                out.append(item)
-    return out
-
-
-def _bbox_spans(s: float | None, w: float | None, n: float | None, e: float | None) -> tuple[float, float]:
-    if None in (s, w, n, e):
-        return 180.0, 360.0
-    lat_span = max(0.0, float(n) - float(s))
-    lng_span = float(e) - float(w)
-    if lng_span < 0:
-        lng_span += 360.0
-    if lng_span == 0 and w == -180 and e == 180:
-        lng_span = 360.0
-    return lat_span, max(0.0, lng_span)
-
-
-def _downsample_points(items: list, max_items: int) -> list:
-    if max_items <= 0 or len(items) <= max_items:
-        return items
-    step = len(items) / float(max_items)
-    return [items[min(len(items) - 1, int(i * step))] for i in range(max_items)]
-
-
-def _world_and_continental_scale(
-    has_bbox: bool, s: float | None, w: float | None, n: float | None, e: float | None
-) -> tuple[bool, bool]:
-    lat_span, lng_span = _bbox_spans(s, w, n, e)
-    world_scale = (not has_bbox) or lng_span >= 300 or lat_span >= 120
-    continental_scale = has_bbox and not world_scale and (lng_span >= 120 or lat_span >= 55)
-    return world_scale, continental_scale
-
-
-def _filter_sigint_by_layers(items: list, active_layers: dict[str, bool]) -> list:
-    allow_aprs = bool(active_layers.get("sigint_aprs", True))
-    allow_mesh = bool(active_layers.get("sigint_meshtastic", True))
-    if allow_aprs and allow_mesh:
-        return items
-
-    allowed_sources: set[str] = {"js8call"}
-    if allow_aprs:
-        allowed_sources.add("aprs")
-    if allow_mesh:
-        allowed_sources.update({"meshtastic", "meshtastic-map"})
-    return [item for item in items if str(item.get("source") or "").lower() in allowed_sources]
-
-
-def _sigint_totals_for_items(items: list) -> dict[str, int]:
-    totals = {
-        "total": len(items),
-        "meshtastic": 0,
-        "meshtastic_live": 0,
-        "meshtastic_map": 0,
-        "aprs": 0,
-        "js8call": 0,
-    }
-    for item in items:
-        source = str(item.get("source") or "").lower()
-        if source == "meshtastic":
-            totals["meshtastic"] += 1
-            if bool(item.get("from_api")):
-                totals["meshtastic_map"] += 1
-            else:
-                totals["meshtastic_live"] += 1
-        elif source == "aprs":
-            totals["aprs"] += 1
-        elif source == "js8call":
-            totals["js8call"] += 1
-    return totals
-
-
-def _cap_startup_items(items: list | None, max_items: int) -> list:
-    if not items:
-        return []
-    if len(items) <= max_items:
-        return items
-    return items[:max_items]
-
-
-def _cap_fast_startup_payload(payload: dict) -> dict:
-    """Trim high-volume layers for the first dashboard paint.
-
-    The full fast payload can legitimately contain tens of thousands of AIS,
-    ADS-B, SIGINT, and CCTV records. Returning all of that during app startup
-    blocks the first map render behind serialization/proxy/network pressure.
-    This startup payload paints representative live data immediately; the next
-    normal poll replaces it with the full dataset.
-    """
-    capped = dict(payload)
-    capped["commercial_flights"] = _cap_startup_items(capped.get("commercial_flights"), 800)
-    capped["private_flights"] = _cap_startup_items(capped.get("private_flights"), 300)
-    capped["private_jets"] = _cap_startup_items(capped.get("private_jets"), 150)
-    capped["ships"] = _cap_startup_items(capped.get("ships"), 1500)
-    capped["cctv"] = []
-    capped["sigint"] = _cap_startup_items(capped.get("sigint"), 500)
-    capped["trains"] = _cap_startup_items(capped.get("trains"), 100)
-    capped["startup_payload"] = True
-    return capped
-
-
-def _cap_fast_dashboard_payload(payload: dict) -> dict:
-    capped = dict(payload)
-    capped["commercial_flights"] = _downsample_points(capped.get("commercial_flights") or [], 6000)
-    capped["private_flights"] = _downsample_points(capped.get("private_flights") or [], 1500)
-    capped["private_jets"] = _downsample_points(capped.get("private_jets") or [], 1500)
-    capped["ships"] = _downsample_points(capped.get("ships") or [], 8000)
-    capped["cctv"] = _downsample_points(capped.get("cctv") or [], 2500)
-    capped["sigint"] = _downsample_points(capped.get("sigint") or [], 5000)
-    return capped
-
-
-@app.get("/api/live-data/fast")
-@limiter.limit("120/minute")
-async def live_data_fast(
-    request: Request,
-    # bbox params accepted for backward compat but no longer used for filtering â€”
-    # all cached data is returned and the frontend culls off-screen entities via MapLibre.
-    s: float = Query(None, description="South bound (ignored)", ge=-90, le=90),
-    w: float = Query(None, description="West bound (ignored)", ge=-180, le=180),
-    n: float = Query(None, description="North bound (ignored)", ge=-90, le=90),
-    e: float = Query(None, description="East bound (ignored)", ge=-180, le=180),
-    initial: bool = Query(False, description="Return a capped startup payload for first paint"),
-):
-    etag = _current_etag(prefix="fast|initial|" if initial else "fast|full|")
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-
-    from services.fetchers._store import (
-        active_layers,
-        get_latest_data_subset_refs,
-        get_source_timestamps_snapshot,
-    )
-
-    d = get_latest_data_subset_refs(
-        "last_updated",
-        "commercial_flights",
-        "military_flights",
-        "private_flights",
-        "private_jets",
-        "tracked_flights",
-        "ships",
-        "cctv",
-        "uavs",
-        "liveuamap",
-        "gps_jamming",
-        "satellites",
-        "satellite_source",
-        "sigint",
-        "sigint_totals",
-        "trains",
-    )
-    freshness = get_source_timestamps_snapshot()
-
-    ships_enabled = any(
-        active_layers.get(key, True)
-        for key in (
-            "ships_military",
-            "ships_cargo",
-            "ships_civilian",
-            "ships_passenger",
-            "ships_tracked_yachts",
-        )
-    )
-    cctv_total = len(d.get("cctv") or [])
-    sigint_items = _filter_sigint_by_layers(d.get("sigint") or [], active_layers)
-    sigint_totals = _sigint_totals_for_items(sigint_items)
-
-    payload = {
-        "commercial_flights": (d.get("commercial_flights") or []) if active_layers.get("flights", True) else [],
-        "military_flights": (d.get("military_flights") or []) if active_layers.get("military", True) else [],
-        "private_flights": (d.get("private_flights") or []) if active_layers.get("private", True) else [],
-        "private_jets": (d.get("private_jets") or []) if active_layers.get("jets", True) else [],
-        "tracked_flights": (d.get("tracked_flights") or []) if active_layers.get("tracked", True) else [],
-        "ships": (d.get("ships") or []) if ships_enabled else [],
-        "cctv": (d.get("cctv") or []) if active_layers.get("cctv", True) else [],
-        "uavs": (d.get("uavs") or []) if active_layers.get("military", True) else [],
-        "liveuamap": (d.get("liveuamap") or []) if active_layers.get("global_incidents", True) else [],
-        "gps_jamming": (d.get("gps_jamming") or []) if active_layers.get("gps_jamming", True) else [],
-        "satellites": (d.get("satellites") or []) if active_layers.get("satellites", True) else [],
-        "satellite_source": d.get("satellite_source", "none"),
-        "sigint": sigint_items
-        if (active_layers.get("sigint_meshtastic", True) or active_layers.get("sigint_aprs", True))
-        else [],
-        "sigint_totals": sigint_totals,
-        "cctv_total": cctv_total,
-        "trains": (d.get("trains") or []) if active_layers.get("trains", True) else [],
-        "freshness": freshness,
-    }
-    if initial:
-        payload = _cap_fast_startup_payload(payload)
-    else:
-        payload = _cap_fast_dashboard_payload(payload)
-    return Response(
-        content=orjson.dumps(_sanitize_payload(payload)),
-        media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"},
-    )
-
-
-@app.get("/api/live-data/slow")
-@limiter.limit("60/minute")
-async def live_data_slow(
-    request: Request,
-    # bbox params accepted for backward compat but no longer used for filtering.
-    s: float = Query(None, description="South bound (ignored)", ge=-90, le=90),
-    w: float = Query(None, description="West bound (ignored)", ge=-180, le=180),
-    n: float = Query(None, description="North bound (ignored)", ge=-90, le=90),
-    e: float = Query(None, description="East bound (ignored)", ge=-180, le=180),
-):
-    etag = _current_etag(prefix="slow|full|")
-    if request.headers.get("if-none-match") == etag:
-        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})
-
-    from services.fetchers._store import (
-        active_layers,
-        get_latest_data_subset_refs,
-        get_source_timestamps_snapshot,
-    )
-
-    d = get_latest_data_subset_refs(
-        "last_updated",
-        "news",
-        "stocks",
-        "financial_source",
-        "oil",
-        "weather",
-        "traffic",
-        "earthquakes",
-        "frontlines",
-        "gdelt",
-        "airports",
-        "kiwisdr",
-        "satnogs_stations",
-        "satnogs_observations",
-        "tinygs_satellites",
-        "space_weather",
-        "internet_outages",
-        "firms_fires",
-        "datacenters",
-        "military_bases",
-        "power_plants",
-        "viirs_change_nodes",
-        "scanners",
-        "weather_alerts",
-        "ukraine_alerts",
-        "air_quality",
-        "volcanoes",
-        "fishing_activity",
-        "psk_reporter",
-        "crowdthreat",
-        "correlations",
-        "threat_level",
-        "trending_markets",
-        "fimi",
-        "uap_sightings",
-        "wastewater",
-        "sar_scenes",
-        "sar_anomalies",
-        "sar_aoi_coverage",
-        "snapmap_osint",
-    )
-    freshness = get_source_timestamps_snapshot()
-
-    payload = {
-        "last_updated": d.get("last_updated"),
-        "threat_level": d.get("threat_level"),
-        "trending_markets": d.get("trending_markets", []),
-        "fimi": d.get("fimi", {}),
-        "news": d.get("news", []),
-        "stocks": d.get("stocks", {}),
-        "financial_source": d.get("financial_source", ""),
-        "oil": d.get("oil", {}),
-        "weather": d.get("weather"),
-        "traffic": d.get("traffic", []),
-        "earthquakes": (d.get("earthquakes") or []) if active_layers.get("earthquakes", True) else [],
-        "frontlines": d.get("frontlines") if active_layers.get("ukraine_frontline", True) else None,
-        "gdelt": (d.get("gdelt") or []) if active_layers.get("global_incidents", True) else [],
-        "airports": d.get("airports") or [],
-        "kiwisdr": (d.get("kiwisdr") or []) if active_layers.get("kiwisdr", True) else [],
-        "satnogs_stations": (d.get("satnogs_stations") or []) if active_layers.get("satnogs", True) else [],
-        "satnogs_total": len(d.get("satnogs_stations") or []),
-        "satnogs_observations": (d.get("satnogs_observations") or []) if active_layers.get("satnogs", True) else [],
-        "tinygs_satellites": (d.get("tinygs_satellites") or []) if active_layers.get("tinygs", True) else [],
-        "tinygs_total": len(d.get("tinygs_satellites") or []),
-        "psk_reporter": (d.get("psk_reporter") or []) if active_layers.get("psk_reporter", True) else [],
-        "space_weather": d.get("space_weather"),
-        "internet_outages": (d.get("internet_outages") or []) if active_layers.get("internet_outages", True) else [],
-        "firms_fires": (d.get("firms_fires") or []) if active_layers.get("firms", True) else [],
-        "datacenters": (d.get("datacenters") or []) if active_layers.get("datacenters", True) else [],
-        "military_bases": (d.get("military_bases") or []) if active_layers.get("military_bases", True) else [],
-        "power_plants": (d.get("power_plants") or []) if active_layers.get("power_plants", True) else [],
-        "viirs_change_nodes": (d.get("viirs_change_nodes") or []) if active_layers.get("viirs_nightlights", True) else [],
-        "scanners": (d.get("scanners") or []) if active_layers.get("scanners", True) else [],
-        "weather_alerts": d.get("weather_alerts", []) if active_layers.get("weather_alerts", True) else [],
-        "ukraine_alerts": d.get("ukraine_alerts", []) if active_layers.get("ukraine_alerts", True) else [],
-        "air_quality": (d.get("air_quality") or []) if active_layers.get("air_quality", True) else [],
-        "volcanoes": (d.get("volcanoes") or []) if active_layers.get("volcanoes", True) else [],
-        "fishing_activity": (d.get("fishing_activity") or []) if active_layers.get("fishing_activity", True) else [],
-        "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
-        "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
-        "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
-        "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
-        "sar_scenes": (d.get("sar_scenes") or []) if active_layers.get("sar", True) else [],
-        "sar_anomalies": (d.get("sar_anomalies") or []) if active_layers.get("sar", True) else [],
-        "sar_aoi_coverage": (d.get("sar_aoi_coverage") or []) if active_layers.get("sar", True) else [],
-        "snapmap_osint": (d.get("snapmap_osint") or {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0}) if active_layers.get("snapmap_osint", False) else {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0},
-        "freshness": freshness,
-    }
-    return Response(
-        content=orjson.dumps(
-            _sanitize_payload(payload),
-            default=str,
-            option=orjson.OPT_NON_STR_KEYS,
-        ),
-        media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"},
-    )
 
 
 @app.get("/api/oracle/region-intel")
@@ -5899,6 +5709,65 @@ async def infonet_ingest(request: Request):
     return {"ok": True, **result}
 
 
+@app.get("/api/mesh/infonet/peer-registry", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def infonet_peer_registry(request: Request):
+    """Operator view of the live swarm peer registry (seed nodes only)."""
+    from services.mesh.mesh_peer_registry import DEFAULT_PEER_REGISTRY_PATH, PeerRegistry
+    from services.mesh.mesh_swarm_runtime import peer_registry_enabled
+
+    if not peer_registry_enabled():
+        return {"ok": False, "detail": "peer registry is not enabled on this node"}
+    registry = PeerRegistry(DEFAULT_PEER_REGISTRY_PATH)
+    try:
+        peers = registry.load()
+    except Exception as exc:
+        return {"ok": False, "detail": str(exc or type(exc).__name__)}
+    return {
+        "ok": True,
+        "peer_count": len(peers),
+        "peers": [peer.to_dict() for peer in peers],
+    }
+
+
+@app.get("/api/mesh/infonet/bootstrap-manifest")
+@limiter.limit(_INFONET_SYNC_RATE_LIMIT)
+async def infonet_bootstrap_manifest(request: Request):
+    """Return the current signed bootstrap/swarm peer manifest."""
+    from services.mesh.mesh_swarm_runtime import load_live_bootstrap_manifest
+
+    manifest = load_live_bootstrap_manifest()
+    if manifest is None:
+        return {"ok": False, "detail": "bootstrap manifest unavailable"}
+    return {"ok": True, "manifest": manifest.to_dict()}
+
+
+@app.post("/api/mesh/infonet/peer-announce")
+@limiter.limit("30/minute")
+@mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
+async def infonet_peer_announce(request: Request):
+    """Register a participant onion peer in the swarm registry (HMAC-authenticated)."""
+    from auth import _peer_hmac_url_from_request
+    from services.mesh.mesh_swarm_runtime import peer_registry_enabled, record_peer_announcement
+
+    body_bytes = await request.body()
+    if not _verify_peer_transport_hmac(request, body_bytes):
+        return Response(
+            content='{"ok":false,"detail":"Invalid or missing peer HMAC"}',
+            status_code=403,
+            media_type="application/json",
+        )
+    if not peer_registry_enabled():
+        return {"ok": False, "detail": "peer registry is not enabled on this node"}
+    body = json_mod.loads(body_bytes or b"{}")
+    announced_url = normalize_peer_url(str(body.get("peer_url", "") or ""))
+    header_url = _peer_hmac_url_from_request(request)
+    if not announced_url or announced_url != header_url:
+        return {"ok": False, "detail": "peer_url must match X-Peer-Url"}
+    peer = record_peer_announcement(body)
+    return {"ok": True, "peer_url": peer.peer_url, "role": peer.role, "transport": peer.transport}
+
+
 @app.post("/api/mesh/infonet/peer-push")
 @limiter.limit("30/minute")
 @mesh_write_exempt(MeshWriteExemption.PEER_GOSSIP)
@@ -5937,6 +5806,8 @@ async def infonet_peer_push(request: Request):
     result = infonet.ingest_events(events)
     _hydrate_gate_store_from_chain(events)
     _hydrate_dm_relay_from_chain(events)
+    if any(str(event.get("event_type") or "") in {"gate_message", "dm_message"} for event in events):
+        _kick_public_sync_background("peer_push_ingest")
     return {"ok": True, **result}
 
 
@@ -7121,12 +6992,22 @@ def _queue_dm_release(*, current_tier: str, payload: dict[str, Any]) -> dict[str
             required_tier=release_lane_required_tier("dm"),
         )
     _wake_private_release_worker()
+    outbox_id = str(item.get("id", "") or "")
+    auto_release: dict[str, Any] = {"ok": True, "skipped": True}
+    if outbox_id:
+        try:
+            from services.mesh.mesh_dm_connect_delivery import auto_release_connect_dm_outbox
+
+            auto_release = auto_release_connect_dm_outbox(outbox_id=outbox_id, payload=payload)
+        except Exception as exc:
+            auto_release = {"ok": False, "detail": str(exc) or type(exc).__name__}
     return {
         "ok": True,
         "msg_id": str(payload.get("msg_id", "") or ""),
-        "outbox_id": str(item.get("id", "") or ""),
+        "outbox_id": outbox_id,
         "queued": True,
         "detail": str((item.get("status") or {}).get("label", "") or "Queued for private delivery"),
+        "auto_release": auto_release,
         "delivery": {
             "state": canonical_release_state(str(item.get("release_state", "") or "queued")),
             "internal_state": str(item.get("release_state", "") or "queued"),
@@ -7299,7 +7180,8 @@ async def _dm_send_from_signed_request(request: Request):
         return {"ok": False, "detail": "DM timestamp is too far from current time"}
     if delivery_class not in ("request", "shared"):
         return {"ok": False, "detail": "delivery_class must be request or shared"}
-    if delivery_class == "request":
+    # Contact requests are the first-contact handshake — do not require prior verification.
+    if delivery_class == "shared":
         try:
             from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
 
@@ -7383,6 +7265,8 @@ async def _dm_send_from_signed_request(request: Request):
 
             relay_salt_hex = _os.urandom(16).hex()
 
+    connect_intent = str(body.get("connect_intent", "") or "").strip().lower()
+    lookup_peer_url = str(body.get("lookup_peer_url", "") or "").strip().rstrip("/")
     release_payload = {
         "sender_id": sender_id,
         "sender_token_hash": sender_token_hash,
@@ -7397,6 +7281,16 @@ async def _dm_send_from_signed_request(request: Request):
         "sender_seal": sender_seal,
         "relay_salt": relay_salt_hex,
     }
+    if connect_intent:
+        release_payload["connect_intent"] = connect_intent
+    if lookup_peer_url:
+        release_payload["lookup_peer_url"] = lookup_peer_url
+    try:
+        from services.mesh.mesh_dm_connect_delivery import enrich_connect_release_payload
+
+        release_payload = enrich_connect_release_payload(release_payload)
+    except Exception:
+        pass
     hashchain_spool: dict[str, Any] = {"ok": False, "detail": "not attempted"}
     try:
         from services.mesh.mesh_hashchain import infonet
@@ -7413,6 +7307,10 @@ async def _dm_send_from_signed_request(request: Request):
                 "format": payload_format,
             }
         chain_payload["transport_lock"] = "private_strong"
+        if connect_intent:
+            chain_payload["connect_intent"] = connect_intent
+        if lookup_peer_url:
+            chain_payload["lookup_peer_url"] = lookup_peer_url
         chain_event = infonet.append_private_dm_message(
             node_id=sender_id,
             payload=chain_payload,
@@ -7428,7 +7326,8 @@ async def _dm_send_from_signed_request(request: Request):
             or PROTOCOL_VERSION,
             timestamp=float(timestamp or time.time()),
         )
-        _hydrate_dm_relay_from_chain([chain_event])
+        # Relay deposit is deferred to the private release worker so scoped
+        # connect traffic can synchronously replicate to lookup_peer_url once.
         hashchain_spool = {
             "ok": True,
             "event_id": str(chain_event.get("event_id", "") or ""),
@@ -7683,7 +7582,12 @@ async def dm_register_key(request: Request):
 
 @app.get("/api/mesh/dm/pubkey")
 @limiter.limit("30/minute")
-async def dm_get_pubkey(request: Request, agent_id: str = "", lookup_token: str = ""):
+async def dm_get_pubkey(
+    request: Request,
+    agent_id: str = "",
+    lookup_token: str = "",
+    lookup_peer_url: str = "",
+):
     """Fetch an agent's DH public key for key exchange."""
     exposure = metadata_exposure_for_request(
         request,
@@ -7703,11 +7607,51 @@ async def dm_get_pubkey(request: Request, agent_id: str = "", lookup_token: str 
     if resolved_lookup:
         key_bundle, resolved_id = dm_relay.get_dh_key_by_lookup(resolved_lookup)
         if key_bundle is None:
-            return dm_lookup_response_view(
-                {"ok": False, "detail": "Agent not found or has no DH key", "lookup_mode": "invite_lookup_handle"},
-                exposure=exposure,
-                lookup_token_present=True,
+            # Invite handles are minted on the owner's node. When a remote peer
+            # pastes a short address, resolve it across the private fleet before
+            # failing — same path as prekey-bundle import.
+            from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
+
+            preferred_lookup_peer = str(lookup_peer_url or "").strip().rstrip("/")
+            # Off the event loop: the fleet lookup makes blocking network calls.
+            remote_bundle = await asyncio.to_thread(
+                fetch_dm_prekey_bundle,
+                agent_id="",
+                lookup_token=resolved_lookup,
+                lookup_peer_urls=[preferred_lookup_peer] if preferred_lookup_peer else None,
             )
+            if remote_bundle.get("ok"):
+                bundle = dict(remote_bundle.get("bundle") or remote_bundle)
+                dh_pub = str(
+                    bundle.get("identity_dh_pub_key", "")
+                    or remote_bundle.get("identity_dh_pub_key", "")
+                    or ""
+                ).strip()
+                if dh_pub:
+                    resolved_id = str(remote_bundle.get("agent_id", "") or resolved_id or "").strip()
+                    key_bundle = {
+                        "dh_pub_key": dh_pub,
+                        "dh_algo": str(remote_bundle.get("dh_algo", "X25519") or "X25519"),
+                        "timestamp": int(remote_bundle.get("timestamp", 0) or 0),
+                        "public_key": str(remote_bundle.get("public_key", "") or ""),
+                        "public_key_algo": str(remote_bundle.get("public_key_algo", "") or ""),
+                        "signature": str(remote_bundle.get("signature", "") or ""),
+                        "sequence": int(remote_bundle.get("sequence", 0) or 0),
+                        "prekey_transparency_head": str(
+                            remote_bundle.get("prekey_transparency_head", "") or ""
+                        ),
+                        "prekey_transparency_size": int(
+                            remote_bundle.get("prekey_transparency_size", 0) or 0
+                        ),
+                        "witness_count": int(remote_bundle.get("witness_count", 0) or 0),
+                        "witness_latest_at": int(remote_bundle.get("witness_latest_at", 0) or 0),
+                    }
+            if key_bundle is None:
+                return dm_lookup_response_view(
+                    {"ok": False, "detail": "Agent not found or has no DH key", "lookup_mode": "invite_lookup_handle"},
+                    exposure=exposure,
+                    lookup_token_present=True,
+                )
         lookup_mode = "invite_lookup_handle"
     if key_bundle is None and resolved_id:
         blocked = legacy_agent_id_lookup_blocked()
@@ -7743,7 +7687,12 @@ async def dm_get_pubkey(request: Request, agent_id: str = "", lookup_token: str 
 
 @app.get("/api/mesh/dm/prekey-bundle")
 @limiter.limit("30/minute")
-async def dm_get_prekey_bundle(request: Request, agent_id: str = "", lookup_token: str = ""):
+async def dm_get_prekey_bundle(
+    request: Request,
+    agent_id: str = "",
+    lookup_token: str = "",
+    lookup_peer_url: str = "",
+):
     exposure = metadata_exposure_for_request(
         request,
         authenticated=_scoped_view_authenticated(request, "mesh"),
@@ -7755,7 +7704,14 @@ async def dm_get_prekey_bundle(request: Request, agent_id: str = "", lookup_toke
             lookup_token_present=bool(lookup_token),
         )
     resolved_id, resolved_lookup = _preferred_dm_lookup_target(agent_id, lookup_token)
-    result = fetch_dm_prekey_bundle(agent_id=resolved_id, lookup_token=resolved_lookup)
+    preferred_lookup_peer = str(lookup_peer_url or "").strip().rstrip("/")
+    # Off the event loop: the fleet lookup makes blocking network calls.
+    result = await asyncio.to_thread(
+        fetch_dm_prekey_bundle,
+        agent_id=resolved_id,
+        lookup_token=resolved_lookup,
+        lookup_peer_urls=[preferred_lookup_peer] if preferred_lookup_peer else None,
+    )
     return dm_lookup_response_view(
         result,
         exposure=exposure,
@@ -8261,7 +8217,10 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "tripcheck.com",  # Oregon DOT / TripCheck
     "www.tripcheck.com",
     "infocar.dgt.es",  # Spain DGT
+    "etraffic.dgt.es",  # Spain DGT (etrafficWEB cameras host, 2026)
     "informo.madrid.es",  # Madrid
+    "webcams2.asfinag.at",  # Austria ASFINAG motorway cameras
+    "odo.asfinag.at",  # ASFINAG catalog API host
     "www.windy.com",
     "imgproxy.windy.com",  # Windy preview image CDN
     "www.lakecountypassage.com",  # Illinois Lake County PASSAGE snapshots
@@ -8270,6 +8229,14 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "www.nps.gov",  # WSDOT-linked Mount Rainier camera
     "home.lewiscounty.com",  # WSDOT partner public camera
     "www.seattle.gov",  # Seattle traffic camera media linked from WSDOT
+    "511on.ca",  # Ontario 511 cameras
+    "511.alberta.ca",  # Alberta 511 cameras
+    "fl511.com",  # Florida 511 cameras
+    "www.fl511.com",
+    "webcams.transport.nsw.gov.au",  # NSW Live Traffic camera snapshots
+    "www.livetraffic.com",
+    "livetraffic.com",
+    "opendata.ndw.nu",  # Netherlands RWS legacy open-data host
 }
 
 
@@ -8365,7 +8332,7 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
             cache_seconds=15,
             headers={
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                "Referer": "http://navigator-c2c.dot.ga.gov/",
+                "Referer": "https://navigator-c2c.dot.ga.gov/",
             },
         )
     if host == "511ga.org":
@@ -8385,7 +8352,7 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
             cache_seconds=10,
             headers={
                 "Accept": "application/vnd.apple.mpegurl,application/x-mpegURL,video/*,*/*;q=0.8",
-                "Referer": "http://navigator-c2c.dot.ga.gov/",
+                "Referer": "https://navigator-c2c.dot.ga.gov/",
             },
         )
     if host in {"gettingaroundillinois.com", "cctv.travelmidwest.com"}:
@@ -8447,14 +8414,14 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
             cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"},
         )
-    if host == "infocar.dgt.es":
+    if host in {"infocar.dgt.es", "etraffic.dgt.es"}:
         return _CCTVProxyProfile(
             name="dgt-spain",
             timeout=(5.0, 8.0),
             cache_seconds=60,
             headers={
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                "Referer": "https://infocar.dgt.es/",
+                "Referer": "https://etraffic.dgt.es/",
             },
         )
     if host == "informo.madrid.es":
@@ -8467,6 +8434,16 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
                 "Referer": "https://informo.madrid.es/",
             },
         )
+    if host in {"webcams2.asfinag.at", "odo.asfinag.at"}:
+        return _CCTVProxyProfile(
+            name="asfinag-austria",
+            timeout=(5.0, 15.0),
+            cache_seconds=60,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://www.asfinag.at/",
+            },
+        )
     if host in {"www.windy.com", "imgproxy.windy.com"}:
         return _CCTVProxyProfile(
             name="windy-webcams",
@@ -8475,6 +8452,56 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
             headers={
                 "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                 "Referer": "https://www.windy.com/",
+            },
+        )
+    if host == "511on.ca":
+        return _CCTVProxyProfile(
+            name="ontario-511",
+            timeout=(5.0, 15.0),
+            cache_seconds=30,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://511on.ca/",
+            },
+        )
+    if host == "511.alberta.ca":
+        return _CCTVProxyProfile(
+            name="alberta-511",
+            timeout=(5.0, 15.0),
+            cache_seconds=30,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://511.alberta.ca/",
+            },
+        )
+    if host in {"fl511.com", "www.fl511.com"}:
+        return _CCTVProxyProfile(
+            name="florida-511",
+            timeout=(5.0, 15.0),
+            cache_seconds=30,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://fl511.com/",
+            },
+        )
+    if host == "webcams.transport.nsw.gov.au":
+        return _CCTVProxyProfile(
+            name="nsw-live-traffic",
+            timeout=(5.0, 12.0),
+            cache_seconds=60,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://www.livetraffic.com/",
+            },
+        )
+    if host in {"opendata.ndw.nu", "www.ndw.nu"}:
+        return _CCTVProxyProfile(
+            name="ndw-netherlands",
+            timeout=(5.0, 12.0),
+            cache_seconds=120,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": "https://www.ndw.nu/",
             },
         )
     if host in {
@@ -9052,7 +9079,7 @@ async def api_sentinel_tile(request: Request):
 # ---------------------------------------------------------------------------
 # API Settings â€” key registry & management
 # ---------------------------------------------------------------------------
-from services.api_settings import get_api_keys, get_env_path_info
+from services.api_settings import get_api_keys, get_basemap_config, get_env_path_info
 from services.shodan_connector import (
     ShodanConnectorError,
     count_shodan,
@@ -9089,6 +9116,12 @@ async def api_get_keys(request: Request):
 @limiter.limit("30/minute")
 async def api_get_keys_meta(request: Request):
     return get_env_path_info()
+
+
+@app.get("/api/basemap-config")
+@limiter.limit("60/minute")
+async def api_basemap_config(request: Request):
+    return get_basemap_config()
 
 
 @app.get("/api/tools/shodan/status", dependencies=[Depends(require_local_operator)])
@@ -9428,7 +9461,33 @@ async def api_set_node_settings(request: Request, body: NodeSettingsUpdate):
     if bool(body.enabled):
         _start_infonet_node_runtime("operator_enable")
         _kick_public_sync_background("operator_enable")
+        threading.Thread(target=_swarm_bootstrap_after_transport_ready, daemon=True).start()
     return result
+
+
+@app.post("/api/mesh/infonet/swarm/join")
+@limiter.limit("10/minute")
+async def infonet_swarm_join(request: Request):
+    """Announce this node to the fleet seed and pull the signed peer manifest."""
+    if not _participant_node_enabled():
+        return {"ok": False, "detail": "participant node is disabled"}
+    if _infonet_private_transport_required() and not _ensure_infonet_private_transport_ready("swarm_join"):
+        return JSONResponse(
+            {"ok": False, "detail": _infonet_private_transport_error()},
+            status_code=503,
+        )
+
+    from services.mesh.mesh_swarm_runtime import announce_local_peer_to_seeds, refresh_swarm_manifest_from_seeds
+
+    announce = await asyncio.to_thread(announce_local_peer_to_seeds, force=True)
+    manifest = await asyncio.to_thread(refresh_swarm_manifest_from_seeds, force=True)
+    if manifest.get("ok"):
+        await asyncio.to_thread(_refresh_node_peer_store)
+    return {
+        "ok": bool(announce.get("ok")) or bool(manifest.get("ok")),
+        "announce": announce,
+        "manifest_pull": manifest,
+    }
 
 
 @app.get("/api/settings/wormhole")
@@ -9509,7 +9568,8 @@ class WormholeDmResetRequest(BaseModel):
 
 
 class WormholeDmBootstrapEncryptRequest(BaseModel):
-    peer_id: str
+    peer_id: str = ""
+    lookup_token: str = ""
     plaintext: str
 
 
@@ -9734,6 +9794,43 @@ def _get_contact_trust_level(peer_id: str) -> str:
         return "unpinned"
 
 
+def _compose_bundle_matches_invite_pin(peer_id: str, bundle: dict[str, Any]) -> bool:
+    """True when an invite-pinned contact already matches the supplied bundle."""
+    try:
+        from services.mesh.mesh_wormhole_contacts import list_wormhole_dm_contacts
+        from services.mesh.mesh_wormhole_prekey import trust_fingerprint_for_bundle_record
+
+        contact = dict(list_wormhole_dm_contacts().get(str(peer_id or "").strip()) or {})
+        if str(contact.get("trust_level", "") or "") != "invite_pinned":
+            return False
+        pinned = str(
+            contact.get("remotePrekeyFingerprint", "")
+            or contact.get("invitePinnedTrustFingerprint", "")
+            or ""
+        ).strip().lower()
+        if not pinned:
+            return False
+        bundle_record = dict(bundle or {})
+        bundle_payload = dict(bundle_record.get("bundle") or bundle_record)
+        candidate = str(bundle_record.get("trust_fingerprint", "") or "").strip().lower()
+        if not candidate:
+            candidate = str(
+                trust_fingerprint_for_bundle_record(
+                    {
+                        "agent_id": str(peer_id or "").strip(),
+                        "bundle": bundle_payload,
+                        "public_key": str(bundle_record.get("public_key", "") or ""),
+                        "public_key_algo": str(bundle_record.get("public_key_algo", "") or "Ed25519"),
+                        "protocol_version": str(bundle_record.get("protocol_version", "") or ""),
+                    }
+                )
+                or ""
+            ).strip().lower()
+        return bool(candidate and pinned == candidate)
+    except Exception:
+        return False
+
+
 def compose_wormhole_dm(
     *,
     peer_id: str,
@@ -9798,8 +9895,11 @@ def compose_wormhole_dm(
             bundle = fetched_bundle
     if bundle and str(peer_id or "").strip():
         try:
-            trust_state = observe_remote_prekey_bundle(str(peer_id or "").strip(), bundle)
-            _compose_trust_level = str(trust_state.get("trust_level", "") or "")
+            if _compose_bundle_matches_invite_pin(str(peer_id or "").strip(), bundle):
+                _compose_trust_level = "invite_pinned"
+            else:
+                trust_state = observe_remote_prekey_bundle(str(peer_id or "").strip(), bundle)
+                _compose_trust_level = str(trust_state.get("trust_level", "") or "")
             from services.mesh.mesh_wormhole_contacts import verified_first_contact_requirement
 
             verified_first_contact = verified_first_contact_requirement(
@@ -9980,21 +10080,11 @@ def decrypt_wormhole_dm_envelope(
         if not has_session.get("ok"):
             return has_session
         if not has_session.get("exists"):
-            local_dh_secret = ""
-            local_identity_alias = ""
-            try:
-                local_identity = read_wormhole_identity()
-                local_dh_secret = str(local_identity.get("dh_private_key", "") or "")
-                local_identity_alias = str(local_identity.get("node_id", "") or "")
-            except Exception:
-                local_dh_secret = ""
-                local_identity_alias = ""
             ensured = ensure_mls_dm_session(
                 resolved_local,
                 resolved_remote,
                 str(session_welcome or ""),
-                local_dh_secret=local_dh_secret,
-                identity_alias=local_identity_alias,
+                identity_alias=resolved_local,
             )
             if not ensured.get("ok"):
                 return ensured
@@ -11471,9 +11561,12 @@ async def api_wormhole_dm_bootstrap_encrypt(request: Request, body: WormholeDmBo
     result = bootstrap_encrypt_for_peer(
         peer_id=str(body.peer_id or ""),
         plaintext=str(body.plaintext or ""),
+        lookup_token=str(body.lookup_token or ""),
     )
     if isinstance(result, dict) and "trust_level" not in result:
-        result["trust_level"] = _get_contact_trust_level(str(body.peer_id or ""))
+        result["trust_level"] = _get_contact_trust_level(
+            str(result.get("peer_id", "") or body.peer_id or "")
+        )
     return result
 
 
@@ -11489,7 +11582,7 @@ async def api_wormhole_dm_bootstrap_decrypt(request: Request, body: WormholeDmBo
     return result
 
 
-@app.post("/api/wormhole/dm/sender-token", dependencies=[Depends(require_admin)])
+@app.post("/api/wormhole/dm/sender-token", dependencies=[Depends(require_local_operator)])
 @limiter.limit("60/minute")
 async def api_wormhole_dm_sender_token(request: Request, body: WormholeDmSenderTokenRequest):
     if _safe_int(body.count or 1, 1) > 1:
@@ -11708,7 +11801,25 @@ async def api_wormhole_dm_contact_delete(request: Request, peer_id: str):
     return {"ok": True, "peer_id": peer_id, "deleted": deleted}
 
 
-_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready"}
+@app.post("/api/wormhole/dm/contact/{peer_id}/sever", dependencies=[Depends(require_admin)])
+@limiter.limit("60/minute")
+async def api_wormhole_dm_contact_sever(request: Request, peer_id: str):
+    from services.mesh.mesh_wormhole_contacts import sever_wormhole_dm_contact
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    block = bool(body.get("block", False))
+    try:
+        return sever_wormhole_dm_contact(peer_id, block=block)
+    except ValueError as exc:
+        return {"ok": False, "detail": str(exc)}
+
+
+_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready", "arti_ready"}
 
 
 def _redact_wormhole_status(state: dict[str, Any], authenticated: bool) -> dict[str, Any]:
@@ -12048,5 +12159,36 @@ async def system_update(request: Request):
     return result
 
 
+def _dev_uvicorn_bind_host() -> str:
+    """Default loopback for `python main.py` so LAN clients cannot reach a dev server (#375).
+
+    Docker compose still publishes 127.0.0.1:8000; the dashboard stays on :3000.
+    Set SHADOWBROKER_DEV_BIND_ALL=true only when you intentionally need LAN access
+    (and use ADMIN_KEY for remote callers).
+    """
+    if str(os.environ.get("SHADOWBROKER_DEV_BIND_ALL", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return "0.0.0.0"
+    return "127.0.0.1"
+
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, timeout_keep_alive=120)
+    _host = _dev_uvicorn_bind_host()
+    _port = int(os.environ.get("BACKEND_PORT", "8000"))
+    if _host == "127.0.0.1":
+        logger.info(
+            "Dev server binding %s:%s (loopback). Set SHADOWBROKER_DEV_BIND_ALL=true for 0.0.0.0.",
+            _host,
+            _port,
+        )
+    uvicorn.run(
+        "main:app",
+        host=_host,
+        port=_port,
+        reload=True,
+        timeout_keep_alive=120,
+    )

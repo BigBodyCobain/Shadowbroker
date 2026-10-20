@@ -425,6 +425,27 @@ def query_snapshots(
 
 
 # ---------------------------------------------------------------------------
+# Playbook flattening (monitor_heartbeat → detect_anomalies shape)
+# ---------------------------------------------------------------------------
+
+def _layers_from_playbook(playbook_data: dict) -> dict:
+    """Turn run_playbook(monitor_heartbeat) results into a layer-keyed dict."""
+    merged: dict[str, list] = {}
+    if not isinstance(playbook_data, dict):
+        return merged
+    for item in playbook_data.get("results") or []:
+        if not isinstance(item, dict) or not item.get("ok"):
+            continue
+        payload = item.get("data") if isinstance(item.get("data"), dict) else {}
+        if item.get("cmd") == "get_layer_slice":
+            layers = payload.get("layers") if isinstance(payload.get("layers"), dict) else {}
+            for layer, rows in layers.items():
+                if isinstance(rows, list):
+                    merged[layer] = rows
+    return merged
+
+
+# ---------------------------------------------------------------------------
 # Main heartbeat handler
 # ---------------------------------------------------------------------------
 
@@ -437,8 +458,14 @@ async def heartbeat(sb_client) -> list[str]:
     messages = []
 
     try:
-        # 1. Pull fresh telemetry (fast + slow merged for full visibility)
-        data = await sb_client.get_full_telemetry()
+        # 1. Low-latency monitor poll (playbook) — fallback to legacy full pull
+        try:
+            playbook_data = await sb_client.run_playbook("monitor_heartbeat", {})
+            data = _layers_from_playbook(playbook_data)
+        except Exception:
+            data = {}
+        if not data:
+            data = await sb_client.get_full_telemetry()
 
         # 2. Run anomaly detection
         anomalies = detect_anomalies(data, _state)

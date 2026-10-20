@@ -53,12 +53,15 @@ READ_COMMANDS = frozenset({
     "get_telemetry",
     "get_slow_telemetry",
     "get_summary",
+    "get_fetch_health",
     "get_report",
     "get_layer_slice",
     "find_flights",
     "find_ships",
     "find_entity",
     "correlate_entity",
+    "get_entity_trail",
+    "get_entity_profile",
     "brief_area",
     "what_changed",
     "search_telemetry",
@@ -83,6 +86,27 @@ READ_COMMANDS = frozenset({
     "sar_pin_click",
     # Analysis zones (OpenClaw map overlays)
     "list_analysis_zones",
+    # Recon / OSINT toolkit (server-side proxies, SSRF guarded)
+    "osint_lookup",
+    "osint_tools",
+    "entity_expand",
+    # Agent routing helpers
+    "route_query",
+    "run_playbook",
+    "gt_risk_heatmap",
+    "gt_dossier",
+    "gt_analyze",
+    "gt_backtest",
+    "gt_rolling_freeze",
+    "gt_rolling_label",
+    "gt_rolling_backtest",
+    "gt_micro_rolling",
+    "gt_top_alerts",
+    # Private Infonet reads (operator-delegated)
+    "infonet_status",
+    "list_gates",
+    "read_gate_messages",
+    "poll_dms",
 })
 
 WRITE_COMMANDS = frozenset({
@@ -112,6 +136,14 @@ WRITE_COMMANDS = frozenset({
     "place_analysis_zone",
     "delete_analysis_zone",
     "clear_analysis_zones",
+    # Active recon (subnet device discovery)
+    "osint_sweep",
+    # Private Infonet writes (operator wormhole identity)
+    "ensure_infonet_ready",
+    "join_infonet_swarm",
+    "post_gate_message",
+    "cast_vote",
+    "send_dm",
 })
 
 
@@ -637,6 +669,19 @@ def _compact_query_result(result: Any) -> Any:
 # Command dispatcher
 # ---------------------------------------------------------------------------
 
+def _expensive_gate(cmd: str, args: dict[str, Any]) -> dict[str, Any] | None:
+    from services.openclaw_routing import EXPENSIVE_GATE_MESSAGE, requires_expensive_confirm
+
+    if requires_expensive_confirm(cmd, args):
+        return {
+            "ok": False,
+            "detail": EXPENSIVE_GATE_MESSAGE,
+            "code": "expensive_command_blocked",
+            "hint": "route_query",
+        }
+    return None
+
+
 def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
     """Route a command to the appropriate AI Intel function.
 
@@ -644,6 +689,43 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
     Commands run in an isolated thread (via _execute_command) so they
     do not need or touch the caller's event loop.
     """
+    blocked = _expensive_gate(cmd, args)
+    if blocked is not None:
+        return blocked
+
+    if cmd == "route_query":
+        from services.openclaw_routing import route_query
+
+        result = route_query(
+            text=str(args.get("text", "") or args.get("query", "") or ""),
+            lat=args.get("lat"),
+            lng=args.get("lng"),
+            radius_km=float(args.get("radius_km", 50) or 50),
+            compact=bool(args.get("compact", True)),
+        )
+        return {"ok": True, "data": result}
+
+    if cmd == "run_playbook":
+        from services.openclaw_routing import plan_playbook
+
+        plan = plan_playbook(str(args.get("name", "") or args.get("playbook", "")), args)
+        if not plan.get("ok"):
+            return plan
+        batch_results: list[dict[str, Any]] = []
+        for item in plan.get("batch", []):
+            inner_cmd = str(item.get("cmd", "")).strip().lower()
+            inner_args = item.get("args") or {}
+            inner_result = _dispatch_command(inner_cmd, inner_args)
+            batch_results.append({"cmd": inner_cmd, **inner_result})
+        return {
+            "ok": True,
+            "data": {
+                "playbook": plan.get("playbook"),
+                "description": plan.get("description", ""),
+                "results": batch_results,
+            },
+        }
+
     if cmd == "get_telemetry":
         from services.telemetry import get_cached_telemetry_refs
         data = get_cached_telemetry_refs()
@@ -664,6 +746,10 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         from services.telemetry import get_telemetry_summary
         summary = get_telemetry_summary()
         return {"ok": True, "data": summary, "version": summary.get("version")}
+
+    if cmd == "get_fetch_health":
+        from services.fetch_health import get_agent_health_snapshot
+        return {"ok": True, "data": get_agent_health_snapshot()}
 
     if cmd == "get_layer_slice":
         from services.telemetry import get_layer_slice
@@ -725,6 +811,7 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
             owner=str(args.get("owner", "") or args.get("operator", "") or ""),
             layers=args.get("layers") if isinstance(args.get("layers"), (list, tuple)) else None,
             limit=args.get("limit", 10),
+            fallback_search=bool(args.get("fallback_search") or args.get("confirm_fuzzy")),
         )
         if _wants_compact(args):
             compact = dict(result)
@@ -763,6 +850,62 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
             return {"ok": True, "data": compact, "format": "compressed_v1"}
         return {"ok": True, "data": result}
 
+    if cmd == "get_entity_trail":
+        from services.entity_trail import get_entity_trail
+
+        result = get_entity_trail(
+            query=str(args.get("query", "") or ""),
+            entity_type=str(args.get("entity_type", "") or args.get("type", "") or ""),
+            callsign=str(args.get("callsign", "") or ""),
+            registration=str(args.get("registration", "") or args.get("tail_number", "") or ""),
+            icao24=str(args.get("icao24", "") or ""),
+            mmsi=str(args.get("mmsi", "") or ""),
+            imo=str(args.get("imo", "") or ""),
+            name=str(args.get("name", "") or ""),
+            owner=str(args.get("owner", "") or args.get("operator", "") or ""),
+            max_points=args.get("max_points", 80),
+            include_datalink=bool(args.get("include_datalink", True)),
+        )
+        if _wants_compact(args):
+            compact = dict(result)
+            if isinstance(compact.get("entity"), dict):
+                compact["entity"] = _compact_result_entry(compact["entity"])
+            return {"ok": True, "data": compact, "format": "compressed_v1"}
+        return {"ok": True, "data": result}
+
+    if cmd == "get_entity_profile":
+        from services.entity_profile import get_entity_profile
+
+        result = get_entity_profile(
+            query=str(args.get("query", "") or ""),
+            entity_type=str(args.get("entity_type", "") or args.get("type", "") or ""),
+            callsign=str(args.get("callsign", "") or ""),
+            registration=str(args.get("registration", "") or args.get("tail_number", "") or ""),
+            icao24=str(args.get("icao24", "") or ""),
+            mmsi=str(args.get("mmsi", "") or ""),
+            imo=str(args.get("imo", "") or ""),
+            name=str(args.get("name", "") or ""),
+            owner=str(args.get("owner", "") or args.get("operator", "") or ""),
+            max_trail_points=args.get("max_trail_points", args.get("max_points", 80)),
+            include_datalink=bool(args.get("include_datalink", True)),
+            include_datalink_messages=bool(args.get("include_datalink_messages", False)),
+            datalink_message_limit=args.get("datalink_message_limit", 8),
+            include_news=bool(args.get("include_news", True)),
+            news_limit=args.get("news_limit", 5),
+            context_radius_km=args.get("context_radius_km", 120),
+            include_nearby_context=bool(args.get("include_nearby_context", True)),
+        )
+        if _wants_compact(args):
+            compact = dict(result)
+            if isinstance(compact.get("identity"), dict):
+                compact["identity"] = _compact_result_entry(compact["identity"])
+            if isinstance(compact.get("position"), dict):
+                compact["position"] = _compact_result_entry(compact["position"])
+            if isinstance(compact.get("related_news"), dict):
+                compact["related_news"] = _compact_query_result(compact["related_news"])
+            return {"ok": True, "data": compact, "format": "compressed_v1"}
+        return {"ok": True, "data": result}
+
     if cmd == "search_telemetry":
         from services.telemetry import search_telemetry
         result = search_telemetry(
@@ -780,10 +923,289 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
             query=str(args.get("query", "") or ""),
             limit=args.get("limit", 10),
             include_gdelt=bool(args.get("include_gdelt", True)),
+            include_telegram=bool(args.get("include_telegram", True)),
         )
         if _wants_compact(args):
             return {"ok": True, "data": _compact_query_result(result), "format": "compressed_v1"}
         return {"ok": True, "data": result}
+
+    if cmd == "gt_risk_heatmap":
+        from analytics.settings import gt_analytics_enabled
+        from analytics.integration import get_gt_engine
+        from services.fetchers._store import get_latest_data_subset_refs
+
+        if not gt_analytics_enabled():
+            return {"ok": True, "data": {"enabled": False, "features": [], "clusters": []}}
+        snap = get_latest_data_subset_refs("gt_risk")
+        payload = dict(snap.get("gt_risk") or {})
+        engine = get_gt_engine()
+        if engine is not None and not payload.get("heatmap"):
+            payload["heatmap"] = engine.get_risk_heatmap()
+        return {"ok": True, "data": payload}
+
+    if cmd == "gt_dossier":
+        from analytics.settings import gt_analytics_enabled
+        from analytics.integration import get_gt_engine
+
+        region = str(args.get("region", "") or args.get("area", "") or "").strip().lower()
+        if not region:
+            return {"ok": False, "detail": "region required (e.g. ukraine, uk, europe)"}
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "region": region,
+                    "interpretation": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+        engine = get_gt_engine()
+        if engine is None:
+            return {"ok": False, "detail": "GT analytics engine unavailable"}
+        return {"ok": True, "data": engine.get_dossier(region)}
+
+    if cmd == "gt_analyze":
+        from analytics.settings import gt_analytics_enabled
+        from analytics.integration import get_gt_engine, refresh_from_latest_data
+        from services.fetchers._store import _data_lock, latest_data
+
+        if not gt_analytics_enabled():
+            return {"ok": False, "detail": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED)"}
+        engine = get_gt_engine()
+        if engine is None:
+            return {"ok": False, "detail": "GT analytics engine unavailable"}
+
+        feeds = args.get("feeds") if isinstance(args.get("feeds"), (list, tuple)) else None
+        if feeds:
+            from analytics.feed_adapter import normalize_feed_item
+
+            ingested = 0
+            for raw in feeds:
+                if not isinstance(raw, dict):
+                    continue
+                item = normalize_feed_item(raw, source_type=str(raw.get("source_type") or "openclaw"))
+                result = engine.process_feed_item(item)
+                if result and not result.get("skipped"):
+                    ingested += 1
+            summary = {"ingested": ingested, "enabled": True}
+        else:
+            with _data_lock:
+                snapshot = dict(latest_data)
+            summary = refresh_from_latest_data(snapshot, persist=True)
+
+        region = str(args.get("region", "") or "").strip().lower()
+        data = {
+            "refresh": summary,
+            "heatmap_features": len((summary.get("sample") or [])),
+        }
+        if region:
+            data["dossier"] = engine.get_dossier(region)
+        else:
+            data["heatmap"] = engine.get_risk_heatmap()
+            data["clusters"] = engine.compute_herding_clusters()[:5]
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_backtest":
+        from analytics.backtest import (
+            DEFAULT_BACKTEST_ALERT_THRESHOLD,
+            run_historical_backtest,
+            tune_alert_threshold,
+        )
+        from analytics.historical_events import default_historical_cases, expanded_historical_cases
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        expanded = bool(args.get("expanded", True))
+        tune = bool(args.get("tune", False))
+        include_cases = bool(args.get("include_cases", False))
+        try:
+            target_confidence = float(args.get("target_confidence", 0.95))
+        except (TypeError, ValueError):
+            target_confidence = 0.95
+
+        if tune:
+            suite = expanded_historical_cases() if expanded else default_historical_cases()
+            threshold, report = tune_alert_threshold(
+                suite,
+                target_confidence=target_confidence,
+            )
+        else:
+            raw_threshold = args.get("alert_threshold")
+            threshold = (
+                float(raw_threshold)
+                if raw_threshold is not None
+                else DEFAULT_BACKTEST_ALERT_THRESHOLD
+            )
+            report = run_historical_backtest(
+                use_expanded_suite=expanded,
+                alert_threshold=threshold,
+                target_confidence=target_confidence,
+            )
+
+        data = report.to_dict()
+        data["enabled"] = True
+        data["expanded_suite"] = expanded
+        data["tuned"] = tune
+        data["recommended_alert_threshold"] = threshold
+        if _wants_compact(args) or not include_cases:
+            data.pop("cases", None)
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_rolling_freeze":
+        from analytics.rolling_backtest import freeze_weekly_snapshot
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        week_id = str(args.get("week_id", "") or "").strip() or None
+        force = bool(args.get("force", False))
+        result = freeze_weekly_snapshot(
+            week_id=week_id,
+            force=force,
+            frozen_by="openclaw",
+        )
+        if not result.get("ok"):
+            return {"ok": False, "detail": result.get("detail", "Freeze failed")}
+        data = dict(result)
+        data["enabled"] = True
+        if _wants_compact(args):
+            data.pop("snapshot", None)
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_rolling_label":
+        from analytics.rolling_backtest import label_region, label_regions
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        week_id = str(args.get("week_id", "") or "").strip()
+        if not week_id:
+            return {"ok": False, "detail": "week_id required"}
+
+        labels = args.get("labels")
+        if isinstance(labels, list) and labels:
+            result = label_regions(week_id, labels, labeled_by="openclaw")
+        else:
+            region = str(args.get("region", "") or "").strip().lower()
+            label = str(args.get("label", "") or "").strip().lower()
+            if not region or not label:
+                return {"ok": False, "detail": "region and label required (or labels batch)"}
+            result = label_region(
+                week_id,
+                region,
+                label,  # type: ignore[arg-type]
+                notes=str(args.get("notes", "") or ""),
+                labeled_by="openclaw",
+            )
+
+        if not result.get("ok"):
+            return {"ok": False, "detail": result.get("detail", "Label failed")}
+        data = dict(result)
+        data["enabled"] = True
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_rolling_backtest":
+        from analytics.rolling_backtest import rolling_report
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        try:
+            weeks = int(args.get("weeks", 8))
+        except (TypeError, ValueError):
+            weeks = 8
+        try:
+            target_confidence = float(args.get("target_confidence", 0.80))
+        except (TypeError, ValueError):
+            target_confidence = 0.80
+
+        data = rolling_report(weeks=weeks, target_confidence=target_confidence)
+        data["enabled"] = True
+        if _wants_compact(args):
+            for row in data.get("trend") or []:
+                if isinstance(row, dict):
+                    row.pop("frozen_at", None)
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_top_alerts":
+        from analytics.gt_alerts import top_gt_alerts
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        try:
+            limit = int(args.get("limit", 8))
+        except (TypeError, ValueError):
+            limit = 8
+
+        data = top_gt_alerts(limit=limit)
+        data["enabled"] = True
+        return {"ok": True, "data": data}
+
+    if cmd == "gt_micro_rolling":
+        from analytics.micro_rolling import micro_rolling_report
+        from analytics.settings import gt_analytics_enabled
+
+        if not gt_analytics_enabled():
+            return {
+                "ok": True,
+                "data": {
+                    "enabled": False,
+                    "message": "Strategic Risk Analytics is disabled (GT_ANALYTICS_ENABLED).",
+                },
+            }
+
+        try:
+            window_days = int(args.get("window_days", 3))
+        except (TypeError, ValueError):
+            window_days = 3
+        try:
+            limit = int(args.get("limit", 15))
+        except (TypeError, ValueError):
+            limit = 15
+
+        data = micro_rolling_report(window_days=window_days, limit=limit)
+        data["enabled"] = True
+        if _wants_compact(args):
+            data.pop("top_regions", None)
+            data["ignitions"] = (data.get("ignitions") or [])[:5]
+        return {"ok": True, "data": data}
 
     if cmd == "brief_area":
         from services.telemetry import entities_near, search_news, get_layer_slice
@@ -844,6 +1266,26 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         )
         if _wants_compact(args):
             return {"ok": True, "data": _compact_query_result(result), "format": "compressed_v1"}
+        return {"ok": True, "data": result}
+
+    if cmd == "osint_lookup":
+        from services.osint.openclaw_recon import run_osint_lookup
+        tool = str(args.get("tool", "") or args.get("lookup", "") or args.get("type", "") or "")
+        result = run_osint_lookup(tool, args)
+        return {"ok": True, "data": result, "tool": tool.strip().lower()}
+
+    if cmd == "osint_tools":
+        from services.osint.openclaw_recon import osint_tool_help
+        return {"ok": True, "data": osint_tool_help()}
+
+    if cmd == "osint_sweep":
+        from services.osint.openclaw_recon import run_osint_sweep
+        result = run_osint_sweep(args)
+        return {"ok": True, "data": result}
+
+    if cmd == "entity_expand":
+        from services.osint.openclaw_recon import run_entity_expand
+        result = run_entity_expand(args)
         return {"ok": True, "data": result}
 
     if cmd == "get_report":
@@ -920,7 +1362,9 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         if not layer or not items:
             return {"ok": False, "detail": "layer and items required"}
         from services.ai_intel_store import inject_layer_data
-        result = inject_layer_data(layer, items)
+        result = inject_layer_data(layer, items, mode=args.get("mode", "append"))
+        if not result.get("ok"):
+            return result
         return {"ok": True, "data": result}
 
     if cmd == "create_layer":
@@ -1039,7 +1483,7 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         from services.openclaw_watchdog import add_watch
         watch_type = str(args.get("type", "")).strip()
         if not watch_type:
-            return {"ok": False, "detail": "watch type required (track_aircraft, track_callsign, track_registration, track_ship, track_entity, geofence, keyword, prediction_market)"}
+            return {"ok": False, "detail": "watch type required (track_aircraft, track_callsign, track_registration, track_ship, track_entity, geofence, keyword, telegram_rhetoric, prediction_market)"}
         watch_params = args.get("params", {})
         if not watch_params:
             # Allow flat args (e.g. {type: "track_callsign", callsign: "N189AM"})
@@ -1065,6 +1509,7 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
             owner=str(args.get("owner", "") or args.get("operator", "") or ""),
             layers=args.get("layers") if isinstance(args.get("layers"), (list, tuple)) else None,
             limit=5,
+            fallback_search=True,
         )
         best = lookup.get("best_match") if isinstance(lookup.get("best_match"), dict) else {}
         group = str(best.get("group", "") or entity_type).lower()
@@ -1515,6 +1960,85 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         from services.analysis_zone_store import clear_zones
         count = clear_zones(source="openclaw")
         return {"ok": True, "data": {"removed_count": count}}
+
+    # -- Infonet / gate / DM (operator-delegated, full tier for writes) ------
+
+    if cmd == "infonet_status":
+        from services.openclaw_infonet import get_infonet_status
+
+        return get_infonet_status()
+
+    if cmd == "ensure_infonet_ready":
+        from services.openclaw_infonet import ensure_infonet_ready
+
+        return ensure_infonet_ready(join_swarm=bool(args.get("join_swarm", True)))
+
+    if cmd == "join_infonet_swarm":
+        from services.openclaw_infonet import join_infonet_swarm
+
+        return join_infonet_swarm()
+
+    if cmd == "list_gates":
+        from services.openclaw_infonet import list_gates
+
+        return list_gates()
+
+    if cmd == "read_gate_messages":
+        from services.openclaw_infonet import read_gate_messages
+
+        gate_id = str(args.get("gate_id", "") or args.get("gate", "")).strip()
+        return read_gate_messages(
+            gate_id,
+            limit=int(args.get("limit", 20) or 20),
+            decrypt=bool(args.get("decrypt", False)),
+        )
+
+    if cmd == "post_gate_message":
+        from services.openclaw_infonet import post_gate_message
+
+        gate_id = str(args.get("gate_id", "") or args.get("gate", "")).strip()
+        plaintext = str(args.get("plaintext", "") or args.get("message", "")).strip()
+        return post_gate_message(
+            gate_id,
+            plaintext,
+            reply_to=str(args.get("reply_to", "") or ""),
+        )
+
+    if cmd == "cast_vote":
+        from services.openclaw_infonet import cast_vote
+
+        target_id = str(args.get("target_id", "") or args.get("target", "")).strip()
+        vote_raw = args.get("vote", args.get("direction"))
+        try:
+            vote_val = int(vote_raw)
+        except (TypeError, ValueError):
+            return {"ok": False, "detail": "vote must be 1 or -1"}
+        return cast_vote(
+            target_id,
+            vote_val,
+            gate=str(args.get("gate", "") or args.get("gate_id", "")).strip(),
+        )
+
+    if cmd == "send_dm":
+        from services.openclaw_infonet import send_dm
+
+        peer_id = str(
+            args.get("peer_id", "")
+            or args.get("recipient_id", "")
+            or args.get("recipient", "")
+        ).strip()
+        plaintext = str(args.get("plaintext", "") or args.get("message", "")).strip()
+        return send_dm(
+            peer_id,
+            plaintext,
+            delivery_class=str(args.get("delivery_class", "shared") or "shared"),
+            recipient_token=str(args.get("recipient_token", "") or ""),
+        )
+
+    if cmd == "poll_dms":
+        from services.openclaw_infonet import poll_dms
+
+        return poll_dms(limit=int(args.get("limit", 20) or 20))
 
     return {"ok": False, "detail": f"unhandled command: {cmd}"}
 

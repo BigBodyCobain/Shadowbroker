@@ -58,7 +58,7 @@ SLO_REGISTRY: Dict[str, SLO] = {
     "uap_sightings": SLO(
         max_age_s=26 * _HOUR,
         min_rows=50,
-        description="NUFORC rolling 60-day window (daily refresh)",
+        description="NUFORC rolling 60-day window (weekly refresh)",
     ),
     "wastewater": SLO(
         max_age_s=30 * _HOUR,

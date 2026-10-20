@@ -147,6 +147,7 @@
     "clearMeasure": "Clear measurement"
   },
   "layers": {
+    "resetToDefaults": "Reset layers to defaults",
     "aircraft": "Aircraft",
     "commercialFlights": "Commercial Flights",
     "privateAircraft": "Private Aircraft",
@@ -202,7 +203,104 @@
     "shodanOverlay": "Shodan Overlay",
     "aiIntel": "AI Intel",
     "sar": "SAR",
+    "roadCorridorTrends": "Road Freight Trends",
+    "roadCorridorSource": "Copernicus S-2 · trends not live",
+    "submarineCables": "Submarine Cables",
+    "malwareC2": "Malware C2",
+    "scmSuppliers": "SCM Suppliers",
+    "cyberThreats": "Cyber Threats",
+    "telegramOsint": "Telegram OSINT",
+    "strategicRisk": "Strategic Risk Heatmap",
+    "derivedOsint": "Derived OSINT (Strategic Risk)",
+    "derivedOsintSource": "Experimental · off by default",
     "snapmapOsint": "Snap Map activity (zones)"
+  },
+  "gtLean": {
+    "title": "Enable Derived OSINT on a lean node?",
+    "message": "Shadowbroker detected a 1 vCPU cap on this node. Turning on the Strategic Risk map layer is safe for display, but enabling the backend engine (GT_ANALYTICS_ENABLED) may slow Telegram, GDELT, and other OSINT fetches. Use AI-agent watchdog alerts without the full engine on fleet nodes.",
+    "confirm": "Turn on layer anyway",
+    "cancel": "Cancel"
+  },
+  "gtHud": {
+    "title": "GT ANALYTICS",
+    "dragHint": "drag to move",
+    "collapse": "Collapse panel",
+    "expand": "Expand panel"
+  },
+  "gtAlerts": {
+    "title": "TOP ALERTS",
+    "counts": "{plotted} on map · {tracked} tracked (max {max})",
+    "empty": "No plottable regions yet — need geotagged intel (Telegram/GDELT/news).",
+    "ignition": "IGNITE",
+    "line": "risk {risk} · conflict {conflict}",
+    "hint": "500 = max tracked regions, not individual events. Click to fly there."
+  },
+  "gtRisk": {
+    "popupTitle": "STRATEGIC RISK",
+    "region": "REGION",
+    "composite": "POSTERIOR RISK",
+    "financial": "FIN",
+    "unrest": "UNREST",
+    "conflict": "CONFLICT",
+    "contagion": "CONTAGION",
+    "costlySignals": "COSTLY SIGNALS",
+    "loadingSignals": "Loading feed matches…",
+    "noSignals": "No costly-signal text matched in recent Telegram/GDELT/news for this region. Scores can rise from domain priors or nearby contagion.",
+    "unknownSource": "unknown source"
+  },
+  "gtBacktest": {
+    "title": "GT Backtest",
+    "layerOff": "Off — enable Strategic Risk Heatmap in Data Layers.",
+    "disabled": "GT analytics disabled (set GT_ANALYTICS_ENABLED=true).",
+    "loading": "Running historical validation…",
+    "refresh": "Refresh backtest",
+    "accuracy": "ACCURACY",
+    "confidence": "WILSON 95% LB",
+    "cases": "{count} labeled cases",
+    "threshold": "alert ≥ {value}",
+    "target": "target {value}",
+    "pass": "PASS",
+    "fail": "FAIL",
+    "collecting": "COLLECTING",
+    "meetsTarget": "Meets confidence target",
+    "belowTarget": "Below confidence target",
+    "misclassified": "{count} misclassified",
+    "tabBenchmark": "Benchmark",
+    "tabOperational": "Operational",
+    "benchmarkNote": "Static labeled corpus — regression test, not live forecasting.",
+    "operationalLoading": "Loading rolling operational trend…",
+    "operationalEmpty": "No weekly snapshots yet — freeze runs Mondays 00:05 UTC or via your AI agent.",
+    "operationalWeeks": "{stored} weeks stored · {scorable} scorable",
+    "operationalLabeled": "{labeled} labeled · {pending} pending",
+    "operationalTrend": "Week-over-week accuracy",
+    "operationalImproving": "Improving vs prior scorable week",
+    "operationalFlat": "Flat or down vs prior scorable week",
+    "operationalMinLabels": "Need ≥{count} labels/week to score",
+    "microTitle": "3-day micro",
+    "microWindow": "{days}-day rolling avg · ignition Δ ≥ {delta}",
+    "microIgnitions": "{count} ignition(s)",
+    "microAlerted3d": "{count} above threshold on 3d avg",
+    "microEmpty": "Collecting daily readings — refreshes with GT ingest.",
+    "microRegionLine": "{region}: spot {spot} · 3d {avg} · Δ {delta}",
+    "microIgnitionBadge": "IGNITION"
+  },
+  "roadCorridor": {
+    "analyzeHere": "ANALYZE HERE",
+    "analyzing": "Analyzing…",
+    "hintTrends": "Satellite truck-volume trends on major highways (~5 day revisit)",
+    "missingDeps": "Install backend road-corridor extras to analyze",
+    "missingCreds": "Add Sentinel creds in Settings → Imagery",
+    "panMapFirst": "Pan the map to choose an area",
+    "analyzeFailed": "Analysis failed"
+  },
+  "recon": {
+    "title": "Recon Toolkit",
+    "proxyNote": "Server-side proxy · local operator only"
+  },
+  "scm": {
+    "title": "Supply Chain",
+    "allClear": "No elevated risk at monitored Tier 1/2 nodes.",
+    "layerOff": "Off — enable Supply Chain in Data Layers to monitor fabs."
   },
   "shodan": {
     "title": "Shodan Connector",
@@ -216,7 +314,7 @@
     "disconnected": "Disconnected"
   },
   "meshChat": {
-    "title": "Mesh Chat",
+    "title": "Meshtastic Chat",
     "infonet": "Infonet",
     "meshtastic": "Meshtastic",
     "deadDrop": "Dead Drop",
@@ -243,6 +341,16 @@
     "vegetation": "Vegetation Disturbance",
     "damage": "Damage Assessment",
     "coherence": "Coherence Change"
+  },
+  "telegram": {
+    "disclaimer": "WARNING: Content below is loaded from public Telegram channels. Shadowbroker does not host, verify, or endorse it. What you view is entirely at your own risk and has nothing to do with Shadowbroker.",
+    "loadMedia": "VIEW MEDIA (TELEGRAM)",
+    "openOriginal": "OPEN ON TELEGRAM →",
+    "embedTitle": "Telegram post embed",
+    "postsAtLocation": "{count} posts at this location — scroll for more",
+    "translatedFrom": "Translated from {lang}",
+    "showOriginal": "SHOW ORIGINAL ({lang})",
+    "showTranslation": "SHOW TRANSLATION"
   },
   "snapmap": {
     "level": "Level",

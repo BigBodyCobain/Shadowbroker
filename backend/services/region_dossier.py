@@ -301,3 +301,36 @@ def get_region_dossier(lat: float, lng: float) -> dict:
 
     dossier_cache[cache_key] = result
     return result
+
+
+def fetch_wikipedia_page_summary(title: str) -> dict | None:
+    """Wikipedia REST summary for a page title (backend-proxied for #360)."""
+    trimmed = (title or "").strip()
+    if not trimmed:
+        return None
+    data = _fetch_local_wiki_summary(trimmed, "")
+    if not data.get("extract") and not data.get("description"):
+        return None
+    return {
+        "title": trimmed,
+        "description": data.get("description", ""),
+        "extract": data.get("extract", ""),
+        "thumbnail": data.get("thumbnail", ""),
+        "type": "standard",
+    }
+
+
+def fetch_wikidata_sparql_bindings(sparql: str) -> list:
+    """Run a Wikidata SPARQL query; returns bindings list (empty on failure)."""
+    trimmed = (sparql or "").strip()
+    if not trimmed:
+        return []
+    url = f"https://query.wikidata.org/sparql?query={quote(trimmed)}&format=json"
+    try:
+        res = fetch_with_curl(url, timeout=8, headers=_wikimedia_request_headers())
+        if res.status_code == 200:
+            bindings = res.json().get("results", {}).get("bindings", [])
+            return bindings if isinstance(bindings, list) else []
+    except (ConnectionError, TimeoutError, ValueError, KeyError, OSError) as e:
+        logger.warning("Wikidata SPARQL failed: %s", e)
+    return []

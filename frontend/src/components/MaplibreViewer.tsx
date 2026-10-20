@@ -1,6 +1,7 @@
 'use client';
 
 import { API_BASE } from '@/lib/api';
+import { clampZoom, ZOOM_MAX, ZOOM_FALLBACK } from '@/lib/mapZoom';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Map, {
   Source,
@@ -14,7 +15,13 @@ import Map, {
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { computeNightPolygon } from '@/utils/solarTerminator';
-import { darkStyle, lightStyle } from '@/components/map/styles/mapStyles';
+import {
+  buildBasemapStyle,
+  CARTO_ATTRIBUTION_HTML,
+  OPENFREEMAP_ATTRIBUTION_HTML,
+  OSM_ATTRIBUTION_HTML,
+} from '@/components/map/styles/mapStyles';
+import { useBasemapConfig } from '@/hooks/useBasemapConfig';
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
@@ -150,6 +157,9 @@ import { EMPTY_FC } from '@/components/map/mapConstants';
 import { useImperativeSource } from '@/components/map/hooks/useImperativeSource';
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
 import { useStaticMapLayersWorker } from '@/components/map/hooks/useStaticMapLayersWorker';
+import { applyDynamicLayerInterp } from '@/components/map/applyDynamicLayerInterp';
+import { filterShipsByActiveFilters } from '@/components/map/shipFilters';
+import { shipsWithIcons, trackedFlightsWithIcons } from '@/components/map/labelSubjects';
 import {
   ClusterCountLabels,
   TrackedFlightLabels,
@@ -158,16 +168,26 @@ import {
   UavLabels,
   EarthquakeLabels,
   ThreatMarkers,
+  TelegramOsintMarkers,
 } from '@/components/map/MapMarkers';
 import type { DashboardData, Flight, KiwiSDR, MaplibreViewerProps, Scanner, Ship, SigintSignal } from '@/types/dashboard';
 import { useDataKeys } from '@/hooks/useDataStore';
 import { useInterpolation } from '@/components/map/hooks/useInterpolation';
 import { useClusterLabels } from '@/components/map/hooks/useClusterLabels';
 import { spreadAlertItems } from '@/utils/alertSpread';
+import {
+  applyTelegramAlertAvoidance,
+  telegramClusterKey,
+  telegramClusterNearNewsAlert,
+  telegramMapPinCoords,
+} from '@/components/map/geoJSONBuilders';
 
 import { useViewportBounds } from '@/components/map/hooks/useViewportBounds';
+import { getLiveDataBounds } from '@/lib/liveDataViewport';
 import { MeasurementLayers } from '@/components/map/layers/MeasurementLayers';
+import { sameEntityId } from '@/components/map/featureIds';
 import { buildCctvProxyUrl } from '@/lib/cctvProxy';
+import { sanitizeSubmarineCables } from '@/lib/submarineCables';
 import { CctvFullscreenModal } from '@/components/MaplibreViewer/CctvFullscreenModal';
 import { SatellitePopup } from '@/components/MaplibreViewer/popups/SatellitePopup';
 import { ShipPopup } from '@/components/MaplibreViewer/popups/ShipPopup';
@@ -175,8 +195,10 @@ import { SigintPopup } from '@/components/MaplibreViewer/popups/SigintPopup';
 import { CorrelationPopup } from '@/components/MaplibreViewer/popups/CorrelationPopup';
 import { WastewaterPopup } from '@/components/MaplibreViewer/popups/WastewaterPopup';
 import { MilitaryBasePopup } from '@/components/MaplibreViewer/popups/MilitaryBasePopup';
-import { SnapmapOsintPopup } from '@/components/MaplibreViewer/popups/SnapmapOsintPopup';
 import { RegionDossierPanel } from '@/components/MaplibreViewer/popups/RegionDossierPanel';
+import { GtRiskPopup } from '@/components/MaplibreViewer/popups/GtRiskPopup';
+import { SnapmapOsintPopup } from '@/components/MaplibreViewer/popups/SnapmapOsintPopup';
+import { TelegramOsintPopup } from '@/components/MaplibreViewer/popups/TelegramOsintPopup';
 import {
   buildSentinelTileUrl,
   hasSentinelCredentials,
@@ -187,6 +209,7 @@ import {
   buildEarthquakesGeoJSON,
   buildJammingGeoJSON,
   buildCorrelationsGeoJSON,
+  buildGtRiskGeoJSON,
   buildSnapmapOsintGeoJSON,
   buildTinygsGeoJSON,
   buildShodanGeoJSON,
@@ -294,9 +317,11 @@ const MAP_EXTRA_DATA_KEYS = [
   'snapmap_osint',
   'air_quality',
   'cctv',
-  'commercial_flights',
   'correlations',
   'crowdthreat',
+  'malware_threats',
+  'telegram_osint',
+  'gt_risk',
   'datacenters',
   'firms_fires',
   'fishing_activity',
@@ -305,10 +330,7 @@ const MAP_EXTRA_DATA_KEYS = [
   'internet_outages',
   'kiwisdr',
   'military_bases',
-  'military_flights',
   'power_plants',
-  'private_flights',
-  'private_jets',
   'psk_reporter',
   'sar_anomalies',
   'satellite_analysis',
@@ -399,6 +421,10 @@ const MaplibreViewer = ({
 }: Omit<MaplibreViewerProps, 'data'>) => {
   const coreData = useDataKeys([
     'tracked_flights',
+    'commercial_flights',
+    'military_flights',
+    'private_flights',
+    'private_jets',
     'news',
     'ships',
     'uavs',
@@ -412,9 +438,10 @@ const MaplibreViewer = ({
   const mapInitRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
   const { theme } = useTheme();
-  const mapThemeStyle = useMemo<maplibregl.StyleSpecification>(
-    () => (theme === 'light' ? lightStyle : darkStyle) as maplibregl.StyleSpecification,
-    [theme],
+  const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
+  const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
+    [theme, cartoApiKey],
   );
 
   const initialViewState = useMemo<ViewState>(
@@ -738,13 +765,32 @@ const MaplibreViewer = ({
   }, [selectedEntity]);
 
   useEffect(() => {
-    if (flyToLocation && mapRef.current) {
-      mapRef.current.flyTo({
-        center: [flyToLocation.lng, flyToLocation.lat],
-        zoom: 8,
+    if (!flyToLocation || !mapRef.current) return;
+    const map = mapRef.current.getMap();
+
+    if (flyToLocation.bounds) {
+      // cameraForBounds returns undefined when padding exceeds the viewport,
+      // and silently returns the map's maxZoom (22) for a degenerate box —
+      // hence both the clamped padding and the explicit maxZoom.
+      const { clientWidth, clientHeight } = map.getContainer();
+      const padding = Math.min(64, Math.min(clientWidth, clientHeight) / 6);
+      const cam = map.cameraForBounds(flyToLocation.bounds, { padding, maxZoom: ZOOM_MAX });
+      map.flyTo({
+        center: cam?.center ?? [flyToLocation.lng, flyToLocation.lat],
+        zoom: cam ? clampZoom(cam.zoom ?? ZOOM_FALLBACK) : ZOOM_FALLBACK,
         duration: 1500,
       });
+      return;
     }
+
+    // Agent moves (sar_focus_aoi) carry their own zoom: a world-view revert
+    // asks for ~2, a tight AOI for ~9. Ignoring it pinned every move at 8,
+    // which turned "show the whole world" into a patch of empty ocean.
+    mapRef.current.flyTo({
+      center: [flyToLocation.lng, flyToLocation.lat],
+      zoom: flyToLocation.zoom ?? 8,
+      duration: 1500,
+    });
   }, [flyToLocation]);
 
   const earthquakesGeoJSON = useMemo(
@@ -757,10 +803,6 @@ const MaplibreViewer = ({
     [activeLayers.gps_jamming, data?.gps_jamming],
   );
 
-  const snapmapGeoJSON = useMemo(
-    () => (activeLayers.snapmap_osint ? buildSnapmapOsintGeoJSON(data?.snapmap_osint) : null),
-    [activeLayers.snapmap_osint, data?.snapmap_osint],
-  );
   const correlationsGeoJSON = useMemo(
     () => {
       if (!activeLayers.correlations && !activeLayers.contradictions) return null;
@@ -771,6 +813,15 @@ const MaplibreViewer = ({
       return buildCorrelationsGeoJSON(alerts);
     },
     [activeLayers.correlations, activeLayers.contradictions, data?.correlations],
+  );
+
+  const gtRiskGeoJSON = useMemo(
+    () => (activeLayers.gt_risk ? buildGtRiskGeoJSON(data?.gt_risk) : null),
+    [activeLayers.gt_risk, data?.gt_risk],
+  );
+  const snapmapGeoJSON = useMemo(
+    () => (activeLayers.snapmap_osint ? buildSnapmapOsintGeoJSON(data?.snapmap_osint) : null),
+    [activeLayers.snapmap_osint, data?.snapmap_osint],
   );
 
   const tinygsGeoJSON = useMemo(
@@ -786,7 +837,7 @@ const MaplibreViewer = ({
     [activeLayers.shodan_overlay, shodanResults],
   );
 
-  // AI Intel layer — pins from OpenClaw and the AI co-pilot
+  // AI Intel layer — pins from connected AI agents and the AI co-pilot
   useEffect(() => {
     if (!activeLayers.ai_intel) return;
     let cancelled = false;
@@ -1163,6 +1214,30 @@ const MaplibreViewer = ({
   const staticUapSightings = activeLayers.uap_sightings ? data?.uap_sightings : undefined;
   const staticWastewater = activeLayers.wastewater ? data?.wastewater : undefined;
   const staticCrowdthreat = activeLayers.crowdthreat ? data?.crowdthreat : undefined;
+  const staticMalwareThreats = activeLayers.malware_c2 ? data?.malware_threats?.threats : undefined;
+  const staticTelegramOsintPosts = activeLayers.telegram_osint
+    ? data?.telegram_osint?.posts
+    : undefined;
+
+  const [submarineCablesGeoJSON, setSubmarineCablesGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  useEffect(() => {
+    if (!activeLayers.submarine_cables) {
+      setSubmarineCablesGeoJSON(null);
+      return;
+    }
+    let cancelled = false;
+    fetch('/data/submarine-cables.json')
+      .then((r) => r.json())
+      .then((geo) => {
+        if (!cancelled) setSubmarineCablesGeoJSON(sanitizeSubmarineCables(geo));
+      })
+      .catch(() => {
+        if (!cancelled) setSubmarineCablesGeoJSON(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLayers.submarine_cables]);
 
   const dynamicMapLayers = useDynamicMapLayersWorker(
     {
@@ -1193,7 +1268,10 @@ const MaplibreViewer = ({
     ],
     {
       bounds: mapBounds,
-      dtSeconds: dtSeconds.current,
+      serverBboxScoped: getLiveDataBounds() !== null,
+      // Worker stamps base positions; main-thread applyDynamicLayerInterp
+      // dead-reckons between polls without rebuilding FeatureCollections.
+      dtSeconds: 0,
       trackedIcaos: Array.from(trackedIcaoSet),
       activeLayers: {
         flights: activeLayers.flights,
@@ -1213,7 +1291,6 @@ const MaplibreViewer = ({
     },
     [
       mapBounds,
-      interpTick,
       trackedIcaoSet,
       activeLayers.flights,
       activeLayers.private,
@@ -1229,6 +1306,36 @@ const MaplibreViewer = ({
       activeLayers.sigint_aprs,
       activeFilters,
     ],
+  );
+
+  const interpolatedDynamicMapLayers = useMemo(
+    () => {
+      void interpTick;
+      return applyDynamicLayerInterp(dynamicMapLayers, dtSeconds.current);
+    },
+    [dynamicMapLayers, interpTick, dtSeconds],
+  );
+
+  const {
+    commercialFlightsGeoJSON: commFlightsGeoJSON,
+    privateFlightsGeoJSON: privFlightsGeoJSON,
+    privateJetsGeoJSON: privJetsGeoJSON,
+    militaryFlightsGeoJSON: milFlightsGeoJSON,
+    trackedFlightsGeoJSON,
+    shipsGeoJSON,
+    meshtasticGeoJSON,
+    aprsGeoJSON,
+  } = interpolatedDynamicMapLayers;
+
+  // Label subjects follow the worker output (pre-interp, stable between
+  // rebuilds) so labels track the same data filters as the icons.
+  const trackedFlightsForLabels = useMemo(
+    () => trackedFlightsWithIcons(data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON),
+    [data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON],
+  );
+  const shipsForYachtLabels = useMemo(
+    () => shipsWithIcons(data?.ships, dynamicMapLayers.shipsGeoJSON),
+    [data?.ships, dynamicMapLayers.shipsGeoJSON],
   );
 
   const staticMapLayers = useStaticMapLayersWorker(
@@ -1254,6 +1361,8 @@ const MaplibreViewer = ({
       uapSightings: staticUapSightings,
       wastewater: staticWastewater,
       crowdthreat: staticCrowdthreat,
+      malwareThreats: staticMalwareThreats,
+      telegramOsintPosts: staticTelegramOsintPosts,
     },
     [
       staticCctv,
@@ -1277,6 +1386,9 @@ const MaplibreViewer = ({
       staticUapSightings,
       staticWastewater,
       staticCrowdthreat,
+      staticMalwareThreats,
+      staticTelegramOsintPosts,
+      mapZoom,
     ],
     {
       bounds: mapBounds,
@@ -1300,6 +1412,8 @@ const MaplibreViewer = ({
         uap_sightings: activeLayers.uap_sightings,
         wastewater: activeLayers.wastewater,
         crowdthreat: activeLayers.crowdthreat,
+        malware_c2: activeLayers.malware_c2,
+        telegram_osint: activeLayers.telegram_osint,
       },
     },
     [
@@ -1323,19 +1437,10 @@ const MaplibreViewer = ({
       activeLayers.uap_sightings,
       activeLayers.wastewater,
       activeLayers.crowdthreat,
+      activeLayers.malware_c2,
+      activeLayers.telegram_osint,
     ],
   );
-
-  const {
-    commercialFlightsGeoJSON: commFlightsGeoJSON,
-    privateFlightsGeoJSON: privFlightsGeoJSON,
-    privateJetsGeoJSON: privJetsGeoJSON,
-    militaryFlightsGeoJSON: milFlightsGeoJSON,
-    trackedFlightsGeoJSON,
-    shipsGeoJSON,
-    meshtasticGeoJSON,
-    aprsGeoJSON,
-  } = dynamicMapLayers;
 
   const {
     cctvGeoJSON,
@@ -1358,15 +1463,27 @@ const MaplibreViewer = ({
     uapSightingsGeoJSON,
     wastewaterGeoJSON,
     crowdthreatGeoJSON,
+    malwareGeoJSON,
+    telegramOsintGeoJSON,
   } = staticMapLayers;
+
+  const telegramOsintGeoJSONPlaced = useMemo(
+    () => applyTelegramAlertAvoidance(telegramOsintGeoJSON, data?.news),
+    [telegramOsintGeoJSON, data?.news],
+  );
 
   // Extract cluster label positions via shared hook
   const shipClusters = useClusterLabels(mapRef, 'ships-clusters-layer', shipsGeoJSON);
   const eqClusters = useClusterLabels(mapRef, 'eq-clusters-layer', earthquakesGeoJSON);
 
+  // Carriers bypass the worker, so apply the operator's vessel filters here.
+  const carrierShips = useMemo(
+    () => (activeLayers.ships_military ? filterShipsByActiveFilters(data?.ships, activeFilters) : []),
+    [activeLayers.ships_military, data?.ships, activeFilters],
+  );
   const carriersGeoJSON = useMemo(
-    () => (activeLayers.ships_military ? buildCarriersGeoJSON(data?.ships) : null),
-    [activeLayers.ships_military, data?.ships],
+    () => (activeLayers.ships_military ? buildCarriersGeoJSON(carrierShips) : null),
+    [activeLayers.ships_military, carrierShips],
   );
 
   // SAR anomaly pins (Mode B) + AOI watchbox circles.  AOIs render whenever
@@ -1666,6 +1783,9 @@ const MaplibreViewer = ({
     wastewaterGeoJSON && 'wastewater-dot',
     wastewaterGeoJSON && 'wastewater-layer',
     crowdthreatGeoJSON && 'crowdthreat-layer',
+    malwareGeoJSON && 'malware-clusters',
+    malwareGeoJSON && 'malware-layer',
+    submarineCablesGeoJSON && 'submarine-cables-layer',
     sarAnomaliesGeoJSON && 'sar-anomalies-layer',
     sarAoisGeoJSON && 'sar-aois-fill',
     aiIntelGeoJSON && 'ai-intel-clusters',
@@ -1675,6 +1795,7 @@ const MaplibreViewer = ({
     correlationsGeoJSON && 'corr-infra-fill',
     correlationsGeoJSON && 'corr-contra-fill',
     correlationsGeoJSON && 'corr-analysis-fill',
+    gtRiskGeoJSON && 'gt-risk-heatmap',
     snapmapGeoJSON && 'snapmap-zone-fill',
     snapmapGeoJSON && 'snapmap-zone-center',
   ].filter(Boolean) as string[];
@@ -1740,13 +1861,34 @@ const MaplibreViewer = ({
   useImperativeSource(mapForHook, 'uap-sightings-source', uapSightingsGeoJSON, 100);
   useImperativeSource(mapForHook, 'wastewater-source', wastewaterGeoJSON, 100);
   useImperativeSource(mapForHook, 'crowdthreat-source', crowdthreatGeoJSON, 100);
-  useImperativeSource(mapForHook, 'snapmap-source', snapmapGeoJSON, 150);
+  useImperativeSource(mapForHook, 'malware-source', malwareGeoJSON, 100);
+  useImperativeSource(mapForHook, 'telegram-osint-source', telegramOsintGeoJSONPlaced, 100);
+  useImperativeSource(mapForHook, 'submarine-cables-source', submarineCablesGeoJSON, 600);
   useImperativeSource(mapForHook, 'ships', shipsGeoJSON, 75);
   useImperativeSource(mapForHook, 'meshtastic-source', meshtasticGeoJSON, 60);
   useImperativeSource(mapForHook, 'aprs-source', aprsGeoJSON, 60);
   useImperativeSource(mapForHook, 'trains', trainsGeoJSON, 60);
   useImperativeSource(mapForHook, 'sar-aois', sarAoisGeoJSON, 120);
   useImperativeSource(mapForHook, 'sar-anomalies', sarAnomaliesGeoJSON, 120);
+  // Remaining reactive sources → imperative (avoids React reconciling FeatureCollections)
+  useImperativeSource(mapForHook, 'night-overlay', nightGeoJSON, 250);
+  useImperativeSource(mapForHook, 'frontlines', frontlineGeoJSON, 200);
+  useImperativeSource(mapForHook, 'earthquakes', earthquakesGeoJSON, 100);
+  useImperativeSource(mapForHook, 'gps-jamming', jammingGeoJSON, 150);
+  useImperativeSource(mapForHook, 'gt-risk-source', gtRiskGeoJSON, 150);
+  useImperativeSource(mapForHook, 'snapmap-source', snapmapGeoJSON, 150);
+  useImperativeSource(mapForHook, 'correlations', correlationsGeoJSON, 100);
+  useImperativeSource(mapForHook, 'shodan-overlay', shodanGeoJSON, 100);
+  useImperativeSource(mapForHook, 'ai-intel-source', aiIntelGeoJSON, 80);
+  useImperativeSource(mapForHook, 'ukraine-alerts-source', ukraineAlertsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'ukraine-alert-labels-source', ukraineAlertLabelsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'weather-alerts-source', weatherAlertsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'weather-alert-labels-source', weatherAlertLabelsGeoJSON, 120);
+  useImperativeSource(mapForHook, 'carriers', carriersGeoJSON, 75);
+  useImperativeSource(mapForHook, 'active-route', activeRouteGeoJSON, 50);
+  useImperativeSource(mapForHook, 'flight-trail', trailGeoJSON, 40);
+  useImperativeSource(mapForHook, 'predictive-path', predictiveGeoJSON, 40);
+  useImperativeSource(mapForHook, 'proximity-rings', proximityRingsGeoJSON, 60);
 
   const handleMouseMove = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -1771,9 +1913,12 @@ const MaplibreViewer = ({
 
   return (
     <div
-      className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
+      className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint', 'gt_risk'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
       style={pinPlacementMode || sarAoiDropMode ? { cursor: 'crosshair' } : undefined}
     >
+      {/* Resolve optional CARTO config before first paint. Without a CARTO key,
+          buildBasemapStyle uses the keyless OpenFreeMap style instead. */}
+      {basemapConfigLoaded && (
       <Map
         ref={mapRef}
         reuseMaps
@@ -1889,8 +2034,8 @@ const MaplibreViewer = ({
         <AttributionControl
           compact
           customAttribution={[
-            '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
-            '<a href="https://carto.com/attribution" target="_blank" rel="noopener">CARTO</a>',
+            OSM_ATTRIBUTION_HTML,
+            cartoApiKey ? CARTO_ATTRIBUTION_HTML : OPENFREEMAP_ATTRIBUTION_HTML,
             '<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol (ODbL)</a>',
             '<a href="https://opensky-network.org" target="_blank" rel="noopener">OpenSky</a>',
             '<a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a>',
@@ -1915,7 +2060,6 @@ const MaplibreViewer = ({
             <Layer
               id="esri-world-imagery-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': 1,
                 'raster-fade-duration': 300,
@@ -1939,7 +2083,6 @@ const MaplibreViewer = ({
             <Layer
               id="gibs-modis-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': gibsOpacity ?? 0.6,
                 'raster-fade-duration': 0,
@@ -1963,7 +2106,6 @@ const MaplibreViewer = ({
               <Layer
                 id="viirs-nightlights-layer"
                 type="raster"
-                beforeId="imagery-ceiling"
                 paint={{
                   'raster-opacity': 0.9,
                   'raster-fade-duration': 0,
@@ -1987,7 +2129,6 @@ const MaplibreViewer = ({
             <Layer
               id="sentinel-hub-layer"
               type="raster"
-              beforeId="imagery-ceiling"
               paint={{
                 'raster-opacity': sentinelOpacity ?? 0.6,
                 'raster-fade-duration': 0,
@@ -2075,8 +2216,8 @@ const MaplibreViewer = ({
         </Source>
 
         {/* SOLAR TERMINATOR — night overlay */}
-        {activeLayers.day_night && nightGeoJSON && (
-          <Source id="night-overlay" type="geojson" data={nightGeoJSON}>
+        {activeLayers.day_night && (
+          <Source id="night-overlay" type="geojson" data={EMPTY_FC}>
             <Layer
               id="night-overlay-layer"
               type="fill"
@@ -2090,7 +2231,7 @@ const MaplibreViewer = ({
 
         {/* ═══ GROUND OVERLAYS — rendered below ships, mesh, and flights ═══ */}
 
-        <Source id="frontlines" type="geojson" data={(frontlineGeoJSON ?? EMPTY_FC)}>
+        <Source id="frontlines" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-frontline-layer"
             type="fill"
@@ -2105,7 +2246,7 @@ const MaplibreViewer = ({
         <Source
           id="earthquakes"
           type="geojson"
-          data={(earthquakesGeoJSON ?? EMPTY_FC)}
+          data={EMPTY_FC}
           cluster={true}
           clusterMaxZoom={10}
           clusterRadius={60}
@@ -2137,7 +2278,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* GPS Jamming Zones — red translucent grid squares */}
-        <Source id="gps-jamming" type="geojson" data={(jammingGeoJSON ?? EMPTY_FC)}>
+        <Source id="gps-jamming" type="geojson" data={EMPTY_FC}>
           <Layer
             id="gps-jamming-fill"
             type="fill"
@@ -2159,6 +2300,7 @@ const MaplibreViewer = ({
             id="gps-jamming-label"
             type="symbol"
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': [
                 'concat',
                 'GPS JAM ',
@@ -2173,6 +2315,55 @@ const MaplibreViewer = ({
               'text-color': '#ff4060',
               'text-halo-color': '#000000',
               'text-halo-width': 1.5,
+            }}
+          />
+        </Source>
+
+        {/* Strategic Risk Heatmap — Bayesian posterior scores */}
+        <Source id="gt-risk-source" type="geojson" data={EMPTY_FC}>
+          <Layer
+            id="gt-risk-heatmap"
+            type="circle"
+            minzoom={2}
+            paint={{
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                2,
+                ['+', 6, ['*', 14, ['get', 'risk']]],
+                6,
+                ['+', 10, ['*', 28, ['get', 'risk']]],
+                10,
+                ['+', 14, ['*', 40, ['get', 'risk']]],
+              ],
+              'circle-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'risk'],
+                0.15,
+                '#22c55e',
+                0.35,
+                '#84cc16',
+                0.5,
+                '#eab308',
+                0.65,
+                '#f97316',
+                0.8,
+                '#ef4444',
+              ],
+              'circle-opacity': [
+                'interpolate',
+                ['linear'],
+                ['get', 'risk'],
+                0.15,
+                0.22,
+                0.8,
+                0.72,
+              ],
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#fbbf24',
+              'circle-stroke-opacity': 0.35,
             }}
           />
         </Source>
@@ -2237,9 +2428,8 @@ const MaplibreViewer = ({
           />
         </Source>
 
-
         {/* Correlation Alerts — Emergent Intelligence grid squares */}
-        <Source id="correlations" type="geojson" data={(correlationsGeoJSON ?? EMPTY_FC)}>
+        <Source id="correlations" type="geojson" data={EMPTY_FC}>
           {/* RF Anomaly — grey */}
           <Layer
             id="corr-rf-fill"
@@ -2268,6 +2458,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'rf_anomaly']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'RF ANOMALY\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2308,6 +2499,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'military_buildup']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'MIL BUILDUP\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2347,6 +2539,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'infra_cascade']}
             minzoom={3}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', 'INFRA CASCADE\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2387,6 +2580,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'contradiction']}
             minzoom={2}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', '? CONTRADICTION\n', ['get', 'context'], ' · ', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2439,6 +2633,7 @@ const MaplibreViewer = ({
             filter={['==', ['get', 'corr_type'], 'analysis_zone']}
             minzoom={2}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': ['concat', ['get', 'zone_title'], '\n', ['get', 'drivers']],
               'text-size': ['interpolate', ['linear'], ['zoom'], 2, 7, 5, 9, 8, 11],
               'text-allow-overlap': false,
@@ -2481,6 +2676,7 @@ const MaplibreViewer = ({
             type="symbol"
             filter={['has', 'point_count']}
             layout={{
+              'text-font': ['Noto Sans Bold'],
               'text-field': '{point_count_abbreviated}',
               'text-size': 12,
               'text-allow-overlap': true,
@@ -3158,7 +3354,7 @@ const MaplibreViewer = ({
             <Source
               id="shodan-overlay"
               type="geojson"
-              data={(shodanGeoJSON ?? EMPTY_FC)}
+              data={EMPTY_FC}
               cluster={true}
               clusterRadius={42}
               clusterMaxZoom={9}
@@ -3248,16 +3444,15 @@ const MaplibreViewer = ({
           );
         })()}
 
-        {/* AI Intel Layer — pins from OpenClaw / AI co-pilot */}
-        {aiIntelGeoJSON && (
-          <Source
-            id="ai-intel-source"
-            type="geojson"
-            data={aiIntelGeoJSON}
-            cluster={true}
-            clusterRadius={40}
-            clusterMaxZoom={10}
-          >
+        {/* AI Intel Layer — pins from connected AI agents / AI co-pilot (data via useImperativeSource) */}
+        <Source
+          id="ai-intel-source"
+          type="geojson"
+          data={EMPTY_FC}
+          cluster={true}
+          clusterRadius={40}
+          clusterMaxZoom={10}
+        >
             <Layer
               id="ai-intel-clusters"
               type="circle"
@@ -3305,7 +3500,6 @@ const MaplibreViewer = ({
               }}
             />
           </Source>
-        )}
 
         {/* Military Bases — per-country colors */}
         <Source id="military-bases" type="geojson" data={EMPTY_FC}>
@@ -3338,7 +3532,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Ukraine Air Raid Alerts — red/orange oblast polygons */}
-        <Source id="ukraine-alerts-source" type="geojson" data={(ukraineAlertsGeoJSON ?? EMPTY_FC)}>
+        <Source id="ukraine-alerts-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-alerts-fill"
             type="fill"
@@ -3358,7 +3552,7 @@ const MaplibreViewer = ({
             }}
           />
         </Source>
-        <Source id="ukraine-alert-labels-source" type="geojson" data={(ukraineAlertLabelsGeoJSON ?? EMPTY_FC)}>
+        <Source id="ukraine-alert-labels-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="ukraine-alert-labels"
             type="symbol"
@@ -3378,7 +3572,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Weather Alerts — severity-colored polygons with icon + label overlay */}
-        <Source id="weather-alerts-source" type="geojson" data={(weatherAlertsGeoJSON ?? EMPTY_FC)}>
+        <Source id="weather-alerts-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="weather-alerts-fill"
             type="fill"
@@ -3398,7 +3592,7 @@ const MaplibreViewer = ({
             }}
           />
         </Source>
-        <Source id="weather-alert-labels-source" type="geojson" data={(weatherAlertLabelsGeoJSON ?? EMPTY_FC)}>
+        <Source id="weather-alert-labels-source" type="geojson" data={EMPTY_FC}>
           <Layer
             id="weather-alert-icons"
             type="symbol"
@@ -3759,6 +3953,73 @@ const MaplibreViewer = ({
           />
         </Source>
 
+        {/* Telegram OSINT — one pin per geocoded city; scroll posts in popup */}
+        <Source id="telegram-osint-source" type="geojson" data={EMPTY_FC}>
+          <Layer
+            id="telegram-osint-layer"
+            type="circle"
+            minzoom={2}
+            paint={{
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                4,
+                ['case', ['>', ['get', 'post_count'], 1], 14, 11],
+                8,
+                ['case', ['>', ['get', 'post_count'], 1], 20, 16],
+                12,
+                ['case', ['>', ['get', 'post_count'], 1], 26, 22],
+              ],
+              'circle-color': '#ef4444',
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#fca5a5',
+              // Keep a visible MapLibre fallback while the HTML pins are
+              // temporarily suppressed during map interaction.
+              'circle-opacity': 0.65,
+            }}
+          />
+        </Source>
+
+        {/* Malware C2 — abuse.ch Feodo + URLhaus */}
+        <Source id="malware-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={6} clusterRadius={35}>
+          <Layer
+            id="malware-clusters"
+            type="circle"
+            filter={['has', 'point_count']}
+            paint={{
+              'circle-radius': ['step', ['get', 'point_count'], 12, 8, 16, 30, 22],
+              'circle-color': 'rgba(255, 61, 61, 0.75)',
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ff3d3d',
+            }}
+          />
+          <Layer
+            id="malware-layer"
+            type="circle"
+            filter={['!', ['has', 'point_count']]}
+            paint={{
+              'circle-radius': 5,
+              'circle-color': '#ff1744',
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#ff8a80',
+            }}
+          />
+        </Source>
+
+        {/* Submarine cables — static TeleGeography GeoJSON */}
+        <Source id="submarine-cables-source" type="geojson" data={EMPTY_FC}>
+          <Layer
+            id="submarine-cables-layer"
+            type="line"
+            paint={{
+              'line-color': '#eab308',
+              'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 6, 1.2, 10, 2],
+              'line-opacity': 0.75,
+            }}
+          />
+        </Source>
+
         {/* Ships — rendered below flights (water surface level) */}
         <Source
           id="ships"
@@ -3822,7 +4083,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        <Source id="carriers" type="geojson" data={(carriersGeoJSON ?? EMPTY_FC)}>
+        <Source id="carriers" type="geojson" data={EMPTY_FC}>
           <Layer
             id="carriers-layer"
             type="symbol"
@@ -4068,7 +4329,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        <Source id="active-route" type="geojson" data={(activeRouteGeoJSON ?? EMPTY_FC)}>
+        <Source id="active-route" type="geojson" data={EMPTY_FC}>
           <Layer
             id="active-route-layer"
             type="line"
@@ -4139,7 +4400,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Flight trail history (where the aircraft has been) — altitude-colored gradient */}
-        <Source id="flight-trail" type="geojson" data={(trailGeoJSON ?? EMPTY_FC)}>
+        <Source id="flight-trail" type="geojson" data={EMPTY_FC}>
           <Layer
             id="flight-trail-layer"
             type="line"
@@ -4156,7 +4417,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Predictive vector (where entity is heading — 5 min forward projection) */}
-        <Source id="predictive-path" type="geojson" data={(predictiveGeoJSON ?? EMPTY_FC)}>
+        <Source id="predictive-path" type="geojson" data={EMPTY_FC}>
           <Layer
             id="predictive-path-layer"
             type="line"
@@ -4184,7 +4445,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Proximity range rings (10nm, 50nm, 100nm around selected entity) */}
-        <Source id="proximity-rings" type="geojson" data={(proximityRingsGeoJSON ?? EMPTY_FC)}>
+        <Source id="proximity-rings" type="geojson" data={EMPTY_FC}>
           <Layer
             id="proximity-rings-layer"
             type="line"
@@ -4313,9 +4574,9 @@ const MaplibreViewer = ({
         )}
 
         {/* HTML labels for tracked flights — color-matched, zoom-gated for non-HVA */}
-        {trackedFlightsGeoJSON && !selectedEntity && !isMapInteracting && data?.tracked_flights && (
+        {trackedFlightsGeoJSON && !selectedEntity && !isMapInteracting && trackedFlightsForLabels.length > 0 && (
           <TrackedFlightLabels
-            flights={data.tracked_flights}
+            flights={trackedFlightsForLabels}
             zoom={mapZoom}
             inView={inView}
             interpFlight={interpFlight}
@@ -4323,13 +4584,13 @@ const MaplibreViewer = ({
         )}
 
         {/* HTML labels for carriers (orange names, with ESTIMATED badge for OSINT positions) */}
-        {carriersGeoJSON && !selectedEntity && !isMapInteracting && data?.ships && (
-          <CarrierLabels ships={data.ships} inView={inView} interpShip={interpShip} />
+        {carriersGeoJSON && !selectedEntity && !isMapInteracting && carrierShips.length > 0 && (
+          <CarrierLabels ships={carrierShips} inView={inView} interpShip={interpShip} />
         )}
 
         {/* HTML labels for tracked yachts (pink owner names) */}
-        {shipsGeoJSON && activeLayers.ships_tracked_yachts && !selectedEntity && !isMapInteracting && data?.ships && (
-          <TrackedYachtLabels ships={data.ships} inView={inView} interpShip={interpShip} />
+        {shipsGeoJSON && activeLayers.ships_tracked_yachts && !selectedEntity && !isMapInteracting && shipsForYachtLabels.length > 0 && (
+          <TrackedYachtLabels ships={shipsForYachtLabels} inView={inView} interpShip={interpShip} />
         )}
 
         {/* HTML labels for earthquake cluster counts (hidden when any entity popup is active) */}
@@ -4360,6 +4621,13 @@ const MaplibreViewer = ({
             }}
           />
         )}
+
+        {activeLayers.telegram_osint && !isMapInteracting && telegramOsintGeoJSONPlaced?.features?.length ? (
+          <TelegramOsintMarkers
+            features={telegramOsintGeoJSONPlaced.features}
+            onEntityClick={onEntityClick}
+          />
+        ) : null}
 
         {/* Satellite positions — mission-type icons */}
         {/* satellites: data pushed imperatively */}
@@ -4405,7 +4673,7 @@ const MaplibreViewer = ({
         {/* Satellite click popup (with ISS live feed + maneuver alerts) */}
         {selectedEntity?.type === 'satellite' &&
           (() => {
-            const sat = data?.satellites?.find((s) => s.id === selectedEntity.id);
+            const sat = data?.satellites?.find((s) => sameEntityId(s.id, selectedEntity.id));
             if (!sat) return null;
             const maneuverAlert = data?.satellite_analysis?.maneuvers?.find(
               (m) => m.norad_id === sat.id
@@ -4439,7 +4707,7 @@ const MaplibreViewer = ({
         {selectedEntity?.type === 'uap_sighting' &&
           (() => {
             const props = selectedEntity.extra || {};
-            const sighting = data?.uap_sightings?.find((s) => s.id === selectedEntity.id);
+            const sighting = data?.uap_sightings?.find((s) => sameEntityId(s.id, selectedEntity.id));
             const lat = sighting?.lat ?? props.lat;
             const lng = sighting?.lng ?? props.lng;
             if (lat == null || lng == null) return null;
@@ -4494,7 +4762,7 @@ const MaplibreViewer = ({
         {/* Wastewater plant popup */}
         {selectedEntity?.type === 'wastewater' &&
           (() => {
-            const plant = data?.wastewater?.find((w) => w.id === selectedEntity.id);
+            const plant = data?.wastewater?.find((w) => sameEntityId(w.id, selectedEntity.id));
             if (!plant) return null;
             return (
               <WastewaterPopup
@@ -4505,14 +4773,6 @@ const MaplibreViewer = ({
           })()}
 
         {/* CrowdThreat popup */}
-        {(() => {
-          if (selectedEntity?.type !== 'snapmap_osint' || !data?.snapmap_osint?.zones) return null;
-          const zone = data.snapmap_osint.zones.find((z) => z.id === selectedEntity.id);
-          if (!zone) return null;
-          return <SnapmapOsintPopup zone={zone} onClose={() => onEntityClick?.(null)} />;
-        })()}
-
-
         {selectedEntity?.type === 'crowdthreat' &&
           (() => {
             const props = selectedEntity.extra || {};
@@ -4560,7 +4820,7 @@ const MaplibreViewer = ({
         {/* Train click popup */}
         {selectedEntity?.type === 'train' &&
           (() => {
-            const train = data?.trains?.find((t) => t.id === selectedEntity.id);
+            const train = data?.trains?.find((t) => sameEntityId(t.id, selectedEntity.id));
             if (!train) return null;
             const isAmtrak = train.source === 'amtrak';
             const sourceLabel = train.source_label || train.source.toUpperCase();
@@ -4614,7 +4874,7 @@ const MaplibreViewer = ({
         {/* UAV click popup — real ADS-B detected drones */}
         {selectedEntity?.type === 'uav' &&
           (() => {
-            const uav = data?.uavs?.find((u) => u.id === selectedEntity.id);
+            const uav = data?.uavs?.find((u) => sameEntityId(u.id, selectedEntity.id));
             if (!uav) return null;
             return (
               <Popup
@@ -5068,8 +5328,8 @@ const MaplibreViewer = ({
           (() => {
             const ship = data?.ships?.find((s, i: number) => {
               return (
-                (s.mmsi || s.name || `ship-${i}`) === selectedEntity.id ||
-                (s.mmsi || s.name || `carrier-${i}`) === selectedEntity.id
+                sameEntityId(s.mmsi || s.name || `ship-${i}`, selectedEntity.id) ||
+                sameEntityId(s.mmsi || s.name || `carrier-${i}`, selectedEntity.id)
               );
             });
             if (!ship) return null;
@@ -5462,7 +5722,7 @@ const MaplibreViewer = ({
         {/* Weather Alert popup */}
         {selectedEntity?.type === 'weather_alert' &&
           (() => {
-            const alert = data?.weather_alerts?.find((a) => a.id === selectedEntity.id);
+            const alert = data?.weather_alerts?.find((a) => sameEntityId(a.id, selectedEntity.id));
             if (!alert) return null;
             const sevColors: Record<string, string> = { Extreme: '#ef4444', Severe: '#f97316', Moderate: '#eab308', Minor: '#3b82f6' };
             const accent = sevColors[alert.severity] || '#3b82f6';
@@ -5502,6 +5762,66 @@ const MaplibreViewer = ({
                   <div className="map-popup-row">PM2.5: <span className="text-white">{station.pm25} µg/m³</span></div>
                   {station.country && <div className="map-popup-row">Country: <span className="text-white">{station.country}</span></div>}
                   <div className="mt-1.5 text-[9px] tracking-wider text-gray-500">AIR QUALITY — OPENAQ</div>
+                </div>
+              </Popup>
+            );
+          })()}
+
+        {/* Earthquake popup */}
+        {selectedEntity?.type === 'earthquake' &&
+          (() => {
+            const extra = (selectedEntity.extra || {}) as Record<string, unknown>;
+            const idx = Number(selectedEntity.id);
+            const eq = Number.isFinite(idx)
+              ? data?.earthquakes?.[idx]
+              : data?.earthquakes?.find((e) => e.id === String(selectedEntity.id));
+            const lat = typeof eq?.lat === 'number' ? eq.lat : Number(extra.lat);
+            const lng = typeof eq?.lng === 'number' ? eq.lng : Number(extra.lng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            const mag = eq?.mag ?? Number(extra.mag);
+            const place = eq?.place || String(extra.place || selectedEntity.name || 'Unknown location');
+            const accent = mag >= 6 ? '#ef4444' : mag >= 4.5 ? '#f97316' : '#eab308';
+            return (
+              <Popup
+                longitude={lng}
+                latitude={lat}
+                closeButton={false}
+                closeOnClick={false}
+                onClose={() => onEntityClick?.(null)}
+                className="threat-popup"
+                maxWidth="280px"
+              >
+                <div className="map-popup bg-[#1a1035] min-w-[200px]" style={{ borderColor: `${accent}66` }}>
+                  <div className="map-popup-title pb-1" style={{ color: accent, borderBottom: `1px solid ${accent}33` }}>
+                    M{Number.isFinite(mag) ? mag.toFixed(1) : '?'} — EARTHQUAKE
+                  </div>
+                  <div className="map-popup-row">
+                    Location: <span className="text-white">{place}</span>
+                  </div>
+                  <div className="map-popup-row">
+                    Coords:{' '}
+                    <span className="text-white font-mono">
+                      {lat.toFixed(3)}, {lng.toFixed(3)}
+                    </span>
+                  </div>
+                  {oracleIntel?.found && (
+                    <div className="mt-2 pt-2 border-t border-yellow-500/20">
+                      <div className="text-[10px] font-mono text-yellow-500/80 tracking-wider mb-1">REGION INTEL</div>
+                      <div className="text-[10px] font-mono text-white/70">
+                        ORACLE: {oracleIntel.tier}
+                        {oracleIntel.avg_sentiment != null && (
+                          <span className="text-gray-400">
+                            {' '}
+                            · SENT {oracleIntel.avg_sentiment > 0 ? '+' : ''}
+                            {oracleIntel.avg_sentiment.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-1.5 text-[9px] tracking-wider" style={{ color: `${accent}99` }}>
+                    SEISMIC — USGS
+                  </div>
                 </div>
               </Popup>
             );
@@ -5599,6 +5919,57 @@ const MaplibreViewer = ({
             if (!dest || dest === 'UNKNOWN') return null;
             return <FishingDestinationRoute vesselLat={event.lat} vesselLng={event.lng} destination={dest} />;
           })()}
+
+        {(() => {
+          if (selectedEntity?.type !== 'gt_risk' || !selectedEntity.extra) return null;
+          const props = selectedEntity.extra as Record<string, unknown>;
+          const lat = Number(props.lat);
+          const lng = Number(props.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return (
+            <GtRiskPopup
+              region={String(props.region || props.name || selectedEntity.id)}
+              risk={Number(props.risk ?? 0)}
+              financial={Number(props.financial ?? 0)}
+              unrest={Number(props.unrest ?? 0)}
+              conflict={Number(props.conflict ?? 0)}
+              contagion={Number(props.contagion ?? 0)}
+              interpretation={String(props.interpretation || '')}
+              lat={lat}
+              lng={lng}
+              onClose={() => onEntityClick?.(null)}
+            />
+          );
+        })()}
+
+        {(() => {
+          if (selectedEntity?.type !== 'snapmap_osint' || !data?.snapmap_osint?.zones) return null;
+          const zone = data.snapmap_osint.zones.find((z) => z.id === selectedEntity.id);
+          if (!zone) return null;
+          return <SnapmapOsintPopup zone={zone} onClose={() => onEntityClick?.(null)} />;
+        })()}
+
+        {(() => {
+          if (selectedEntity?.type !== 'telegram_osint' || !data?.telegram_osint?.posts) return null;
+          const allPosts = data.telegram_osint.posts;
+          const clusterPosts = allPosts.filter((p) => {
+            if (!p.coords || p.coords.length < 2) return false;
+            const key = telegramClusterKey(p.coords[0], p.coords[1]);
+            return key === selectedEntity.id || p.id === selectedEntity.id;
+          });
+          const anchor = clusterPosts[0]?.coords;
+          if (!anchor || anchor.length < 2) return null;
+          const avoidAlert = telegramClusterNearNewsAlert(anchor[0], anchor[1], data?.news);
+          const [pinLat, pinLng] = telegramMapPinCoords(anchor[0], anchor[1], avoidAlert);
+          return (
+            <TelegramOsintPopup
+              posts={clusterPosts}
+              lat={pinLat}
+              lng={pinLng}
+              onClose={() => onEntityClick?.(null)}
+            />
+          );
+        })()}
 
         {(() => {
           if (selectedEntity?.type !== 'gdelt' || !data?.gdelt) return null;
@@ -6390,6 +6761,7 @@ const MaplibreViewer = ({
 
         <MeasurementLayers measurePoints={measurePoints} />
       </Map>
+      )}
     </div>
   );
 };

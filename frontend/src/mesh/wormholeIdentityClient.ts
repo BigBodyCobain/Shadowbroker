@@ -51,6 +51,30 @@ const WORMHOLE_TRANSPORT_TIER_ORDER: Record<string, number> = {
   private_strong: 3,
 };
 const wormholeInteractivePrepInflight = new Map<string, Promise<PreparedWormholeInteractiveLane>>();
+let wormholePrepGeneration = 0;
+
+export class WormholePrepAbortedError extends Error {
+  constructor() {
+    super('wormhole_prep_aborted');
+    this.name = 'WormholePrepAbortedError';
+  }
+}
+
+export function isWormholePrepAbortedError(error: unknown): boolean {
+  return error instanceof WormholePrepAbortedError
+    || (error instanceof Error && error.message === 'wormhole_prep_aborted');
+}
+
+export function abortWormholeInteractivePrep(): void {
+  wormholePrepGeneration += 1;
+  wormholeInteractivePrepInflight.clear();
+}
+
+function assertWormholePrepActive(generation: number): void {
+  if (generation !== wormholePrepGeneration) {
+    throw new WormholePrepAbortedError();
+  }
+}
 
 export interface WormholeIdentity {
   bootstrapped: boolean;
@@ -875,13 +899,16 @@ export async function prepareWormholeInteractiveLane(
     return existingInflight;
   }
   const prepTask = (async (): Promise<PreparedWormholeInteractiveLane> => {
+    const generation = wormholePrepGeneration;
     const timeoutMs = Math.max(
       GATE_LIFECYCLE_PREP_POLL_MS,
       Number(options.timeoutMs || GATE_LIFECYCLE_PREP_TIMEOUT_MS),
     );
+    assertWormholePrepActive(generation);
     let runtime = await fetchWormholeState(true).catch(() => null);
     let settings = await fetchWormholeSettings(true).catch(() => null);
     if (!runtime?.ready) {
+      assertWormholePrepActive(generation);
       if (settings?.enabled || runtime?.configured) {
         runtime = await connectWormhole({ requireAdminSession: false }).catch((error) => {
           throw new Error(
@@ -908,9 +935,11 @@ export async function prepareWormholeInteractiveLane(
       Date.now() < deadline &&
       (!runtime?.ready || !wormholeTransportTierSatisfied(transportTierFromRuntime(runtime), minimumTransportTier))
     ) {
+      assertWormholePrepActive(generation);
       await sleep(GATE_LIFECYCLE_PREP_POLL_MS);
       runtime = await fetchWormholeState(true).catch(() => null);
     }
+    assertWormholePrepActive(generation);
     const resolvedTransportTier = transportTierFromRuntime(runtime);
     if (!runtime?.ready || !wormholeTransportTierSatisfied(resolvedTransportTier, minimumTransportTier)) {
       throw new Error('Wormhole is still warming up in the background.');
@@ -2013,6 +2042,18 @@ export async function deleteWormholeDmContact(
   return controlPlaneJson(`/api/wormhole/dm/contact/${encodeURIComponent(peerId)}`, {
     method: 'DELETE',
     requireAdminSession: false,
+  });
+}
+
+export async function severWormholeDmContact(
+  peerId: string,
+  options: { block?: boolean } = {},
+): Promise<{ ok: boolean; peer_id: string; severed?: boolean; blocked?: boolean }> {
+  return controlPlaneJson(`/api/wormhole/dm/contact/${encodeURIComponent(peerId)}/sever`, {
+    method: 'POST',
+    requireAdminSession: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ block: Boolean(options.block) }),
   });
 }
 

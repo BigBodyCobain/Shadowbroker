@@ -65,6 +65,10 @@ def _hydrate_dm_relay_from_chain(events: list) -> int:
 @limiter.limit("30/minute")
 async def infonet_peer_push(request: Request):
     """Accept pushed Infonet events from relay peers (HMAC-authenticated)."""
+    from services.mesh.mesh_fleet_defaults import infonet_fleet_join_enabled
+
+    if not infonet_fleet_join_enabled():
+        return {"ok": True, "accepted": 0, "duplicates": 0, "rejected": [], "skipped": "fleet_join_disabled"}
     content_length = request.headers.get("content-length")
     if content_length:
         try:
@@ -154,6 +158,10 @@ async def dm_replicate_envelope(request: Request):
 @limiter.limit("30/minute")
 async def gate_peer_push(request: Request):
     """Accept pushed gate events from relay peers (private plane)."""
+    from services.mesh.mesh_fleet_defaults import infonet_fleet_join_enabled
+
+    if not infonet_fleet_join_enabled():
+        return {"ok": True, "accepted": 0, "duplicates": 0, "skipped": "fleet_join_disabled"}
     content_length = request.headers.get("content-length")
     if content_length:
         try:

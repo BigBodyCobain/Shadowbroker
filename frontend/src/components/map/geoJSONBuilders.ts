@@ -2,6 +2,7 @@
 // Extracted from MaplibreViewer to reduce component size and enable unit testing.
 // Each function takes data arrays + optional helpers and returns a GeoJSON FeatureCollection or null.
 
+import { sameEntityId } from '@/components/map/featureIds';
 import type {
   Earthquake,
   GPSJammingZone,
@@ -71,9 +72,9 @@ export function findSelectedEntity(
     case 'tracked_flight':
       return data.tracked_flights?.find((f) => f.icao24 === id) || null;
     case 'ship':
-      return data.ships?.find((s) => s.mmsi === id) || null;
+      return data.ships?.find((s) => sameEntityId(s.mmsi, id)) || null;
     case 'uav':
-      return data.uavs?.find((u) => u.id === id) || null;
+      return data.uavs?.find((u) => sameEntityId(u.id, id)) || null;
     default:
       return null;
   }
@@ -165,8 +166,12 @@ export function buildEarthquakesGeoJSON(earthquakes?: Earthquake[]): FC {
           properties: {
             id: i,
             type: 'earthquake',
-            name: `[M${eq.mag}]\n${eq.place || 'Unknown Location'}`,
+            name: `[M${eq.mag}] ${eq.place || 'Unknown Location'}`,
             title: eq.title,
+            lat: eq.lat,
+            lng: eq.lng,
+            mag: eq.mag,
+            place: eq.place,
           },
           geometry: { type: 'Point' as const, coordinates: [eq.lng, eq.lat] },
         };
@@ -242,7 +247,7 @@ export function buildCorrelationsGeoJSON(alerts?: CorrelationAlert[]): FC {
             alternatives: (a.alternatives || []).join(' | '),
             location_name: a.location_name || '',
           }),
-          // Analysis zone extras (OpenClaw-placed)
+          // Analysis zone extras (agent-placed)
           ...(a.type === 'analysis_zone' && {
             zone_id: a.id || '',
             zone_title: a.title || '',
@@ -1566,6 +1571,262 @@ export function buildCrowdThreatGeoJSON(threats?: CrowdThreatItem[], inView?: In
   };
 }
 
+// ─── Telegram OSINT ───────────────────────────────────────────────────────
+
+/** Group geoparsed posts by city-level coordinates (~1 km grid). */
+export function telegramClusterKey(lat: number, lng: number): string {
+  return `${lat.toFixed(2)}_${lng.toFixed(2)}`;
+}
+
+/** Small fixed shift (~5 mi NE) only when a threat alert shares the same city grid. */
+export const TELEGRAM_ALERT_AVOID_METERS = 8_000;
+export const TELEGRAM_ALERT_AVOID_BEARING = 45;
+
+/** HTML marker nudge — threat alerts are DOM overlays that cover map canvas dots. */
+export const TELEGRAM_MARKER_OFFSET: [number, number] = [28, -24];
+
+export function telegramClusterNearNewsAlert(
+  lat: number,
+  lng: number,
+  news?: Array<{ coords?: [number, number] | null }> | null,
+): boolean {
+  if (!news?.length) return false;
+  const key = telegramClusterKey(lat, lng);
+  return news.some((item) => {
+    const coords = item.coords;
+    if (!coords || coords.length < 2) return false;
+    return telegramClusterKey(coords[0], coords[1]) === key;
+  });
+}
+
+export function telegramMapPinCoords(
+  lat: number,
+  lng: number,
+  avoidAlert: boolean,
+): [number, number] {
+  if (!avoidAlert) return [lat, lng];
+  return projectPoint(lat, lng, TELEGRAM_ALERT_AVOID_BEARING, TELEGRAM_ALERT_AVOID_METERS);
+}
+
+export function applyTelegramAlertAvoidance(
+  geo: FC,
+  news?: Array<{ coords?: [number, number] | null }> | null,
+): FC {
+  if (!geo?.features?.length) return geo;
+  return {
+    ...geo,
+    features: geo.features.map((feature) => {
+      const geometry = feature.geometry;
+      if (!geometry || geometry.type !== 'Point') return feature;
+      const point = geometry.coordinates;
+      if (!point || point.length < 2) return feature;
+      const lng = point[0];
+      const lat = point[1];
+      const avoid = telegramClusterNearNewsAlert(lat, lng, news);
+      if (!avoid) return feature;
+      const [pinLat, pinLng] = telegramMapPinCoords(lat, lng, true);
+      return {
+        ...feature,
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [pinLng, pinLat],
+        },
+      };
+    }),
+  };
+}
+
+export function buildTelegramOsintGeoJSON(
+  payload?: {
+    posts?: Array<{
+      id: string;
+      title?: string;
+      description?: string;
+      link?: string;
+      source?: string;
+      channel?: string;
+      risk_score?: number;
+      coords?: [number, number] | null;
+    }>;
+  },
+  inView?: InViewFilter,
+): FC {
+  const posts = payload?.posts;
+  if (!posts?.length) return null;
+
+  const clusters = new Map<
+    string,
+    {
+      lat: number;
+      lng: number;
+      posts: NonNullable<typeof posts>;
+      maxRisk: number;
+    }
+  >();
+
+  for (const post of posts) {
+    const coords = post.coords;
+    if (!coords || coords.length < 2) continue;
+    const lat = coords[0];
+    const lng = coords[1];
+    if (inView && !inView(lat, lng)) continue;
+    const key = telegramClusterKey(lat, lng);
+    const bucket = clusters.get(key);
+    if (bucket) {
+      bucket.posts.push(post);
+      bucket.maxRisk = Math.max(bucket.maxRisk, post.risk_score ?? 1);
+    } else {
+      clusters.set(key, {
+        lat,
+        lng,
+        posts: [post],
+        maxRisk: post.risk_score ?? 1,
+      });
+    }
+  }
+
+  if (!clusters.size) return null;
+
+  return {
+    type: 'FeatureCollection' as const,
+    features: Array.from(clusters.entries()).map(([key, cluster]) => {
+      const lead = cluster.posts[0];
+      const count = cluster.posts.length;
+      return {
+        type: 'Feature' as const,
+        properties: {
+          id: key,
+          type: 'telegram_osint',
+          name:
+            count > 1
+              ? `Telegram OSINT (${count} posts)`
+              : lead.title || 'Telegram OSINT',
+          description: lead.description || '',
+          link: lead.link || '',
+          source: lead.source || '',
+          channel: lead.channel || '',
+          risk_score: cluster.maxRisk,
+          post_count: count,
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [cluster.lng, cluster.lat],
+        },
+      };
+    }),
+  };
+}
+
+// ─── Snap Map OSINT (watch-zone activity density) ─────────────────────────
+
+export const SNAPMAP_LEVEL_COLORS: Record<string, string> = {
+  unknown: '#64748b',
+  warmup: '#64748b',
+  normal: '#22c55e',
+  elevated: '#eab308',
+  high: '#f97316',
+  critical: '#ef4444',
+};
+
+/** 48-gon approximating a geodesic circle — good enough for zones ≤ 85 km. */
+function snapmapCircleRing(lat: number, lng: number, radiusM: number, steps = 48): [number, number][] {
+  const ring: [number, number][] = [];
+  const dLat = radiusM / 111_320;
+  const dLng = radiusM / (111_320 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+  for (let i = 0; i <= steps; i += 1) {
+    const a = (i / steps) * 2 * Math.PI;
+    ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]);
+  }
+  return ring;
+}
+
+/**
+ * One footprint polygon + one centroid point per watch zone.
+ * The point carries the activity count (circle size) and the A/B/C rating (label).
+ */
+export function buildSnapmapOsintGeoJSON(
+  payload?: {
+    zones?: Array<{
+      id: string;
+      label: string;
+      lat: number;
+      lng: number;
+      radius_m: number;
+      count_1h?: number;
+      count_24h?: number;
+      level?: string;
+      reliability?: string;
+      z?: number;
+      status?: string;
+    }>;
+  } | null,
+): FC {
+  const zones = payload?.zones;
+  if (!zones?.length) return null;
+  const features: GeoJSON.Feature[] = [];
+  for (const zone of zones) {
+    if (!Number.isFinite(zone.lat) || !Number.isFinite(zone.lng)) continue;
+    const level = zone.level || 'unknown';
+    const props = {
+      id: zone.id,
+      type: 'snapmap_osint',
+      name: zone.label,
+      lat: zone.lat,
+      lng: zone.lng,
+      level,
+      color: SNAPMAP_LEVEL_COLORS[level] || SNAPMAP_LEVEL_COLORS.unknown,
+      count_1h: zone.count_1h ?? 0,
+      count_24h: zone.count_24h ?? 0,
+      reliability: zone.reliability || 'C',
+      z: zone.z ?? 0,
+      status: zone.status || 'pending',
+      tag: `${zone.reliability || 'C'} · ${zone.count_1h ?? 0}/h`,
+    };
+    features.push({
+      type: 'Feature',
+      properties: { ...props, geom: 'zone' },
+      geometry: { type: 'Polygon', coordinates: [snapmapCircleRing(zone.lat, zone.lng, zone.radius_m)] },
+    });
+    features.push({
+      type: 'Feature',
+      properties: { ...props, geom: 'center' },
+      geometry: { type: 'Point', coordinates: [zone.lng, zone.lat] },
+    });
+  }
+  return features.length ? { type: 'FeatureCollection', features } : null;
+}
+
+// ─── Malware C2 / URLhaus ─────────────────────────────────────────────────
+
+export function buildMalwareGeoJSON(
+  payload?: { threats?: Array<{ id: string; lat: number; lng: number; ip: string; malware: string; threat_type?: string; country?: string }> },
+  inView?: InViewFilter,
+): FC {
+  const threats = payload?.threats;
+  if (!threats?.length) return null;
+  return {
+    type: 'FeatureCollection' as const,
+    features: threats
+      .map((t) => {
+        if (t.lat == null || t.lng == null) return null;
+        if (inView && !inView(t.lat, t.lng)) return null;
+        return {
+          type: 'Feature' as const,
+          properties: {
+            id: t.id,
+            type: 'malware',
+            name: t.malware,
+            ip: t.ip,
+            threat_type: t.threat_type || 'malware',
+            country: t.country || '',
+          },
+          geometry: { type: 'Point' as const, coordinates: [t.lng, t.lat] },
+        };
+      })
+      .filter(Boolean) as GeoJSON.Feature[],
+  };
+}
+
 // ─── Wastewater colors by alert level ────────────────────────────────────
 const WW_COLORS = {
   alert: '#ff3333',    // red — elevated pathogen detected
@@ -1776,82 +2037,63 @@ export function buildSarAoisGeoJSON(aois?: SarAoi[]): FC {
   return { type: 'FeatureCollection' as const, features };
 }
 
-// ─── Snap Map OSINT (watch-zone activity density) ─────────────────────────
+// ─── Strategic Risk Analytics (GT early warning) ────────────────────────────
 
-export const SNAPMAP_LEVEL_COLORS: Record<string, string> = {
-  unknown: '#64748b',
-  warmup: '#64748b',
-  normal: '#22c55e',
-  elevated: '#eab308',
-  high: '#f97316',
-  critical: '#ef4444',
-};
-
-/** 48-gon approximating a geodesic circle — good enough for zones ≤ 85 km. */
-function snapmapCircleRing(lat: number, lng: number, radiusM: number, steps = 48): [number, number][] {
-  const ring: [number, number][] = [];
-  const dLat = radiusM / 111_320;
-  const dLng = radiusM / (111_320 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
-  for (let i = 0; i <= steps; i += 1) {
-    const a = (i / steps) * 2 * Math.PI;
-    ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]);
-  }
-  return ring;
-}
-
-/**
- * One footprint polygon + one centroid point per watch zone.
- * The point carries the activity count (circle size) and the A/B/C rating (label).
- */
-export function buildSnapmapOsintGeoJSON(
+export function buildGtRiskGeoJSON(
   payload?: {
-    zones?: Array<{
-      id: string;
-      label: string;
-      lat: number;
-      lng: number;
-      radius_m: number;
-      count_1h?: number;
-      count_24h?: number;
-      level?: string;
-      reliability?: string;
-      z?: number;
-      status?: string;
-    }>;
+    enabled?: boolean;
+    heatmap?: { features?: Array<GTRiskHeatmapFeatureLike> };
   } | null,
 ): FC {
-  const zones = payload?.zones;
-  if (!zones?.length) return null;
-  const features: GeoJSON.Feature[] = [];
-  for (const zone of zones) {
-    if (!Number.isFinite(zone.lat) || !Number.isFinite(zone.lng)) continue;
-    const level = zone.level || 'unknown';
-    const props = {
-      id: zone.id,
-      type: 'snapmap_osint',
-      name: zone.label,
-      lat: zone.lat,
-      lng: zone.lng,
-      level,
-      color: SNAPMAP_LEVEL_COLORS[level] || SNAPMAP_LEVEL_COLORS.unknown,
-      count_1h: zone.count_1h ?? 0,
-      count_24h: zone.count_24h ?? 0,
-      reliability: zone.reliability || 'C',
-      z: zone.z ?? 0,
-      status: zone.status || 'pending',
-      tag: `${zone.reliability || 'C'} · ${zone.count_1h ?? 0}/h`,
-    };
-    features.push({
-      type: 'Feature',
-      properties: { ...props, geom: 'zone' },
-      geometry: { type: 'Polygon', coordinates: [snapmapCircleRing(zone.lat, zone.lng, zone.radius_m)] },
-    });
-    features.push({
-      type: 'Feature',
-      properties: { ...props, geom: 'center' },
-      geometry: { type: 'Point', coordinates: [zone.lng, zone.lat] },
-    });
-  }
-  return features.length ? { type: 'FeatureCollection', features } : null;
+  const features = payload?.heatmap?.features;
+  if (!features?.length) return null;
+
+  const normalized = features
+    .map((feature, index) => {
+      const coords = feature.geometry?.coordinates;
+      if (!coords || coords.length < 2) return null;
+      const [lng, lat] = coords;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
+      const props = feature.properties || {};
+      const region = String(props.region || `region-${index}`);
+      return {
+        type: 'Feature' as const,
+        properties: {
+          ...props,
+          type: 'gt_risk',
+          id: region,
+          name: region,
+          lat,
+          lng,
+          risk: Number(props.risk ?? 0),
+          financial: Number(props.financial ?? 0),
+          unrest: Number(props.unrest ?? 0),
+          conflict: Number(props.conflict ?? 0),
+          contagion: Number(props.contagion ?? 0),
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [lng, lat] as [number, number],
+        },
+      };
+    })
+    .filter(Boolean) as GeoJSON.Feature[];
+
+  if (!normalized.length) return null;
+  return { type: 'FeatureCollection' as const, features: normalized };
 }
 
+type GTRiskHeatmapFeatureLike = {
+  properties?: {
+    region?: string;
+    risk?: number;
+    financial?: number;
+    unrest?: number;
+    conflict?: number;
+    contagion?: number;
+  };
+  geometry?: {
+    coordinates?: [number, number];
+  };
+};

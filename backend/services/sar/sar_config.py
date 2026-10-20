@@ -167,18 +167,31 @@ def products_fetch_enabled() -> bool:
     return _flag("MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE", default=False)
 
 
+def runtime_store_exists() -> bool:
+    """True when ``data/sar_runtime.json`` exists on disk."""
+    return _RUNTIME_FILE.is_file()
+
+
 def products_fetch_status() -> dict[str, Any]:
     """Structured status used by the router for the 'how to enable' UX."""
     raw = _str("MESH_SAR_PRODUCTS_FETCH", default="block").strip().lower()
     fetch_set = raw in {"allow", "enable", "enabled", "true", "on", "1"}
     ack_set = _flag("MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE", default=False)
-    enabled = fetch_set and ack_set
+    token_set = bool(earthdata_token())
+    user_set = bool(earthdata_user())
+    opt_in = fetch_set and ack_set
+    # ``enabled`` historically meant opt-in flags only; ``fully_configured``
+    # is what the fetcher actually needs (flags + Earthdata token).
+    fully_configured = opt_in and token_set
     return {
-        "enabled": enabled,
+        "enabled": opt_in,
+        "fully_configured": fully_configured,
         "fetch_flag_set": fetch_set,
         "acknowledge_flag_set": ack_set,
-        "earthdata_token_set": bool(earthdata_token()),
-        "earthdata_user_set": bool(earthdata_user()),
+        "earthdata_token_set": token_set,
+        "earthdata_user_set": user_set,
+        "runtime_store_exists": runtime_store_exists(),
+        "runtime_store_path": str(_RUNTIME_FILE),
         "missing": _missing_for_products(fetch_set, ack_set),
         "help": {
             "summary": (

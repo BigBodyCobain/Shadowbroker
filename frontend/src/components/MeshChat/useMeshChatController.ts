@@ -27,6 +27,7 @@ import {
   addContact,
   updateContact,
   blockContact,
+  severContact,
   getDMNotify,
   nextSequence,
   verifyEventSignature,
@@ -91,6 +92,7 @@ import {
   rotateWormholePairwiseAlias,
   listWormholeGatePersonas,
   postWormholeGateMessage,
+  prepareWormholeInteractiveLane,
   recoverWormholeSasRootContinuity,
   resyncWormholeGateState,
   retireWormholeGatePersona,
@@ -102,6 +104,7 @@ import {
   isEncryptedGateEnvelope,
 } from '@/mesh/gateEnvelope';
 import { fetchWormholeSettings, joinWormhole, leaveWormhole } from '@/mesh/wormholeClient';
+import { connectDeliveryMeta, ensureDmOutboxReleased } from '@/mesh/dmConnectDelivery';
 import {
   buildMailboxClaims,
   countDmMailboxes,
@@ -317,7 +320,7 @@ function errorMessage(err: unknown, fallback: string = 'unknown error'): string 
 
 function describeMeshChatControlError(raw: string): string {
   const message = String(raw || '').trim();
-  if (!message) return 'MeshChat could not update the local control plane.';
+  if (!message) return 'Meshtastic Chat could not update the local control plane.';
   if (
     message === 'control_plane_request_failed:530' ||
     message === 'HTTP 530' ||
@@ -336,7 +339,7 @@ function describeMeshChatControlError(raw: string): string {
     return 'This control action needs a local operator session. Open Settings or Node controls once so the app can authorize local changes, then try Mesh again.';
   }
   if (message.startsWith('{') || message.startsWith('<')) {
-    return 'MeshChat could not update the local control plane. Check the backend log for the upstream error.';
+    return 'Meshtastic Chat could not update the local control plane. Check the backend log for the upstream error.';
   }
   return message;
 }
@@ -413,7 +416,7 @@ export function useMeshChatController({
     setInternalExpanded(newVal);
     onExpandedChange?.(newVal);
   };
-  const [activeTab, setActiveTab] = useState<Tab>('meshtastic');
+  const [activeTab, setActiveTab] = useState<Tab>('dms');
   const openTerminal = useCallback(() => {
     if (onTerminalToggle) {
       onTerminalToggle();
@@ -471,7 +474,6 @@ export function useMeshChatController({
   const privateInfonetReady = wormholeEnabled && wormholeReadyState;
   const publicMeshBlockedByWormhole = wormholeEnabled || wormholeReadyState;
   const dmSendQueue = useRef<(() => Promise<void>)[]>([]);
-  const infonetAutoBootstrapRef = useRef(false);
   const meshMqttRuntime = meshMqttSettings?.runtime;
   const meshMqttEnabled = Boolean(meshMqttSettings?.enabled || meshMqttRuntime?.enabled);
   const canUsePublicMeshInput = Boolean(activePublicMeshAddress) && meshMqttEnabled && !publicMeshBlockedByWormhole;
@@ -905,6 +907,7 @@ export function useMeshChatController({
   // ─── InfoNet State ───────────────────────────────────────────────────────
   const [gates, setGates] = useState<Gate[]>([]);
   const [selectedGate, setSelectedGate] = useState<string>('');
+  const [infonetLaunchGate, setInfonetLaunchGate] = useState('');
   const [infoMessages, setInfoMessages] = useState<InfoNetMessage[]>([]);
   const [infoVerification, setInfoVerification] = useState<
     Record<string, 'verified' | 'failed' | 'unsigned'>
@@ -1335,7 +1338,7 @@ export function useMeshChatController({
     setExpanded(true);
     setActiveTab(launchRequest.tab);
     if (launchRequest.tab === 'infonet' && launchRequest.gate) {
-      setSelectedGate(String(launchRequest.gate || '').trim().toLowerCase());
+      setInfonetLaunchGate(String(launchRequest.gate || '').trim().toLowerCase());
     }
     if (launchRequest.tab === 'dms') {
       const peerId = String(launchRequest.peerId || '').trim();
@@ -2294,6 +2297,7 @@ export function useMeshChatController({
                     API_BASE,
                     m.sender_id,
                     senderContact?.invitePinnedPrekeyLookupHandle,
+                    { lookupPeerUrl: senderContact?.invitePinnedLookupPeerUrl },
                   );
                   if (senderKey?.dh_pub_key) {
                     const sharedKey = await deriveSharedKey(String(senderKey.dh_pub_key));
@@ -2309,6 +2313,7 @@ export function useMeshChatController({
                   API_BASE,
                   m.sender_id,
                   senderContact?.invitePinnedPrekeyLookupHandle,
+                  { lookupPeerUrl: senderContact?.invitePinnedLookupPeerUrl },
                 ).catch(() => null);
                 if (senderKey?.dh_pub_key) {
                   addContact(m.sender_id, String(senderKey.dh_pub_key), undefined, senderKey.dh_algo);
@@ -2682,7 +2687,7 @@ export function useMeshChatController({
             openIdentityWizard({
               type: 'err',
               text: hasStoredPublicLaneIdentity
-                ? 'Quick fix: turn MeshChat on below, then retry your send.'
+                ? 'Quick fix: turn Meshtastic Chat on below, then retry your send.'
                 : 'Quick fix: create a public mesh identity below, then retry your send.',
             });
             setTimeout(() => setSendError(''), 4000);
@@ -3335,7 +3340,9 @@ export function useMeshChatController({
         'import or re-import a signed invite before refreshing this contact; legacy direct lookup is disabled',
       );
     }
-    const registry = await fetchDmPublicKey(API_BASE, targetId, lookupHandle).catch(() => null);
+    const registry = await fetchDmPublicKey(API_BASE, targetId, lookupHandle, {
+      lookupPeerUrl: existing?.invitePinnedLookupPeerUrl,
+    }).catch(() => null);
     if (!registry?.dh_pub_key) {
       throw new Error(
         'invite-scoped lookup failed for this contact; re-import a signed invite and try again',
@@ -3584,29 +3591,26 @@ export function useMeshChatController({
       setTimeout(() => setSendError(''), 3000);
       return;
     }
-    if (requiresVerifiedFirstContact(getContacts()[targetId])) {
-      setSendError('import a signed invite before first secure contact; TOFU requests are disabled');
-      setTimeout(() => setSendError(''), 4000);
-      return;
-    }
-    if (wormholeEnabled && !wormholeReadyState) {
-      setSendError('wormhole required for dead drop');
-      setTimeout(() => setSendError(''), 3000);
-      return;
-    }
     try {
       const registration = await ensureRegisteredDmKey(API_BASE, identity!, { force: false });
       const myPub = registration.dhPubKey;
       if (!myPub) return;
       const dhAlgo = registration.dhAlgo || getDHAlgo() || 'X25519';
       const targetContact = getContacts()[targetId];
-      const lookupHandle = String(targetContact?.invitePinnedPrekeyLookupHandle || '').trim();
+      let lookupHandle = String(targetContact?.invitePinnedPrekeyLookupHandle || '').trim();
+      let resolvedTargetId = targetId;
+      if (!lookupHandle && /^[a-fA-F0-9]{32,}$/.test(targetId)) {
+        lookupHandle = targetId;
+        resolvedTargetId = '';
+      }
       if (!lookupHandle) {
         throw new Error(
-          'import or re-import a signed invite before sending a contact request; legacy direct lookup is disabled',
+          'Paste their short contact address (from Secure Messages → Copy Short Address), not their node id.',
         );
       }
-      const targetKey = await fetchDmPublicKey(API_BASE, targetId, lookupHandle);
+      const targetKey = await fetchDmPublicKey(API_BASE, resolvedTargetId, lookupHandle, {
+        lookupPeerUrl: targetContact?.invitePinnedLookupPeerUrl,
+      });
       if (!targetKey?.dh_pub_key) {
         throw new Error(
           'invite-scoped lookup failed for this contact; re-import a signed invite and try again',
@@ -3630,12 +3634,13 @@ export function useMeshChatController({
           geoHint = '';
         }
       }
+      const recipientId = String(targetKey.agent_id || resolvedTargetId || targetId).trim();
       const requestPlaintext = buildContactOfferMessage(myPub, dhAlgo, geoHint || undefined);
       let ciphertext = '';
       const secureRequired = await isWormholeSecureRequired();
       if (await canUseWormholeBootstrap()) {
         try {
-          ciphertext = await bootstrapEncryptAccessRequest(targetId, requestPlaintext);
+          ciphertext = await bootstrapEncryptAccessRequest(recipientId, requestPlaintext);
         } catch {
           ciphertext = '';
         }
@@ -3650,16 +3655,24 @@ export function useMeshChatController({
       const msgId = `dm_${Date.now()}_${identity!.nodeId.slice(-4)}`;
       const msgTimestamp = Math.floor(Date.now() / 1000);
       await sleep(jitterDelay(ACCESS_REQUEST_BATCH_DELAY_MS, ACCESS_REQUEST_BATCH_JITTER_MS));
+      const connectMeta = connectDeliveryMeta({
+        intent: lookupHandle === targetId ? 'invite_short_address' : 'contact_request',
+        contact: targetContact,
+      });
       await enqueueDmSend(async () => {
-        const sent = await sendOffLedgerConsentMessage({
-          apiBase: API_BASE,
-          identity: identity!,
-          recipientId: targetId,
-          recipientDhPub: String(targetKey.dh_pub_key),
-          ciphertext,
-          msgId,
-          timestamp: msgTimestamp,
-        });
+        const sent = await ensureDmOutboxReleased(
+          await sendOffLedgerConsentMessage({
+            apiBase: API_BASE,
+            identity: identity!,
+            recipientId,
+            recipientDhPub: String(targetKey.dh_pub_key),
+            ciphertext,
+            msgId,
+            timestamp: msgTimestamp,
+            connectIntent: connectMeta.connectIntent,
+            lookupPeerUrl: connectMeta.lookupPeerUrl,
+          }),
+        );
         if (!sent.ok) {
           throw new Error(sent.detail || 'access_request_send_failed');
         }
@@ -3667,7 +3680,8 @@ export function useMeshChatController({
           setLastDmTransport(sent.transport);
         }
       });
-      const updated = [...pendingSent, targetId];
+      const recipientForPending = String(targetKey.agent_id || resolvedTargetId || targetId).trim();
+      const updated = [...pendingSent, recipientForPending];
       setPendingSent(updated, dmConsentScopeId);
       setPendingSentState(updated);
     } catch (err) {
@@ -3679,11 +3693,6 @@ export function useMeshChatController({
 
   const handleAcceptRequest = async (senderId: string) => {
     if (!hasId) return;
-    if (requiresVerifiedFirstContact(getContacts()[senderId])) {
-      setSendError('import a signed invite before accepting an unverified request');
-      setTimeout(() => setSendError(''), 4000);
-      return;
-    }
     if (anonymousDmBlocked) {
       setSendError('hidden transport required for anonymous dm');
       setTimeout(() => setSendError(''), 3000);
@@ -3696,6 +3705,7 @@ export function useMeshChatController({
         API_BASE,
         senderId,
         existingContact?.invitePinnedPrekeyLookupHandle,
+        { lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl },
       ).catch(() => null);
       const resolvedDhPubKey = String(registry?.dh_pub_key || req?.dh_pub_key || '').trim();
       const resolvedDhAlgo = String(registry?.dh_algo || req?.dh_algo || 'X25519').trim();
@@ -3842,16 +3852,24 @@ export function useMeshChatController({
         }
         const msgId = `dm_${Date.now()}_${identity!.nodeId.slice(-4)}`;
         const msgTimestamp = Math.floor(Date.now() / 1000);
+        const acceptMeta = connectDeliveryMeta({
+          intent: 'contact_accept',
+          contact: existingContact,
+        });
         await enqueueDmSend(async () => {
-          const sent = await sendOffLedgerConsentMessage({
-            apiBase: API_BASE,
-            identity: identity!,
-            recipientId: senderId,
-            recipientDhPub: resolvedDhPubKey,
-            ciphertext,
-            msgId,
-            timestamp: msgTimestamp,
-          });
+          const sent = await ensureDmOutboxReleased(
+            await sendOffLedgerConsentMessage({
+              apiBase: API_BASE,
+              identity: identity!,
+              recipientId: senderId,
+              recipientDhPub: resolvedDhPubKey,
+              ciphertext,
+              msgId,
+              timestamp: msgTimestamp,
+              connectIntent: acceptMeta.connectIntent,
+              lookupPeerUrl: acceptMeta.lookupPeerUrl,
+            }),
+          );
           if (!sent.ok) {
             throw new Error(sent.detail || 'access_granted_send_failed');
           }
@@ -3877,11 +3895,6 @@ export function useMeshChatController({
 
   const handleDenyRequest = (senderId: string) => {
     void (async () => {
-      if (requiresVerifiedFirstContact(getContacts()[senderId])) {
-        setSendError('import a signed invite before denying an unverified request');
-        setTimeout(() => setSendError(''), 4000);
-        return;
-      }
       try {
         const req = accessRequests.find((r) => r.sender_id === senderId);
         const existingContact = getContacts()[senderId];
@@ -3892,6 +3905,7 @@ export function useMeshChatController({
                 API_BASE,
                 senderId,
                 existingContact?.invitePinnedPrekeyLookupHandle,
+                { lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl },
               ).catch(() => null);
         if (identity && targetKey?.dh_pub_key) {
           const denyPlaintext = buildContactDenyMessage('declined');
@@ -3932,6 +3946,20 @@ export function useMeshChatController({
         setAccessRequestsState(updated);
       }
     })();
+  };
+
+  const handleSeverContact = async (agentId: string) => {
+    try {
+      await severContact(agentId);
+      setContacts(getContacts());
+      if (selectedContact === agentId) {
+        setDmView('contacts');
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'end contact failed';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 4000);
+    }
   };
 
   const handleBlockDM = async (agentId: string) => {
@@ -4122,12 +4150,9 @@ export function useMeshChatController({
   const dmTrustHint = buildDmTrustHint(selectedContactInfo);
   const dmTrustPrimaryAction = dmTrustPrimaryActionLabel(selectedContactInfo);
   const wormholeDescriptor = getWormholeIdentityDescriptor();
-  const dashboardRestrictedTab: boolean = activeTab === 'infonet' || activeTab === 'dms';
-  const dashboardRestrictedTitle = activeTab === 'infonet' ? 'INFONET RESTRICTED' : 'DEAD DROP RESTRICTED';
-  const dashboardRestrictedDetail =
-    activeTab === 'infonet'
-      ? 'Private Wormhole gate activity is staying in the terminal for this build. Dashboard integration is coming soon.'
-      : 'Secure Dead Drop stays in the terminal for this build. Dashboard inbox and compose surfaces are coming soon.';
+  const dashboardRestrictedTab = false;
+  const dashboardRestrictedTitle = '';
+  const dashboardRestrictedDetail = '';
   const selectedGateKey = selectedGate.trim().toLowerCase();
   const selectedGatePersonaList = selectedGateKey ? gatePersonas[selectedGateKey] || [] : [];
   const selectedGateActivePersonaId = selectedGateKey ? activeGatePersonaId[selectedGateKey] || '' : '';
@@ -4225,7 +4250,7 @@ export function useMeshChatController({
         (wormholeEnabled && !wormholeReadyState) ||
         anonymousDmBlocked));
   const privateInfonetBlockedDetail = !wormholeEnabled
-    ? 'INFONET now lives behind Wormhole. Public mesh remains available under the MESH tab.'
+    ? 'INFONET now lives behind Wormhole. Meshtastic radio chat remains available under the MESHTASTIC tab.'
     : !wormholeReadyState
       ? 'Wormhole is enabled, but the local private agent is not ready yet. INFONET stays locked until the private lane is up.'
       : 'Wormhole is up, but Reticulum is still warming on the private lane. Gate chat can run in transitional mode while strongest transport posture comes online. For strongest content privacy, use Dead Drop.';
@@ -4385,13 +4410,13 @@ export function useMeshChatController({
       setMeshSessionActive(true);
       setMeshMessages([]);
       setSendError('');
-      const text = `MeshChat is on. Address ${readyAddress}.`;
+      const text = `Meshtastic Chat is on. Address ${readyAddress}.`;
       setIdentityWizardStatus({ type: 'ok', text });
       setMeshQuickStatus(null);
       return { ok: true as const, text };
     } catch (err) {
       const message = describeMeshChatControlError(errorMessage(err));
-      const text = `Could not turn MeshChat on: ${message}`;
+      const text = `Could not turn Meshtastic Chat on: ${message}`;
       setIdentityWizardStatus({ type: 'err', text });
       setMeshQuickStatus({ type: 'err', text });
       return { ok: false as const, text };
@@ -4522,21 +4547,58 @@ export function useMeshChatController({
     }
   }, [wormholeDescriptor?.nodeId, wormholeEnabled, wormholeReadyState]);
 
-  useEffect(() => {
-    if (!expanded || activeTab !== 'infonet') {
-      infonetAutoBootstrapRef.current = false;
+  const enterInfonetWormholeLane = useCallback(async () => {
+    setMeshSessionActive(false);
+    setMeshMessages([]);
+    if (wormholeEnabled && wormholeReadyState) {
+      try {
+        const wormholeIdentity = await fetchWormholeIdentity();
+        setIdentity({
+          publicKey: wormholeIdentity.public_key,
+          privateKey: '',
+          nodeId: wormholeIdentity.node_id,
+        });
+      } catch {
+        // Lane is already up; shell can still open.
+      }
       return;
     }
-    if (privateInfonetReady) {
-      infonetAutoBootstrapRef.current = false;
-      return;
+
+    setIdentityWizardBusy(true);
+    try {
+      const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+      const [settings, runtime] = await Promise.all([
+        fetchWormholeSettings(true).catch(() => null),
+        fetchWormholeStatus().catch(() => null),
+      ]);
+      const enabled = Boolean(
+        settings?.enabled ?? prepared.settingsEnabled ?? runtime?.running ?? runtime?.ready,
+      );
+      setSecureModeCached(enabled);
+      setWormholeEnabled(enabled);
+      setWormholeReadyState(Boolean(runtime?.ready ?? prepared.ready));
+      setWormholeRnsReady(Boolean(runtime?.rns_ready));
+      setWormholeRnsDirectReady(Boolean(runtime?.rns_private_dm_direct_ready));
+      setWormholeRnsPeers({
+        active: Number(runtime?.rns_active_peers ?? 0),
+        configured: Number(runtime?.rns_configured_peers ?? 0),
+      });
+      if (prepared.identity) {
+        purgeBrowserSigningMaterial();
+        purgeBrowserContactGraph();
+        await purgeBrowserDmState();
+        const hydratedContacts = await hydrateWormholeContacts(true);
+        setContacts(hydratedContacts);
+        setIdentity({
+          publicKey: prepared.identity.public_key,
+          privateKey: '',
+          nodeId: prepared.identity.node_id,
+        });
+      }
+    } finally {
+      setIdentityWizardBusy(false);
     }
-    if (identityWizardBusy || infonetAutoBootstrapRef.current) return;
-    infonetAutoBootstrapRef.current = true;
-    void handleBootstrapPrivateIdentity().catch(() => {
-      infonetAutoBootstrapRef.current = false;
-    });
-  }, [activeTab, expanded, handleBootstrapPrivateIdentity, identityWizardBusy, privateInfonetReady]);
+  }, [wormholeEnabled, wormholeReadyState]);
 
   return {
     // UI state
@@ -4716,6 +4778,7 @@ export function useMeshChatController({
     handleAcceptRequest,
     handleDenyRequest,
     handleBlockDM,
+    handleSeverContact,
     handleVouch,
     handleAddContact,
     openChat,
@@ -4725,6 +4788,9 @@ export function useMeshChatController({
     handleLeaveWormholeForPublicMesh,
     handleResetPublicIdentity,
     handleBootstrapPrivateIdentity,
+    enterInfonetWormholeLane,
+    infonetLaunchGate,
+    clearInfonetLaunchGate: () => setInfonetLaunchGate(''),
     handleRefreshSelectedContact,
     handleResetSelectedContact,
     handleTrustSelectedRemotePrekey,

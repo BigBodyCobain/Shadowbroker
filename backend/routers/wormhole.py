@@ -308,6 +308,10 @@ class WormholeDmDecryptRequest(BaseModel):
     session_welcome: str | None = None
 
 
+class WormholeDmMlsKeyPackageRequest(BaseModel):
+    alias: str
+
+
 class WormholeDmResetRequest(BaseModel):
     peer_id: str | None = None
 
@@ -324,6 +328,14 @@ class WormholeDmBootstrapEncryptRequest(BaseModel):
 class WormholeDmBootstrapDecryptRequest(BaseModel):
     sender_id: str = ""
     ciphertext: str
+
+
+class WormholeDmConnectContactRequest(BaseModel):
+    lookup_token: str = ""
+    peer_id: str = ""
+    note: str = ""
+    lookup_peer_url: str = ""
+    cached_prekey_bundle: dict[str, Any] | None = None
 
 
 class WormholeDmInviteImportRequest(BaseModel):
@@ -1085,7 +1097,21 @@ async def api_wormhole_dm_bootstrap_decrypt(request: Request, body: WormholeDmBo
     )
 
 
-@router.post("/api/wormhole/dm/sender-token", dependencies=[Depends(require_admin)])
+@router.post("/api/wormhole/dm/connect-contact", dependencies=[Depends(require_local_operator)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_connect_contact(request: Request, body: WormholeDmConnectContactRequest):
+    from services.openclaw_infonet import send_contact_request
+
+    return send_contact_request(
+        lookup_token=str(body.lookup_token or ""),
+        peer_id=str(body.peer_id or ""),
+        note=str(body.note or ""),
+        lookup_peer_url=str(body.lookup_peer_url or ""),
+        cached_prekey_bundle=dict(body.cached_prekey_bundle or {}) if body.cached_prekey_bundle else None,
+    )
+
+
+@router.post("/api/wormhole/dm/sender-token", dependencies=[Depends(require_local_operator)])
 @limiter.limit("60/minute")
 async def api_wormhole_dm_sender_token(request: Request, body: WormholeDmSenderTokenRequest):
     if _safe_int(body.count or 1, 1) > 1:
@@ -1228,6 +1254,23 @@ async def api_wormhole_dm_decrypt(request: Request, body: WormholeDmDecryptReque
     )
 
 
+@router.post("/api/wormhole/dm/mls-key-package", dependencies=[Depends(require_admin)])
+@limiter.limit("60/minute")
+async def api_wormhole_dm_mls_key_package(request: Request, body: WormholeDmMlsKeyPackageRequest):
+    from services.mesh.mesh_dm_mls import export_dm_key_package_for_alias
+
+    return export_dm_key_package_for_alias(str(body.alias or "").strip())
+
+
+@router.post("/api/wormhole/dm/mls-reset", dependencies=[Depends(require_admin)])
+@limiter.limit("30/minute")
+async def api_wormhole_dm_mls_reset(request: Request):
+    from services.mesh.mesh_dm_mls import reset_dm_mls_state
+
+    reset_dm_mls_state(clear_privacy_core=True, clear_persistence=True)
+    return {"ok": True}
+
+
 @router.post("/api/wormhole/dm/reset", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def api_wormhole_dm_reset(request: Request, body: WormholeDmResetRequest):
@@ -1287,7 +1330,25 @@ async def api_wormhole_dm_contact_delete(request: Request, peer_id: str):
     return {"ok": True, "peer_id": peer_id, "deleted": deleted}
 
 
-_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready"}
+@router.post("/api/wormhole/dm/contact/{peer_id}/sever", dependencies=[Depends(require_admin)])
+@limiter.limit("60/minute")
+async def api_wormhole_dm_contact_sever(request: Request, peer_id: str):
+    from services.mesh.mesh_wormhole_contacts import sever_wormhole_dm_contact
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    block = bool(body.get("block", False))
+    try:
+        return sever_wormhole_dm_contact(peer_id, block=block)
+    except ValueError as exc:
+        return {"ok": False, "detail": str(exc)}
+
+
+_WORMHOLE_PUBLIC_FIELDS = {"installed", "configured", "running", "ready", "arti_ready"}
 
 
 def _redact_wormhole_status(state: dict[str, Any], authenticated: bool) -> dict[str, Any]:
@@ -1306,6 +1367,25 @@ async def api_wormhole_status(request: Request):
     import main as _m
 
     return await _m.api_wormhole_status(request)
+
+
+@router.get(
+    "/api/wormhole/private-delivery/{item_id}",
+    dependencies=[Depends(require_local_operator)],
+)
+@limiter.limit("120/minute")
+async def api_wormhole_private_delivery_item(request: Request, item_id: str):
+    from services.mesh.mesh_metadata_exposure import metadata_exposure_for_request
+    from services.mesh.mesh_private_outbox import private_delivery_outbox
+
+    exposure = metadata_exposure_for_request(
+        request,
+        authenticated=True,
+    )
+    item = private_delivery_outbox.get_item(item_id, exposure=exposure)
+    if item is None:
+        raise HTTPException(status_code=404, detail="private_delivery_item_not_found")
+    return {"ok": True, "item": item}
 
 
 @router.post("/api/wormhole/private-delivery/{item_id}/action", dependencies=[Depends(require_local_operator)])

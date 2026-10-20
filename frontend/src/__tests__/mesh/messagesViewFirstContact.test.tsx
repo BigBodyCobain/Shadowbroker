@@ -725,6 +725,7 @@ describe('MessagesView first-contact trust UX', () => {
       'http://localhost:8000',
       '',
       'f0eee9e9ccf849bcb2d86c0d7a1e0669c75be4e05533b0f6c67',
+      { allowLegacyAgentId: false },
     );
     expect(mocks.sendOffLedgerConsentMessage).toHaveBeenCalled();
     expect(screen.queryByText(/Unexpected number in JSON/i)).not.toBeInTheDocument();

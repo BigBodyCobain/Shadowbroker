@@ -109,6 +109,9 @@ backend/data/*
 # release. Used ONLY on first-ever startup to bootstrap carrier_cache.json;
 # after that the cache reflects this install's own GDELT observations.
 !backend/data/carrier_seed.json
+# DrishX RF model weights (MIT — see backend/third_party/drishx/NOTICE.md)
+!backend/data/drishx/
+!backend/data/drishx/rf_model.pickle
 
 # OS generated files
 .DS_Store
@@ -174,6 +177,8 @@ frontend/eslint-report.json
 .git_backup/
 local-artifacts/
 release-secrets/
+release-staging/
+.tmp-release-inspect/
 shadowbroker_repo/
 frontend/src/components.bak/
 frontend/src/components/map/icons/backups/
@@ -198,6 +203,9 @@ graphify-out/
 # Internal docs & brainstorming (never commit)
 # ========================
 docs/*
+!docs/OUTBOUND_DATA.md
+!docs/production-hardening.md
+!docs/contributor-map.md
 !docs/mesh/
 docs/mesh/*
 !docs/mesh/threat-model.md
@@ -255,6 +263,11 @@ frontend/.desktop-export-stash-*/
 # Wormhole logs (can be 30 MB+ each, runtime-generated)
 backend/data/wormhole_stderr.log
 backend/data/wormhole_stdout.log
+
+# Hermes Agent (operator-local runtime install — not project source)
+.hermes/
+**/.hermes/
+hermes-agent/
 
 # Runtime caches that already slip through the backend/data/* blanket
 # (these are caught by the wildcard but listing for clarity)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Source, Layer, Marker } from 'react-map-gl/maplibre';
+import { Source, Layer } from 'react-map-gl/maplibre';
 import { API_BASE } from '@/lib/api';
 
 interface Props {
@@ -20,7 +20,10 @@ export default function FishingDestinationRoute({ vesselLat, vesselLng, destinat
   const prevDest = useRef('');
 
   useEffect(() => {
-    if (!destination) { setDestCoords(null); return; }
+    if (!destination) {
+      setDestCoords(null);
+      return;
+    }
     const query = destination.trim();
     if (!query || query === prevDest.current) return;
     prevDest.current = query;
@@ -43,7 +46,9 @@ export default function FishingDestinationRoute({ vesselLat, vesselLng, destinat
         setDestCoords(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [destination]);
 
   if (!destCoords) return null;
@@ -56,7 +61,10 @@ export default function FishingDestinationRoute({ vesselLat, vesselLng, destinat
         properties: { type: 'fishing-route' },
         geometry: {
           type: 'LineString',
-          coordinates: [[vesselLng, vesselLat], destCoords],
+          coordinates: [
+            [vesselLng, vesselLat],
+            destCoords,
+          ],
         },
       },
       {
@@ -71,49 +79,47 @@ export default function FishingDestinationRoute({ vesselLat, vesselLng, destinat
   };
 
   return (
-    <>
-      <Source id="fishing-dest-route" type="geojson" data={geojson}>
-        <Layer
-          id="fishing-dest-line"
-          type="line"
-          filter={['==', ['get', 'type'], 'fishing-route']}
-          paint={{
-            'line-color': '#0ea5e9',
-            'line-width': 2,
-            'line-opacity': 0.7,
-            'line-dasharray': [6, 4],
-          }}
-        />
-        <Layer
-          id="fishing-dest-point"
-          type="circle"
-          filter={['==', ['get', 'type'], 'fishing-dest']}
-          paint={{
-            'circle-radius': 6,
-            'circle-color': 'rgba(14, 165, 233, 0.3)',
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#0ea5e9',
-          }}
-        />
-        <Layer
-          id="fishing-dest-label"
-          type="symbol"
-          filter={['==', ['get', 'type'], 'fishing-dest']}
-          layout={{
-            'text-field': destLabel,
-            'text-font': ['Noto Sans Bold'],
-            'text-size': 11,
-            'text-offset': [0, 1.4],
-            'text-anchor': 'top',
-            'text-allow-overlap': true,
-          }}
-          paint={{
-            'text-color': '#0ea5e9',
-            'text-halo-color': 'rgba(0,0,0,0.9)',
-            'text-halo-width': 1.5,
-          }}
-        />
-      </Source>
-    </>
+    <Source id="fishing-dest-route" type="geojson" data={geojson}>
+      <Layer
+        id="fishing-dest-line"
+        type="line"
+        filter={['==', ['get', 'type'], 'fishing-route']}
+        paint={{
+          'line-color': '#0ea5e9',
+          'line-width': 2,
+          'line-opacity': 0.7,
+          'line-dasharray': [6, 4],
+        }}
+      />
+      <Layer
+        id="fishing-dest-point"
+        type="circle"
+        filter={['==', ['get', 'type'], 'fishing-dest']}
+        paint={{
+          'circle-radius': 6,
+          'circle-color': 'rgba(14, 165, 233, 0.3)',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#0ea5e9',
+        }}
+      />
+      <Layer
+        id="fishing-dest-label"
+        type="symbol"
+        filter={['==', ['get', 'type'], 'fishing-dest']}
+        layout={{
+          'text-field': destLabel,
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 11,
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+          'text-allow-overlap': true,
+        }}
+        paint={{
+          'text-color': '#0ea5e9',
+          'text-halo-color': 'rgba(0,0,0,0.9)',
+          'text-halo-width': 1.5,
+        }}
+      />
+    </Source>
   );
 }

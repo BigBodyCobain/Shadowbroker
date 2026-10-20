@@ -34,9 +34,9 @@ _session.mount("http://", HTTPAdapter(max_retries=_retry, pool_maxsize=10))
 # upstream's only recourse was to block "Shadowbroker" as a whole — which
 # would take out every other install too.
 #
-# Fix: give each install a stable pseudonymous handle and include it in
-# the User-Agent. Now an upstream can rate-limit or block the offending
-# operator without affecting anyone else.
+# Fix: give each install a stable pseudonymous handle used as the entire
+# User-Agent product token (no shared "Shadowbroker" label). Upstreams see
+# ``operator-7f3a92`` (or ``OPERATOR_HANDLE``), not one monolithic app name.
 #
 # The handle:
 #
@@ -51,7 +51,6 @@ _session.mount("http://", HTTPAdapter(max_retries=_retry, pool_maxsize=10))
 # - Is NEVER mixed into mesh / Wormhole / Infonet identity. This layer is
 #   strictly for public third-party API attribution.
 
-_SHADOWBROKER_VERSION = "0.9"
 _OPERATOR_HANDLE_FILE = (
     Path(__file__).parent.parent / "data" / "operator_handle.json"
 )
@@ -146,7 +145,12 @@ def get_operator_handle() -> str:
         # 3. On-disk handle from a previous run.
         persisted = _load_persisted_operator_handle()
         if persisted:
-            _OPERATOR_HANDLE_CACHE = _normalize_handle(persisted)
+            normalized = _normalize_handle(persisted)
+            # Migrate legacy auto-generated handles (pre-Round-7a ``shadow-`` prefix).
+            if normalized.startswith("shadow-"):
+                normalized = f"operator-{normalized[len('shadow-'):]}"
+                _persist_operator_handle(normalized)
+            _OPERATOR_HANDLE_CACHE = normalized
             return _OPERATOR_HANDLE_CACHE
 
         # 4. Generate, persist, return.
@@ -170,41 +174,21 @@ def _normalize_handle(raw: str) -> str:
     return safe[:48] if safe else "anonymous"
 
 
-_CONTACT_URL = "https://github.com/BigBodyCobain/Shadowbroker/issues"
-
-
 def outbound_user_agent(purpose: str = "") -> str:
     """Build a User-Agent for an outbound third-party HTTP request.
 
-    Returns something like::
+    Returns the per-install handle only, e.g. ``operator-7f3a92`` or
+    ``operator-7f3a92 (purpose: wikipedia)``. No shared project name — so
+    upstream abuse teams cannot block every install with one ``Shadowbroker``
+    rule.
 
-        Shadowbroker/0.9 (operator: shadow-7f3a92; purpose: wikipedia;
-         +https://github.com/BigBodyCobain/Shadowbroker/issues)
-
-    The ``purpose`` is optional but recommended — it tells the upstream
-    what feature of ours is making the call (``wikipedia``, ``openmhz``,
-    ``nominatim``, etc.), which makes their logs and our complaints
-    actionable.
-
-    Every outbound call in the backend that previously sent a custom
-    User-Agent should call this helper instead. Centralizing here means:
-      - one place to change the contact URL,
-      - one place to bump the version on release,
-      - one place a Wikimedia / OpenMHz operator can reach to ask for
-        the project to back off, with a per-install handle so they can
-        target the specific install instead of the project as a whole.
+    Set ``SHADOWBROKER_USER_AGENT`` to override the entire string if needed.
     """
     handle = get_operator_handle()
     if purpose:
         purpose_clean = _normalize_handle(purpose)
-        return (
-            f"Shadowbroker/{_SHADOWBROKER_VERSION} "
-            f"(operator: {handle}; purpose: {purpose_clean}; +{_CONTACT_URL})"
-        )
-    return (
-        f"Shadowbroker/{_SHADOWBROKER_VERSION} "
-        f"(operator: {handle}; +{_CONTACT_URL})"
-    )
+        return f"{handle} (purpose: {purpose_clean})"
+    return handle
 
 
 def _reset_operator_handle_cache_for_tests() -> None:
@@ -215,19 +199,13 @@ def _reset_operator_handle_cache_for_tests() -> None:
         _OPERATOR_HANDLE_CACHE = ""
 
 
-# Default outbound User-Agent. Retained for backwards compatibility with
-# call sites that haven't been migrated to ``outbound_user_agent()`` yet.
-# Operators who want full per-install attribution should set the
-# ``OPERATOR_HANDLE`` setting and migrate call sites incrementally.
-#
-# Operators who run a public-facing relay can also override the whole UA
-# string via the ``SHADOWBROKER_USER_AGENT`` env var. That override
-# completely bypasses the per-operator helper; only use it if you know
-# what you're doing.
-DEFAULT_USER_AGENT = os.environ.get(
-    "SHADOWBROKER_USER_AGENT",
-    f"Shadowbroker/{_SHADOWBROKER_VERSION}",
-)
+def default_user_agent() -> str:
+    """Default User-Agent for ``fetch_with_curl`` and legacy call sites."""
+    custom = (os.environ.get("SHADOWBROKER_USER_AGENT") or "").strip()
+    if custom:
+        return custom
+    return outbound_user_agent()
+
 
 # Find bash for curl fallback — Git bash's curl has the TLS features
 # needed to pass CDN fingerprint checks (brotli, zstd, libpsl)
@@ -283,7 +261,7 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None,
     both Python requests and the barebones Windows system curl.
     """
     default_headers = {
-        "User-Agent": DEFAULT_USER_AGENT,
+        "User-Agent": default_user_agent(),
     }
     if headers:
         default_headers.update(headers)

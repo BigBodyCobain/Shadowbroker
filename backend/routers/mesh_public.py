@@ -41,7 +41,7 @@ _scoped_view_authenticated = _main_delegate("_scoped_view_authenticated")
 _node_runtime_snapshot = _main_delegate("_node_runtime_snapshot")
 _verify_gate_access_main = _main_delegate("_verify_gate_access")
 from services.config import get_settings
-from services.data_fetcher import get_latest_data
+from services.fetchers._store import get_latest_data_refs_snapshot as get_latest_data
 from services.mesh.mesh_crypto import (
     derive_node_id,
     normalize_peer_url,

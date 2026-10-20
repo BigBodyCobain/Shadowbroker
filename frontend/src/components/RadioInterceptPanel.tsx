@@ -2,7 +2,7 @@
 
 import { API_BASE } from '@/lib/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   RadioReceiver,
   Activity,

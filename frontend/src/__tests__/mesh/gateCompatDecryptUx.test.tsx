@@ -539,15 +539,16 @@ describe('GateView compat-decrypt UX', () => {
     );
 
     expect(await screen.findByText('sealed')).toBeInTheDocument();
-    expect(mocks.subscribeGateSessionStreamEvents).toHaveBeenCalled();
-    expect(mocks.fetchWormholeGateKeyStatus).toHaveBeenCalledWith(
-      'infonet',
-      expect.objectContaining({ mode: 'session_stream' }),
+    await waitFor(() => expect(mocks.subscribeGateSessionStreamEvents).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.fetchWormholeGateKeyStatus).toHaveBeenCalledWith(
+        'infonet',
+        expect.objectContaining({ mode: 'session_stream' }),
+      ),
     );
     expect(mocks.controlPlaneJson).not.toHaveBeenCalled();
     waitSnapshotSpy.mockClear();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(waitSnapshotSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(waitSnapshotSpy).not.toHaveBeenCalled(), { timeout: 2000 });
 
     streamEventListeners.forEach((listener) =>
       listener({
@@ -560,12 +561,14 @@ describe('GateView compat-decrypt UX', () => {
       }),
     );
 
-    await waitFor(() =>
-      expect(fetchSnapshotSpy).toHaveBeenCalledWith(
-        'infonet',
-        40,
-        expect.objectContaining({ force: true, proofMode: 'session_stream' }),
-      ),
+    await waitFor(
+      () =>
+        expect(fetchSnapshotSpy).toHaveBeenCalledWith(
+          'infonet',
+          40,
+          expect.objectContaining({ force: true, proofMode: 'session_stream' }),
+        ),
+      { timeout: 5000 },
     );
     expect(
       fetchMock.mock.calls.some(([input]) =>

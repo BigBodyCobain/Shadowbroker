@@ -36,6 +36,22 @@ def _require_fields(payload: dict[str, Any], fields: tuple[str, ...]) -> tuple[b
     return True, "ok"
 
 
+_SEALED_CIPHERTEXT_PREFIXES = ("x3dh1:", "dm1:", "mls1:", "sealed:")
+
+
+def _strip_sealed_ciphertext_prefix(value: str) -> str:
+    lowered = value.lower()
+    for prefix in _SEALED_CIPHERTEXT_PREFIXES:
+        if lowered.startswith(prefix):
+            return value[len(prefix) :]
+    return value
+
+
+def _sealed_ciphertext_has_known_prefix(value: str) -> bool:
+    lowered = str(value or "").strip().lower()
+    return any(lowered.startswith(prefix) for prefix in _SEALED_CIPHERTEXT_PREFIXES)
+
+
 def _decode_base64ish(value: Any) -> bytes | None:
     raw = str(value or "").strip()
     if not raw or any(ch.isspace() for ch in raw):
@@ -47,6 +63,13 @@ def _decode_base64ish(value: Any) -> bytes | None:
         except (binascii.Error, UnicodeEncodeError, ValueError):
             continue
     return None
+
+
+def _decode_sealed_ciphertext_value(value: Any) -> bytes | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    return _decode_base64ish(_strip_sealed_ciphertext_prefix(raw))
 
 
 def _byte_entropy(data: bytes) -> float:
@@ -66,11 +89,18 @@ def _validate_sealed_bytes_field(
     min_bytes: int = 8,
     entropy_floor: float = 2.5,
 ) -> tuple[bool, str]:
-    data = _decode_base64ish(payload.get(field, ""))
+    raw = str(payload.get(field, "") or "").strip()
+    prefixed = _sealed_ciphertext_has_known_prefix(raw)
+    data = _decode_sealed_ciphertext_value(raw)
     if data is None:
         return False, f"{field} must be base64-encoded sealed bytes"
     if len(data) < min_bytes:
         return False, f"{field} is too short"
+
+    # X3DH / MLS envelopes are structured JSON or ratchet frames — skip
+    # plaintext heuristics once a known wire prefix is present.
+    if prefixed:
+        return True, "ok"
 
     # Short test vectors and compact envelopes can be low entropy; only apply
     # heuristics once there is enough material to distinguish a sealed blob

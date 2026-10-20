@@ -14,6 +14,44 @@ running on `localhost:8000`. It tracks military flights, ships, satellites, SIGI
 earthquakes, fires, GDELT conflict events, prediction markets, and 30+ other data
 layers — all with geographic coordinates.
 
+## Agent Fast Path (read first)
+
+ShadowBroker exposes dozens of read commands. **Do not explore them.** Use the
+three-tool surface:
+
+| Tool | When |
+|------|------|
+| `await sb.ask("natural language question")` | **Default for reads** — server routes to fastest command |
+| `await sb.run_playbook("hot_snapshot")` | Pre-batched snapshots (morning brief, monitor poll, status) |
+| `await sb.channel_status()` | Liveness (~5 ms) — never `/api/health` |
+
+**Latency tiers:** `get_entity_profile` / `find_entity` / `get_entity_trail` / `find_flights` / `search_news` / `entities_near` → **⚡ &lt;30 ms**.
+`search_telemetry` / `get_telemetry` / `get_report` → **🔴 seconds** — blocked unless `confirm_expensive=true`.
+
+```python
+# Default read path (route + execute)
+answer = await sb.ask("where is the Patriots jet")
+
+# Named batch plans
+brief = await sb.run_playbook("hot_snapshot")
+monitor = await sb.run_playbook("monitor_heartbeat")
+
+# Structured lookup when you already parsed fields
+entity = await sb.send_command("find_entity", {"owner": "musk", "compact": True})
+
+# Multi-command — always batch, never sequential loops
+batch = await sb.send_batch([
+    {"cmd": "get_summary", "args": {"compact": True}},
+    {"cmd": "what_changed", "args": {"compact": True}},
+])
+```
+
+**Playbooks:** `hot_snapshot`, `morning_brief`, `status_check`, `monitor_heartbeat`, `track_snapshot`, `jet_recon`, `area_brief`, `entity_recon`.
+
+**Anti-patterns:** `search_telemetry` for known tail numbers; `get_telemetry` for routine polls; sequential `send_command` loops; empty `layers: []` on `get_layer_slice`.
+
+Load machine-readable routing hints once: `GET /api/ai/capabilities` → `routing`.
+
 ## How to Use This Skill
 
 Import the client and call methods:
@@ -37,7 +75,31 @@ SHADOWBROKER_HMAC_SECRET=your-hmac-secret-here
 ```
 
 The HMAC secret is found in ShadowBroker's **Connect OpenClaw** modal (AI Intel panel).
-All requests are automatically signed with HMAC-SHA256 (timestamp + nonce + body digest) for replay protection and request-body integrity binding.
+`SHADOWBROKER_HMAC_SECRET` is a shared signing secret, not a raw API key. Do not
+send it as `X-Admin-Key`, `Authorization: Bearer`, a query parameter, or any
+plain request header. The `ShadowBrokerClient` signs every direct request with
+`X-SB-Timestamp`, `X-SB-Nonce`, and `X-SB-Signature` using:
+
+```text
+HMAC-SHA256(secret, METHOD|path|timestamp|nonce|sha256(body))
+```
+
+For compatibility with older snippets, `SHADOWBROKER_KEY` is also accepted by
+the client as the same HMAC signing secret. Prefer `SHADOWBROKER_HMAC_SECRET`
+for new setups.
+
+**Docker Compose:** host-side agents (`localhost:8000` from the Kali/macOS host)
+are not loopback inside the backend container — HMAC is required. After
+**Connect OpenClaw → Bootstrap → Reveal**, the secret is persisted under
+`data/openclaw.env` on the `backend_data` volume. Restart the backend once,
+then verify with:
+
+```bash
+python openclaw-skills/shadowbroker/verify_hmac.py
+```
+
+Hand-rolled signers must hash the **exact** POST bytes. Use compact JSON:
+`json.dumps(payload, separators=(",", ":"), sort_keys=True)`.
 
 ### SSE Stream (Preferred — Low-Latency Push)
 
@@ -107,16 +169,52 @@ The channel operates over HMAC-authenticated HTTP with body-integrity binding:
 | `sb.stream_updates()` | SSE push: `layer_changed`, alerts, tasks | **Open first, keep open** — tells you exactly which layers updated |
 | `await sb.get_layer_slice(["ships", "gdelt"])` | Only the requested layers, with per-layer incremental | **Primary fetch method** — automatically skips layers you already have |
 | `await sb.send_command("get_summary")` | Lightweight counts-only summary | Discover what data exists before pulling anything |
+| `await sb.get_fetch_health()` | Sanitized process-local outcomes for instrumented fetch and maintenance tasks | Results reset on backend restart; condition is the latest recorded task completion, not data freshness |
+| `await sb.ask("...")` | **Route + execute** | **Default** for natural-language reads |
+| `await sb.send_command("get_entity_profile", {...})` | **Preferred aircraft/vessel dossier** — identity, VIP tags, trail, route, ACARS, jamming/correlations, news | Tail, owner, callsign, MMSI |
+| `await sb.send_command("get_entity_trail", {...})` | Observed path + route + ACARS hints only | When you don't need full dossier |
+| `await sb.send_command("find_entity", {...})` | Exact-first entity resolver | Parsed person/tail/callsign/MMSI — skips fuzzy unless `fallback_search=true` |
 | `await sb.send_command("find_flights", {...})` | Targeted flight search | When you know the domain (callsign, tail number) |
-| `await sb.send_command("search_telemetry", {...})` | Cross-layer keyword search | When you don't know which layer has the answer |
+| `await sb.send_command("route_query", {...})` | Routing plan only | Inspect recommended command before executing |
+| `await sb.send_command("search_telemetry", {...})` | Cross-layer fuzzy search | **Last resort** — requires `confirm_expensive=true` |
 
 **Full telemetry dumps (use sparingly — large payloads):**
 
 | Method | What It Returns |
 |--------|----------------|
 | `await sb.get_telemetry()` | Fast-tier: flights, ships, satellites, SIGINT, LiveUAMap, CCTV, GPS jamming |
-| `await sb.get_slow_telemetry()` | Slow-tier: GDELT, news, earthquakes, markets, correlations |
+| `await sb.get_slow_telemetry()` | Slow-tier: GDELT, news, earthquakes, markets, correlations, Telegram OSINT, malware/cyber threats, SCM suppliers |
 | `await sb.get_report()` | Full structured intelligence report |
+
+### Strategic Risk Analytics (GT early warning)
+
+Requires `GT_ANALYTICS_ENABLED=true` on the ShadowBroker backend.
+
+| Method / command | What It Returns |
+|------------------|----------------|
+| `await sb.ask("Run GT analysis on UK/Europe feeds")` | Routes to `gt_analyze` |
+| `await sb.gt_analyze(region="ukraine")` | Refresh beliefs from Telegram/news/GDELT + dossier |
+| `await sb.gt_risk_heatmap()` | GeoJSON posterior risk overlay + Louvain clusters |
+| `await sb.gt_dossier("ukraine")` | Costly signals, domain risks, scenarios |
+| `await sb.gt_backtest()` | **Static benchmark** — labeled historical cases (regression test) |
+| `await sb.gt_backtest(tune=True)` | Grid-search alert threshold for target confidence |
+| `await sb.gt_rolling_backtest()` | **Macro operational** — week-over-week accuracy on frozen weekly alerts |
+| `await sb.gt_micro_rolling()` | **Micro 3-day rolling avg** — spot vs baseline, ignition detection |
+| `await sb.gt_rolling_freeze()` | Freeze this ISO week's GT scores before outcomes are known |
+| `await sb.gt_rolling_label(week_id, region=..., label=...)` | Label prior-week outcomes (`true_escalation`, `false_alarm`, `benign`) |
+| `await sb.gt_top_alerts()` | Ranked top GT regions with map coordinates |
+| `await sb.ask("Run GT historical backtest")` | Routes to `gt_backtest` (benchmark, not operational) |
+| `await sb.ask("GT rolling operational backtest trend")` | Routes to `gt_rolling_backtest` |
+| `python sb_gt_report.py` | Local helper — backtest + heatmap (+ optional `--region`) |
+| `await sb.send_command("gt_analyze", {"region": "europe"})` | Same as `gt_analyze()` |
+
+**Benchmark vs rolling:** Static `gt_backtest` checks the classifier on known textbook
+cases. `gt_rolling_backtest` scores **frozen weekly live predictions** against delayed
+operator labels — that week-over-week trend (e.g. 54% → 62% → 71%) is the macro
+real-world metric. `gt_micro_rolling` adds a **3-day rolling average** per region:
+spot risk vs the trailing baseline catches fast ignitions the weekly roll can miss.
+Threshold is fixed (`GT_ROLLING_ALERT_THRESHOLD`, default 0.26); ignition when
+spot − 3d avg ≥ `GT_MICRO_IGNITION_DELTA` (default 0.10).
 
 **When to use**: Use `get_summary()` first. Use `get_layer_slice()` for the layers
 you actually need. Reserve full `get_telemetry()` / `get_slow_telemetry()` for rare
@@ -137,6 +235,59 @@ Every layer returns maximum telemetry. Key enriched fields:
 | **GPS Jamming** | `lat`, `lng`, `name`/`region`, `intensity`, `source` |
 | **Earthquakes** | `lat`, `lng`, `magnitude`, `depth`, `place`, `time` |
 | **Correlations** | `type`, `severity`, `score`, `lat`, `lng`, `drivers` (triggering layers) |
+| **Telegram OSINT** | `title`, `description`, `channel`, `source`, `link`, `published`, `risk_score`, `coords` `[lat, lng]` |
+| **Malware Threats** | `ip`, `malware`, `threat_type`, `status`, `country`, `lat`, `lng` (Feodo + URLhaus) |
+| **Cyber Threats** | `id` (CVE), `name`, `vendor`, `product`, `severity`, `date` (CISA KEV) |
+| **SCM Suppliers** | `name`, `city`, `country`, `category`, `risk_level`, `active_threats`, `lat`, `lng` |
+
+**Layer aliases for `get_layer_slice` / `search_telemetry`:** `telegram` → `telegram_osint`, `malware`/`botnet` → `malware_threats`, `cyber`/`cisa`/`kev` → `cyber_threats`, `scm`/`suppliers` → `scm_suppliers`.
+
+### 1b. Recon / OSINT Toolkit
+
+The Recon panel lookups are available on the OpenClaw command channel — no need to hit `/api/osint/*` directly.
+
+```python
+# List supported tools
+await sb.send_command("osint_tools")
+
+# IP geolocation + threat context
+await sb.send_command("osint_lookup", {"tool": "ip", "ip": "8.8.8.8"})
+
+# DNS, WHOIS, certificate transparency
+await sb.send_command("osint_lookup", {"tool": "dns", "domain": "example.com"})
+await sb.send_command("osint_lookup", {"tool": "whois", "domain": "example.com"})
+await sb.send_command("osint_lookup", {"tool": "certs", "domain": "example.com"})
+
+# BGP/ASN, sanctions, CVE, MAC vendor, GitHub, breach check
+await sb.send_command("osint_lookup", {"tool": "bgp", "query": "AS15169"})
+await sb.send_command("osint_lookup", {"tool": "sanctions", "query": "Rosneft"})
+await sb.send_command("osint_lookup", {"tool": "cve", "cve": "CVE-2024-1234"})
+await sb.send_command("osint_lookup", {"tool": "mac", "mac": "00:11:22:33:44:55"})
+await sb.send_command("osint_lookup", {"tool": "github", "username": "octocat"})
+await sb.send_command("osint_lookup", {"tool": "leaks", "email": "user@example.com"})
+
+# Entity relationship graph (aircraft, vessel, ip, company, person, country)
+await sb.send_command("entity_expand", {"type": "ip", "id": "8.8.8.8"})
+await sb.send_command("entity_expand", {"type": "aircraft", "id": "N400QS", "icao24": "a0f011"})
+
+# Subnet sweep (full tier only — active Shodan InternetDB scan)
+await sb.send_command("osint_sweep", {"ip": "1.2.3.4", "cidr": 24})
+```
+
+| `osint_lookup` tool | Args | What you get |
+|---------------------|------|--------------|
+| `ip` | `ip` | Geo, ISP, ASN, proxy/hosting flags, sanctions cross-check |
+| `dns` | `domain` | A/AAAA/MX/NS/TXT records |
+| `whois` | `domain` | Registrar, dates, nameservers |
+| `certs` | `domain` | Certificate transparency hits |
+| `threats` | `query` (optional) | Aggregated threat intel |
+| `bgp` | `query` | ASN/prefix routing data |
+| `sanctions` | `query`, `schema`, `limit` | OFAC / sanctions index matches |
+| `cve` | `cve` | NVD CVE details |
+| `mac` | `mac` | Vendor OUI lookup |
+| `github` | `username` | Public profile metadata |
+| `leaks` | `email` | Breach exposure check |
+| `sweep_init` | `ip`, `cidr` | Passive geolocation context for a sweep target |
 
 ### 2. Pin Placement (AI Intel Map Layer)
 
@@ -260,25 +411,45 @@ layers (e.g., "add this CCTV camera I found", "add this military base").
 
 ### 8. Wormhole / InfoNet / Mesh Network
 
-OpenClaw can participate as a full two-way agent in the decentralized network:
+OpenClaw agents participate in the private Infonet **on behalf of the operator**
+who configured the skill. All traffic uses the operator's wormhole persona and
+local node runtime (MLS gate crypto, Ed25519 signing, Tor onion transport) —
+the agent does not get a separate fleet identity.
+
+**Access tiers**
+
+- `restricted` (default): read Infonet status, list gates, read gate messages,
+  poll DMs.
+- `full` (`OPENCLAW_ACCESS_TIER=full`): also warm Tor, join the swarm, post
+  gate messages, cast votes, and send DMs when the user commands it.
+
+Remote agents authenticate with HMAC on `/api/ai/channel/command`; loopback
+uses the local operator lane.
 
 ```python
-# Join the Wormhole network (creates Ed25519 identity)
-await sb.join_wormhole()
+# Warm Tor, enable the node, announce to fleet seed (full tier)
+await sb.ensure_infonet_ready(join_swarm=True)
 
-# Post to the InfoNet (signed, chain-verified)
-await sb.post_to_infonet("Intelligence bulletin: 3 carriers underway in Med")
+# Status snapshot (chain health, wormhole, runtime)
+status = await sb.infonet_status()
 
-# Read InfoNet messages
-messages = await sb.read_infonet(limit=20)
+# Read the public Infonet gate (MLS-encrypted, decrypt with operator keys)
+messages = await sb.read_gate_messages("infonet", limit=20, decrypt=True)
 
-# Join encrypted gate channels
+# Post on behalf of the operator (full tier) — propagates via peer-push
+await sb.post_to_gate("infonet", "Intelligence bulletin: 3 carriers underway in Med")
+# Legacy alias:
+await sb.post_to_infonet("same as post_to_gate on infonet gate")
+
+# Upvote / downvote a node (full tier)
+await sb.cast_vote("!sb_peer_id_or_pubkey", vote=1, gate="infonet")
+
+# Encrypted DMs (peer_id / !sb_... recipient)
+await sb.send_encrypted_dm("!sb_recipient", "Eyes only: carrier update")
+dms = await sb.read_encrypted_dms(limit=20)
+
 gates = await sb.list_gates()
-await sb.post_to_gate("gate_id", "Classified intel for gate members")
-
-# Send/receive encrypted DMs
-await sb.send_encrypted_dm("recipient_pubkey", "Eyes only: carrier update")
-dms = await sb.read_encrypted_dms()
+await sb.join_infonet_swarm()  # re-announce + refresh manifest
 
 # Meshtastic radio
 signals = await sb.listen_mesh(region="US", limit=20)
@@ -534,10 +705,10 @@ When the user asks a question, follow this decision tree:
      fresh data, pushes alerts instantly, and eliminates blind polling.
 
 2. **Does ShadowBroker have this data already?**
-   - **Start with `get_summary()`** to see what layers are populated and their counts.
-   - **Known domain** (flight callsign, ship name, keyword) → use the targeted command:
-     `find_flights`, `find_ships`, `search_news`, `entities_near`, `search_telemetry`
-   - **Unknown domain** → `search_telemetry` (cross-layer keyword search, ranked results)
+   - **Natural language** → `await sb.ask(question)` (routes server-side)
+   - **Batch snapshot** → `await sb.run_playbook("hot_snapshot")`
+   - **Known domain** → `find_entity`, `find_flights`, `find_ships`, `search_news`, `entities_near`
+   - **Unknown domain** → `find_entity` first; only then `search_telemetry` with `confirm_expensive=true`
    - **Need specific layers** → `get_layer_slice(["military_flights", "gdelt"])` — only
      fetches layers that changed since your last call (per-layer incremental).
    - **Near a location** → `entities_near()` or `get_near_me()` (scans all layers within radius)
@@ -566,6 +737,34 @@ When the user asks a question, follow this decision tree:
 8. **Should I send an alert?**
    - YES if the user has configured alert channels
    - Use the `AlertDispatcher` with the correct signature
+
+### Telegram rhetoric monitoring (watchdog)
+
+Use watchdog watches for push alerts over SSE — no polling required. Keyword
+watches now scan Telegram OSINT too (translated **and** original text).
+
+```python
+# Alert when "nuclear" appears in news, GDELT, or Telegram OSINT
+await sb.send_command("add_watch", {
+    "type": "keyword",
+    "params": {"keyword": "nuclear", "include_telegram": True},
+})
+
+# Alert on new high-risk Telegram posts (LVL >= 7) — rhetoric/escalation monitor
+await sb.send_command("add_watch", {
+    "type": "telegram_rhetoric",
+    "params": {"min_risk_score": 7, "channels": ["nexta_live", "war_monitor"]},
+})
+
+# Combine risk threshold + topic filter
+await sb.send_command("add_watch", {
+    "type": "telegram_rhetoric",
+    "params": {"min_risk_score": 8, "keywords": ["crimea", "escalation", "missile"]},
+})
+```
+
+When a watch fires, you receive an SSE `alert` event. Forward it with
+`sb_alerts.send_intel()` if the user has Discord/Telegram notification channels.
 
 ---
 

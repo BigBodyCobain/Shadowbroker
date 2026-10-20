@@ -221,9 +221,17 @@ describe('MeshChat decomposition — export stability', () => {
     expect(index).toMatch(/export\s+default\s+MeshChat/);
   });
 
-  it('presentational shell exposes the gate resync affordance', () => {
-    const index = readFile('index.tsx');
-    expect(index).toContain('RESYNC GATE STATE');
-    expect(index).toContain('handleResyncGateState(selectedGate)');
+  it('gate resync is controller-owned and exposed via Infonet / Mesh Terminal surfaces', () => {
+    const controller = readFile('useMeshChatController.ts');
+    const panel = readFile('InfonetTerminalPanel.tsx');
+    const terminal = fs.readFileSync(
+      path.resolve(MESH_CHAT_DIR, '../MeshTerminal.tsx'),
+      'utf-8',
+    );
+    expect(controller).toContain('handleResyncGateState');
+    expect(controller).toContain('resyncWormholeGateState');
+    expect(panel).toContain('InfonetShell');
+    expect(terminal).toContain('gate resync');
+    expect(terminal).toContain('resyncWormholeGateState');
   });
 });

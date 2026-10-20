@@ -39,6 +39,7 @@ transports.
 """
 
 import json
+import orjson
 import os
 import time
 import hmac
@@ -109,9 +110,30 @@ def _atomic_write_text(target: Path, content: str, encoding: str = "utf-8") -> N
             pass
         raise
 
+
+def _atomic_write_bytes(target: Path, content: bytes) -> None:
+    """Write binary content atomically via temp file + os.replace()."""
+    parent = target.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=str(parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, str(target))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 CHAIN_FILE = DATA_DIR / "infonet.json"
 WAL_FILE = DATA_DIR / "infonet.wal"
+CHAIN_COLD_DIR = DATA_DIR / "infonet_cold"
 GATE_STORE_DIR = DATA_DIR / "gate_messages"
 GATE_STORAGE_DOMAIN = "gates"
 
@@ -1469,6 +1491,7 @@ class Infonet:
         self.event_index: dict[str, int] = {}  # {event_id: index in events list}
         self.public_key_bindings: dict[str, str] = {}  # {public_key: canonical node_id}
         self.revocations: dict[str, dict] = {}
+        self._cold_segments: list[dict] = []  # Archived prefix metadata (P8)
         self._replay_filter = ReplayFilter()
         self._last_validated_index: int = 0  # For incremental validation
         # Running counters — avoid O(N) scans in get_info()
@@ -1549,9 +1572,15 @@ class Infonet:
                 self.head_hash = data.get("head_hash", GENESIS_HASH)
                 self.node_sequences = data.get("node_sequences", {})
                 self.sequence_domains = data.get("sequence_domains", {})
+                cold = data.get("cold_segments") or []
+                self._cold_segments = list(cold) if isinstance(cold, list) else []
                 self._rebuild_state()
                 self._rebuild_revocations()
                 self._rebuild_counters()
+                # Honor MAX_CHAIN_MEMORY after load (archive overflow, keep hot window).
+                if len(self.events) > MAX_CHAIN_MEMORY:
+                    self._enforce_memory_cap()
+                    self._flush()
                 logger.info(
                     f"Loaded Infonet: {len(self.events)} events, head={self.head_hash[:16]}..."
                 )
@@ -1794,6 +1823,7 @@ class Infonet:
         and schedule a single write after _SAVE_INTERVAL seconds. Multiple
         rapid calls collapse into one I/O operation.
         """
+        self._enforce_memory_cap()
         self._dirty = True
         with self._save_lock:
             if self._save_timer is None or not self._save_timer.is_alive():
@@ -1807,6 +1837,8 @@ class Infonet:
         Sprint 2 / Rec #8: clears the WAL only after the chain file has
         been durably written. A crash before _flush() succeeds leaves
         the WAL in place so _replay_wal() can recover on next boot.
+
+        P8: compact orjson (no indent=2) — flush cost scales with chain size.
         """
         if not self._dirty:
             return
@@ -1818,9 +1850,10 @@ class Infonet:
                 "head_hash": self.head_hash,
                 "node_sequences": self.node_sequences,
                 "sequence_domains": self.sequence_domains,
+                "cold_segments": list(getattr(self, "_cold_segments", []) or []),
                 "events": self.events,
             }
-            _atomic_write_text(CHAIN_FILE, json.dumps(data, indent=2), encoding="utf-8")
+            _atomic_write_bytes(CHAIN_FILE, orjson.dumps(data, option=orjson.OPT_NON_STR_KEYS))
             self._dirty = False
             # Chain file is now durable — safe to retire the WAL entry.
             self._clear_wal()
@@ -1837,12 +1870,55 @@ class Infonet:
                 "head_hash": self.head_hash,
                 "node_sequences": self.node_sequences,
                 "sequence_domains": self.sequence_domains,
+                "cold_segments": list(getattr(self, "_cold_segments", []) or []),
                 "events": self.events,
             }
-            _atomic_write_text(CHAIN_FILE, json.dumps(data, indent=2), encoding="utf-8")
+            _atomic_write_bytes(CHAIN_FILE, orjson.dumps(data, option=orjson.OPT_NON_STR_KEYS))
         except Exception as e:
             logger.error(f"Failed to materialize Infonet: {e}")
             raise
+
+    def _enforce_memory_cap(self) -> None:
+        """Spill oldest events to cold segments when RAM exceeds MAX_CHAIN_MEMORY.
+
+        History is archived on disk (not deleted). Hot chain + indexes stay
+        coherent for head/sync; deep history remains in cold segments.
+        """
+        if len(self.events) <= MAX_CHAIN_MEMORY:
+            return
+        overflow = len(self.events) - MAX_CHAIN_MEMORY
+        cold = self.events[:overflow]
+        CHAIN_COLD_DIR.mkdir(parents=True, exist_ok=True)
+        if not hasattr(self, "_cold_segments") or self._cold_segments is None:
+            self._cold_segments = []
+        seg_no = len(self._cold_segments)
+        filename = f"cold_{seg_no:08d}.orjson"
+        path = CHAIN_COLD_DIR / filename
+        _atomic_write_bytes(path, orjson.dumps(cold, option=orjson.OPT_NON_STR_KEYS))
+        self._cold_segments.append(
+            {
+                "filename": filename,
+                "count": len(cold),
+                "first_id": str(cold[0].get("event_id", "") or "") if cold else "",
+                "last_id": str(cold[-1].get("event_id", "") or "") if cold else "",
+            }
+        )
+        self.events = self.events[overflow:]
+        # Rebuild indexes for the hot window only.
+        self.event_index = {
+            str(evt.get("event_id", "") or ""): idx
+            for idx, evt in enumerate(self.events)
+            if evt.get("event_id")
+        }
+        self._rebuild_counters()
+        self._invalidate_merkle_cache()
+        self._dirty = True
+        logger.info(
+            "Infonet memory cap: archived %d events to %s (hot=%d)",
+            overflow,
+            filename,
+            len(self.events),
+        )
 
     def confirmations_for_event(self, event_id: str) -> int:
         idx = self.event_index.get(event_id)

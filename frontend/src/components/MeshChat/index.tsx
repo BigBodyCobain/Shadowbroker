@@ -1,7 +1,18 @@
 'use client';
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import AgentShellPanel from './AgentShellPanel';
+import InfonetTerminalPanel from './InfonetTerminalPanel';
+import {
+  INFONET_FLYOUT_MIN_HEIGHT,
+  INFONET_FLYOUT_WIDTH,
+  measureMeshChatFlyout,
+  SHELL_FLYOUT_MIN_HEIGHT,
+  SHELL_FLYOUT_WIDTH,
+  type MeshChatFlyoutRect,
+} from './meshChatFlyout';
+import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Antenna,
   Minus,
@@ -12,6 +23,7 @@ import {
   Radio,
   Shield,
   Terminal,
+  SquareTerminal,
   UserPlus,
   Lock,
   Check,
@@ -89,6 +101,13 @@ function describeGateCompatReason(reason: string, gateId: string): string {
 // NO direct trust-mutating imports — all mutations go through the hook.
 
 const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
+  const panelBoxRef = useRef<HTMLDivElement>(null);
+  const [shellExpanded, setShellExpanded] = useState(false);
+  const [shellFlyout, setShellFlyout] = useState<MeshChatFlyoutRect | null>(null);
+  const [shellDockHeight, setShellDockHeight] = useState(0);
+  const [infonetExpanded, setInfonetExpanded] = useState(true);
+  const [infonetFlyout, setInfonetFlyout] = useState<MeshChatFlyoutRect | null>(null);
+  const [infonetDockHeight, setInfonetDockHeight] = useState(0);
   const ctrl = useMeshChatController(props);
   const {
     // UI state
@@ -276,6 +295,9 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
     handleLeaveWormholeForPublicMesh,
     handleResetPublicIdentity,
     handleBootstrapPrivateIdentity,
+    enterInfonetWormholeLane,
+    infonetLaunchGate,
+    clearInfonetLaunchGate,
     handleRefreshSelectedContact,
     handleResetSelectedContact,
     handleTrustSelectedRemotePrekey,
@@ -317,6 +339,12 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
     recentPrivateFallbackReason,
     onSettingsClick,
   } = ctrl;
+
+  useEffect(() => {
+    if (activeTab !== 'dms') {
+      setShellExpanded(false);
+    }
+  }, [activeTab]);
   const selectedContactTrustSummary = selectedContactInfo
     ? getContactTrustSummary(selectedContactInfo)
     : null;
@@ -332,24 +360,18 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
     setShowSas((prev) => !prev);
   };
   const handleRequestComposerAction = () => {
-    const targetId = addContactId.trim();
-    if (!targetId) return;
-    const inviteLookupHandle = String(
-      contacts[targetId]?.invitePinnedPrekeyLookupHandle || '',
-    ).trim();
-    if (!inviteLookupHandle) {
-      openTerminal();
-    }
-    void handleRequestAccess(targetId);
+    const pasted = addContactId.trim();
+    if (!pasted) return;
+    void handleRequestAccess(pasted);
   };
   const meshActivationText =
     publicMeshBlockedByWormhole
       ? hasStoredPublicLaneIdentity
-        ? 'Wormhole is active. Turning MeshChat on will turn Wormhole off and use your saved public mesh key.'
-        : 'Wormhole is active. Turning MeshChat on will turn Wormhole off and mint a separate public mesh key.'
+        ? 'Wormhole is active. Turning Meshtastic Chat on will turn Wormhole off and use your saved Meshtastic key.'
+        : 'Wormhole is active. Turning Meshtastic Chat on will turn Wormhole off and mint a separate Meshtastic key.'
       : hasStoredPublicLaneIdentity
-        ? 'MeshChat is off. Turn it on to use your saved public mesh key.'
-        : 'Public mesh posting needs a mesh key. One tap gets you a fresh address.';
+        ? 'Meshtastic Chat is off. Turn it on to use your saved Meshtastic key.'
+        : 'Meshtastic posting needs a radio key. One tap gets you a fresh address.';
   const handleMeshActivationAction = () => {
     if (hasStoredPublicLaneIdentity) {
       void handleActivatePublicMeshSession();
@@ -377,12 +399,12 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
     window.setTimeout(() => inputRef.current?.focus(), 0);
   };
   const meshActivationLabel = identityWizardBusy
-    ? 'GETTING MESH KEY'
+    ? 'GETTING MESHTASTIC KEY'
     : hasStoredPublicLaneIdentity
-      ? 'TURN ON MESH'
+      ? 'TURN ON MESHTASTIC'
       : publicMeshBlockedByWormhole
-        ? 'TURN OFF WORMHOLE FOR MESH'
-        : 'GET MESH KEY';
+        ? 'TURN OFF WORMHOLE FOR MESHTASTIC'
+        : 'GET MESHTASTIC KEY';
   const meshActivationSideLabel = identityWizardBusy
     ? 'WORKING...'
     : hasStoredPublicLaneIdentity
@@ -391,15 +413,147 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
         ? 'AUTO DISABLE'
         : 'ONE TAP';
 
+  const handleShellExpandedChange = useCallback((next: boolean) => {
+    if (next && panelBoxRef.current) {
+      const anchor = panelBoxRef.current.getBoundingClientRect();
+      setShellDockHeight(anchor.height);
+      setShellFlyout(measureMeshChatFlyout(anchor, SHELL_FLYOUT_WIDTH, SHELL_FLYOUT_MIN_HEIGHT));
+    } else {
+      setShellFlyout(null);
+      setShellDockHeight(0);
+    }
+    setShellExpanded(next);
+  }, []);
+
+  const handleInfonetExpandedChange = useCallback((next: boolean) => {
+    if (next && panelBoxRef.current) {
+      const anchor = panelBoxRef.current.getBoundingClientRect();
+      setInfonetDockHeight(anchor.height);
+      setInfonetFlyout(measureMeshChatFlyout(anchor, INFONET_FLYOUT_WIDTH, INFONET_FLYOUT_MIN_HEIGHT));
+    } else {
+      setInfonetFlyout(null);
+      setInfonetDockHeight(0);
+    }
+    setInfonetExpanded(next);
+  }, []);
+
+  const handleInfonetTeardown = useCallback(() => {
+    void endInfonetTerminalSession();
+  }, []);
+
+  const panelFlyout =
+    activeTab === 'infonet' ? infonetFlyout : activeTab === 'dms' ? shellFlyout : null;
+  const panelDockHeight =
+    activeTab === 'infonet' ? infonetDockHeight : activeTab === 'dms' ? shellDockHeight : 0;
+  const panelFlyoutMinHeight =
+    activeTab === 'infonet' ? INFONET_FLYOUT_MIN_HEIGHT : SHELL_FLYOUT_MIN_HEIGHT;
+
+  useEffect(() => {
+    if (!shellExpanded) return;
+    const syncFlyout = () => {
+      setShellFlyout((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          width: Math.min(SHELL_FLYOUT_WIDTH, Math.max(320, window.innerWidth - 48)),
+          height: Math.min(
+            Math.max(prev.height, SHELL_FLYOUT_MIN_HEIGHT),
+            window.innerHeight - prev.top - 36,
+          ),
+        };
+      });
+    };
+    window.addEventListener('resize', syncFlyout);
+    return () => window.removeEventListener('resize', syncFlyout);
+  }, [shellExpanded]);
+
+  useEffect(() => {
+    if (!infonetExpanded) return;
+    const syncFlyout = () => {
+      setInfonetFlyout((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          width: Math.min(INFONET_FLYOUT_WIDTH, Math.max(320, window.innerWidth - 48)),
+          height: Math.min(
+            Math.max(prev.height, INFONET_FLYOUT_MIN_HEIGHT),
+            window.innerHeight - prev.top - 36,
+          ),
+        };
+      });
+    };
+    window.addEventListener('resize', syncFlyout);
+    return () => window.removeEventListener('resize', syncFlyout);
+  }, [infonetExpanded]);
+
+  useEffect(() => {
+    if (!expanded && shellExpanded) {
+      handleShellExpandedChange(false);
+    }
+  }, [expanded, shellExpanded, handleShellExpandedChange]);
+
+  useEffect(() => {
+    if (activeTab !== 'dms' && shellExpanded) {
+      handleShellExpandedChange(false);
+    }
+  }, [activeTab, shellExpanded, handleShellExpandedChange]);
+
+  useEffect(() => {
+    if (activeTab !== 'infonet' && infonetExpanded) {
+      handleInfonetExpandedChange(false);
+    }
+  }, [activeTab, infonetExpanded, handleInfonetExpandedChange]);
+
+  useEffect(() => {
+    if (activeTab === 'infonet' && expanded && infonetExpanded && !infonetFlyout && panelBoxRef.current) {
+      handleInfonetExpandedChange(true);
+    }
+  }, [activeTab, expanded, infonetExpanded, infonetFlyout, handleInfonetExpandedChange]);
+
+  const infonetSessionWasActiveRef = useRef(false);
+  useEffect(() => {
+    const infonetActive = activeTab === 'infonet' && expanded;
+    if (infonetActive) {
+      infonetSessionWasActiveRef.current = true;
+      return;
+    }
+    if (!infonetSessionWasActiveRef.current) return;
+    infonetSessionWasActiveRef.current = false;
+    handleInfonetTeardown();
+  }, [activeTab, expanded, handleInfonetTeardown]);
+
   return (
     <div
       onClick={handlePanelClick}
       className={`pointer-events-auto flex flex-col ${expanded ? 'flex-1 min-h-[300px]' : 'flex-shrink-0'}`}
     >
+      {panelFlyout && panelDockHeight > 0 && (
+        <div aria-hidden className="pointer-events-none shrink-0" style={{ height: panelDockHeight }} />
+      )}
+
       {/* Single unified box — matches Data Layers panel skin */}
       <div
-        className={`bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col relative overflow-hidden`}
-        style={{ boxShadow: '0 0 15px rgba(8,145,178,0.06), inset 0 0 20px rgba(0,0,0,0.4)', ...(expanded ? { flex: '1 1 0', minHeight: 0 } : {}) }}
+        ref={panelBoxRef}
+        className={`bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col relative overflow-hidden ${
+          panelFlyout ? 'z-[210] shadow-[0_0_28px_rgba(8,145,178,0.14)]' : ''
+        }`}
+        style={{
+          boxShadow: panelFlyout
+            ? undefined
+            : '0 0 15px rgba(8,145,178,0.06), inset 0 0 20px rgba(0,0,0,0.4)',
+          ...(expanded ? { flex: panelFlyout ? undefined : '1 1 0', minHeight: panelFlyout ? undefined : 0 } : {}),
+          ...(panelFlyout
+            ? {
+                position: 'fixed',
+                top: panelFlyout.top,
+                left: panelFlyout.left,
+                width: panelFlyout.width,
+                height: panelFlyout.height,
+                minHeight: panelFlyoutMinHeight,
+                maxHeight: `calc(100vh - ${panelFlyout.top}px - 2.25rem)`,
+              }
+            : {}),
+        }}
       >
         {/* HEADER */}
         <div
@@ -409,7 +563,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
           <div className="flex items-center gap-2">
             <Antenna size={16} className="text-cyan-400" />
             <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
-              MESH CHAT
+              MESHTASTIC CHAT
             </span>
             {totalDmNotify > 0 && (
               <span className="text-[11px] font-mono px-1.5 py-0.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center gap-1">
@@ -431,20 +585,19 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
             {/* TAB BAR */}
             <div className="flex border-b border-[var(--border-primary)]/50 shrink-0">
               {[
-                { key: 'infonet' as Tab, label: 'INFONET', icon: <Shield size={10} />, badge: 0 },
-                { key: 'meshtastic' as Tab, label: 'MESH', icon: <Radio size={10} />, badge: 0 },
                 {
                   key: 'dms' as Tab,
-                  label: 'DEAD DROP',
-                  icon: <Lock size={10} />,
-                  badge: totalDmNotify,
+                  label: 'SHELL',
+                  icon: <SquareTerminal size={10} />,
+                  badge: 0,
                 },
+                { key: 'infonet' as Tab, label: 'INFONET', icon: <Shield size={10} />, badge: 0 },
+                { key: 'meshtastic' as Tab, label: 'MESHTASTIC', icon: <Radio size={10} />, badge: 0 },
               ].map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => {
                     setActiveTab(tab.key);
-                    if (tab.key === 'dms') setDmView('contacts');
                   }}
                   className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[12px] font-mono tracking-wider transition-colors ${
                     activeTab === tab.key
@@ -471,28 +624,28 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
               </button>
             </div>
 
-            {privacyProfile === 'high' && !wormholeEnabled && (
+            {privacyProfile === 'high' && !wormholeEnabled && activeTab !== 'dms' && activeTab !== 'infonet' && (
               <div className="px-3 py-2 text-sm font-mono text-red-400/90 border-b border-red-900/30 bg-red-950/20 leading-[1.65] shrink-0">
                 High Privacy is ON but Wormhole is OFF. Private messaging is blocked until
                 Wormhole is enabled.
               </div>
             )}
 
-            {activeTab !== 'meshtastic' && wormholeEnabled && !wormholeReadyState && (
+            {activeTab !== 'dms' && activeTab !== 'infonet' && activeTab !== 'meshtastic' && wormholeEnabled && !wormholeReadyState && (
               <div className="px-3 py-2 text-sm font-mono text-red-400/90 border-b border-red-900/30 bg-red-950/20 leading-[1.65] shrink-0">
                 Wormhole secure mode is enabled but the local agent is not ready. Dead Drop is
                 blocked until Wormhole is running.
               </div>
             )}
 
-            {activeTab !== 'meshtastic' && wormholeEnabled && wormholeReadyState && (
+            {activeTab !== 'dms' && activeTab !== 'infonet' && activeTab !== 'meshtastic' && wormholeEnabled && wormholeReadyState && (
               <div className="px-3 py-2 text-sm font-mono text-yellow-400/80 border-b border-yellow-900/20 bg-yellow-950/10 leading-[1.65] shrink-0">
                 Wormhole secure mode is active. Experimental private-lane operations are routed
                 through the local agent and current secure transport paths.
               </div>
             )}
 
-            {activeTab !== 'meshtastic' && wormholeEnabled && wormholeReadyState && !wormholeRnsReady && (
+            {activeTab !== 'dms' && activeTab !== 'infonet' && activeTab !== 'meshtastic' && wormholeEnabled && wormholeReadyState && !wormholeRnsReady && (
               <div className="px-3 py-2 text-sm font-mono text-amber-300/90 border-b border-amber-900/30 bg-amber-950/20 leading-[1.65] shrink-0">
                 TRANSITIONAL PRIVATE LANE. Wormhole is up and gate chat is available on the
                 transitional lane. Reticulum is still warming — Dead Drop / DM requires the
@@ -500,7 +653,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
               </div>
             )}
 
-            {activeTab !== 'meshtastic' && anonymousModeEnabled && !anonymousModeReady && (
+            {activeTab !== 'dms' && activeTab !== 'infonet' && activeTab !== 'meshtastic' && anonymousModeEnabled && !anonymousModeReady && (
               <div className="px-3 py-2 text-sm font-mono text-red-400/90 border-b border-red-900/30 bg-red-950/20 leading-[1.65] shrink-0">
                 Anonymous mode is active, but hidden transport is not ready. Dead Drop is blocked
                 until Wormhole is running over Tor, I2P, or Mixnet.
@@ -508,7 +661,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
             )}
 
             {/* No identity warning */}
-            {shouldShowIdentityWarning && (
+            {shouldShowIdentityWarning && activeTab !== 'dms' && activeTab !== 'infonet' && (
               <div className="px-3 py-2 text-sm font-mono text-yellow-500/80 border-b border-yellow-900/20 bg-yellow-950/10 leading-[1.65] shrink-0">
                 <Lock size={9} className="inline mr-1" />
                 Run <span className="text-cyan-400">connect</span> in MeshTerminal first, or open
@@ -524,7 +677,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
               </div>
             )}
 
-            {privateLaneHint && (
+            {privateLaneHint && activeTab !== 'dms' && activeTab !== 'infonet' && (
               <div
                 className={`px-3 py-2 border-b leading-[1.65] shrink-0 ${
                   privateLaneHint.severity === 'danger'
@@ -541,596 +694,25 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
 
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-              {dashboardRestrictedTab && (
-                <div className="flex-1 overflow-y-auto styled-scrollbar px-4 py-6 border-l-2 border-cyan-800/25 flex items-center justify-center">
-                  <div className="max-w-md w-full border border-cyan-900/30 bg-cyan-950/10 px-5 py-6 text-center">
-                    <div className="inline-flex items-center justify-center w-11 h-11 border border-cyan-700/40 bg-black/30 text-cyan-300 mb-3">
-                      {activeTab === 'infonet' ? <Shield size={17} /> : <Lock size={17} />}
-                    </div>
-                    <div className="text-sm font-mono tracking-[0.24em] text-cyan-300 mb-2">
-                      {dashboardRestrictedTitle}
-                    </div>
-                    <div className="text-sm font-mono text-[var(--text-secondary)] leading-[1.75]">
-                      {dashboardRestrictedDetail}
-                    </div>
-                    <div className="mt-3 text-[13px] font-mono text-cyan-300/70 leading-[1.7]">
-                      Use the terminal to enter Wormhole, join private gates, and work secure contact
-                      flows until the dashboard client lands.
-                    </div>
-                  </div>
-                </div>
+              {activeTab === 'dms' && (
+                <AgentShellPanel
+                  active={expanded && activeTab === 'dms'}
+                  expanded={shellExpanded}
+                  onExpandedChange={handleShellExpandedChange}
+                />
               )}
-              {/* ─── InfoNet Tab ─── */}
-              {!dashboardRestrictedTab && activeTab === 'infonet' && (
-                <>
-                  {!privateInfonetReady ? (
-                    <div className="flex-1 overflow-y-auto styled-scrollbar px-4 py-6 border-l-2 border-cyan-800/25 flex items-center justify-center">
-                      <div className="max-w-sm w-full border border-cyan-900/30 bg-cyan-950/10 px-4 py-5 text-center">
-                        <div className="inline-flex items-center justify-center w-10 h-10 border border-cyan-700/40 bg-black/30 text-cyan-300 mb-3">
-                          <Shield size={16} />
-                        </div>
-                        <div className="text-sm font-mono tracking-[0.24em] text-cyan-300 mb-2">
-                          PRIVATE INFONET LOCKED
-                        </div>
-                        <div className="text-sm font-mono text-[var(--text-secondary)] leading-[1.7]">
-                          Gate chat is available on the transitional private lane through Wormhole.
-                        </div>
-                        <div className="mt-2 text-[13px] font-mono text-cyan-300/70">
-                          Use the unlock prompt below for the full private-lane brief. Dead Drop /
-                          DM is a separate, stronger private lane for direct messaging.
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--border-primary)]/30 shrink-0">
-                    <select
-                      value={selectedGate}
-                      onChange={(e) => setSelectedGate(e.target.value)}
-                      className="flex-1 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none focus:border-cyan-700/50"
-                    >
-                      <option value="">All Gates</option>
-                      {gates.map((g) => (
-                        <option key={g.gate_id} value={g.gate_id}>
-                          {g.display_name || g.gate_id}{g.fixed ? ' [FIXED]' : ''} ({g.message_count})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => {
-                        setShowCreateGate(false);
-                        setGateError('Launch catalog is fixed for this testnet build');
-                      }}
-                      disabled
-                      className="p-1 text-[var(--text-muted)]/50 disabled:opacity-40"
-                      title="Fixed launch gate catalog"
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-
-                  {privateInfonetReady && !wormholeRnsReady && (
-                    <div className="px-3 py-2 border-b border-amber-900/20 bg-amber-950/10 shrink-0">
-                      <div className="text-[12px] font-mono tracking-[0.28em] text-amber-300/90">
-                        TRANSITIONAL PRIVATE LANE
-                      </div>
-                      <div className="mt-1 text-sm font-mono text-amber-100/80 leading-[1.65]">
-                        Gate chat is live on the transitional private lane. Timing and membership
-                        activity remain visible to the service on this lane.
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono text-amber-300/70 leading-[1.6]">
-                        Dead Drop / DM is a separate, stronger lane requiring PRIVATE / STRONG
-                        transport. Use Dead Drop for the strongest content and metadata privacy.
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono text-amber-300/75">
-                        RNS peers {wormholeRnsPeers.active}/{wormholeRnsPeers.configured}
-                        {wormholeRnsDirectReady
-                          ? ' • direct private DM path ready'
-                          : ' • direct peer paths still warming'}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedGate && wormholeEnabled && wormholeReadyState && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--border-primary)]/20 shrink-0 bg-cyan-950/10">
-                      <div className="text-[12px] font-mono tracking-[0.28em] text-cyan-400/80 whitespace-nowrap">
-                        GATE FACE
-                      </div>
-                      <select
-                        value={selectedGateActivePersonaId || '__anon__'}
-                        onChange={(e) => void handleSelectGatePersona(e.target.value)}
-                        disabled={gatePersonaBusy || anonymousPublicBlocked}
-                        className="flex-1 bg-[var(--bg-secondary)]/40 border border-[var(--border-primary)] text-[13px] font-mono text-cyan-300 px-2 py-1 outline-none focus:border-cyan-700/50 disabled:opacity-60"
-                      >
-                        <option value="__anon__">ANON SESSION</option>
-                        {selectedGatePersonaList.map((persona) => (
-                          <option key={persona.persona_id || persona.node_id} value={persona.persona_id || ''}>
-                            {persona.label || persona.persona_id || persona.node_id.slice(0, 10)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => openGatePersonaPrompt()}
-                        disabled={gatePersonaBusy || anonymousPublicBlocked}
-                        className="px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-cyan-700/40 text-cyan-300 hover:bg-cyan-950/40 disabled:opacity-60 transition-colors"
-                        title="Create a gate-local face"
-                      >
-                        NEW FACE
-                      </button>
-                      <button
-                        onClick={() => void handleRetireGatePersona()}
-                        disabled={
-                          gatePersonaBusy ||
-                          anonymousPublicBlocked ||
-                          !selectedGateActivePersonaId
-                        }
-                        className="px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-red-700/40 text-red-300 hover:bg-red-950/40 disabled:opacity-60 transition-colors"
-                        title="Retire the active gate persona"
-                      >
-                        RETIRE
-                      </button>
-                    </div>
-                  )}
-
-                  {selectedGate && wormholeEnabled && wormholeReadyState && (
-                    <div className="px-3 py-1.5 border-b border-[var(--border-primary)]/20 shrink-0 bg-[var(--bg-secondary)]/20 text-[12px] font-mono text-[var(--text-muted)] leading-relaxed">
-                      <div className="text-cyan-300/80 mb-1">
-                        {selectedGateActivePersona
-                          ? `Active face: ${selectedGateActivePersona.label || selectedGateActivePersona.persona_id || selectedGateActivePersona.node_id}`
-                          : 'Active face: anonymous session'}
-                        {selectedGatePersonaList.length > 0
-                          ? ` | saved personas: ${selectedGatePersonaList.length}`
-                          : ' | no saved personas yet'}
-                      </div>
-                      Anonymous gate entry rotates to a fresh gate-scoped session identity and
-                      does not emit a public join/leave breadcrumb.
-                    </div>
-                  )}
-
-                  {selectedGate && wormholeEnabled && wormholeReadyState && selectedGateKeyStatus && (
-                    <div className="px-3 py-2 border-b border-cyan-900/20 bg-cyan-950/5 shrink-0">
-                      <div className="flex items-center gap-2 text-[12px] font-mono tracking-[0.24em] text-cyan-300/90">
-                        <span>GATE KEY</span>
-                        <span className="text-cyan-500/60">/</span>
-                        <span>EPOCH {selectedGateKeyStatus.current_epoch || 0}</span>
-                        {selectedGateKeyStatus.rekey_recommended && (
-                          <span className="border border-amber-700/60 px-1 text-amber-300">
-                            REKEY ADVISED
-                          </span>
-                        )}
-                        <button
-                          onClick={() => void handleRotateGateKey()}
-                          disabled={gateKeyBusy}
-                          className="ml-auto px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-cyan-700/40 text-cyan-300 hover:bg-cyan-950/40 disabled:opacity-60 transition-colors"
-                          title="Rotate the current gate content key"
-                        >
-                          {gateKeyBusy ? 'ROTATING' : 'ROTATE KEY'}
-                        </button>
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono text-cyan-100/80 leading-[1.65]">
-                        {selectedGateKeyStatus.has_local_access
-                          ? `Access live via ${selectedGateKeyStatus.identity_scope || 'member'} identity ${String(selectedGateKeyStatus.sender_ref || selectedGateKeyStatus.identity_node_id || '').slice(0, 16)}`
-                          : selectedGateKeyStatus.identity_scope === 'anonymous'
-                          ? 'Anonymous gate session is active, but this install has not synced gate access yet. Refresh or reopen the gate if it does not clear.'
-                          : 'No local gate key access yet. Enter the gate through Wormhole to unwrap the current epoch.'}
-                      </div>
-                      <div className="mt-1 text-[12px] font-mono text-cyan-300/65 leading-[1.65]">
-                        {selectedGateKeyStatus.key_commitment
-                          ? `KEY ${selectedGateKeyStatus.key_commitment.slice(0, 12)}`
-                          : 'KEY PENDING'}
-                        {selectedGateKeyStatus.previous_epoch
-                          ? ` • previous epoch ${selectedGateKeyStatus.previous_epoch}`
-                          : ''}
-                        {selectedGateKeyStatus.last_rotated_at
-                          ? ` • rotated ${timeAgo(selectedGateKeyStatus.last_rotated_at)}`
-                          : ''}
-                      </div>
-                      {nativeAuditSummary && (
-                        <div className="mt-2 border border-cyan-900/30 bg-cyan-950/20 px-2 py-1.5 text-[12px] font-mono text-cyan-200/75 leading-[1.7]">
-                          <div className="flex items-center gap-2 text-cyan-300/85 tracking-[0.18em]">
-                            <span>NATIVE AUDIT</span>
-                            <span className="text-cyan-500/60">/</span>
-                            <span>
-                              {nativeAuditReport?.totalRecorded || nativeAuditReport?.totalEvents || 0} RECORDED
-                            </span>
-                            {nativeAuditReport &&
-                              nativeAuditReport.totalRecorded > nativeAuditReport.totalEvents && (
-                                <span className="text-cyan-400/60">
-                                  ({nativeAuditReport.totalEvents} shown)
-                                </span>
-                              )}
-                            <button
-                              onClick={() => refreshNativeAuditReport(5)}
-                              className="ml-auto px-1.5 py-0.5 border border-cyan-800/40 text-cyan-300/80 hover:bg-cyan-950/40 transition-colors"
-                              title="Refresh native session-profile audit report"
-                            >
-                              REFRESH
-                            </button>
-                          </div>
-                          <div className="mt-1">
-                            {nativeAuditSummary.recent
-                              ? `Last: ${nativeAuditSummary.recent.command}${nativeAuditSummary.recent.targetRef ? ` [${nativeAuditSummary.recent.targetRef}]` : ''} -> ${nativeAuditSummary.recent.outcome}`
-                              : 'No native gate audit events yet.'}
-                          </div>
-                          <div className="text-cyan-300/60">
-                            Profile mismatches: {nativeAuditSummary.mismatchCount} • denied: {nativeAuditSummary.deniedCount}
-                          </div>
-                          {nativeAuditReport?.lastProfileMismatch && (
-                            <div className="text-amber-300/70">
-                              {`Last mismatch: ${nativeAuditReport.lastProfileMismatch.command}${nativeAuditReport.lastProfileMismatch.targetRef ? ` [${nativeAuditReport.lastProfileMismatch.targetRef}]` : ''} (${nativeAuditReport.lastProfileMismatch.sessionProfile || 'unscoped'} -> ${nativeAuditReport.lastProfileMismatch.expectedCapability})`}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {selectedGateKeyStatus.rekey_recommended_reason && (
-                        <div className="mt-1 text-[12px] font-mono text-amber-300/75 leading-[1.6]">
-                          Rekey recommendation: {selectedGateKeyStatus.rekey_recommended_reason.replace(/_/g, ' ')}
-                        </div>
-                      )}
-                      {selectedGateKeyStatus.identity_scope === 'anonymous' &&
-                        !selectedGateKeyStatus.has_local_access && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            onClick={() => void handleUnlockEncryptedGate()}
-                            disabled={gatePersonaBusy}
-                            className="px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-cyan-700/40 text-cyan-300 hover:bg-cyan-950/40 disabled:opacity-60 transition-colors"
-                          >
-                            {gatePersonaBusy
-                              ? 'UNLOCKING'
-                              : selectedGatePersonaList.length > 0
-                                ? 'USE SAVED FACE'
-                                : 'CREATE GATE FACE'}
-                          </button>
-                          <span className="text-[12px] font-mono text-cyan-300/55">
-                            {selectedGatePersonaList.length > 0
-                              ? 'Switch to a saved face if this install still cannot unlock the room anonymously.'
-                              : 'Create a gate-local face only if anonymous unlock still fails on this install.'}
-                          </span>
-                          {selectedContactInfo && (
-                            <>
-                              {selectedContactInfo.remotePrekeyTransparencyConflict && (
-                                <div className="mt-2 text-[13px] font-mono text-red-200/85 leading-[1.7]">
-                                  prekey history conflict observed and trust stays degraded until you
-                                  explicitly acknowledge the changed fingerprint.
-                                </div>
-                              )}
-                              {selectedContactInfo.remotePrekeyLookupMode === 'legacy_agent_id' && (
-                                <div className="mt-2 text-[13px] font-mono text-yellow-200/85 leading-[1.7]">
-                                  bootstrap path: legacy direct agent ID lookup.
-                                  {selectedContactInfo.invitePinnedPrekeyLookupHandle
-                                    ? ' Refresh from the signed invite to tighten lookup privacy.'
-                                    : ' Import or re-import a signed invite to avoid stable-ID lookup.'}
-                                </div>
-                              )}
-                              {selectedContactInfo.remotePrekeyLookupMode === 'invite_lookup_handle' && (
-                                <div className="mt-2 text-[13px] font-mono text-cyan-200/85 leading-[1.7]">
-                                  bootstrap path: invite-scoped lookup handle. Stable agent ID was not
-                                  required on the lookup path.
-                                </div>
-                              )}
-                              {dmTrustPrimaryActionRequiresInviteImport && (
-                                <div className="mt-2 text-[13px] font-mono text-emerald-200/85 leading-[1.7]">
-                                  next step: import or re-import a signed invite in Secure Messages before
-                                  trusting this contact as a verified first-contact anchor.
-                                </div>
-                              )}
-                              {(selectedContactInfo.witness_count ?? 0) > 0 && (
-                                <div className="mt-2 text-[13px] font-mono text-cyan-200/75 leading-[1.7]">
-                                  witness observations: {selectedContactInfo.witness_count}
-                                  {selectedContactInfo.witness_checked_at
-                                    ? `, last seen ${timeAgo(
-                                        selectedContactInfo.witness_checked_at > 1_000_000_000_000
-                                          ? selectedContactInfo.witness_checked_at
-                                          : selectedContactInfo.witness_checked_at * 1000,
-                                      )}`
-                                    : ''}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                      {selectedGate && gateResyncTarget === selectedGate && (
-                        <div className="mt-2 border border-amber-500/30 bg-amber-950/15 px-2 py-2">
-                          <div className="text-[12px] font-mono tracking-[0.18em] text-amber-300/90">
-                            GATE STATE DRIFT
-                          </div>
-                          <div className="mt-1 text-[12px] font-mono text-amber-100/80 leading-[1.7]">
-                            Native gate state changed on another path. Resync this gate locally before retrying decrypt or post actions.
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              onClick={() => void handleResyncGateState(selectedGate)}
-                              disabled={gateResyncBusy}
-                              className="px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-amber-500/40 text-amber-200 hover:bg-amber-950/30 disabled:opacity-60 transition-colors"
-                            >
-                              {gateResyncBusy ? 'RESYNCING' : 'RESYNC GATE STATE'}
-                            </button>
-                            <span className="text-[12px] font-mono text-amber-300/60">
-                              Required only when native desktop fails closed on gate-state drift.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      {selectedGate && gateError && !showCreateGate && !gateCompatConsentPrompt && (
-                        <div className="mt-2 text-[12px] font-mono text-red-300/85 leading-[1.7]">
-                          {gateError}
-                        </div>
-                      )}
-                      {selectedGate && gateCompatConsentPrompt && !showCreateGate && (
-                        <div className="mt-2 border border-amber-500/30 bg-amber-950/15 px-3 py-2">
-                          <div className="text-[12px] font-mono tracking-[0.18em] text-amber-300/90">
-                            COMPAT MODE
-                          </div>
-                          <div className="mt-1 text-[12px] font-mono text-amber-100/85 leading-[1.7]">
-                            {describeGateCompatConsentPrompt(gateCompatConsentPrompt.action)}
-                          </div>
-                          <div className="mt-1 text-[12px] font-mono text-amber-300/60 leading-[1.7]">
-                            {describeGateCompatReason(
-                              gateCompatConsentPrompt.reason,
-                              gateCompatConsentPrompt.gateId,
-                            )}
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              onClick={() => void handleApproveGateCompatFallback()}
-                              className="px-2 py-1 text-[12px] font-mono tracking-[0.2em] border border-amber-500/40 text-amber-100 hover:bg-amber-950/30 transition-colors"
-                            >
-                              ENABLE FOR ROOM
-                            </button>
-                            <span className="text-[12px] font-mono text-amber-300/60">
-                              Weaker privacy on this device.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedGateMeta && (
-                    <div className="px-3 py-2 border-b border-cyan-900/20 bg-cyan-950/10 shrink-0">
-                      <div className="flex items-center gap-2 text-[12px] font-mono tracking-[0.24em] text-cyan-300/90">
-                        <span>{selectedGateMeta.fixed ? 'FIXED GATE' : 'PRIVATE GATE'}</span>
-                        <span className="text-cyan-500/60">/</span>
-                        <span>{selectedGateMeta.display_name || selectedGateMeta.gate_id}</span>
-                        {selectedGateCompatActive ? (
-                          <>
-                            <span className="text-cyan-500/60">/</span>
-                            <span className="border border-amber-500/40 bg-amber-950/20 px-1.5 py-0.5 text-[10px] tracking-[0.18em] text-amber-200">
-                              COMPAT
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                      {selectedGateMeta.description && (
-                        <div className="mt-1 text-sm font-mono text-cyan-100/80 leading-[1.65]">
-                          {selectedGateMeta.description}
-                        </div>
-                      )}
-                      <div className="mt-1 text-[12px] font-mono text-cyan-300/65">
-                        {selectedGateMeta.rules?.min_overall_rep
-                          ? `ENTRY FLOOR ${selectedGateMeta.rules.min_overall_rep} REP`
-                          : 'ENTRY FLOOR OPEN'}
-                        {' • '}
-                        {selectedGateMeta.message_count} MSGS
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Create gate form */}
-                  <AnimatePresence>
-                    {showCreateGate && (
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: 'auto' }}
-                        exit={{ height: 0 }}
-                        className="overflow-hidden border-b border-[var(--border-primary)]/30 shrink-0"
-                      >
-                        <div className="px-3 py-2 space-y-1.5">
-                          <div className="text-[12px] font-mono text-[var(--text-muted)] leading-relaxed mb-1">
-                            Gates are rep-gated communities. Only nodes meeting the minimum
-                            reputation can post.
-                          </div>
-                          <input
-                            value={newGateId}
-                            onChange={(e) => {
-                              setNewGateId(e.target.value);
-                              setGateError('');
-                            }}
-                            placeholder="gate-id (alphanumeric + hyphens, max 32)"
-                            className="w-full bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none placeholder:text-[var(--text-muted)]"
-                          />
-                          <input
-                            value={newGateName}
-                            onChange={(e) => setNewGateName(e.target.value)}
-                            placeholder="Display Name (optional)"
-                            className="w-full bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none placeholder:text-[var(--text-muted)]"
-                          />
-                          <div className="flex items-center gap-2">
-                            <label
-                              className="text-[13px] font-mono text-[var(--text-muted)]"
-                              title="Minimum overall reputation score needed to post in this gate. 0 = open to all."
-                            >
-                              MIN REP:
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={newGateMinRep}
-                              onChange={(e) => setNewGateMinRep(parseInt(e.target.value) || 0)}
-                              className="w-16 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none"
-                            />
-                            <span className="text-[12px] text-[var(--text-muted)] font-mono">
-                              {newGateMinRep === 0 ? 'open' : 'gated'}
-                            </span>
-                            <button
-                              onClick={handleCreateGate}
-                              disabled={!newGateId.trim() || !hasId}
-                              className="ml-auto text-[13px] font-mono px-2 py-1 bg-cyan-900/20 text-cyan-400 hover:bg-cyan-800/30 disabled:opacity-30 transition-colors"
-                            >
-                              CREATE
-                            </button>
-                          </div>
-                          {gateError && (
-                            <div className="text-[13px] font-mono text-red-400 mt-0.5">
-                              {gateError}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Messages — terminal log style */}
-                  <div className="flex-1 overflow-y-auto styled-scrollbar px-3 py-1.5 border-l-2 border-cyan-800/25">
-                    {filteredInfoMessages.length === 0 && (
-                      <div className="py-4 space-y-3">
-                        <div className="text-sm font-mono text-[var(--text-muted)] text-center leading-[1.65]">
-                          {selectedGate ? 'No messages in this gate yet' : 'Select a gate or browse all'}
-                        </div>
-                        {selectedGateMeta && (
-                          <div className="border border-cyan-900/30 bg-cyan-950/10 px-3 py-3 max-w-xl mx-auto">
-                            <div className="text-[12px] font-mono tracking-[0.28em] text-cyan-300/85">
-                              SYSTEM WELCOME
-                            </div>
-                            <div className="mt-2 text-sm font-mono text-cyan-100/80 leading-[1.7]">
-                              {selectedGateMeta.welcome || selectedGateMeta.description || 'Private gate is live. Say something worth keeping.'}
-                            </div>
-                            <div className="mt-2 text-[13px] font-mono text-cyan-300/65 leading-[1.7]">
-                              Start with a source, a thesis, a clean question, or a useful observation.
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {filteredInfoMessages.map((m, i) => (
-                      m.system_seed ? (
-                        <div key={m.event_id} className="border border-cyan-900/30 bg-cyan-950/10 px-3 py-3 max-w-xl">
-                          <div className="text-[12px] font-mono tracking-[0.28em] text-cyan-300/85">
-                            {m.fixed_gate ? 'FIXED GATE NOTICE' : 'GATE NOTICE'}
-                          </div>
-                          <div className="mt-2 text-sm font-mono text-cyan-100/80 leading-[1.7]">
-                            {m.message}
-                          </div>
-                        </div>
-                      ) : (
-                      <div key={m.event_id} className="group py-0.5 leading-[1.65]">
-                        <div className="flex gap-1.5 text-sm font-mono">
-                          <RepBadge rep={m.node_id ? (reps[m.node_id] ?? 0) : 0} />
-                          {m.node_id ? (
-                            <button
-                              onClick={(e) =>
-                                handleSenderClick(String(m.node_id), e, 'infonet', {
-                                  publicKey: String(m.public_key || ''),
-                                  publicKeyAlgo: String(m.public_key_algo || ''),
-                                })
-                              }
-                              className="text-green-400 shrink-0 hover:text-green-300 hover:underline cursor-pointer"
-                              title={m.public_key ? `PUBLIC KEY: ${m.public_key}` : String(m.node_id)}
-                            >
-                              {m.node_id.slice(0, 12)}
-                            </button>
-                          ) : null}
-                          {isEncryptedGateEnvelope(m) && (
-                            <span
-                              className={`text-[12px] font-mono px-1 border ${
-                                gateEnvelopeState(m) === 'decrypted'
-                                  ? 'text-cyan-300 border-cyan-700/60'
-                                  : 'text-amber-300 border-amber-700/60'
-                              }`}
-                            >
-                              {gateEnvelopeState(m) === 'decrypted' ? 'DECRYPTED' : 'KEY LOCKED'}
-                            </span>
-                          )}
-                          {infoVerification[m.event_id] && (
-                            <span
-                              className={`text-[12px] font-mono px-1 border ${
-                                infoVerification[m.event_id] === 'verified'
-                                  ? 'text-green-400 border-green-700/60'
-                                  : infoVerification[m.event_id] === 'failed'
-                                    ? 'text-red-400 border-red-700/60'
-                                    : 'text-yellow-400 border-yellow-700/60'
-                              }`}
-                            >
-                              {infoVerification[m.event_id] === 'verified'
-                                ? 'VERIFIED'
-                                : infoVerification[m.event_id] === 'failed'
-                                  ? 'FAILED'
-                                  : 'UNSIGNED'}
-                            </span>
-                          )}
-                          <span
-                            className={`${MSG_COLORS[i % MSG_COLORS.length]} break-words whitespace-pre-wrap flex-1 ${
-                              isEncryptedGateEnvelope(m) && !String(m.decrypted_message || '').trim()
-                                ? 'italic opacity-80'
-                                : ''
-                            }`}
-                          >
-                            {gateEnvelopeDisplayText(m)}
-                          </span>
-                          <span className="text-[var(--text-muted)] shrink-0 text-[13px]">
-                            {timeAgo(m.timestamp)}
-                          </span>
-                        </div>
-                        {isEncryptedGateEnvelope(m) && (
-                          <div className="ml-6 mt-0.5 text-[12px] font-mono text-cyan-500/60 tracking-[0.14em]">
-                            EPOCH {m.epoch ?? 0}
-                            {m.sender_ref ? ` / ${m.sender_ref}` : ''}
-                          </div>
-                        )}
-                        {hasId && m.node_id && m.node_id !== identity!.nodeId && (
-                          <div className="flex items-center gap-0.5 ml-6">
-                            <button
-                              onClick={() => handleReplyToGateMessage(m)}
-                              className={`px-1.5 py-0.5 text-[12px] font-mono tracking-[0.14em] transition-colors ${
-                                gateReplyContext?.eventId === m.event_id
-                                  ? 'text-amber-200 border border-amber-500/30 bg-amber-500/12'
-                                  : 'text-cyan-600/70 border border-cyan-700/20 hover:text-amber-200 hover:border-amber-500/30 hover:bg-amber-500/10'
-                              }`}
-                            >
-                              REPLY
-                            </button>
-                            <button
-                              onClick={() => handleVote(String(m.node_id), 1, String(m.gate || selectedGate || ''))}
-                              className={`p-0.5 transition-colors ${
-                                votedOn[voteScopeKey(String(m.node_id), String(m.gate || selectedGate || ''))] === 1
-                                  ? 'text-cyan-400'
-                                  : 'text-cyan-600/60 hover:text-cyan-400'
-                              }`}
-                            >
-                              <ArrowUp size={9} />
-                            </button>
-                            <span
-                              className={`text-[12px] font-mono min-w-[14px] text-center ${
-                                (reps[m.node_id] ?? 0) > 0
-                                  ? 'text-cyan-500'
-                                  : (reps[m.node_id] ?? 0) < 0
-                                    ? 'text-red-400'
-                                    : 'text-cyan-600/60'
-                              }`}
-                            >
-                              {reps[m.node_id] ?? 0}
-                            </span>
-                            <button
-                              onClick={() => handleVote(String(m.node_id), -1, String(m.gate || selectedGate || ''))}
-                              className={`p-0.5 transition-colors ${
-                                votedOn[voteScopeKey(String(m.node_id), String(m.gate || selectedGate || ''))] === -1
-                                  ? 'text-red-400'
-                                  : 'text-cyan-600/60 hover:text-red-400'
-                              }`}
-                            >
-                              <ArrowDown size={9} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      )
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
-                    </>
-                  )}
-                </>
+              {activeTab === 'infonet' && (
+                <InfonetTerminalPanel
+                  active={expanded && activeTab === 'infonet'}
+                  expanded={infonetExpanded}
+                  wormholeBusy={identityWizardBusy}
+                  launchGate={infonetLaunchGate}
+                  onExpandedChange={handleInfonetExpandedChange}
+                  onEnterWormhole={enterInfonetWormholeLane}
+                  onTeardown={handleInfonetTeardown}
+                  onLaunchGateConsumed={clearInfonetLaunchGate}
+                  onOpenDeadDrop={props.onOpenDeadDrop}
+                />
               )}
 
               {/* ─── Meshtastic Tab ─── */}
@@ -1266,7 +848,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                             <div>
                               <div className="text-cyan-300 tracking-[0.18em]">MESHTASTIC MQTT</div>
                               <div className="mt-1 text-[10px] text-[var(--text-muted)] leading-[1.5]">
-                                Public Mesh is separate from Wormhole. Turning MQTT on disables the private Wormhole lane for MeshChat.
+                                Meshtastic MQTT is separate from Wormhole. Turning MQTT on disables the private Wormhole lane for Meshtastic Chat.
                               </div>
                             </div>
                             <span
@@ -1405,7 +987,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                     )}
                     {!canUsePublicMeshInput && meshView !== 'settings' && (
                       <div className="text-[12px] font-mono text-green-300/70 text-center py-4 leading-[1.65]">
-                        MeshChat is off. Turn it on to connect the public mesh lane.
+                        Meshtastic Chat is off. Turn it on to connect the Meshtastic MQTT lane.
                       </div>
                     )}
                     {canUsePublicMeshInput && meshView === 'channel' && filteredMeshMessages.length === 0 && (
@@ -1484,812 +1066,11 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                 </>
               )}
 
-              {/* ─── Dead Drop Tab ─── */}
-              {!dashboardRestrictedTab && activeTab === 'dms' && (
-                <>
-                  {/* Sub-nav: Contacts | Inbox | Muted | (back to contacts from chat) */}
-                  <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--border-primary)]/30 shrink-0">
-                    {dmView === 'chat' ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            setDmView('contacts');
-                            setSelectedContact('');
-                            setDmMessages([]);
-                          }}
-                          className="text-[13px] font-mono text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
-                        >
-                          &lt; BACK
-                        </button>
-                        <span className="text-sm font-mono text-cyan-400 ml-2 truncate">
-                          {selectedContact.slice(0, 16)}
-                        </span>
-                        {(() => {
-                          const c = contacts[selectedContact];
-                          if (!c) return null;
-                          const trust = getContactTrustSummary(c);
-                          if (trust?.transparencyConflict) {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-red-500/40 text-red-300 bg-red-950/20">
-                                HISTORY CONFLICT
-                              </span>
-                            );
-                          }
-                          if (trust?.state === 'continuity_broken') {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-red-500/40 text-red-300 bg-red-950/20">
-                                CONTINUITY BROKEN
-                              </span>
-                            );
-                          }
-                          if (trust?.state === 'mismatch') {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-orange-500/40 text-orange-300 bg-orange-950/20">
-                                PREKEY CHANGED
-                              </span>
-                            );
-                          }
-                          if (trust?.registryMismatch) {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-red-500/40 text-red-400 bg-red-950/20">
-                                KEY MISMATCH
-                              </span>
-                            );
-                          }
-                          if (trust?.state === 'sas_verified') {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-green-500/40 text-green-400 bg-green-950/20">
-                                SAS VERIFIED
-                              </span>
-                            );
-                          }
-                          if (trust?.state === 'invite_pinned') {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-emerald-500/40 text-emerald-300 bg-emerald-950/20">
-                                INVITE PINNED
-                              </span>
-                            );
-                          }
-                          if (trust?.state === 'tofu_pinned') {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-amber-500/30 text-amber-300 bg-amber-950/10">
-                                TOFU ONLY
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                        {(() => {
-                          const c = contacts[selectedContact];
-                          if (!c) return null;
-                          if (c.witness_count && c.witness_count > 0) {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-cyan-500/30 text-cyan-300 bg-cyan-950/10">
-                                WITNESSED {c.witness_count}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                        {(() => {
-                          const c = contacts[selectedContact];
-                          if (!c) return null;
-                          if (c.vouch_count && c.vouch_count > 0) {
-                            return (
-                              <span className="ml-2 text-[12px] font-mono px-1.5 py-0.5 border border-purple-500/30 text-purple-300 bg-purple-950/10">
-                                VOUCHES {c.vouch_count}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                        <button
-                          onClick={handleDmTrustPrimaryAction}
-                          className="ml-auto text-[12px] font-mono px-2 py-0.5 border border-cyan-800/40 text-cyan-400/90 hover:text-cyan-300 hover:border-cyan-600/60 transition-colors"
-                        >
-                          {dmTrustPrimaryButtonLabel}
-                        </button>
-                        <button
-                          onClick={() => handleVouch(selectedContact)}
-                          className="ml-2 text-[12px] font-mono px-2 py-0.5 border border-purple-800/40 text-purple-400/90 hover:text-purple-300 hover:border-purple-600/60 transition-colors"
-                        >
-                          VOUCH
-                        </button>
-                        <button
-                          onClick={() => void handleRefreshSelectedContact()}
-                          disabled={dmMaintenanceBusy}
-                          className="ml-2 text-[12px] font-mono px-2 py-0.5 border border-amber-800/40 text-amber-300/90 hover:text-amber-200 hover:border-amber-600/60 transition-colors disabled:opacity-40"
-                        >
-                          REFRESH
-                        </button>
-                        <button
-                          onClick={() => void handleResetSelectedContact()}
-                          disabled={dmMaintenanceBusy}
-                          className="ml-2 text-[12px] font-mono px-2 py-0.5 border border-red-800/40 text-red-300/90 hover:text-red-200 hover:border-red-600/60 transition-colors disabled:opacity-40"
-                        >
-                          RESET
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => setDmView('contacts')}
-                          className={`text-[13px] font-mono px-2 py-0.5 transition-colors ${
-                            dmView === 'contacts'
-                              ? 'text-cyan-400 bg-cyan-950/30'
-                              : 'text-[var(--text-muted)] hover:text-gray-400'
-                          }`}
-                        >
-                          CONTACTS
-                        </button>
-                        <button
-                          onClick={() => setDmView('inbox')}
-                          className={`text-[13px] font-mono px-2 py-0.5 transition-colors flex items-center gap-1 ${
-                            dmView === 'inbox'
-                              ? 'text-cyan-400 bg-cyan-950/30'
-                              : 'text-[var(--text-muted)] hover:text-gray-400'
-                          }`}
-                        >
-                          INBOX
-                          {accessRequests.length > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-[blink_1s_step-end_infinite]" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setDmView('muted')}
-                          className={`text-[13px] font-mono px-2 py-0.5 transition-colors flex items-center gap-1 ${
-                            dmView === 'muted'
-                              ? 'text-cyan-400 bg-cyan-950/30'
-                              : 'text-[var(--text-muted)] hover:text-gray-400'
-                          }`}
-                        >
-                          <EyeOff size={8} />
-                          MUTED
-                          {mutedArray.length > 0 && (
-                            <span className="text-[11px] text-[var(--text-muted)]">
-                              ({mutedArray.length})
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setShowAddContact(!showAddContact)}
-                          disabled={secureDmBlocked}
-                          className="ml-auto p-1 hover:bg-[var(--hover-accent)] text-[var(--text-muted)] hover:text-cyan-400 transition-colors"
-                          title="Request access"
-                        >
-                          <UserPlus size={11} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {dmView === 'chat' && showSas && sasPhrase && (
-                    <div className="px-3 pb-1 text-[13px] font-mono text-cyan-400/80 border-b border-[var(--border-primary)]/20">
-                      SAS: <span className="text-cyan-300">{sasPhrase}</span>
-                      {selectedContactInfo &&
-                        selectedContactTrustSummary?.state === 'invite_pinned' && (
-                        <div className="mt-1 text-[12px] font-mono text-emerald-300/90 leading-[1.65]">
-                          This contact was anchored by an imported signed invite. SAS is still useful
-                          as an extra continuity check.
-                        </div>
-                      )}
-                      {selectedContactInfo &&
-                        selectedContactTrustSummary?.state === 'tofu_pinned' && (
-                        <div className="mt-1 text-[12px] font-mono text-amber-300/90 leading-[1.65]">
-                          First contact is still TOFU-only. Compare this phrase out of band before
-                          treating the sender as verified.
-                        </div>
-                      )}
-                      {selectedContactInfo &&
-                        selectedContactTrustSummary?.state !== 'sas_verified' &&
-                        selectedContactTrustSummary?.state !== 'mismatch' &&
-                        selectedContactTrustSummary?.state !== 'continuity_broken' &&
-                        !selectedContactTrustSummary?.transparencyConflict && (
-                        <div className="mt-2 flex items-center gap-1.5">
-                          <input
-                            value={sasConfirmInput}
-                            onChange={(e) => setSasConfirmInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                void handleConfirmSelectedContactSas();
-                              }
-                            }}
-                            placeholder="Type the phrase you both confirmed"
-                            className="flex-1 min-w-0 bg-black/30 border border-cyan-900/30 px-2 py-1 text-[12px] font-mono text-cyan-100 placeholder:text-cyan-700/70 focus:outline-none focus:border-cyan-600/60"
-                          />
-                          <button
-                            onClick={() => void handleConfirmSelectedContactSas()}
-                            disabled={dmMaintenanceBusy}
-                            className="text-[12px] font-mono px-2 py-1 border border-emerald-800/40 text-emerald-300 hover:text-emerald-200 hover:border-emerald-600/60 transition-colors disabled:opacity-40"
-                          >
-                            CONFIRM SAS
-                          </button>
-                        </div>
-                      )}
-                      {selectedContactInfo &&
-                        selectedContactTrustSummary?.state === 'continuity_broken' &&
-                        selectedContactTrustSummary?.rootMismatch && (
-                        <>
-                          <div className="mt-1 text-[12px] font-mono text-red-300/90 leading-[1.65]">
-                            {`${rootWitnessContinuityLabel(selectedContactTrustSummary)} changed for this contact.`}{' '}
-                            Compare the SAS phrase for the newly observed root, then recover only if
-                            the ceremony checks out.
-                          </div>
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <input
-                              value={sasConfirmInput}
-                              onChange={(e) => setSasConfirmInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  void handleRecoverSelectedContactRootContinuity();
-                                }
-                              }}
-                              placeholder="Type the phrase you both confirmed for the new root"
-                              className="flex-1 min-w-0 bg-black/30 border border-red-900/30 px-2 py-1 text-[12px] font-mono text-cyan-100 placeholder:text-red-700/70 focus:outline-none focus:border-red-600/60"
-                            />
-                            <button
-                              onClick={() => void handleRecoverSelectedContactRootContinuity()}
-                              disabled={dmMaintenanceBusy}
-                              className="text-[12px] font-mono px-2 py-1 border border-red-800/40 text-red-300 hover:text-red-200 hover:border-red-600/60 transition-colors disabled:opacity-40"
-                            >
-                              RECOVER ROOT
-                            </button>
-                          </div>
-                        </>
-                      )}
-                      {selectedContactInfo?.remotePrekeyMismatch && (
-                        <div className="mt-2 text-[12px] font-mono text-red-300/85 leading-[1.65]">
-                          {selectedContactTrustSummary?.rootMismatch
-                            ? `${rootWitnessContinuityLabel(selectedContactTrustSummary)} changed. Recover only after you compare the new SAS phrase out of band.`
-                            : 'Acknowledge the changed fingerprint first, then compare and confirm SAS again.'}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === 'dms' && !secureDmBlocked && (
-                    <div className="px-3 py-1.5 border-b border-[var(--border-primary)]/20 shrink-0 flex items-center gap-2">
-                      <span
-                        className={`text-[12px] font-mono px-1.5 py-0.5 border ${dmTransportStatus.className}`}
-                      >
-                        {dmTransportStatus.label}
-                      </span>
-                      <span className="text-[12px] font-mono text-[var(--text-muted)]">
-                        {dmTransportMode === 'reticulum'
-                          ? 'Direct private delivery active.'
-                          : dmTransportMode === 'hidden'
-                            ? 'Hidden transport active.'
-                            : dmTransportMode === 'relay'
-                              ? 'Relay fallback active.'
-                              : dmTransportMode === 'ready'
-                                ? 'Private lane ready.'
-                        : 'Lower-trust mode.'}
-                      </span>
-                    </div>
-                  )}
-
-                  {activeTab === 'dms' && unresolvedSenderSealCount > 0 && (
-                    <div className="px-3 py-2 border-b border-red-900/30 bg-red-950/18 text-red-300 leading-[1.65] shrink-0">
-                      <div className="text-[13px] font-mono tracking-[0.18em] mb-1">
-                        UNRESOLVED SEALED SENDERS
-                      </div>
-                      <div className="text-sm font-mono">
-                        {unresolvedSenderSealCount} sealed-sender message
-                        {unresolvedSenderSealCount === 1 ? '' : 's'} could not be mapped to a
-                        trusted contact or verified sender key. Keep Wormhole reachable and refresh
-                        contact trust before relying on them.
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'dms' && dmView === 'chat' && dmTrustHint && selectedContactInfo && (
-                    <div
-                      className={`px-3 py-2 border-b leading-[1.65] shrink-0 ${
-                        dmTrustHint.severity === 'danger'
-                          ? 'border-red-900/30 bg-red-950/20 text-red-300'
-                          : 'border-amber-900/30 bg-amber-950/10 text-amber-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[13px] font-mono tracking-[0.18em] mb-1">
-                            {dmTrustHint.title}
-                          </div>
-                          <div className="text-sm font-mono">{dmTrustHint.detail}</div>
-                          {selectedContactInfo.remotePrekeyMismatch && (
-                            <div className="mt-2 text-[13px] font-mono text-red-200/85">
-                              pinned {shortTrustFingerprint(selectedContactInfo.remotePrekeyFingerprint)} • observed{' '}
-                              {shortTrustFingerprint(selectedContactInfo.remotePrekeyObservedFingerprint)}
-                            </div>
-                          )}
-                          {!selectedContactInfo.remotePrekeyMismatch &&
-                            selectedContactInfo.remotePrekeyRootMismatch && (
-                            <div className="mt-2 text-[13px] font-mono text-red-200/85">
-                              pinned root {shortTrustFingerprint(selectedContactInfo.remotePrekeyRootFingerprint)} •
-                              observed root{' '}
-                              {shortTrustFingerprint(selectedContactInfo.remotePrekeyObservedRootFingerprint)}
-                            </div>
-                          )}
-                          {!selectedContactInfo.remotePrekeyMismatch &&
-                            selectedContactTrustSummary?.state === 'tofu_pinned' &&
-                            selectedContactInfo.remotePrekeyFingerprint && (
-                            <div className="mt-2 text-[13px] font-mono text-amber-200/85">
-                              first-sight pin {shortTrustFingerprint(selectedContactInfo.remotePrekeyFingerprint)} •
-                              verify before sensitive use
-                            </div>
-                          )}
-                          {!selectedContactInfo.remotePrekeyMismatch &&
-                            selectedContactTrustSummary?.state === 'invite_pinned' &&
-                            (selectedContactInfo.invitePinnedTrustFingerprint ||
-                              selectedContactInfo.remotePrekeyFingerprint) && (
-                            <div className="mt-2 text-[13px] font-mono text-emerald-200/85">
-                              invite pin{' '}
-                              {shortTrustFingerprint(
-                                selectedContactInfo.invitePinnedTrustFingerprint ||
-                                  selectedContactInfo.remotePrekeyFingerprint,
-                              )}{' '}
-                              •
-                              {selectedContactTrustSummary?.rootAttested &&
-                              (selectedContactInfo.invitePinnedRootFingerprint ||
-                                selectedContactInfo.remotePrekeyRootFingerprint)
-                                ? ` ${rootWitnessBadgeLabel(selectedContactTrustSummary).toLowerCase()} ${shortTrustFingerprint(
-                                    selectedContactInfo.invitePinnedRootFingerprint ||
-                                      selectedContactInfo.remotePrekeyRootFingerprint,
-                                  )} •`
-                                : ''}{' '}
-                              imported out of band before first contact
-                            </div>
-                          )}
-                          {selectedContactTrustSummary?.state === 'continuity_broken' &&
-                            selectedContactTrustSummary?.rootMismatch && (
-                            <div className="mt-2 text-[13px] font-mono text-red-200/85 leading-[1.7]">
-                              {`${rootWitnessContinuityLabel(selectedContactTrustSummary).toLowerCase()} broke for this contact.`}{' '}
-                              Re-verify SAS or replace the signed invite before trusting the new
-                              root.
-                            </div>
-                          )}
-                          {selectedContactInfo.remotePrekeyTransparencyConflict && (
-                            <div className="mt-2 text-[13px] font-mono text-red-200/85 leading-[1.7]">
-                              prekey history conflict observed and trust stays degraded until you
-                              explicitly acknowledge the changed fingerprint.
-                            </div>
-                          )}
-                          {selectedContactInfo.remotePrekeyLookupMode === 'legacy_agent_id' && (
-                            <div className="mt-2 text-[13px] font-mono text-yellow-200/85 leading-[1.7]">
-                              bootstrap path: legacy direct agent ID lookup.
-                              {selectedContactInfo.invitePinnedPrekeyLookupHandle
-                                ? ' Refresh from the signed invite to tighten lookup privacy.'
-                                : ' Import or re-import a signed invite to avoid stable-ID lookup.'}
-                            </div>
-                          )}
-                          {selectedContactInfo.remotePrekeyLookupMode === 'invite_lookup_handle' && (
-                            <div className="mt-2 text-[13px] font-mono text-cyan-200/85 leading-[1.7]">
-                              bootstrap path: invite-scoped lookup handle. Stable agent ID was not
-                              required on the lookup path.
-                            </div>
-                          )}
-                          {(selectedContactInfo.witness_count ?? 0) > 0 && (
-                            <div className="mt-2 text-[13px] font-mono text-cyan-200/75 leading-[1.7]">
-                              witness observations: {selectedContactInfo.witness_count}
-                              {selectedContactInfo.witness_checked_at
-                                ? `, last seen ${timeAgo(
-                                    selectedContactInfo.witness_checked_at > 1_000_000_000_000
-                                      ? selectedContactInfo.witness_checked_at
-                                      : selectedContactInfo.witness_checked_at * 1000,
-                                  )}`
-                                : ''}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={handleDmTrustPrimaryAction}
-                            className="text-[12px] font-mono px-2 py-0.5 border border-cyan-800/40 text-cyan-300 hover:text-cyan-200 hover:border-cyan-600/60 transition-colors"
-                          >
-                            {dmTrustPrimaryButtonLabel}
-                          </button>
-                          {selectedContactInfo.remotePrekeyMismatch &&
-                            !selectedContactTrustSummary?.rootMismatch && (
-                            <button
-                              onClick={() => void handleTrustSelectedRemotePrekey()}
-                              disabled={dmMaintenanceBusy}
-                              className="text-[12px] font-mono px-2 py-0.5 border border-orange-700/40 text-orange-300 hover:text-orange-200 hover:border-orange-500/60 transition-colors disabled:opacity-40"
-                            >
-                              TRUST NEW KEY
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Add contact / request access form */}
-                  <AnimatePresence>
-                    {showAddContact && dmView !== 'chat' && !secureDmBlocked && (
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: 'auto' }}
-                        exit={{ height: 0 }}
-                        className="overflow-hidden border-b border-[var(--border-primary)]/30 shrink-0"
-                      >
-                        <div className="px-3 py-2 space-y-1.5">
-                          <div className="text-[13px] font-mono text-[var(--text-muted)] leading-[1.65]">
-                            Enter an Agent ID for a contact you already pinned with a signed invite
-                            to request Dead Drop access. If you only have older local state, use
-                            terminal <span className="text-yellow-400">dm add</span> only for
-                            legacy migration.
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              value={addContactId}
-                              onChange={(e) => setAddContactId(e.target.value)}
-                              placeholder="!sb_a3f2c891..."
-                              className="flex-1 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-sm font-mono text-cyan-300 px-2 py-1 outline-none placeholder:text-[var(--text-muted)]"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleRequestComposerAction();
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={handleRequestComposerAction}
-                              disabled={!addContactId.trim() || !hasId}
-                              className="text-[13px] font-mono px-2 py-1 bg-cyan-900/20 text-cyan-400 hover:bg-cyan-800/30 disabled:opacity-30 transition-colors"
-                            >
-                              REQUEST
-                            </button>
-                          </div>
-                          {pendingSent.includes(addContactId.trim()) && (
-                            <div className="text-[13px] font-mono text-yellow-500/70">
-                              Request already sent
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Content area */}
-                  <div className="flex-1 overflow-y-auto styled-scrollbar px-3 py-1.5 space-y-0.5 border-l-2 border-cyan-800/25">
-                    {secureDmBlocked && (
-                      <div className="flex h-full min-h-[220px] items-center justify-center py-6">
-                        <div className="max-w-sm w-full border border-cyan-900/30 bg-cyan-950/10 px-4 py-5 text-center">
-                          <div className="inline-flex items-center justify-center w-10 h-10 border border-cyan-700/40 bg-black/30 text-cyan-300 mb-3">
-                            <Lock size={16} />
-                          </div>
-                          <div className="text-sm font-mono tracking-[0.24em] text-cyan-300 mb-2">
-                            DEAD DROP LOCKED
-                          </div>
-                          <div className="text-sm font-mono text-[var(--text-secondary)] leading-[1.7]">
-                            Need Wormhole activated.
-                          </div>
-                          <div className="mt-2 text-[13px] font-mono text-cyan-300/70">
-                            Contacts, inbox, and private messages unlock once the private lane is up.
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* CONTACTS VIEW */}
-                    {!secureDmBlocked && dmView === 'contacts' && (
-                      <>
-                        {contactList.length === 0 && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
-                            No contacts yet. Use <span className="text-cyan-500/70">+</span> to
-                            request access.
-                          </div>
-                        )}
-                        {contactList.map(([id, c]) => {
-                          const trust = getContactTrustSummary(c);
-                          return (
-                          <div
-                            key={id}
-                            className="flex items-center gap-2 py-1.5 border-b border-[var(--border-primary)]/30 last:border-0 cursor-pointer hover:bg-[var(--bg-secondary)]/50 px-1 -mx-1 transition-colors"
-                            onClick={() => openChat(id)}
-                          >
-                            <Lock size={10} className="text-[var(--text-muted)] shrink-0" />
-                            <span className="text-sm font-mono text-cyan-300 truncate">
-                              {c.alias || id.slice(0, 16)}
-                            </span>
-                            {c.remotePrekeyMismatch && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-orange-500/40 text-orange-300 bg-orange-950/20">
-                                REVERIFY
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch && c.verify_mismatch && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-red-500/40 text-red-300 bg-red-950/20">
-                                MISMATCH
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch && !c.verify_mismatch && trust?.state === 'invite_pinned' && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-emerald-500/40 text-emerald-300 bg-emerald-950/20">
-                                INVITE PINNED
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch && !c.verify_mismatch && trust?.state === 'sas_verified' && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-green-500/40 text-green-400 bg-green-950/20">
-                                SAS VERIFIED
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch &&
-                              !c.verify_mismatch &&
-                              !c.remotePrekeyTransparencyConflict &&
-                              c.remotePrekeyLookupMode === 'legacy_agent_id' && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-yellow-500/30 text-yellow-300 bg-yellow-950/10">
-                                LEGACY LOOKUP
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch && !c.verify_mismatch && c.remotePrekeyTransparencyConflict && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-red-500/40 text-red-300 bg-red-950/20">
-                                HISTORY CONFLICT
-                              </span>
-                            )}
-                            {!c.remotePrekeyMismatch &&
-                              !c.verify_mismatch &&
-                              trust?.state === 'tofu_pinned' && (
-                              <span className="text-[11px] font-mono px-1.5 py-0.5 border border-amber-500/30 text-amber-300 bg-amber-950/10">
-                                TOFU ONLY
-                              </span>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBlockDM(id);
-                              }}
-                              className="ml-auto p-0.5 text-[var(--text-muted)] hover:text-red-400 hover:bg-red-900/20 transition-colors"
-                              title="Block"
-                            >
-                              <Ban size={10} />
-                            </button>
-                          </div>
-                          );
-                        })}
-                        {pendingSent.length > 0 && (
-                          <>
-                            <div className="text-[13px] font-mono text-[var(--text-muted)] mt-2 mb-1">
-                              PENDING SENT
-                            </div>
-                            {pendingSent.map((id) => (
-                              <div
-                                key={id}
-                                className="flex items-center gap-2 py-1 text-sm font-mono text-[var(--text-muted)]"
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-600/50" />
-                                <span className="truncate">{id.slice(0, 16)}</span>
-                                <span className="ml-auto text-[12px] text-[var(--text-muted)]">
-                                  awaiting
-                                </span>
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </>
-                    )}
-
-                    {/* INBOX VIEW — access requests */}
-                    {!secureDmBlocked && dmView === 'inbox' && (
-                      <>
-                        {accessRequests.length === 0 && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
-                            No incoming requests
-                          </div>
-                        )}
-                        {accessRequests.map((req) => {
-                          const requestActionsAllowed = shouldAllowRequestActions(req);
-                          const recoveryState = req.sender_recovery_state;
-                          return (
-                            <div
-                              key={req.sender_id}
-                              className="py-2 border-b border-[var(--border-primary)]/30 last:border-0"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <UserPlus size={10} className="text-cyan-500 shrink-0" />
-                                <span className="text-sm font-mono text-cyan-300 truncate">
-                                  {req.sender_id.slice(0, 16)}
-                                </span>
-                                {recoveryState === 'verified' && (
-                                  <span className="text-[12px] font-mono px-1.5 py-0.5 border border-green-500/30 text-green-400 bg-green-950/20">
-                                    VERIFIED
-                                  </span>
-                                )}
-                                {recoveryState === 'pending' && (
-                                  <span className="text-[12px] font-mono px-1.5 py-0.5 border border-yellow-500/30 text-yellow-300 bg-yellow-950/20">
-                                    RECOVERY PENDING
-                                  </span>
-                                )}
-                                {recoveryState === 'failed' && (
-                                  <span className="text-[12px] font-mono px-1.5 py-0.5 border border-red-500/30 text-red-300 bg-red-950/20">
-                                    RECOVERY FAILED
-                                  </span>
-                                )}
-                                <span className="text-[12px] font-mono text-[var(--text-muted)] ml-auto shrink-0">
-                                  {timeAgo(req.timestamp)}
-                                </span>
-                              </div>
-                              <div className="text-[13px] font-mono text-[var(--text-muted)] mt-0.5 leading-[1.65]">
-                                Requesting Dead Drop access
-                              </div>
-                              {req.geo_hint && (
-                                <div className="text-[12px] font-mono text-[var(--text-muted)] mt-0.5">
-                                  Geo hint (not proof): {req.geo_hint}
-                                </div>
-                              )}
-                              {!requestActionsAllowed && (
-                                <div className="text-[12px] font-mono text-yellow-300 mt-0.5 leading-[1.65]">
-                                  Sender authority is not verified yet. Actions stay disabled until
-                                  local recovery succeeds.
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1.5 mt-1.5">
-                                <button
-                                  onClick={() => handleAcceptRequest(req.sender_id)}
-                                  disabled={!requestActionsAllowed}
-                                  className={`flex items-center gap-1 text-[13px] font-mono px-2 py-0.5 transition-colors ${
-                                    requestActionsAllowed
-                                      ? 'bg-cyan-900/20 text-cyan-400 hover:bg-cyan-800/30'
-                                      : 'bg-cyan-950/10 text-cyan-700 cursor-not-allowed opacity-50'
-                                  }`}
-                                >
-                                  <Check size={9} /> ACCEPT
-                                </button>
-                                <button
-                                  onClick={() => handleDenyRequest(req.sender_id)}
-                                  disabled={!requestActionsAllowed}
-                                  className={`flex items-center gap-1 text-[13px] font-mono px-2 py-0.5 transition-colors ${
-                                    requestActionsAllowed
-                                      ? 'bg-gray-900/30 text-gray-400 hover:bg-gray-800/40'
-                                      : 'bg-gray-950/20 text-gray-600 cursor-not-allowed opacity-50'
-                                  }`}
-                                >
-                                  <X size={9} /> DENY
-                                </button>
-                                <button
-                                  onClick={() => handleBlockDM(req.sender_id)}
-                                  disabled={!requestActionsAllowed}
-                                  className={`flex items-center gap-1 text-[13px] font-mono px-2 py-0.5 ml-auto transition-colors ${
-                                    requestActionsAllowed
-                                      ? 'text-[var(--text-muted)] hover:text-red-400 hover:bg-red-900/20'
-                                      : 'text-[var(--text-muted)] opacity-50 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <Ban size={9} /> BLOCK
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-
-                    {/* MUTED LIST VIEW */}
-                    {!secureDmBlocked && dmView === 'muted' && (
-                      <>
-                        {mutedArray.length === 0 && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
-                            No muted users
-                          </div>
-                        )}
-                        {mutedArray.map((uid) => (
-                          <div
-                            key={uid}
-                            className="flex items-center gap-2 py-1.5 border-b border-[var(--border-primary)]/30 last:border-0 px-1 -mx-1"
-                          >
-                            <EyeOff size={10} className="text-[var(--text-muted)] shrink-0" />
-                            <span className="text-sm font-mono text-[var(--text-secondary)] truncate flex-1">
-                              {uid.slice(0, 20)}
-                            </span>
-                            <button
-                              onClick={() => handleUnmute(uid)}
-                              className="flex items-center gap-1 text-[12px] font-mono px-2 py-0.5 bg-cyan-900/20 text-cyan-500 hover:bg-cyan-800/30 transition-colors"
-                            >
-                              <Eye size={8} /> UNMUTE
-                            </button>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {/* CHAT VIEW */}
-                    {!secureDmBlocked && dmView === 'chat' && (
-                      <>
-                        {dmMessages.length === 0 && (
-                          <div className="text-sm font-mono text-[var(--text-muted)] text-center py-4 leading-[1.65]">
-                            <Lock size={11} className="inline mr-1 mb-0.5" />
-                            E2E encrypted dead drop — no messages yet
-                          </div>
-                        )}
-                        {dmMessages.map((m) => (
-                          <div key={m.msg_id} className="py-0.5 leading-[1.65]">
-                            <div className="flex gap-1.5 text-sm font-mono">
-                              <span
-                                className={`shrink-0 ${
-                                  m.sender_id === identity?.nodeId
-                                    ? 'text-cyan-500'
-                                    : 'text-cyan-400'
-                                }`}
-                              >
-                                {m.sender_id === identity?.nodeId
-                                  ? 'you'
-                                  : m.sender_id.slice(0, 12)}
-                              </span>
-                              {m.sender_id !== identity?.nodeId && m.seal_verified === true && (
-                                <span className="text-[12px] font-mono px-1.5 py-0.5 border border-green-500/30 text-green-400 bg-green-950/20">
-                                  VERIFIED
-                                </span>
-                              )}
-                              {m.sender_id !== identity?.nodeId && m.seal_resolution_failed && (
-                                <span className="text-[12px] font-mono px-1.5 py-0.5 border border-red-500/30 text-red-300 bg-red-950/20">
-                                  SEAL UNRESOLVED
-                                </span>
-                              )}
-                              {m.sender_id !== identity?.nodeId &&
-                                !m.seal_resolution_failed &&
-                                m.seal_verified === false && (
-                                <span className="text-[12px] font-mono px-1.5 py-0.5 border border-red-500/30 text-red-400 bg-red-950/20">
-                                  UNVERIFIED
-                                </span>
-                              )}
-                              {m.transport && (
-                                <span
-                                  className={`text-[12px] font-mono px-1.5 py-0.5 border ${
-                                    m.transport === 'reticulum'
-                                      ? 'border-green-500/30 text-green-400 bg-green-950/20'
-                                      : 'border-yellow-500/30 text-yellow-400 bg-yellow-950/20'
-                                  }`}
-                                >
-                                  {m.transport === 'reticulum' ? 'DIRECT' : 'RELAY'}
-                                </span>
-                              )}
-                              <span className="text-[var(--text-secondary)] break-words whitespace-pre-wrap flex-1">
-                                {m.plaintext || '[encrypted]'}
-                              </span>
-                              <span className="text-[var(--text-muted)] shrink-0 text-[13px]">
-                                {timeAgo(m.timestamp)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                    <div ref={messagesEndRef} />
-                  </div>
-                </>
-              )}
+              {/* Dead Drop chat UI: Infonet Terminal → Messages */}
             </div>
 
             {/* INPUT BAR */}
-            {dashboardRestrictedTab ? (
-              <div className="mx-2 mb-2 mt-1 border border-cyan-800/40 bg-black/30 shrink-0 relative">
-                <span className="absolute -top-[7px] left-3 bg-[var(--bg-primary)] px-1 text-[11px] font-mono text-cyan-700/60 tracking-[0.15em] select-none">
-                  ACCESS
-                </span>
-                <div className="px-3 py-3 flex flex-col gap-2">
-                  <div className="text-[12px] font-mono tracking-widest text-[var(--text-muted)] uppercase">
-                    {activeTab === 'infonet'
-                      ? '→ PRIVATE INFONET / TERMINAL ONLY'
-                      : '→ DEAD DROP / TERMINAL ONLY'}
-                  </div>
-                  <div className="text-[13px] font-mono text-[var(--text-secondary)] leading-[1.65]">
-                    {activeTab === 'infonet'
-                      ? 'Private gate posting and reading are restricted to the terminal for now. Dashboard support is coming soon.'
-                      : 'Secure messages are restricted to the terminal for now. Dashboard inbox, requests, and compose are coming soon.'}
-                  </div>
-                  <button
-                    onClick={openTerminal}
-                    className="mt-1 w-full flex items-center justify-between gap-2 px-3 py-2 border border-cyan-700/40 bg-cyan-950/15 text-cyan-300 hover:bg-cyan-950/25 hover:border-cyan-500/50 transition-colors"
-                  >
-                    <span className="inline-flex items-center gap-2 text-sm font-mono tracking-[0.2em]">
-                      <Terminal size={11} />
-                      OPEN TERMINAL
-                    </span>
-                    <span className="text-[12px] font-mono text-cyan-300/70">
-                      COMING TO DASHBOARD SOON
-                    </span>
-                  </button>
-                </div>
-              </div>
-            ) : (
+            {activeTab === 'dms' || activeTab === 'infonet' ? null : (
             <div className="mx-2 mb-2 mt-1 border border-cyan-800/40 bg-black/30 shrink-0 relative">
               <span className="absolute -top-[7px] left-3 bg-[var(--bg-primary)] px-1 text-[11px] font-mono text-cyan-700/60 tracking-[0.15em] select-none">INPUT</span>
               {/* Destination indicator / error */}
@@ -2299,15 +1080,6 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                     <span className="text-[11px] font-mono tracking-widest text-red-400/80 uppercase animate-pulse">
                       ✕ {sendError}
                     </span>
-                    {activeTab === 'infonet' && selectedGate && gateResyncTarget === selectedGate && (
-                      <button
-                        onClick={() => void handleResyncGateState(selectedGate)}
-                        disabled={gateResyncBusy}
-                        className="px-1.5 py-0.5 text-[11px] font-mono tracking-[0.16em] border border-amber-700/40 text-amber-200 hover:bg-amber-950/20 disabled:opacity-60 transition-colors"
-                      >
-                        {gateResyncBusy ? 'RESYNCING' : 'RESYNC'}
-                      </button>
-                    )}
                     {activeTab === 'meshtastic' && (
                       <button
                         onClick={() =>
@@ -2324,25 +1096,15 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                   </>
                 ) : (
                   <span className="text-[11px] font-mono tracking-widest text-[var(--text-muted)] uppercase">
-                    {activeTab === 'infonet'
-                      ? privateInfonetReady
-                        ? `→ INFONET${selectedGate ? ` / ${selectedGate}` : ''}${privateInfonetTransportReady ? '' : ' / EXPERIMENTAL ENCRYPTION'}`
-                        : '→ PRIVATE LANE LOCKED'
-                      : activeTab === 'meshtastic'
-                        ? canUsePublicMeshInput
-                          ? meshDirectTarget
-                            ? `→ MESH / TO ${meshDirectTarget.toUpperCase()} / FROM ${activePublicMeshAddress.toUpperCase()}`
-                            : `→ MESH / ${meshRegion} / ${meshChannel} / ${activePublicMeshAddress.toUpperCase()}`
-                          : publicMeshBlockedByWormhole
-                            ? '→ MESH BLOCKED / WORMHOLE ACTIVE'
-                          : hasStoredPublicLaneIdentity
-                            ? '→ MESH OFF'
-                            : '→ MESH LOCKED'
-                        : activeTab === 'dms' && secureDmBlocked
-                          ? '→ DEAD DROP LOCKED'
-                        : dmView === 'chat' && selectedContact
-                          ? `→ DEAD DROP / ${selectedContact.slice(0, 14)}`
-                          : '→ SELECT TARGET'}
+                    {canUsePublicMeshInput
+                      ? meshDirectTarget
+                        ? `→ MESHTASTIC / TO ${meshDirectTarget.toUpperCase()} / FROM ${activePublicMeshAddress.toUpperCase()}`
+                        : `→ MESHTASTIC / ${meshRegion} / ${meshChannel} / ${activePublicMeshAddress.toUpperCase()}`
+                      : publicMeshBlockedByWormhole
+                        ? '→ MESHTASTIC BLOCKED / WORMHOLE ACTIVE'
+                        : hasStoredPublicLaneIdentity
+                          ? '→ MESHTASTIC OFF'
+                          : '→ MESHTASTIC LOCKED'}
                   </span>
                 )}
               </div>
@@ -2360,33 +1122,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                 </div>
               )}
               <div className="flex items-center gap-2 px-3 pb-2 pt-1">
-                {activeTab === 'infonet' && !privateInfonetReady ? (
-                  <button
-                    onClick={() => setInfonetUnlockOpen(true)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-cyan-700/40 bg-cyan-950/15 text-cyan-300 hover:bg-cyan-950/25 hover:border-cyan-500/50 transition-colors"
-                  >
-                    <span className="inline-flex items-center gap-2 text-sm font-mono tracking-[0.2em]">
-                      <Shield size={11} />
-                      UNLOCK INFONET
-                    </span>
-                    <span className="text-[12px] font-mono text-cyan-300/70">
-                      OPEN PRIVATE LANE BRIEF
-                    </span>
-                  </button>
-                ) : activeTab === 'dms' && secureDmBlocked ? (
-                  <button
-                    onClick={() => setDeadDropUnlockOpen(true)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-cyan-700/40 bg-cyan-950/15 text-cyan-300 hover:bg-cyan-950/25 hover:border-cyan-500/50 transition-colors"
-                  >
-                    <span className="inline-flex items-center gap-2 text-sm font-mono tracking-[0.2em]">
-                      <Lock size={11} />
-                      UNLOCK DEAD DROP
-                    </span>
-                    <span className="text-[12px] font-mono text-cyan-300/70">
-                      NEED WORMHOLE
-                    </span>
-                  </button>
-                ) : activeTab === 'meshtastic' && !canUsePublicMeshInput ? (
+                {activeTab === 'meshtastic' && !canUsePublicMeshInput ? (
                   <button
                     onClick={handleMeshActivationAction}
                     disabled={identityWizardBusy}
@@ -2414,41 +1150,12 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                     </span>
                     <span className="text-[12px] font-mono text-amber-200/70">RETURN TO CHANNEL</span>
                   </button>
-                ) : activeTab === 'infonet' &&
-                  privateInfonetReady &&
-                  selectedGateKeyStatus?.identity_scope === 'anonymous' &&
-                  !selectedGateKeyStatus?.has_local_access ? (
-                  <button
-                    onClick={() => void handleUnlockEncryptedGate()}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 border border-amber-700/40 bg-amber-950/10 text-amber-200 hover:bg-amber-950/20 hover:border-amber-500/50 transition-colors"
-                  >
-                    <span className="inline-flex items-center gap-2 text-sm font-mono tracking-[0.2em]">
-                      <Lock size={11} />
-                      UNLOCK ENCRYPTED GATE
-                    </span>
-                    <span className="text-[12px] font-mono text-amber-200/70">
-                      {selectedGatePersonaList.length > 0 ? 'USE GATE FACE' : 'CREATE GATE FACE'}
-                    </span>
-                  </button>
                 ) : (
                   <>
                     <span className="text-[11px] text-cyan-400 select-none shrink-0 font-mono" style={{ textShadow: '0 0 6px rgba(34,211,238,0.4)' }}>
                       &gt;
                     </span>
                     <div className="relative flex-1">
-                      {activeTab === 'infonet' && gateReplyContext && (
-                        <div className="mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/20 bg-amber-500/8 px-2 py-1 text-[12px] font-mono tracking-[0.14em] text-amber-100">
-                          <span>
-                            REPLYING TO {gateReplyContext.nodeId.slice(0, 12)} / {gateReplyContext.eventId.slice(0, 8)}
-                          </span>
-                          <button
-                            onClick={() => setGateReplyContext(null)}
-                            className="text-amber-200/80 transition-colors hover:text-amber-100"
-                          >
-                            CLEAR
-                          </button>
-                        </div>
-                      )}
                       <div
                         ref={cursorMirrorRef}
                         aria-hidden="true"
@@ -2620,7 +1327,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                 <div>
                 <div className="text-sm font-mono tracking-[0.24em] text-cyan-400">KEY SETUP</div>
                 <div className="text-[13px] font-mono text-[var(--text-muted)] mt-1">
-                  Get a public mesh key or enter Wormhole.
+                  Get a Meshtastic radio key or enter Wormhole.
                 </div>
               </div>
               <button
@@ -2649,8 +1356,8 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                   CURRENT STATE
                 </div>
                 <div className="grid grid-cols-1 gap-1 text-[13px] font-mono text-[var(--text-secondary)] leading-[1.5]">
-                  <div>Public mesh key: {hasPublicLaneIdentity ? 'active' : hasStoredPublicLaneIdentity ? 'saved / off' : 'not issued'}</div>
-                  <div>Public mesh address: {publicMeshAddress ? publicMeshAddress.toUpperCase() : 'not ready'}</div>
+                  <div>Meshtastic key: {hasPublicLaneIdentity ? 'active' : hasStoredPublicLaneIdentity ? 'saved / off' : 'not issued'}</div>
+                  <div>Meshtastic address: {publicMeshAddress ? publicMeshAddress.toUpperCase() : 'not ready'}</div>
                   <div>Wormhole lane: {wormholeEnabled && wormholeReadyState ? 'active' : wormholeEnabled ? 'starting' : 'off'}</div>
                   <div>Wormhole descriptor: {wormholeDescriptor?.nodeId || 'not cached yet'}</div>
                 </div>
@@ -2673,20 +1380,20 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                   className="w-full text-left px-3 py-2 border border-green-500/30 bg-green-950/10 hover:bg-green-950/20 text-sm font-mono text-green-300 disabled:opacity-50"
                 >
                   {hasPublicLaneIdentity
-                    ? 'MESH KEY ACTIVE'
+                    ? 'MESHTASTIC KEY ACTIVE'
                     : hasStoredPublicLaneIdentity
-                      ? 'TURN ON MESH'
+                      ? 'TURN ON MESHTASTIC'
                     : publicMeshBlockedByWormhole
-                      ? 'TURN OFF WORMHOLE FOR MESH'
-                      : 'GET MESH KEY'}
+                      ? 'TURN OFF WORMHOLE FOR MESHTASTIC'
+                      : 'GET MESHTASTIC KEY'}
                   <div className="mt-1 text-[13px] text-green-200/70 normal-case tracking-normal leading-[1.45]">
                     {hasPublicLaneIdentity
-                      ? 'Your public mesh key is already live for posting.'
+                      ? 'Your Meshtastic key is already live for posting.'
                       : hasStoredPublicLaneIdentity
-                        ? 'Use your saved public mesh key. This turns Wormhole off first if it is active.'
+                        ? 'Use your saved Meshtastic key. This turns Wormhole off first if it is active.'
                       : publicMeshBlockedByWormhole
-                        ? 'One tap turns Wormhole off and mints a separate public mesh key.'
-                        : 'One tap for a working mesh key and address.'}
+                        ? 'One tap turns Wormhole off and mints a separate Meshtastic key.'
+                        : 'One tap for a working Meshtastic key and address.'}
                   </div>
                 </button>
 

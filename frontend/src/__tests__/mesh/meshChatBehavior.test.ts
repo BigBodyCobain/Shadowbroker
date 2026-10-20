@@ -114,23 +114,24 @@ describe('MeshChat behavior - policy wiring', () => {
     expect(controller).toContain('timer = setTimeout(() => void poll(classification.refreshCount), classification.delay);');
   });
 
-  it('dead-drop UI distinguishes invite-pinned trust from TOFU-only', () => {
-    const index = readSource('../../components/MeshChat/index.tsx');
-    expect(index).toContain('getContactTrustSummary');
-    expect(index).toContain('INVITE PINNED');
-    expect(index).toContain('TOFU ONLY');
-    expect(index).toContain('anchored by an imported signed invite');
-    expect(index).toContain('rootWitnessContinuityLabel');
-    expect(index).toContain('RECOVER ROOT');
-    expect(index).toContain('!selectedContactTrustSummary?.rootMismatch');
+  it('dead-drop trust copy lives in shared hints and Infonet Messages', () => {
+    const hints = readSource('../../mesh/meshPrivacyHints.ts');
+    expect(hints).toContain('INVITE PINNED');
+    expect(hints).toContain('FIRST CONTACT (TOFU ONLY)');
+    expect(hints).toContain('anchored by an imported signed invite');
+    const messages = readSource('../../components/InfonetTerminal/MessagesView.tsx');
+    expect(messages).toContain('getContactTrustSummary');
+    expect(messages).toContain('rootWitnessContinuityLabel');
   });
 
-  it('request UI does not route ordinary request flow through legacy add-contact lookup', () => {
+  it('MeshChat Agent Shell tab keeps legacy dm-add guidance in MeshTerminal', () => {
     const index = readSource('../../components/MeshChat/index.tsx');
-    expect(index).toContain('handleRequestComposerAction');
+    expect(index).toContain('AgentShellPanel');
+    expect(index).toContain('SHELL');
     expect(index).not.toContain('handleAddContact().catch(() =>');
-    expect(index).toContain('dm add');
-    expect(index).toContain('legacy migration');
+    const terminal = readSource('../../components/MeshTerminal.tsx');
+    expect(terminal).toContain('dm add');
+    expect(terminal).toContain('legacy migration');
   });
 
   it('controller blocks trust-new-key when the stable root changed', () => {

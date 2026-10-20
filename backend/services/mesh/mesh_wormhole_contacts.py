@@ -929,6 +929,85 @@ def list_wormhole_dm_contacts() -> dict[str, dict[str, Any]]:
     return _read_contacts()
 
 
+def get_wormhole_dm_contact(peer_id: str) -> dict[str, Any] | None:
+    peer_key = str(peer_id or "").strip()
+    if not peer_key:
+        return None
+    contacts = _read_contacts()
+    if peer_key not in contacts:
+        return None
+    return dict(_normalize_contact(contacts[peer_key]))
+
+
+def sever_wormhole_dm_contact(peer_id: str, *, block: bool = False) -> dict[str, Any]:
+    """Close the shared DM lane; a fresh contact request + accept is required to reopen."""
+    peer_key = str(peer_id or "").strip()
+    if not peer_key:
+        return {"ok": False, "detail": "peer_id required"}
+
+    contacts = _read_contacts()
+    current = _normalize_contact(contacts.get(peer_key))
+    now = int(time.time())
+    current["sharedAlias"] = ""
+    current["sharedAliasCounter"] = 0
+    current["sharedAliasPublicKey"] = ""
+    current["sharedAliasPublicKeyAlgo"] = "Ed25519"
+    current["previousSharedAliases"] = []
+    current["pendingSharedAlias"] = ""
+    current["pendingSharedAliasCounter"] = 0
+    current["pendingSharedAliasPublicKey"] = ""
+    current["pendingSharedAliasPublicKeyAlgo"] = "Ed25519"
+    current["pendingSharedAliasGraceMs"] = 0
+    current["sharedAliasGraceUntil"] = 0
+    current["sharedAliasRotatedAt"] = 0
+    current["acceptedPreviousAlias"] = ""
+    current["acceptedPreviousAliasCounter"] = 0
+    current["acceptedPreviousAliasPublicKey"] = ""
+    current["acceptedPreviousAliasPublicKeyAlgo"] = "Ed25519"
+    current["acceptedPreviousGraceUntil"] = 0
+    current["acceptedPreviousHardGraceUntil"] = 0
+    current["acceptedPreviousAwaitingReply"] = False
+    current["aliasBindingSeq"] = 0
+    current["aliasBindingPendingReason"] = ""
+    current["aliasBindingPreparedAt"] = 0
+    current["aliasGateJoinAppliedSeq"] = 0
+    if block:
+        current["blocked"] = True
+    current["updated_at"] = now
+    contacts[peer_key] = _normalize_contact(current)
+    _write_contacts(contacts)
+
+    relay_policy = {}
+    try:
+        from services.mesh.mesh_dm_connect_delivery import revoke_connect_relay_policy
+
+        relay_policy = revoke_connect_relay_policy(peer_key)
+    except Exception:
+        relay_policy = {"ok": False}
+
+    relay_block = {"ok": False}
+    if block:
+        try:
+            from services.mesh.mesh_dm_relay import dm_relay
+            from services.mesh.mesh_wormhole_persona import get_dm_identity
+
+            local_id = str(get_dm_identity().get("node_id", "") or "").strip()
+            if local_id:
+                dm_relay.block(local_id, peer_key)
+                relay_block = {"ok": True, "local_id": local_id}
+        except Exception as exc:
+            relay_block = {"ok": False, "detail": str(exc) or type(exc).__name__}
+
+    return {
+        "ok": True,
+        "peer_id": peer_key,
+        "severed": True,
+        "blocked": bool(block),
+        "relay_policy": relay_policy,
+        "relay_block": relay_block,
+    }
+
+
 def _promote_invite_lookup_mode(contact: dict[str, Any], *, now: int | None = None) -> bool:
     current = dict(contact or {})
     lookup_handle = str(current.get("invitePinnedPrekeyLookupHandle", "") or "").strip()
@@ -1070,11 +1149,14 @@ def pin_wormhole_dm_invite(
     identity_dh_pub_key = str(payload.get("identity_dh_pub_key", "") or "")
     dh_algo = str(payload.get("dh_algo", "X25519") or "X25519")
     prekey_lookup_handle = str(payload.get("prekey_lookup_handle", "") or "")
+    lookup_peer_url = str(payload.get("lookup_peer_url", "") or "").strip().rstrip("/")
     if str(alias or "").strip():
         current["alias"] = str(alias or "").strip()
     current["dhPubKey"] = identity_dh_pub_key
     current["dhAlgo"] = dh_algo
     current["invitePinnedPrekeyLookupHandle"] = prekey_lookup_handle
+    if lookup_peer_url:
+        current["invitePinnedLookupPeerUrl"] = lookup_peer_url
     current["invitePinnedRootFingerprint"] = str(payload.get("root_fingerprint", "") or "").strip().lower()
     current["invitePinnedRootManifestFingerprint"] = str(
         payload.get("root_manifest_fingerprint", "") or ""
@@ -1170,6 +1252,12 @@ def pin_wormhole_dm_invite(
     current["updated_at"] = now
     contacts[peer_key] = _normalize_contact(current)
     _write_contacts(contacts)
+    try:
+        from services.mesh.mesh_dm_connect_delivery import grant_connect_relay_policy
+
+        grant_connect_relay_policy(peer_key, reason="invite_import")
+    except Exception:
+        pass
     return contacts[peer_key]
 
 

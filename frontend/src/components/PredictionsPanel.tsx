@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Minus,
   Plus,
@@ -1059,7 +1059,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                   <div className="flex flex-col gap-1 p-3">
                     {!nodeId && (
                       <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
-                        CONNECT WORMHOLE OR GENERATE IDENTITY IN MESH CHAT FIRST
+                        CONNECT WORMHOLE OR GENERATE IDENTITY IN MESHTASTIC CHAT FIRST
                       </div>
                     )}
                     {nodeId && predictions.length === 0 && (
@@ -1109,7 +1109,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
                   <div className="p-3">
                     {!nodeId && (
                       <div className="text-[12px] text-[var(--text-muted)] font-mono text-center py-6">
-                        CONNECT WORMHOLE OR GENERATE IDENTITY IN MESH CHAT FIRST
+                        CONNECT WORMHOLE OR GENERATE IDENTITY IN MESHTASTIC CHAT FIRST
                       </div>
                     )}
                     {nodeId && !profile && (

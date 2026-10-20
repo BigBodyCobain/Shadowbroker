@@ -17,6 +17,9 @@ _KNOWN_CCTV_MEDIA_HOST_ALIASES = {
     # Trusted upstream occasionally publishes a typo for this Georgia camera
     # host. Normalize it at ingest so the proxy and client stay consistent.
     "navigatos-c2c.dot.ga.gov": "navigator-c2c.dot.ga.gov",
+    # TravelIQ staging hosts occasionally appear in 511 catalog metadata.
+    "on.stage.traveliq.co": "511on.ca",
+    "ab.stage.traveliq.co": "511.alberta.ca",
 }
 
 _POINT_WKT_RE = re.compile(
@@ -38,6 +41,17 @@ def _normalize_cctv_media_url(raw_url: str) -> str:
     if parsed.port:
         netloc = f"{replacement}:{parsed.port}"
     return urlunparse(parsed._replace(netloc=netloc))
+
+
+def _ensure_https_url(raw_url: str) -> str:
+    """Upgrade http:// media/catalog URLs to https:// at ingest time."""
+    candidate = _normalize_cctv_media_url(str(raw_url or "").strip())
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate)
+    if parsed.scheme.lower() == "http":
+        return urlunparse(parsed._replace(scheme="https"))
+    return candidate
 
 
 def _looks_like_direct_cctv_media_url(url: str) -> bool:
@@ -93,6 +107,165 @@ def _parse_wkt_point(raw_point: str) -> tuple[float | None, float | None]:
     return lat, lon
 
 
+def _fetch_traveliq_v2_cameras(
+    *,
+    api_url: str,
+    base_url: str,
+    id_prefix: str,
+    source_agency: str,
+) -> List[Dict[str, Any]]:
+    """Parse TravelIQ-style GET /api/v2/get/cameras feeds (Ontario, Alberta)."""
+    resp = fetch_with_curl(
+        api_url,
+        timeout=30,
+        headers={"Accept": "application/json"},
+    )
+    if not resp or resp.status_code != 200:
+        logger.error(
+            "%s CCTV fetch failed: HTTP %s",
+            source_agency,
+            resp.status_code if resp else "no response",
+        )
+        return []
+
+    data = resp.json()
+    if not isinstance(data, list):
+        return []
+
+    cameras: List[Dict[str, Any]] = []
+    for cam in data:
+        if not isinstance(cam, dict):
+            continue
+        try:
+            lat = float(cam.get("Latitude"))
+            lon = float(cam.get("Longitude"))
+        except (TypeError, ValueError):
+            continue
+
+        site_id = cam.get("Id")
+        location = str(cam.get("Location") or cam.get("Roadway") or "Camera")[:120]
+        views = cam.get("Views") or []
+        if not views:
+            continue
+
+        for view in views:
+            if not isinstance(view, dict):
+                continue
+            status = str(view.get("Status") or "enabled").strip().lower()
+            if status and status not in {"enabled", "active"}:
+                continue
+            media_url = _ensure_https_url(
+                urljoin(base_url, str(view.get("Url") or "").strip())
+            )
+            if not media_url:
+                continue
+            view_id = view.get("Id") or site_id
+            if site_id is None or view_id is None:
+                continue
+            label = str(view.get("Description") or location or "Camera")[:120]
+            cameras.append(
+                {
+                    "id": f"{id_prefix}-{site_id}-{view_id}",
+                    "source_agency": source_agency,
+                    "lat": lat,
+                    "lon": lon,
+                    "direction_facing": label,
+                    "media_url": media_url,
+                    "media_type": "image",
+                    "refresh_rate_seconds": 60,
+                }
+            )
+    return cameras
+
+
+def _fetch_511_datatables_cameras(
+    *,
+    list_url: str,
+    base_url: str,
+    id_prefix: str,
+    source_agency: str,
+    referer: str,
+    page_size: int = 500,
+) -> List[Dict[str, Any]]:
+    """Parse 511 DataTables POST /List/GetData/Cameras feeds (Georgia, Florida)."""
+    cameras: List[Dict[str, Any]] = []
+    start = 0
+    draw = 1
+    while True:
+        resp = fetch_with_curl(
+            list_url,
+            method="POST",
+            json_data={"draw": draw, "start": start, "length": page_size},
+            timeout=30,
+            headers={
+                "Accept": "application/json",
+                "Referer": referer,
+                "Origin": base_url.rstrip("/"),
+            },
+        )
+        if not resp or resp.status_code != 200:
+            logger.error(
+                "%s CCTV fetch failed: HTTP %s",
+                source_agency,
+                resp.status_code if resp else "no response",
+            )
+            break
+
+        data = resp.json()
+        rows = data.get("data") or []
+        if not rows:
+            break
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            site_id = row.get("id") or row.get("DT_RowId")
+            location = row.get("location") or row.get("roadway") or source_agency
+            lat_lng = row.get("latLng") or {}
+            geography = lat_lng.get("geography") if isinstance(lat_lng, dict) else {}
+            lat, lon = _parse_wkt_point(
+                geography.get("wellKnownText") if isinstance(geography, dict) else ""
+            )
+            images = row.get("images") or []
+            image = next(
+                (
+                    candidate
+                    for candidate in images
+                    if str(candidate.get("imageUrl") or "").strip()
+                    and not bool(candidate.get("blocked"))
+                ),
+                None,
+            )
+            if not (site_id and image and lat is not None and lon is not None):
+                continue
+            media_url = _ensure_https_url(
+                urljoin(base_url, str(image.get("imageUrl") or "").strip())
+            )
+            if not media_url:
+                continue
+            cameras.append(
+                {
+                    "id": f"{id_prefix}-{site_id}",
+                    "source_agency": source_agency,
+                    "lat": lat,
+                    "lon": lon,
+                    "direction_facing": str(location)[:120],
+                    "media_url": media_url,
+                    "media_type": "image",
+                    "refresh_rate_seconds": 60,
+                }
+            )
+
+        start += len(rows)
+        draw += 1
+        total = int(data.get("recordsTotal") or 0)
+        if total and start >= total:
+            break
+        if not total and len(rows) < page_size:
+            break
+    return cameras
+
+
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
@@ -126,6 +299,9 @@ class BaseCCTVIngestor(ABC):
         pass
 
     def ingest(self):
+        # Ingestors may run independently (including from worker threads), so
+        # make sure a fresh checkout has both the directory and schema ready.
+        init_db()
         conn = sqlite3.connect(str(DB_PATH))
         try:
             cameras = self.fetch_data()
@@ -169,7 +345,7 @@ class BaseCCTVIngestor(ABC):
                         cam.get("lat"),
                         cam.get("lon"),
                         cam.get("direction_facing", "Unknown"),
-                        cam.get("media_url"),
+                        _ensure_https_url(cam.get("media_url", "")),
                         cam.get("media_type", _detect_media_type(cam.get("media_url", ""))),
                         cam.get("refresh_rate_seconds", 60),
                     ),
@@ -454,77 +630,14 @@ class WSDOTIngestor(BaseCCTVIngestor):
 class GeorgiaDOTIngestor(BaseCCTVIngestor):
     """Georgia cameras via the public 511GA list feed."""
 
-    URL = "https://511ga.org/List/GetData/Cameras"
-    BASE_URL = "https://511ga.org"
-    PAGE_SIZE = 500
-
     def fetch_data(self) -> List[Dict[str, Any]]:
-        cameras = []
-        start = 0
-        draw = 1
-        while True:
-            resp = fetch_with_curl(
-                self.URL,
-                method="POST",
-                json_data={"draw": draw, "start": start, "length": self.PAGE_SIZE},
-                timeout=30,
-                headers={
-                    "Accept": "application/json",
-                    "Referer": "https://511ga.org/cctv",
-                    "Origin": "https://511ga.org",
-                },
-            )
-            if not resp or resp.status_code != 200:
-                logger.error(
-                    "Georgia CCTV fetch failed: HTTP %s",
-                    resp.status_code if resp else "no response",
-                )
-                break
-            data = resp.json()
-            rows = data.get("data") or []
-            if not rows:
-                break
-            for row in rows:
-                site_id = row.get("id") or row.get("DT_RowId")
-                location = row.get("location") or row.get("roadway") or "GA Camera"
-                lat_lng = row.get("latLng") or {}
-                geography = lat_lng.get("geography") if isinstance(lat_lng, dict) else {}
-                lat, lon = _parse_wkt_point(geography.get("wellKnownText") if isinstance(geography, dict) else "")
-                images = row.get("images") or []
-                image = next(
-                    (
-                        candidate
-                        for candidate in images
-                        if str(candidate.get("imageUrl") or "").strip()
-                        and not bool(candidate.get("blocked"))
-                    ),
-                    None,
-                )
-                if not (site_id and image and lat is not None and lon is not None):
-                    continue
-                media_url = _normalize_cctv_media_url(
-                    urljoin(self.BASE_URL, str(image.get("imageUrl") or "").strip())
-                )
-                cameras.append(
-                    {
-                        "id": f"GDOT-{site_id}",
-                        "source_agency": "Georgia DOT",
-                        "lat": lat,
-                        "lon": lon,
-                        "direction_facing": str(location)[:120],
-                        "media_url": media_url,
-                        "media_type": "image",
-                        "refresh_rate_seconds": 60,
-                    }
-                )
-            start += len(rows)
-            draw += 1
-            total = int(data.get("recordsTotal") or 0)
-            if total and start >= total:
-                break
-            if not total and len(rows) < self.PAGE_SIZE:
-                break
-        return cameras
+        return _fetch_511_datatables_cameras(
+            list_url="https://511ga.org/List/GetData/Cameras",
+            base_url="https://511ga.org",
+            id_prefix="GDOT",
+            source_agency="Georgia DOT",
+            referer="https://511ga.org/cctv",
+        )
 
 
 class IllinoisDOTIngestor(BaseCCTVIngestor):
@@ -921,7 +1034,8 @@ out body;
 # ---------------------------------------------------------------------------
 # DGT Spain — National Road Cameras
 # ---------------------------------------------------------------------------
-# Image URL pattern confirmed working: infocar.dgt.es/etraffic/data/camaras/{id}.jpg
+# Image URL pattern confirmed working: etraffic.dgt.es/camarasEtraffic/{id}.jpg
+# (DGT migrated 2026: old infocar.dgt.es/etraffic/data/camaras path now 302->etrafficWEB)
 # Source: DGT (Dirección General de Tráfico) — public open data (Ley 37/2007).
 # Author credit: Alborz Nazari (github.com/AlborzNazari) — PR #91
 
@@ -955,10 +1069,10 @@ class DGTNationalIngestor(BaseCCTVIngestor):
         cameras = []
         probe_headers = {
             "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            "Referer": "https://infocar.dgt.es/",
+            "Referer": "https://etraffic.dgt.es/",
         }
         for cam_id, lat, lon, description in self.KNOWN_CAMERAS:
-            media_url = f"https://infocar.dgt.es/etraffic/data/camaras/{cam_id}.jpg"
+            media_url = f"https://etraffic.dgt.es/camarasEtraffic/{cam_id}.jpg"
             if not _media_url_reachable(media_url, timeout=6, headers=probe_headers):
                 continue
             cameras.append({
@@ -1009,17 +1123,72 @@ def _extract_img_src(html_fragment: str):
     return None
 
 
+class AsfinagIngestor(BaseCCTVIngestor):
+    """Austria ASFINAG motorway webcams (Osiris port)."""
+
+    API_URL = "https://odo.asfinag.at/odo/rest/sec/resource/001/json/webcams?language=atDE"
+    HEADERS = {
+        "User-Agent": "Shadowbroker-CCTV/1.0",
+        "Accept": "application/json",
+        "Referer": "https://www.asfinag.at/",
+        "Authorization": "Basic bWFwX3dpZGdldDp0ZWdkaXc=",
+    }
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        try:
+            response = fetch_with_curl(self.API_URL, timeout=15, headers=self.HEADERS)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            logger.error("AsfinagIngestor: fetch failed: %s", exc)
+            return []
+        if not isinstance(payload, list):
+            return []
+        cameras: List[Dict[str, Any]] = []
+        for cam in payload:
+            cam_id = cam.get("wcs_id")
+            lat = cam.get("wgs84_lat")
+            lon = cam.get("wgs84_lon")
+            image_url = cam.get("url_campic")
+            if not cam_id or lat is None or lon is None or not image_url:
+                continue
+            if str(cam_id).startswith("Utinform"):
+                continue
+            label = cam.get("position_txt") or cam.get("direction_txt") or "ASFINAG Webcam"
+            secure_url = _ensure_https_url(image_url)
+            if not secure_url:
+                continue
+            cameras.append(
+                {
+                    "id": f"ASFINAG-{cam_id}",
+                    "source_agency": "ASFINAG Austria",
+                    "lat": float(lat),
+                    "lon": float(lon),
+                    "direction_facing": label,
+                    "media_url": secure_url,
+                    "media_type": "image",
+                    "refresh_rate_seconds": 300,
+                }
+            )
+        logger.info("AsfinagIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
 class MadridCityIngestor(BaseCCTVIngestor):
     """Madrid City Hall traffic cameras from datos.madrid.es KML feed."""
 
-    KML_URL = "http://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+    KML_URL = "https://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+
+    def _fetch_kml(self):
+        response = fetch_with_curl(self.KML_URL, timeout=20)
+        response.raise_for_status()
+        return response
 
     def fetch_data(self) -> List[Dict[str, Any]]:
         import defusedxml.ElementTree as ET
 
         try:
-            response = fetch_with_curl(self.KML_URL, timeout=20)
-            response.raise_for_status()
+            response = self._fetch_kml()
         except Exception as e:
             logger.error(f"MadridCityIngestor: failed to fetch KML: {e}")
             return []
@@ -1057,6 +1226,9 @@ class MadridCityIngestor(BaseCCTVIngestor):
 
                 if not image_url:
                     continue
+                image_url = _ensure_https_url(image_url)
+                if not image_url:
+                    continue
 
                 cameras.append({
                     "id": f"MAD-{i:04d}",
@@ -1073,6 +1245,152 @@ class MadridCityIngestor(BaseCCTVIngestor):
                 continue
 
         logger.info(f"MadridCityIngestor: parsed {len(cameras)} cameras")
+        return cameras
+
+
+class Ontario511Ingestor(BaseCCTVIngestor):
+    """Ontario highway cameras via 511on.ca TravelIQ API."""
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        return _fetch_traveliq_v2_cameras(
+            api_url="https://511on.ca/api/v2/get/cameras",
+            base_url="https://511on.ca",
+            id_prefix="ON511",
+            source_agency="511 Ontario",
+        )
+
+
+class Alberta511Ingestor(BaseCCTVIngestor):
+    """Alberta highway cameras via 511 Alberta TravelIQ API."""
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        return _fetch_traveliq_v2_cameras(
+            api_url="https://511.alberta.ca/api/v2/get/cameras",
+            base_url="https://511.alberta.ca",
+            id_prefix="AB511",
+            source_agency="511 Alberta",
+        )
+
+
+class Florida511Ingestor(BaseCCTVIngestor):
+    """Florida cameras via FL511 DataTables feed (~4,800 sites)."""
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        return _fetch_511_datatables_cameras(
+            list_url="https://fl511.com/List/GetData/Cameras",
+            base_url="https://fl511.com",
+            id_prefix="FL511",
+            source_agency="Florida 511",
+            referer="https://fl511.com/",
+        )
+
+
+class AustraliaLiveTrafficIngestor(BaseCCTVIngestor):
+    """NSW / Australia live traffic cameras via Transport for NSW JSON feed."""
+
+    URL = "https://www.livetraffic.com/datajson/all-feeds-web.json"
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        resp = fetch_with_curl(self.URL, timeout=35, headers={"Accept": "application/json"})
+        if not resp or resp.status_code != 200:
+            logger.error(
+                "Australia Live Traffic CCTV fetch failed: HTTP %s",
+                resp.status_code if resp else "no response",
+            )
+            return []
+
+        data = resp.json()
+        if not isinstance(data, list):
+            return []
+
+        cameras: List[Dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict) or item.get("eventType") != "liveCams":
+                continue
+            geometry = item.get("geometry") if isinstance(item.get("geometry"), dict) else {}
+            coords = geometry.get("coordinates") if isinstance(geometry.get("coordinates"), list) else []
+            if len(coords) < 2:
+                continue
+            try:
+                lon = float(coords[0])
+                lat = float(coords[1])
+            except (TypeError, ValueError):
+                continue
+
+            props = item.get("properties") if isinstance(item.get("properties"), dict) else {}
+            media_url = _ensure_https_url(str(props.get("href") or "").strip())
+            if not media_url:
+                continue
+
+            cam_id = str(item.get("path") or props.get("id") or len(cameras)).strip("/")
+            label = str(props.get("title") or props.get("headline") or "Australia Camera")[:120]
+            cameras.append(
+                {
+                    "id": f"AUS-{cam_id}",
+                    "source_agency": "NSW Live Traffic",
+                    "lat": lat,
+                    "lon": lon,
+                    "direction_facing": label,
+                    "media_url": media_url,
+                    "media_type": "image",
+                    "refresh_rate_seconds": 120,
+                }
+            )
+        logger.info("AustraliaLiveTrafficIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class NetherlandsRWSIngestor(BaseCCTVIngestor):
+    """Netherlands Rijkswaterstaat cameras from legacy NDW open-data JSON.
+
+    The opendata.ndw.nu/cameras.json feed Osiris used is often offline; when
+  unavailable this ingestor returns an empty set and logs a warning.
+    """
+
+    URL = "https://opendata.ndw.nu/cameras.json"
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        resp = fetch_with_curl(self.URL, timeout=25, headers={"Accept": "application/json"})
+        if not resp or resp.status_code != 200:
+            logger.warning(
+                "Netherlands RWS cameras.json unavailable (HTTP %s) — "
+                "NDW retired this open-data endpoint; no cameras ingested",
+                resp.status_code if resp else "no response",
+            )
+            return []
+
+        data = resp.json()
+        if not isinstance(data, list):
+            return []
+
+        cameras: List[Dict[str, Any]] = []
+        for i, cam in enumerate(data):
+            if not isinstance(cam, dict):
+                continue
+            lat = cam.get("lat") if cam.get("lat") is not None else cam.get("latitude")
+            lon = cam.get("lng") if cam.get("lng") is not None else cam.get("longitude")
+            media_url = _ensure_https_url(
+                str(cam.get("imageUrl") or cam.get("feed_url") or cam.get("url") or "").strip()
+            )
+            if lat is None or lon is None or not media_url:
+                continue
+            try:
+                lat_f, lon_f = float(lat), float(lon)
+            except (TypeError, ValueError):
+                continue
+            cameras.append(
+                {
+                    "id": f"NLRWS-{cam.get('id') or i}",
+                    "source_agency": "Rijkswaterstaat",
+                    "lat": lat_f,
+                    "lon": lon_f,
+                    "direction_facing": str(cam.get("name") or "Netherlands Camera")[:120],
+                    "media_url": media_url,
+                    "media_type": "image",
+                    "refresh_rate_seconds": 120,
+                }
+            )
+        logger.info("NetherlandsRWSIngestor: parsed %s cameras", len(cameras))
         return cameras
 
 
@@ -1094,41 +1412,87 @@ def _detect_media_type(url: str) -> str:
     return "image"
 
 
+def scheduled_cctv_ingestors() -> List[tuple["BaseCCTVIngestor", str]]:
+    """Canonical list of CCTV ingestors for startup, scheduler, and DB seeding."""
+    return [
+        (TFLJamCamIngestor(), "cctv_tfl"),
+        (LTASingaporeIngestor(), "cctv_lta"),
+        (AustinTXIngestor(), "cctv_atx"),
+        (NYCDOTIngestor(), "cctv_nyc"),
+        (CaltransIngestor(), "cctv_caltrans"),
+        (ColoradoDOTIngestor(), "cctv_codot"),
+        (WSDOTIngestor(), "cctv_wsdot"),
+        (GeorgiaDOTIngestor(), "cctv_gdot"),
+        (IllinoisDOTIngestor(), "cctv_idot"),
+        (MichiganDOTIngestor(), "cctv_mdot"),
+        (WindyWebcamsIngestor(), "cctv_windy"),
+        (DGTNationalIngestor(), "cctv_dgt"),
+        (MadridCityIngestor(), "cctv_madrid"),
+        (OSMTrafficCameraIngestor(), "cctv_osm"),
+        (AsfinagIngestor(), "cctv_asfinag"),
+        (OSMALPRCameraIngestor(), "cctv_osm_alpr"),
+        (Ontario511Ingestor(), "cctv_on511"),
+        (Alberta511Ingestor(), "cctv_ab511"),
+        (Florida511Ingestor(), "cctv_fl511"),
+        (AustraliaLiveTrafficIngestor(), "cctv_australia"),
+        (NetherlandsRWSIngestor(), "cctv_nl_rws"),
+    ]
+
+
 def run_all_ingestors():
     """Run all CCTV ingestors synchronously. Used for first-run DB seeding."""
-    ingestors = [
-        TFLJamCamIngestor(),
-        LTASingaporeIngestor(),
-        AustinTXIngestor(),
-        NYCDOTIngestor(),
-        CaltransIngestor(),
-        ColoradoDOTIngestor(),
-        WSDOTIngestor(),
-        GeorgiaDOTIngestor(),
-        IllinoisDOTIngestor(),
-        MichiganDOTIngestor(),
-        WindyWebcamsIngestor(),
-        OSMTrafficCameraIngestor(),
-        DGTNationalIngestor(),
-        MadridCityIngestor(),
-    ]
-    for ing in ingestors:
+    for ingestor, _name in scheduled_cctv_ingestors():
         try:
-            ing.ingest()
+            ingestor.ingest()
         except Exception as e:
-            logger.warning(f"Ingestor {ing.__class__.__name__} failed during seed: {e}")
+            logger.warning(f"Ingestor {ingestor.__class__.__name__} failed during seed: {e}")
 
 
-def get_all_cameras() -> List[Dict[str, Any]]:
+# Columns the map / live-data path actually needs — skip refresh_rate / timestamps.
+_CAMERA_SELECT_COLS = (
+    "id",
+    "source_agency",
+    "lat",
+    "lon",
+    "direction_facing",
+    "media_url",
+    "media_type",
+)
+
+
+def get_camera_count() -> int:
+    """Cheap total for UI badges without loading the full table."""
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+        row = conn.execute("SELECT COUNT(*) FROM cameras").fetchone()
+        return int(row[0] if row else 0)
+    finally:
+        conn.close()
+
+
+def get_all_cameras(
+    *,
+    south: float | None = None,
+    west: float | None = None,
+    north: float | None = None,
+    east: float | None = None,
+) -> List[Dict[str, Any]]:
+    """Load map-facing camera rows (full catalog; viewport args ignored)."""
+    cols = ", ".join(_CAMERA_SELECT_COLS)
+    sql = f"SELECT {cols} FROM cameras"
+
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM cameras")
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(sql).fetchall()
+    finally:
+        conn.close()
+
     cameras = []
     for row in rows:
-        cam = dict(row)
-        cam["media_type"] = str(cam.get("media_type") or _detect_media_type(cam.get("media_url", "")) or "image")
+        cam = {k: row[k] for k in _CAMERA_SELECT_COLS}
+        cam["media_type"] = str(
+            cam.get("media_type") or _detect_media_type(cam.get("media_url", "")) or "image"
+        )
         cameras.append(cam)
     return cameras

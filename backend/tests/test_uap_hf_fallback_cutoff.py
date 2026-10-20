@@ -24,6 +24,7 @@ These tests pin the new behavior:
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime as real_datetime
 
@@ -225,28 +226,65 @@ def test_fetch_uap_sightings_succeeds_when_fallback_returns_data(monkeypatch):
     assert canary_calls == [], "canary should not trip when fallback supplies data"
 
 
-def test_uap_scheduler_runs_weekly_not_daily():
-    """The cron job for the UAP layer must be configured for Mondays at
-    12:00 UTC, not daily. Daily was the pre-fix default; weekly matches
-    the layer's stated cadence (a rolling 60-day digest) and keeps load
-    on nuforc.org light."""
+def test_fetch_uap_sightings_retains_last_known_snapshot_when_refresh_empty(monkeypatch):
+    """An empty weekly refresh must not erase the last visible UAP snapshot."""
+    from services.fetchers import earth_observation as eo
+    from services.fetchers import _store
+
+    monkeypatch.setattr(_store, "is_any_active", lambda layer: True)
+    monkeypatch.setattr(eo, "_load_nuforc_sightings_cache", lambda force_refresh=False: None)
+    monkeypatch.setattr(
+        eo,
+        "_build_recent_uap_sightings",
+        lambda: (_ for _ in ()).throw(RuntimeError("NUFORC unavailable")),
+    )
+    monkeypatch.setattr(eo, "_build_uap_sightings_from_hf_mirror", lambda: [])
+    last_known = [{"id": "older-uap", "date_time": "2025-01-01", "lat": 39.7, "lng": -104.9}]
+    monkeypatch.setattr(eo, "_load_nuforc_last_known_sightings", lambda: last_known)
+    monkeypatch.setattr(eo, "_mark_fresh", lambda *keys: None)
+
+    with _store._data_lock:
+        _store.latest_data["uap_sightings"] = []
+
+    eo.fetch_uap_sightings()
+
+    with _store._data_lock:
+        assert _store.latest_data["uap_sightings"] == last_known
+
+
+def test_uap_scheduler_runs_weekly():
+    """UAP layer refreshes weekly so each install pulls live NUFORC on a steady cadence."""
     from services import data_fetcher
 
-    src = data_fetcher.__file__
-    with open(src, "r", encoding="utf-8") as f:
+    with open(data_fetcher.__file__, "r", encoding="utf-8") as f:
         text = f.read()
 
-    # Anchor on the scheduler block by id, then assert the cron triggers.
-    assert "uap_sightings_weekly" in text, (
-        "scheduler id should be uap_sightings_weekly (was uap_sightings_daily pre-fix)"
+    assert "uap_sightings_weekly" in text
+    idx = text.index("uap_sightings_weekly")
+    block = text[max(0, idx - 600) : idx + 120]
+    assert 'day_of_week="mon"' in block
+
+
+def test_uap_cache_rejects_stale_rows_on_load(tmp_path, monkeypatch):
+    """Disk cache must not resurrect sightings outside the rolling window."""
+    from services.fetchers import earth_observation as eo
+
+    cache_file = tmp_path / "nuforc_recent_sightings.json"
+    monkeypatch.setattr(eo, "_NUFORC_SIGHTINGS_CACHE_FILE", cache_file)
+    monkeypatch.setattr(eo, "datetime", _FixedDateTime)
+
+    cache_file.write_text(
+        json.dumps({
+            "built": _FixedDateTime.utcnow().isoformat(),
+            "cutoff_days": 60,
+            "sightings": [
+                {"id": "NUFORC-old", "date_time": "2023-06-01", "lat": 39.0, "lng": -105.0},
+                {"id": "NUFORC-new", "date_time": "2026-04-20", "lat": 40.0, "lng": -104.0},
+            ],
+        }),
+        encoding="utf-8",
     )
-    # The day_of_week directive is the difference between daily and weekly.
-    # If somebody flips it back to daily, this fires.
-    weekly_block = text.split("uap_sightings_weekly", 1)[0]
-    # Walk backwards for the matching add_job call.
-    add_job_idx = weekly_block.rfind("add_job(")
-    assert add_job_idx >= 0, "could not locate add_job block for UAP scheduler"
-    job_block = text[add_job_idx : text.find(")", text.index("uap_sightings_weekly")) + 1]
-    assert 'day_of_week="mon"' in job_block, (
-        f"expected day_of_week='mon' in UAP scheduler block:\n{job_block}"
-    )
+
+    loaded = eo._load_nuforc_sightings_cache()
+    assert loaded is not None
+    assert [s["id"] for s in loaded] == ["NUFORC-new"]

@@ -22,9 +22,11 @@ class TestHealthEndpoint:
 
 
 class TestLiveDataEndpoints:
-    def test_live_data_returns_200(self, client):
+    def test_live_data_returns_200_or_304(self, client):
         r = client.get("/api/live-data")
-        assert r.status_code == 200
+        assert r.status_code in (200, 304)
+        if r.status_code == 200:
+            assert r.headers.get("etag")
 
     def test_live_data_fast_returns_200_or_304(self, client):
         r = client.get("/api/live-data/fast")

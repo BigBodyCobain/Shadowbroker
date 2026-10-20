@@ -2,7 +2,7 @@
 # Centralized magic numbers. Import from here instead of hardcoding.
 
 # ─── Flight Trails ──────────────────────────────────────────────────────────
-FLIGHT_TRAIL_MAX_TRACKED = 2000  # Max concurrent tracked trails before LRU eviction
+FLIGHT_TRAIL_MAX_TRACKED = None  # no LRU eviction on flight trails
 FLIGHT_TRAIL_POINTS_PER_FLIGHT = 200  # Max trail points kept per aircraft
 TRACKED_TRAIL_TTL_S = 1800  # 30 min - trail TTL for tracked flights
 DEFAULT_TRAIL_TTL_S = 300  # 5 min - trail TTL for non-tracked flights

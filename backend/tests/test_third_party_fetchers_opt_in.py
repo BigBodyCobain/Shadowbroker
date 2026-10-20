@@ -45,8 +45,10 @@ def test_fimi_falsy_value_does_not_call_upstream(monkeypatch):
 
 def test_prediction_markets_disabled_by_default(monkeypatch):
     from services.fetchers import _store, prediction_markets
+    from services import prediction_markets_settings as pm_settings
 
     monkeypatch.delenv("PREDICTION_MARKETS_ENABLED", raising=False)
+    monkeypatch.setattr(pm_settings, "get_prediction_markets_ui_opt_in", lambda: False)
     monkeypatch.setitem(_store.latest_data, "prediction_markets", [{"id": "old"}])
     monkeypatch.setattr(
         prediction_markets, "fetch_prediction_markets_raw", _explode

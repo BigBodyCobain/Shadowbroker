@@ -235,6 +235,46 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
     expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
   });
 
+  it('GET /api/refresh without Origin does NOT receive env ADMIN_KEY fallback', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{}', { status: 403, headers: { 'Content-Type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost:3000/api/refresh', {
+      method: 'GET',
+      headers: {
+        host: 'localhost:3000',
+        // no Origin
+      },
+    });
+    await proxyGet(req, {
+      params: Promise.resolve({ path: ['refresh'] }),
+    });
+
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
+  });
+
+  it('GET /api/refresh with same-origin Origin still receives env ADMIN_KEY fallback', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = new NextRequest('http://localhost:3000/api/refresh', {
+      method: 'GET',
+      headers: {
+        host: 'localhost:3000',
+        origin: 'http://localhost:3000',
+      },
+    });
+    await proxyGet(req, {
+      params: Promise.resolve({ path: ['refresh'] }),
+    });
+
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+  });
+
   it('cross-origin request with a valid session cookie STILL injects (cookie auth wins)', async () => {
     // Mint a session first (against the real handler).
     const mintReq = new NextRequest('http://localhost:3000/api/admin/session', {

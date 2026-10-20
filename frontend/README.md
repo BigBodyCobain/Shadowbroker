@@ -1,6 +1,6 @@
 # ShadowBroker Frontend
 
-Next.js 16 dashboard with MapLibre GL, Cesium, and Framer Motion.
+Next.js 16 dashboard with MapLibre GL and Framer Motion.
 
 ## Development
 
@@ -11,41 +11,39 @@ npm run dev        # http://localhost:3000
 
 ## API URL Configuration
 
-The frontend needs to reach the backend (default port `8000`). Resolution order:
+The browser calls relative `/api/*` paths. The catch-all route handler at
+`src/app/api/[...path]/route.ts` proxies those requests to the backend using
+the server-side `BACKEND_URL` environment variable at request time.
 
-1. **`NEXT_PUBLIC_API_URL`** env var — if set, used as-is (build-time, baked by Next.js)
-2. **Server-side (SSR)** — falls back to `http://localhost:8000`
-3. **Client-side (browser)** — auto-detects using `window.location.hostname:8000`
+This keeps the backend URL out of the client bundle and lets Docker or other
+deployments change the backend target without rebuilding the frontend.
 
-### Common scenarios
+### Common Scenarios
 
-| Scenario                                        | Action needed                                                   |
-| ----------------------------------------------- | --------------------------------------------------------------- |
-| Local dev (`localhost:3000` + `localhost:8000`) | None — auto-detected                                            |
-| LAN access (`192.168.x.x:3000`)                 | None — auto-detected from browser hostname                      |
-| Public deploy (same host, port 8000)            | None — auto-detected                                            |
-| Backend on different port (e.g. `9096`)         | Set `NEXT_PUBLIC_API_URL=http://host:9096` before build         |
-| Backend on different host                       | Set `NEXT_PUBLIC_API_URL=http://backend-host:8000` before build |
-| Behind reverse proxy (e.g. `/api` path)         | Set `NEXT_PUBLIC_API_URL=https://yourdomain.com` before build   |
+| Scenario | Action needed |
+| --- | --- |
+| Local dev (`localhost:3000` + backend on `127.0.0.1:8000`) | None. The proxy defaults to `http://127.0.0.1:8000`. |
+| Docker Compose | None. `docker-compose.yml` sets `BACKEND_URL=http://backend:8000`. |
+| Backend on a different host or port | Set `BACKEND_URL` before starting the Next.js server/container. |
+| Reverse proxy in front of the frontend | Point external clients at the frontend; keep `BACKEND_URL` set to the backend address reachable from the Next.js server. |
 
-### Setting the variable
+### Setting `BACKEND_URL`
 
 ```bash
 # Shell (Linux/macOS)
-NEXT_PUBLIC_API_URL=http://myserver:8000 npm run build
+BACKEND_URL=http://myserver:8000 npm run dev
 
 # PowerShell (Windows)
-$env:NEXT_PUBLIC_API_URL="http://myserver:8000"; npm run build
+$env:BACKEND_URL="http://myserver:8000"; npm run dev
 
-# Docker Compose (set in .env file next to docker-compose.yml)
-NEXT_PUBLIC_API_URL=http://myserver:8000
+# Docker Compose
+# Edit the frontend service environment or add a compose override:
+# BACKEND_URL=http://myserver:8000
 ```
-
-> **Note:** This is a build-time variable. Changing it requires rebuilding the frontend.
 
 ## Theming
 
-Dark mode is the default. A light/dark toggle is available in the left panel toolbar.
-Theme preference is persisted in `localStorage` as `sb-theme` and applied via
-`data-theme` attribute on `<html>`. CSS variables in `globals.css` define all
-structural colors for both themes.
+Dark mode is the default. A light/dark toggle is available in the left panel
+toolbar. Theme preference is persisted in `localStorage` as `sb-theme` and
+applied via the `data-theme` attribute on `<html>`. CSS variables in
+`globals.css` define all structural colors for both themes.

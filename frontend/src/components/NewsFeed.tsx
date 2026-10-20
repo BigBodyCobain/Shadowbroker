@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from '@/lib/motion';
+import { AlertTriangle, Clock, Minus, Plus, ExternalLink, Brain, Loader2, TrendingUp } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { usePredictionMarketsOptIn } from '@/hooks/usePredictionMarketsOptIn';
 import React, { useEffect, useRef, useCallback } from 'react';
 import WikiImage from '@/components/WikiImage';
 import { fetchWikipediaSummary } from '@/lib/wikimediaClient';
 import type { SelectedEntity, RegionDossier, FimiData } from "@/types/dashboard";
 import { useDataKeys } from '@/hooks/useDataStore';
 import { API_BASE } from '@/lib/api';
+import { sameEntityId } from '@/components/map/featureIds';
+import DatalinkMessagesBlock from '@/components/DatalinkMessagesBlock';
 import { lookupShodanHost } from '@/lib/shodanClient';
 import type { ShodanHost } from '@/types/shodan';
 
@@ -319,7 +323,7 @@ function EmissionsEstimateBlock({ flight }: { flight: any }) {
     );
 }
 
-function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, onArticleClick }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void }) {
+function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gtDossier, gtDossierLoading, onArticleClick, onExpandEntityGraph }: { selectedEntity?: SelectedEntity | null, regionDossier?: RegionDossier | null, regionDossierLoading?: boolean, gtDossier?: import('@/types/dashboard').GtDossier | null, gtDossierLoading?: boolean, onArticleClick?: (idx: number, lat?: number, lng?: number, title?: string) => void, onExpandEntityGraph?: () => void }) {
     const data = useDataKeys([
       'news', 'fimi', 'commercial_flights', 'private_flights', 'private_jets',
       'military_flights', 'tracked_flights', 'ships', 'gdelt', 'liveuamap',
@@ -332,6 +336,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
     const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
     const [aiSummary, setAiSummary] = useState<any>(null);
     const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+    const [pmConsentOpen, setPmConsentOpen] = useState(false);
+    const { status: pmStatus, setOptIn: setPmOptIn } = usePredictionMarketsOptIn();
+    const marketsCorrelationEnabled = pmStatus?.enabled ?? false;
     const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     // Intentionally omitting map click triggers for expanding
@@ -530,6 +537,84 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                         )}
 
                         {/* Sentinel-2 imagery now shown as map popup — see MaplibreViewer */}
+
+                        {(gtDossierLoading || gtDossier?.enabled) && (
+                            <>
+                                <div className="text-[11px] text-amber-500 tracking-widest font-bold border-b border-amber-900/50 pb-1 mt-2">
+                                    STRATEGIC RISK (GT)
+                                </div>
+                                {gtDossierLoading ? (
+                                    <div className="text-amber-400/80 text-[11px]">Running game-theoretic analysis...</div>
+                                ) : gtDossier ? (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--text-muted)]">POSTERIOR RISK</span>
+                                            <span className="text-amber-300 font-bold">
+                                                {((gtDossier.current_risk ?? 0) * 100).toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        {gtDossier.domain_risks && (
+                                            <div className="grid grid-cols-3 gap-2 text-[10px]">
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">FIN</div>
+                                                    <div className="text-cyan-300">
+                                                        {((gtDossier.domain_risks.financial ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">UNREST</div>
+                                                    <div className="text-orange-300">
+                                                        {((gtDossier.domain_risks.unrest ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[var(--text-muted)]">CONFLICT</div>
+                                                    <div className="text-red-300">
+                                                        {((gtDossier.domain_risks.conflict ?? 0) * 100).toFixed(0)}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {gtDossier.interpretation && (
+                                            <div className="p-2 bg-black/60 border border-amber-800/50 text-[11px] text-amber-200/90 leading-relaxed">
+                                                <span className="text-amber-400 font-bold">&gt;_ GT: </span>
+                                                {gtDossier.interpretation}
+                                            </div>
+                                        )}
+                                        {gtDossier.recent_signals && gtDossier.recent_signals.length > 0 && (
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-[10px] text-[var(--text-muted)] tracking-widest">
+                                                    COSTLY SIGNALS
+                                                </div>
+                                                {gtDossier.recent_signals.slice(-3).map((entry, idx) => (
+                                                    <div
+                                                        key={`${entry.timestamp}-${idx}`}
+                                                        className="text-[10px] border-l-2 border-amber-700/60 pl-2 text-[var(--text-secondary)]"
+                                                    >
+                                                        <span className="text-amber-300 uppercase">
+                                                            {Object.keys(entry.signals || {}).join(', ') || entry.domain}
+                                                        </span>
+                                                        {' · '}
+                                                        <span className="text-[var(--text-muted)]">{entry.source}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {gtDossier.scenarios && gtDossier.scenarios.length > 0 && (
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-[10px] text-[var(--text-muted)] tracking-widest">SCENARIOS</div>
+                                                {gtDossier.scenarios.map((scenario) => (
+                                                    <div key={scenario.name} className="text-[10px] text-[var(--text-secondary)]">
+                                                        <span className="text-amber-400 font-bold">{scenario.name}: </span>
+                                                        {scenario.summary}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
                     </div>
                 ) : d?.error ? (
                     <div className="p-4 text-[var(--text-secondary)] text-[12px]">{d.error}</div>
@@ -826,6 +911,11 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 <span className={`text-xs font-bold ${flight.squawk === '7700' ? 'text-red-400 animate-pulse' : flight.squawk === '7600' ? 'text-yellow-400' : 'text-[var(--text-primary)]'}`}>{flight.squawk}{flight.squawk === '7700' ? ' ⚠ EMERGENCY' : flight.squawk === '7600' ? ' COMMS LOST' : ''}</span>
                             </div>
                         )}
+                        <DatalinkMessagesBlock
+                            icao24={flight.icao24}
+                            registration={flight.registration}
+                            callsign={flight.callsign}
+                        />
                         <EmissionsEstimateBlock flight={flightForEmissions} />
                         {flight.alert_link && (
                             <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
@@ -1079,6 +1169,11 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 <span className={`text-xs font-bold ${flight.squawk === '7700' ? 'text-red-400 animate-pulse' : flight.squawk === '7600' ? 'text-yellow-400' : 'text-[var(--text-primary)]'}`}>{flight.squawk}{flight.squawk === '7700' ? ' ⚠ EMERGENCY' : flight.squawk === '7600' ? ' COMMS LOST' : ''}</span>
                             </div>
                         )}
+                        <DatalinkMessagesBlock
+                            icao24={flight.icao24}
+                            registration={flight.registration}
+                            callsign={flight.callsign}
+                        />
                         <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-2">
                             <span className="text-[var(--text-muted)] text-[10px]">ROUTE</span>
                             <span className="text-cyan-400 text-xs font-bold">{flight.origin_name !== "UNKNOWN" ? `[${flight.origin_name}] → [${flight.dest_name}]` : "UNKNOWN"}</span>
@@ -1092,6 +1187,15 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 </a>
                             </div>
                         )}
+                        {onExpandEntityGraph && (
+                            <button
+                                type="button"
+                                onClick={onExpandEntityGraph}
+                                className="w-full py-1.5 text-[10px] font-mono tracking-wider border border-cyan-700/40 text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+                            >
+                                INTEL GRAPH →
+                            </button>
+                        )}
                     </div>
                 </motion.div>
             )
@@ -1099,7 +1203,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
     }
 
     if (selectedEntity?.type === 'ship') {
-        const ship = data?.ships?.find((s: any) => s.mmsi === selectedEntity.id);
+        const ship = data?.ships?.find((s: any) => sameEntityId(s.mmsi, selectedEntity.id));
         if (ship) {
             const vesselTypeLabels: Record<string, string> = {
                 'tanker': 'TANKER',
@@ -1200,6 +1304,15 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                     accent={ship.type === 'carrier' ? 'hover:border-orange-500/50' : 'hover:border-cyan-500/50'}
                                 />
                             </div>
+                        )}
+                        {onExpandEntityGraph && (
+                            <button
+                                type="button"
+                                onClick={onExpandEntityGraph}
+                                className="w-full py-1.5 text-[10px] font-mono tracking-wider border border-cyan-700/40 text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+                            >
+                                INTEL GRAPH →
+                            </button>
                         )}
                     </div>
                 </motion.div>
@@ -1357,7 +1470,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                 </span>
                             </div>
                         )}
-                        {item.prediction_odds && item.prediction_odds.consensus_pct != null && (
+                        {marketsCorrelationEnabled && item.prediction_odds && item.prediction_odds.consensus_pct != null && (
                             <div className="border-b border-[var(--border-primary)] pb-2">
                                 <span className="text-[var(--text-muted)] text-[10px] block mb-1.5">MARKET CORRELATION</span>
                                 <div className="p-2 bg-purple-950/30 border border-purple-500/30 rounded-sm">
@@ -1430,7 +1543,37 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
     /* CCTV is now handled by the fullscreen OPTIC INTERCEPT modal in MaplibreViewer */
     if (selectedEntity?.type === 'cctv') return null;
 
+    const pmJitter = pmStatus?.jitter;
+    const pmConsentMessage =
+        'Enabling prediction markets lets this node contact Polymarket and Kalshi over clearnet from your server IP (not through the wormhole). ' +
+        'Matching headlines may show a purple MKT strip with consensus odds. ' +
+        (pmJitter
+            ? `Poll timing is jittered (~${pmJitter.scheduler_interval_minutes} min base + up to ${pmJitter.scheduler_jitter_seconds}s) to reduce obvious patterns. `
+            : 'Poll timing is jittered to reduce obvious patterns. ') +
+        'Wormhole/Tor still only covers private mesh traffic. Turn off anytime with MKT OFF.';
+
     return (
+        <>
+        <ConfirmDialog
+            open={pmConsentOpen}
+            title="Enable prediction market correlation?"
+            message={pmConsentMessage}
+            confirmLabel="Enable MKT"
+            cancelLabel="Cancel"
+            danger={false}
+            onCancel={() => setPmConsentOpen(false)}
+            onConfirm={() => {
+                void (async () => {
+                    try {
+                        await setPmOptIn(true);
+                    } catch (e) {
+                        console.warn('Prediction markets opt-in failed:', e);
+                    } finally {
+                        setPmConsentOpen(false);
+                    }
+                })();
+            }}
+        />
         <motion.div
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -1485,10 +1628,38 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="text-[10px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10"
+                            className="text-[10px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10 gap-2"
                         >
-                            <span className="px-1 border border-cyan-500/30">SYS.STATUS: MONITORING</span>
-                            <span className="flex items-center gap-1"><Clock size={10} /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="px-1 border border-cyan-500/30 shrink-0">SYS.STATUS: MONITORING</span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (marketsCorrelationEnabled) {
+                                            void setPmOptIn(false).catch((err) => {
+                                                console.warn('Prediction markets opt-out failed:', err);
+                                            });
+                                        } else {
+                                            setPmConsentOpen(true);
+                                        }
+                                    }}
+                                    className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 border rounded-sm transition-colors ${
+                                        marketsCorrelationEnabled
+                                            ? 'border-purple-500/50 bg-purple-950/40 text-purple-300'
+                                            : 'border-cyan-800/40 bg-black/40 text-cyan-700 hover:text-purple-300 hover:border-purple-600/40'
+                                    }`}
+                                    title={
+                                        marketsCorrelationEnabled
+                                            ? 'Prediction market correlation on intercept stories (clearnet Polymarket/Kalshi)'
+                                            : 'Enable prediction market correlation on intercept stories'
+                                    }
+                                >
+                                    <TrendingUp size={10} />
+                                    MKT {marketsCorrelationEnabled ? 'ON' : 'OFF'}
+                                </button>
+                            </div>
+                            <span className="flex items-center gap-1 shrink-0"><Clock size={10} /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -1841,7 +2012,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
                                             <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
                                         </div>
                                     )}
-                                    {item.prediction_odds && item.prediction_odds.consensus_pct != null && (
+                                    {marketsCorrelationEnabled && item.prediction_odds && item.prediction_odds.consensus_pct != null && (
                                         <div className="mt-1 px-1.5 py-1 bg-purple-950/30 border border-purple-500/30 rounded-sm text-[11px] font-mono flex items-center gap-1.5">
                                             <span className="text-purple-400 font-bold">MKT</span>
                                             <span className="text-purple-300 truncate flex-1" title={item.prediction_odds.title}>{item.prediction_odds.title}</span>
@@ -1933,6 +2104,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, on
 
 
         </motion.div>
+        </>
     );
 }
 

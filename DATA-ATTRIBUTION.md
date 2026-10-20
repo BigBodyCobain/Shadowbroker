@@ -19,7 +19,7 @@ derivative must also be offered under ODbL and must preserve attribution.
 | Source | URL | What we use it for |
 |---|---|---|
 | adsb.lol | https://adsb.lol | Military aircraft positions, regional commercial gap-fill, route enrichment |
-| OpenStreetMap contributors | https://www.openstreetmap.org/copyright | Nominatim geocoding (LOCATE bar), CARTO basemap tiles (OSM-derived) |
+| OpenStreetMap contributors | https://www.openstreetmap.org/copyright | Nominatim geocoding (LOCATE bar), OpenFreeMap/CARTO basemap data (OSM-derived) |
 
 **Attribution requirement:** the ShadowBroker map UI displays
 "© OpenStreetMap contributors" and "adsb.lol (ODbL)" in the map attribution
@@ -34,6 +34,7 @@ These sources have their own terms; consult each link before redistributing.
 | Source | URL | License / Terms | Notes |
 |---|---|---|---|
 | OpenSky Network | https://opensky-network.org | OpenSky API terms | Commercial and private aircraft tracking |
+| Airframes.io | https://airframes.io | Airframes API terms | Optional ACARS/VDL datalink messages in aircraft dossiers |
 | CelesTrak | https://celestrak.org | Public domain / no restrictions | Satellite TLE data |
 | USGS Earthquake Hazards | https://earthquake.usgs.gov | Public domain (US Federal) | Seismic events |
 | NASA FIRMS | https://firms.modaps.eosdis.nasa.gov | NASA Open Data | Fire/thermal anomalies (VIIRS) |
@@ -44,7 +45,8 @@ These sources have their own terms; consult each link before redistributing.
 | aisstream.io | https://aisstream.io | Free-tier API terms (attribution required) | AIS vessel positions |
 | Global Fishing Watch | https://globalfishingwatch.org | CC BY 4.0 (for public data) | Fishing activity events |
 | Microsoft Planetary Computer | https://planetarycomputer.microsoft.com | Sentinel-2 / ESA Copernicus terms | Sentinel-2 imagery |
-| Copernicus CDSE (Sentinel Hub) | https://dataspace.copernicus.eu | ESA Copernicus open data terms | SAR + optical imagery |
+| Copernicus CDSE (Sentinel Hub) | https://dataspace.copernicus.eu | ESA Copernicus open data terms | SAR + optical imagery, optional road-corridor truck trends |
+| DrishX / Fisser et al. 2022 | https://github.com/sparkyniner/DRISH-X-Satellite-powered-freight-intelligence- | MIT (engine); research methodology attribution | Sentinel-2 motion-smear truck detection on major roads (opt-in) |
 | Shodan | https://www.shodan.io | Operator-supplied API key, Shodan ToS | Internet device search |
 | Smithsonian GVP | https://volcano.si.edu | Attribution required | Volcanoes |
 | OpenAQ | https://openaq.org | CC BY 4.0 | Air quality stations |
@@ -57,7 +59,7 @@ These sources have their own terms; consult each link before redistributing.
 | Meshtastic | https://meshtastic.org | Open Source | Mesh radio nodes (protocol) |
 | Meshtastic Map (Liam Cottle) | https://meshtastic.liamcottle.net | Community project (per-site terms) | Global Meshtastic node positions — polled once per day with on-disk cache trust to minimize load on this volunteer-run HTTP API |
 | APRS-IS | https://www.aprs-is.net | Open / attribution-based | Amateur radio positions |
-| CARTO basemaps | https://carto.com | CARTO attribution required | Dark map tiles (OSM-derived) |
+| OpenFreeMap / OpenMapTiles | https://openfreemap.org | OSM/OpenMapTiles attribution | Default dark/light vector basemap |\n| CARTO basemaps | https://carto.com | CARTO attribution required | Optional keyed raster basemap override |
 | Esri World Imagery | https://www.arcgis.com | Esri terms | High-res satellite basemap |
 | IODA (Georgia Tech) | https://ioda.inetintel.cc.gatech.edu | Research/academic terms | Internet outage data |
 

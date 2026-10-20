@@ -24,6 +24,30 @@ entry_points:
 requirements:
   - httpx>=0.25.0
 
+# Thin agent surface — expose only these to the LLM tool picker
+agent_surface:
+  primary_reads:
+    - sb_query.ShadowBrokerClient.ask
+    - sb_query.ShadowBrokerClient.run_playbook
+    - sb_query.ShadowBrokerClient.send_batch
+    - sb_query.ShadowBrokerClient.channel_status
+    - sb_query.ShadowBrokerClient.infonet_status
+    - sb_query.ShadowBrokerClient.list_gates
+    - sb_query.ShadowBrokerClient.read_gate_messages
+    - sb_query.ShadowBrokerClient.poll_dms
+  writes:
+    - sb_query.ShadowBrokerClient.place_pin
+    - sb_query.ShadowBrokerClient.place_pins_batch
+    - sb_query.ShadowBrokerClient.ensure_infonet_ready
+    - sb_query.ShadowBrokerClient.post_to_gate
+    - sb_query.ShadowBrokerClient.cast_vote
+    - sb_query.ShadowBrokerClient.send_encrypted_dm
+  blocked_without_confirm:
+    - search_telemetry
+    - get_telemetry
+    - get_slow_telemetry
+    - get_report
+
 # Capabilities declared
 capabilities:
   - live_telemetry          # Real-time OSINT data (flights, ships, SIGINT, etc.)

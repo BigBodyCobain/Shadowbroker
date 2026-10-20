@@ -121,6 +121,10 @@ def inject_layer_data(
     if layer not in _INJECTABLE_LAYERS:
         return {"ok": False, "detail": f"layer '{layer}' not injectable"}
 
+    mode = str(mode or "").strip().lower()
+    if mode not in {"append", "replace"}:
+        return {"ok": False, "detail": "mode must be 'append' or 'replace'"}
+
     items = list(items or [])[:200]
     if not items:
         return {"ok": False, "detail": "no items provided"}
@@ -136,16 +140,24 @@ def inject_layer_data(
         entry["_injected_at"] = now
         tagged.append(entry)
 
+    if not tagged:
+        return {"ok": False, "detail": "no valid items provided"}
+
     with _data_lock:
-        existing = latest_data.get(layer)
-        if not isinstance(existing, list):
-            existing = []
+        current = latest_data.get(layer)
+        existing = list(current) if isinstance(current, list) else []
 
         if mode == "replace":
-            existing = [e for e in existing if not e.get("_injected")]
+            existing = [
+                entry
+                for entry in existing
+                if not (isinstance(entry, dict) and entry.get("_injected"))
+            ]
 
-        existing.extend(tagged)
-        latest_data[layer] = existing
+        # Readers can hold references to published layer lists after releasing
+        # _data_lock. Build a fresh list and swap it atomically rather than
+        # mutating the published object in place with list.extend().
+        latest_data[layer] = [*existing, *tagged]
 
     bump_data_version()
 
@@ -169,7 +181,11 @@ def clear_injected_data(layer: str = "") -> dict[str, Any]:
             if not isinstance(existing, list):
                 continue
             before = len(existing)
-            latest_data[lyr] = [e for e in existing if not e.get("_injected")]
+            latest_data[lyr] = [
+                entry
+                for entry in existing
+                if not (isinstance(entry, dict) and entry.get("_injected"))
+            ]
             removed += before - len(latest_data[lyr])
 
     if removed:

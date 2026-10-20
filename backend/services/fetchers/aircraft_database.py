@@ -38,8 +38,6 @@ _S3_NS = "{http://s3.amazonaws.com/doc/2006-03-01/}"
 _REFRESH_INTERVAL_S = 5 * 24 * 3600
 _LIST_TIMEOUT_S = 30
 _DOWNLOAD_TIMEOUT_S = 600
-from services.network_utils import DEFAULT_USER_AGENT as _USER_AGENT
-
 _lock = threading.RLock()
 _aircraft_by_hex: dict[str, dict[str, str]] = {}
 _last_refresh = 0.0

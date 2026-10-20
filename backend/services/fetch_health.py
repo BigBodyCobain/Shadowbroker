@@ -92,3 +92,41 @@ def get_health_snapshot() -> Dict[str, Dict[str, Any]]:
     """Return a snapshot of current fetch health state."""
     with _lock:
         return {k: dict(v) for k, v in _health.items()}
+
+
+def get_agent_health_snapshot() -> Dict[str, Any]:
+    """Return process-local task outcomes without stored error details."""
+    tasks = {}
+    for source, entry in get_health_snapshot().items():
+        last_ok = entry.get("last_ok")
+        last_error = entry.get("last_error")
+        condition = "unknown"
+        if isinstance(last_ok, str) and last_ok and last_error is None:
+            condition = "healthy"
+        elif isinstance(last_error, str) and last_error and last_ok is None:
+            condition = "degraded"
+        elif (
+            isinstance(last_ok, str)
+            and last_ok
+            and isinstance(last_error, str)
+            and last_error
+        ):
+            if last_ok > last_error:
+                condition = "healthy"
+            elif last_error > last_ok:
+                condition = "degraded"
+        tasks[source] = {
+            "condition": condition,
+            "ok_count": entry.get("ok_count"),
+            "error_count": entry.get("error_count"),
+            "last_ok": last_ok,
+            "last_error": last_error,
+            "last_duration_ms": entry.get("last_duration_ms"),
+        }
+    return {
+        "scope": "process",
+        "persistent": False,
+        "observed_only": True,
+        "semantics": "latest_recorded_task_outcome",
+        "tasks": tasks,
+    }

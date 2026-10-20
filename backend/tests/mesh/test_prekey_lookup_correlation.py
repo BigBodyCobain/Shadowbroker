@@ -618,38 +618,32 @@ class TestFetchPrekeyBundleByLookup:
         record = _valid_bundle_record("test-agent")
         requested_urls: list[str] = []
 
-        monkeypatch.setenv("MESH_BOOTSTRAP_SEED_PEERS", "https://seed.example")
-        monkeypatch.setenv("MESH_DEFAULT_SYNC_PEERS", "")
-        monkeypatch.setenv("MESH_RELAY_PEERS", "")
-        get_settings.cache_clear()
+        def _public_lookup(lookup_token: str, **_kwargs):
+            requested_urls.append(
+                f"http://seed.onion:8000/api/mesh/dm/prekey-bundle?lookup_token={lookup_token}"
+            )
+            return {
+                "ok": True,
+                "agent_id": record["agent_id"],
+                "lookup_mode": "invite_lookup_handle",
+                "public_lookup": True,
+                "identity_dh_pub_key": record["dh_pub_key"],
+                "dh_algo": record["dh_algo"],
+                "public_key": record["public_key"],
+                "public_key_algo": record["public_key_algo"],
+                "protocol_version": record["protocol_version"],
+                "sequence": 1,
+                "bundle": record["bundle"],
+            }
 
-        class _Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self, _limit: int = -1):
-                return json.dumps(
-                    {
-                        "ok": True,
-                        "identity_dh_pub_key": record["dh_pub_key"],
-                        "dh_algo": record["dh_algo"],
-                        "public_key": record["public_key"],
-                        "public_key_algo": record["public_key_algo"],
-                        "protocol_version": record["protocol_version"],
-                        "sequence": 1,
-                        "signed_at": int(record["bundle"].get("signed_at", 0) or 0),
-                        "bundle": record["bundle"],
-                    }
-                ).encode("utf-8")
-
-        def _urlopen(request, timeout=0):
-            requested_urls.append(str(getattr(request, "full_url", "")))
-            return _Response()
-
-        monkeypatch.setattr("services.mesh.mesh_wormhole_prekey.urllib.request.urlopen", _urlopen)
+        monkeypatch.setattr(
+            "services.mesh.mesh_wormhole_prekey._fetch_dm_prekey_bundle_from_peer_lookup",
+            lambda *_args, **_kwargs: {"ok": False, "detail": "peer prekey lookup unavailable"},
+        )
+        monkeypatch.setattr(
+            "services.mesh.mesh_wormhole_prekey._fetch_dm_prekey_bundle_from_public_lookup",
+            _public_lookup,
+        )
 
         from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
 
@@ -668,33 +662,20 @@ class TestFetchPrekeyBundleByLookup:
         _isolated_relay(tmp_path, monkeypatch)
         requested_urls: list[str] = []
 
-        monkeypatch.setenv("MESH_BOOTSTRAP_SEED_PEERS", "https://seed.example")
-        monkeypatch.setenv("MESH_DEFAULT_SYNC_PEERS", "")
-        monkeypatch.setenv("MESH_RELAY_PEERS", "")
-        get_settings.cache_clear()
+        def _public_lookup(lookup_token: str, **_kwargs):
+            requested_urls.append(
+                f"http://seed.onion:8000/api/mesh/dm/prekey-bundle?lookup_token={lookup_token}"
+            )
+            return {"ok": False, "detail": "peer prekey lookup still preparing"}
 
-        class _Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self, _limit: int = -1):
-                return json.dumps(
-                    {
-                        "ok": True,
-                        "pending": True,
-                        "status": "preparing_private_lane",
-                        "detail": "transport tier insufficient",
-                    }
-                ).encode("utf-8")
-
-        def _urlopen(request, timeout=0):
-            requested_urls.append(str(getattr(request, "full_url", "")))
-            return _Response()
-
-        monkeypatch.setattr("services.mesh.mesh_wormhole_prekey.urllib.request.urlopen", _urlopen)
+        monkeypatch.setattr(
+            "services.mesh.mesh_wormhole_prekey._fetch_dm_prekey_bundle_from_peer_lookup",
+            lambda *_args, **_kwargs: {"ok": False, "detail": "peer prekey lookup unavailable"},
+        )
+        monkeypatch.setattr(
+            "services.mesh.mesh_wormhole_prekey._fetch_dm_prekey_bundle_from_public_lookup",
+            _public_lookup,
+        )
 
         from services.mesh.mesh_wormhole_prekey import fetch_dm_prekey_bundle
 
@@ -807,6 +788,16 @@ class TestFetchPrekeyBundleByLookup:
         monkeypatch.setenv("MESH_DEV_ALLOW_LEGACY_COMPAT", "true")
         monkeypatch.setenv("MESH_ALLOW_LEGACY_AGENT_ID_LOOKUP_UNTIL", "2026-06-01")
         get_settings.cache_clear()
+        monkeypatch.setattr(
+            mesh_wormhole_prekey,
+            "_validate_bundle_record",
+            lambda *_args, **_kwargs: (True, ""),
+        )
+        monkeypatch.setattr(
+            mesh_wormhole_prekey,
+            "legacy_agent_id_lookup_blocked",
+            lambda: False,
+        )
         mesh_wormhole_prekey._WARNED_LEGACY_PREKEY_LOOKUPS.clear()
         caplog.clear()
         caplog.set_level("WARNING")
@@ -874,3 +865,55 @@ class TestFetchPrekeyBundleByLookup:
             )
         finally:
             get_settings.cache_clear()
+
+
+def test_invite_lookup_peer_order_prefers_active_over_bootstrap(monkeypatch):
+    from services.mesh import mesh_wormhole_prekey as prekey_mod
+
+    monkeypatch.setenv(
+        "MESH_BOOTSTRAP_SEED_PEERS",
+        "http://seed-a.onion:8000,http://seed-b.onion:8000,http://seed-c.onion:8000,http://seed-d.onion:8000",
+    )
+    monkeypatch.setattr(
+        "services.mesh.mesh_router.active_sync_peer_urls",
+        lambda: [
+            "http://active-peer.onion:8000",
+            "http://another-active.onion:8000",
+        ],
+    )
+    monkeypatch.setattr(
+        prekey_mod,
+        "_discovered_push_peer_urls",
+        lambda **kwargs: [],
+    )
+    get_settings.cache_clear()
+
+    ordered = prekey_mod._prioritized_invite_lookup_peer_urls(
+        preferred=["http://pinned-peer.onion:8000"],
+    )
+
+    assert ordered[0] == "http://pinned-peer.onion:8000"
+    assert ordered[1:3] == [
+        "http://active-peer.onion:8000",
+        "http://another-active.onion:8000",
+    ]
+    assert ordered[-prekey_mod._INVITE_LOOKUP_MAX_BOOTSTRAP_PEERS:] == [
+        "http://seed-a.onion:8000",
+        "http://seed-b.onion:8000",
+        "http://seed-c.onion:8000",
+    ]
+    assert "http://seed-d.onion:8000" not in ordered
+    get_settings.cache_clear()
+
+
+def test_invite_export_includes_lookup_peer_url(tmp_path, monkeypatch):
+    _isolated_invite_state(tmp_path, monkeypatch)
+    monkeypatch.setenv("MESH_PUBLIC_PEER_URL", "http://owner-node.onion:8000")
+
+    from services.mesh.mesh_wormhole_identity import export_wormhole_dm_invite
+
+    exported = export_wormhole_dm_invite(label="routing-test")
+    payload = dict(exported.get("invite", {}).get("payload") or {})
+
+    assert payload.get("prekey_lookup_handle")
+    assert payload.get("lookup_peer_url") == "http://owner-node.onion:8000"

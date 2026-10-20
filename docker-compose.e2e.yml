@@ -1,0 +1,19 @@
+# Lean local backend for live DM E2E — Infonet swarm + wormhole without OSINT fetchers.
+# Pair with docker-compose.override.yml (local build + fleet secrets).
+services:
+  backend:
+    environment:
+      MESH_ONLY: "true"
+      # DM E2E uses direct onion relay_push_peer_urls — skip fleet hashchain sync
+      # (hundreds of dead manifest peers wedge /api/wormhole/status during Tor warmup).
+      SHADOWBROKER_MESH_NODE_RUNTIME: "false"
+      MESH_ARTI_ENABLED: "true"
+      MESH_INFONET_FLEET_JOIN: "false"
+      MESH_INFONET_FLEET_JOIN_DISABLED: "true"
+      PRIVACY_CORE_DEV_OVERRIDE: "true"
+      MESH_RELAY_PUSH_TIMEOUT_S: "300"
+      MESH_RELAY_MAX_FAILURES: "12"
+      MESH_DM_PENDING_PER_SENDER_LIMIT: "8"
+      MESH_DM_PERSIST_SPOOL: "true"
+      WORMHOLE_STARTUP_DEADLINE_S: "90"
+      MESH_WORMHOLE_TRUST_FILE_READY: "true"

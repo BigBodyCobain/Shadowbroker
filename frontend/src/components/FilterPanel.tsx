@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Minus,
   Plus,
@@ -17,10 +17,16 @@ import { useDataKeys } from '@/hooks/useDataStore';
 import { airlineNames } from '../lib/airlineCodes';
 import { useTranslation } from '@/i18n';
 import { trackedCategories, trackedOperators } from '../lib/trackedData';
+import type { ActiveLayers } from '@/types/dashboard';
+
+type LayerKey = keyof ActiveLayers;
 
 interface FilterPanelProps {
   activeFilters: Record<string, string[]>;
   setActiveFilters: (filters: Record<string, string[]>) => void;
+  /** Optional: lets the modal warn when the filtered layer is switched off. */
+  activeLayers?: ActiveLayers;
+  onEnableLayers?: (keys: LayerKey[]) => void;
 }
 
 type ModalConfig = {
@@ -28,6 +34,8 @@ type ModalConfig = {
   icon: React.ReactNode;
   accentColor: string;
   accentColorName: string;
+  /** Layer toggles this filter acts on; the filter is inert while all are off. */
+  layers: { keys: LayerKey[]; label: string }[];
   fields: {
     key: string;
     label: string;
@@ -36,7 +44,12 @@ type ModalConfig = {
   }[];
 };
 
-const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFilters }: FilterPanelProps) {
+const FilterPanel = React.memo(function FilterPanel({
+  activeFilters,
+  setActiveFilters,
+  activeLayers,
+  onEnableLayers,
+}: FilterPanelProps) {
   const { t } = useTranslation();
   const data = useDataKeys(['commercial_flights', 'private_flights', 'private_jets', 'military_flights', 'tracked_flights', 'ships'] as const);
   const [isMinimized, setIsMinimized] = useState(true);
@@ -162,6 +175,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
       icon: <Plane size={13} className="text-cyan-400" />,
       accentColor: '#00bcd4',
       accentColorName: 'cyan',
+      layers: [{ keys: ['flights'], label: 'Commercial Flights' }],
       fields: [
         { key: 'commercial_departure', label: 'DEPARTURE', options: uniqueOrigins },
         { key: 'commercial_arrival', label: 'ARRIVAL', options: uniqueDestinations },
@@ -178,6 +192,10 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
       icon: <Plane size={13} className="text-orange-400" />,
       accentColor: '#FF8C00',
       accentColorName: 'orange',
+      layers: [
+        { keys: ['private'], label: 'Private Aircraft' },
+        { keys: ['jets'], label: 'Private Jets' },
+      ],
       fields: [
         { key: 'private_callsign', label: 'CALLSIGN / REG', options: uniquePrivateCallsigns },
         {
@@ -192,6 +210,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
       icon: <Shield size={13} className="text-yellow-400" />,
       accentColor: '#EAB308',
       accentColorName: 'yellow',
+      layers: [{ keys: ['military'], label: 'Military Flights' }],
       fields: [
         { key: 'military_country', label: 'COUNTRY / REG', options: uniqueMilCountries },
         { key: 'military_aircraft_type', label: 'AIRCRAFT TYPE', options: uniqueMilAircraftTypes },
@@ -202,6 +221,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
       icon: <Star size={13} className="text-pink-400" />,
       accentColor: '#EC4899',
       accentColorName: 'pink',
+      layers: [{ keys: ['tracked'], label: 'Tracked Aircraft' }],
       fields: [
         { key: 'tracked_category', label: 'CATEGORY', options: uniqueTrackedCategories },
         { key: 'tracked_owner', label: 'OPERATOR / ENTITY', options: uniqueTrackedOperators },
@@ -212,6 +232,12 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
       icon: <Ship size={13} className="text-blue-400" />,
       accentColor: '#3B82F6',
       accentColorName: 'blue',
+      layers: [
+        {
+          keys: ['ships_military', 'ships_cargo', 'ships_civilian', 'ships_passenger', 'ships_tracked_yachts'],
+          label: 'Maritime',
+        },
+      ],
       fields: [
         { key: 'ship_name', label: 'VESSEL NAME', options: uniqueShipNames },
         { key: 'ship_type', label: 'VESSEL TYPE', options: uniqueVesselTypes },
@@ -220,6 +246,24 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
   };
 
   const clearAll = () => setActiveFilters({});
+
+  // Unknown layer state (prop omitted) counts as enabled so nothing is flagged.
+  const isLayerEnabled = (keys: LayerKey[]) =>
+    !activeLayers || keys.some((key) => activeLayers[key]);
+  const isSectionEnabled = (config: ModalConfig) =>
+    config.layers.some((layer) => isLayerEnabled(layer.keys));
+  const modalLayers = (config: ModalConfig) =>
+    activeLayers
+      ? config.layers.map((layer) => ({
+          id: layer.keys.join('+'),
+          label: layer.label,
+          enabled: isLayerEnabled(layer.keys),
+        }))
+      : undefined;
+  const enableModalLayer = (config: ModalConfig, id: string) => {
+    const layer = config.layers.find((l) => l.keys.join('+') === id);
+    if (layer && onEnableLayers) onEnableLayers(layer.keys);
+  };
 
   const activeCount = Object.values(activeFilters).reduce((acc, arr) => acc + arr.length, 0);
 
@@ -346,6 +390,7 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
 
               {sections.map((section) => {
                 const count = getCountForCategory(section.key);
+                const layerOff = !isSectionEnabled(modalConfigs[section.key]);
                 return (
                   <div
                     key={section.key}
@@ -363,6 +408,11 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
                             className={`text-[11px] ${bgColors[section.color]} ${textColors[section.color]} px-1.5 py-0.5 rounded-sm`}
                           >
                             {count}
+                          </span>
+                        )}
+                        {layerOff && (
+                          <span className="text-[9px] text-amber-400/80 tracking-widest">
+                            LAYER OFF
                           </span>
                         )}
                       </div>
@@ -390,6 +440,10 @@ const FilterPanel = React.memo(function FilterPanel({ activeFilters, setActiveFi
             accentColorName={modalConfigs[openModal].accentColorName}
             fields={modalConfigs[openModal].fields}
             activeFilters={activeFilters}
+            layers={modalLayers(modalConfigs[openModal])}
+            onEnableLayer={
+              onEnableLayers ? (id) => enableModalLayer(modalConfigs[openModal], id) : undefined
+            }
             onApply={(filters) => handleModalApply(openModal, filters)}
             onClose={() => setOpenModal(null)}
           />

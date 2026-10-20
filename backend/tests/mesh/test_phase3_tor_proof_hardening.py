@@ -51,6 +51,9 @@ class _FakeSocket:
     def recv(self, _n: int) -> bytes:
         return self._handshake_response
 
+    def settimeout(self, _timeout: float) -> None:
+        return None
+
 
 class _FakeResponse:
     def __init__(self, *, ok: bool, payload: dict[str, Any], status_code: int = 200) -> None:
@@ -76,8 +79,10 @@ def _stub_settings(monkeypatch, *, enabled: bool = True, port: int = 9050) -> No
     monkeypatch.setattr(
         "services.config.get_settings", _get_settings, raising=False
     )
-    # Reset proof cache so each test starts clean.
+    # Reset proof/status cache so each test starts clean.
     wormhole_supervisor._ARTI_PROOF_CACHE.update({"port": 0, "ok": False, "ts": 0.0})
+    wormhole_supervisor._ARTI_STATUS_CACHE.update({"port": 0, "ready": False, "ts": 0.0})
+    wormhole_supervisor._ARTI_SOCKS_FAILURES = 0
 
 
 # ---------------------------------------------------------------------------

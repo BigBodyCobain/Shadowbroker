@@ -48,6 +48,8 @@ const EMPTY_RESULT: StaticMapLayersResult = {
   uapSightingsGeoJSON: null,
   wastewaterGeoJSON: null,
   crowdthreatGeoJSON: null,
+  malwareGeoJSON: null,
+  telegramOsintGeoJSON: null,
 };
 
 let worker: Worker | null = null;

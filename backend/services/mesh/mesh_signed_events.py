@@ -463,8 +463,26 @@ def _apply_content_private_transport_lock_policy(prepared: "PreparedSignedWrite"
     except Exception:
         current_tier = "public_degraded"
 
+    lock_to_satisfy = normalized
+    if prepared.kind in {
+        SignedWriteKind.DM_POLL,
+        SignedWriteKind.DM_COUNT,
+        SignedWriteKind.DM_SEND,
+        SignedWriteKind.DM_REGISTER,
+        SignedWriteKind.DM_BLOCK,
+        SignedWriteKind.DM_WITNESS,
+    }:
+        from services.mesh.mesh_privacy_policy import release_lane_required_tier
+
+        lane_cap = release_lane_required_tier("dm")
+        # Clients sign private_strong; Tor-only nodes cap DM at
+        # private_transitional. Accept when live transport meets the
+        # strongest tier this node can offer on the DM lane.
+        if not transport_tier_is_sufficient(lane_cap, normalized):
+            lock_to_satisfy = lane_cap
+
     if (
-        not transport_tier_is_sufficient(current_tier, normalized)
+        not transport_tier_is_sufficient(current_tier, lock_to_satisfy)
         and prepared.kind not in _QUEUEABLE_CONTENT_PRIVATE_KINDS
     ):
         metrics_inc("signed_write_transport_lock_tier_mismatch")

@@ -111,42 +111,101 @@ def test_dm_send_keeps_encrypted_payloads_off_ledger(tmp_path, monkeypatch):
     assert append_called["value"] is False
 
 
-def test_dm_request_send_rejects_unverified_first_contact(tmp_path, monkeypatch):
+def test_dm_request_send_allows_unverified_first_contact(tmp_path, monkeypatch):
     import main
     from services import wormhole_supervisor
     from services.mesh import mesh_dm_relay, mesh_wormhole_contacts
 
     monkeypatch.setattr(mesh_wormhole_contacts, "DATA_DIR", tmp_path)
     monkeypatch.setattr(mesh_wormhole_contacts, "CONTACTS_FILE", tmp_path / "wormhole_dm_contacts.json")
+    from services.mesh import mesh_hashchain
+
+    append_called = {"value": False}
+
     monkeypatch.setattr(main, "_verify_signed_write", lambda **kwargs: (True, ""))
     monkeypatch.setattr(main, "_secure_dm_enabled", lambda: False)
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: "private_transitional")
     monkeypatch.setattr(mesh_dm_relay.dm_relay, "consume_nonce", lambda *_args, **_kwargs: (True, "ok"))
+    monkeypatch.setattr(mesh_hashchain.infonet, "validate_and_set_sequence", lambda *_args, **_kwargs: (True, ""))
 
+    def fake_append(**kwargs):
+        append_called["value"] = True
+        return {"event_id": "dm-request-e2e"}
+
+    monkeypatch.setattr(mesh_hashchain.infonet, "append_private_dm_message", fake_append)
+    monkeypatch.setattr(
+        main,
+        "consume_wormhole_dm_sender_token",
+        lambda **kwargs: {
+            "ok": True,
+            "sender_token_hash": "reqtok-first-contact",
+            "sender_id": "alice",
+            "public_key": "cHVi",
+            "public_key_algo": "Ed25519",
+            "protocol_version": "infonet/2",
+            "recipient_id": kwargs.get("recipient_id", "") or "bob",
+            "delivery_class": kwargs.get("delivery_class", "") or "request",
+        },
+    )
+    monkeypatch.setattr(
+        mesh_dm_relay.dm_relay,
+        "deposit",
+        lambda **kwargs: {
+            "ok": True,
+            "msg_id": kwargs.get("msg_id", ""),
+            "detail": "stored",
+        },
+    )
+
+    from services.mesh.mesh_protocol import build_signed_context
+
+    timestamp = int(time.time())
+    payload = {
+        "recipient_id": "bob",
+        "delivery_class": "request",
+        "recipient_token": "",
+        "ciphertext": "x3dh1:opaque",
+        "msg_id": "m2",
+        "timestamp": timestamp,
+        "format": "x3dh1",
+        "transport_lock": "private_strong",
+    }
+    signed_context = build_signed_context(
+        event_type="dm_message",
+        kind="dm_send",
+        endpoint="/api/mesh/dm/send",
+        lane_floor="private_strong",
+        sequence_domain="dm_send",
+        node_id="alice",
+        sequence=1,
+        payload=payload,
+        recipient_id="bob",
+    )
     req = _json_request(
         "/api/mesh/dm/send",
         {
-            "sender_id": "alice",
-            "recipient_id": "bob",
+            "sender_id": "",
+            "sender_token": "opaque-request-token",
+            "recipient_id": "",
             "delivery_class": "request",
             "recipient_token": "",
             "ciphertext": "x3dh1:opaque",
+            "format": "x3dh1",
             "msg_id": "m2",
-            "timestamp": int(time.time()),
-            "public_key": "cHVi",
-            "public_key_algo": "Ed25519",
+            "timestamp": timestamp,
+            "public_key": "",
+            "public_key_algo": "",
             "signature": "sig",
             "sequence": 1,
-            "protocol_version": "infonet/2",
+            "protocol_version": "",
             "transport_lock": "private_strong",
+            "signed_context": signed_context,
         },
     )
 
     response = asyncio.run(main.dm_send(req))
 
-    assert response["ok"] is False
-    assert response["detail"] == "signed invite or SAS verification required before secure first contact"
-    assert response["trust_level"] == "unpinned"
+    assert response["ok"] is True
 
 
 def test_dm_key_registration_keeps_key_material_off_ledger(monkeypatch):

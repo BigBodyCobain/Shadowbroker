@@ -1350,6 +1350,7 @@ export interface Contact {
   invitePinnedDhPubKey?: string;
   invitePinnedDhAlgo?: string;
   invitePinnedPrekeyLookupHandle?: string;
+  invitePinnedLookupPeerUrl?: string;
   invitePinnedRootFingerprint?: string;
   invitePinnedRootManifestFingerprint?: string;
   invitePinnedRootWitnessPolicyFingerprint?: string;
@@ -1441,6 +1442,7 @@ function sanitizeContact(contact: Partial<Contact> | undefined): Contact {
     invitePinnedDhPubKey: String(contact?.invitePinnedDhPubKey || ''),
     invitePinnedDhAlgo: String(contact?.invitePinnedDhAlgo || ''),
     invitePinnedPrekeyLookupHandle: String(contact?.invitePinnedPrekeyLookupHandle || ''),
+    invitePinnedLookupPeerUrl: String(contact?.invitePinnedLookupPeerUrl || ''),
     invitePinnedRootFingerprint: String(contact?.invitePinnedRootFingerprint || ''),
     invitePinnedRootManifestFingerprint: String(contact?.invitePinnedRootManifestFingerprint || ''),
     invitePinnedRootWitnessPolicyFingerprint: String(
@@ -1772,6 +1774,35 @@ export function removeContact(agentId: string): void {
   saveContacts(contacts);
   if (shouldUseWormholeContacts()) {
     void deleteContactFromWormhole(agentId);
+  }
+}
+
+export async function severContact(
+  agentId: string,
+  options: { block?: boolean } = {},
+): Promise<void> {
+  const peerId = String(agentId || '').trim();
+  if (!peerId) return;
+  await controlPlaneJson(`/api/wormhole/dm/contact/${encodeURIComponent(peerId)}/sever`, {
+    method: 'POST',
+    requireAdminSession: false,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ block: Boolean(options.block) }),
+  });
+  const contacts = getContacts();
+  if (!(peerId in contacts)) return;
+  contacts[peerId] = sanitizeContact({
+    ...contacts[peerId],
+    sharedAlias: undefined,
+    previousSharedAliases: [],
+    pendingSharedAlias: undefined,
+    sharedAliasGraceUntil: undefined,
+    sharedAliasRotatedAt: undefined,
+    ...(options.block ? { blocked: true } : {}),
+  });
+  saveContacts(contacts);
+  if (shouldUseWormholeContacts()) {
+    await persistContactToWormhole(peerId, contacts[peerId]);
   }
 }
 

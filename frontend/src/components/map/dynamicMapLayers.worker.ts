@@ -1,9 +1,10 @@
 /// <reference lib="webworker" />
 
-import { interpolatePosition } from '@/utils/positioning';
 import { classifyAircraft } from '@/utils/aircraftClassification';
 import type { Flight, Ship, SigintSignal } from '@/types/dashboard';
 import type { FlightLayerConfig } from '@/components/map/geoJSONBuilders';
+import { filterShipsByActiveFilters } from '@/components/map/shipFilters';
+import { shipFeatureId, trackedFlightFeatureId } from '@/components/map/featureIds';
 
 type BoundsTuple = [number, number, number, number];
 type FC = GeoJSON.FeatureCollection | null;
@@ -26,6 +27,8 @@ export type DynamicMapLayersDataPayload = DynamicMapLayersPayload;
 
 export type DynamicMapLayersBuildPayload = {
   bounds: BoundsTuple;
+  /** When true, /api/live-data/fast already bbox-filtered this payload — skip client cull. */
+  serverBboxScoped?: boolean;
   dtSeconds: number;
   trackedIcaos: string[];
   activeLayers: {
@@ -96,8 +99,6 @@ const EMPTY_RESULT: DynamicMapLayersResult = {
   meshtasticGeoJSON: null,
   aprsGeoJSON: null,
 };
-
-const UNBOUNDED_INTERP_SECONDS = Number.POSITIVE_INFINITY;
 
 const TRACKED_GROUNDED_ICON_MAP: Record<string, string> = {
   airliner: 'svgAirlinerGrey',
@@ -173,6 +174,16 @@ function inView(lat: number, lng: number, bounds: BoundsTuple): boolean {
   return lng >= bounds[0] && lng <= bounds[2] && lat >= bounds[1] && lat <= bounds[3];
 }
 
+function passesViewFilter(
+  lat: number,
+  lng: number,
+  bounds: BoundsTuple,
+  serverBboxScoped: boolean,
+): boolean {
+  if (serverBboxScoped) return true;
+  return inView(lat, lng, bounds);
+}
+
 function cleanLabel(value: unknown): string {
   if (typeof value !== 'string' && typeof value !== 'number') return '';
   return String(value).trim();
@@ -201,54 +212,26 @@ function flightDisplayLabel(f: Flight): string {
   return '';
 }
 
-function interpFlightPosition(f: Flight, dtSeconds: number): [number, number] {
-  if (!f.speed_knots || f.speed_knots <= 0 || dtSeconds <= 0) return [f.lng, f.lat];
-  if (f.alt != null && f.alt <= 100) return [f.lng, f.lat];
-  if (dtSeconds < 1) return [f.lng, f.lat];
-  const heading = f.true_track || f.heading || 0;
-  const [newLat, newLng] = interpolatePosition(
-    f.lat,
-    f.lng,
-    heading,
-    f.speed_knots,
-    dtSeconds,
-    0,
-    UNBOUNDED_INTERP_SECONDS,
-  );
-  return [newLng, newLat];
-}
-
-function interpShipPosition(s: Ship, dtSeconds: number): [number, number] {
-  if (typeof s.sog !== 'number' || !s.sog || s.sog <= 0 || dtSeconds <= 0) return [s.lng, s.lat];
-  const heading = (typeof s.cog === 'number' ? s.cog : 0) || s.heading || 0;
-  const [newLat, newLng] = interpolatePosition(
-    s.lat,
-    s.lng,
-    heading,
-    s.sog,
-    dtSeconds,
-    0,
-    UNBOUNDED_INTERP_SECONDS,
-  );
-  return [newLng, newLat];
-}
-
 function buildFlightLayerGeoJSONWorker(
   flights: Flight[] | undefined,
   config: FlightLayerConfig,
   bounds: BoundsTuple,
   dtSeconds: number,
   trackedIcaos: Set<string>,
+  serverBboxScoped: boolean,
 ): FC {
   if (!flights?.length) return null;
   const { colorMap, groundedMap, typeLabel, idPrefix, milSpecialMap, useTrackHeading } = config;
   const features: GeoJSON.Feature[] = [];
 
+  // Geometry is stamped at the reported position (dt=0). Main-thread
+  // applyDynamicLayerInterp dead-reckons between polls using baseLat/spd/hdg
+  // so we do not rebuild this FeatureCollection every interp tick.
+  void dtSeconds;
   for (let i = 0; i < flights.length; i += 1) {
     const f = flights[i];
     if (f.lat == null || f.lng == null) continue;
-    const [iLng, iLat] = interpFlightPosition(f, dtSeconds);
-    if (!inView(iLat, iLng, bounds)) continue;
+    if (!passesViewFilter(f.lat, f.lng, bounds, serverBboxScoped)) continue;
     if (f.icao24 && trackedIcaos.has(f.icao24.toLowerCase())) continue;
 
     const acType = classifyAircraft(f.model, f.aircraft_category);
@@ -276,8 +259,14 @@ function buildFlightLayerGeoJSONWorker(
         callsign: flightDisplayLabel(f),
         rotation,
         iconId,
+        kind: 'flight',
+        baseLat: f.lat,
+        baseLng: f.lng,
+        spd: f.speed_knots ?? null,
+        hdg: rotation,
+        alt: f.alt ?? null,
       },
-      geometry: { type: 'Point', coordinates: [iLng, iLat] },
+      geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
     });
   }
 
@@ -288,15 +277,16 @@ function buildTrackedFlightsGeoJSONWorker(
   flights: Flight[] | undefined,
   bounds: BoundsTuple,
   dtSeconds: number,
+  serverBboxScoped: boolean,
 ): FC {
   if (!flights?.length) return null;
   const features: GeoJSON.Feature[] = [];
 
+  void dtSeconds;
   for (let i = 0; i < flights.length; i += 1) {
     const f = flights[i];
     if (f.lat == null || f.lng == null) continue;
-    const [lng, lat] = interpFlightPosition(f, dtSeconds);
-    if (!inView(lat, lng, bounds)) continue;
+    if (!passesViewFilter(f.lat, f.lng, bounds, serverBboxScoped)) continue;
 
     const alertColor = ('alert_color' in f ? f.alert_color : '') || 'white';
     const acType = classifyAircraft(f.model, f.aircraft_category);
@@ -312,17 +302,24 @@ function buildTrackedFlightsGeoJSONWorker(
           TRACKED_ICON_MAP.airliner[alertColor] ||
           'svgAirlinerWhite';
     const displayName = flightDisplayLabel(f);
+    const rotation = f.heading || 0;
 
     features.push({
       type: 'Feature',
       properties: {
-        id: f.icao24 || i,
+        id: trackedFlightFeatureId(f, `tracked-${i}`),
         type: 'tracked_flight',
         callsign: String(displayName),
-        rotation: f.heading || 0,
+        rotation,
         iconId,
+        kind: 'flight',
+        baseLat: f.lat,
+        baseLng: f.lng,
+        spd: f.speed_knots ?? null,
+        hdg: rotation,
+        alt: f.alt ?? null,
       },
-      geometry: { type: 'Point', coordinates: [lng, lat] },
+      geometry: { type: 'Point', coordinates: [f.lng, f.lat] },
     });
   }
 
@@ -334,6 +331,7 @@ function buildShipsGeoJSONWorker(
   activeLayers: DynamicMapLayersBuildPayload['activeLayers'],
   bounds: BoundsTuple,
   dtSeconds: number,
+  serverBboxScoped: boolean,
 ): FC {
   if (
     !ships?.length ||
@@ -348,12 +346,12 @@ function buildShipsGeoJSONWorker(
     return null;
   }
 
+  void dtSeconds;
   const features: GeoJSON.Feature[] = [];
   for (let i = 0; i < ships.length; i += 1) {
     const s = ships[i];
     if (s.lat == null || s.lng == null) continue;
-    const [iLng, iLat] = interpShipPosition(s, dtSeconds);
-    if (!inView(iLat, iLng, bounds)) continue;
+    if (!passesViewFilter(s.lat, s.lng, bounds, serverBboxScoped)) continue;
     if (s.type === 'carrier') continue;
 
     const isTrackedYacht = Boolean(s.yacht_alert);
@@ -374,16 +372,22 @@ function buildShipsGeoJSONWorker(
     else if (s.type === 'yacht' || isPassenger) iconId = 'svgShipWhite';
     else if (isMilitary) iconId = 'svgShipAmber';
 
+    const rotation = s.heading || (typeof s.cog === 'number' ? s.cog : 0) || 0;
     features.push({
       type: 'Feature',
       properties: {
-        id: s.mmsi || s.name || `ship-${i}`,
+        id: shipFeatureId(s, `ship-${i}`),
         type: 'ship',
         name: s.name,
-        rotation: s.heading || 0,
+        rotation,
         iconId,
+        kind: 'ship',
+        baseLat: s.lat,
+        baseLng: s.lng,
+        spd: typeof s.sog === 'number' ? s.sog : null,
+        hdg: rotation,
       },
-      geometry: { type: 'Point', coordinates: [iLng, iLat] },
+      geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
     });
   }
 
@@ -394,6 +398,7 @@ function buildSigintGeoJSONWorker(
   signals: SigintSignal[] | undefined,
   source: 'meshtastic' | 'aprs',
   bounds: BoundsTuple,
+  serverBboxScoped: boolean,
 ): FC {
   if (!signals?.length) return null;
   const wanted =
@@ -405,7 +410,7 @@ function buildSigintGeoJSONWorker(
   for (let i = 0; i < signals.length; i += 1) {
     const sig = signals[i];
     if (!wanted(sig) || sig.lat == null || sig.lng == null) continue;
-    if (!inView(sig.lat, sig.lng, bounds)) continue;
+    if (!passesViewFilter(sig.lat, sig.lng, bounds, serverBboxScoped)) continue;
     features.push({
       type: 'Feature',
       properties: {
@@ -520,16 +525,7 @@ function applyFilters(activeFilters: Record<string, string[]> | undefined) {
   }
 
   // ── Ships ──
-  let ships = dynamicData.ships;
-  if (ships && (has('ship_name') || has('ship_type'))) {
-    const nameSet = has('ship_name') ? set('ship_name') : null;
-    const typeSet = has('ship_type') ? set('ship_type') : null;
-    ships = ships.filter((s: any) => {
-      if (nameSet && !nameSet.has(s.name)) return false;
-      if (typeSet && !typeSet.has(s.type)) return false;
-      return true;
-    });
-  }
+  const ships = dynamicData.ships ? filterShipsByActiveFilters(dynamicData.ships, f) : dynamicData.ships;
 
   return { commercial, private_, jets, military, tracked, ships };
 }
@@ -537,6 +533,7 @@ function applyFilters(activeFilters: Record<string, string[]> | undefined) {
 function buildDynamicLayers(payload: DynamicMapLayersBuildPayload): DynamicMapLayersResult {
   const trackedIcaos = new Set(payload.trackedIcaos);
   const filtered = applyFilters(payload.activeFilters);
+  const serverBboxScoped = Boolean(payload.serverBboxScoped);
   return {
     commercialFlightsGeoJSON: payload.activeLayers.flights
       ? buildFlightLayerGeoJSONWorker(
@@ -545,6 +542,7 @@ function buildDynamicLayers(payload: DynamicMapLayersBuildPayload): DynamicMapLa
           payload.bounds,
           payload.dtSeconds,
           trackedIcaos,
+          serverBboxScoped,
         )
       : null,
     privateFlightsGeoJSON: payload.activeLayers.private
@@ -554,6 +552,7 @@ function buildDynamicLayers(payload: DynamicMapLayersBuildPayload): DynamicMapLa
           payload.bounds,
           payload.dtSeconds,
           trackedIcaos,
+          serverBboxScoped,
         )
       : null,
     privateJetsGeoJSON: payload.activeLayers.jets
@@ -563,6 +562,7 @@ function buildDynamicLayers(payload: DynamicMapLayersBuildPayload): DynamicMapLa
           payload.bounds,
           payload.dtSeconds,
           trackedIcaos,
+          serverBboxScoped,
         )
       : null,
     militaryFlightsGeoJSON: payload.activeLayers.military
@@ -572,22 +572,29 @@ function buildDynamicLayers(payload: DynamicMapLayersBuildPayload): DynamicMapLa
           payload.bounds,
           payload.dtSeconds,
           trackedIcaos,
+          serverBboxScoped,
         )
       : null,
     trackedFlightsGeoJSON: payload.activeLayers.tracked
-      ? buildTrackedFlightsGeoJSONWorker(filtered.tracked, payload.bounds, payload.dtSeconds)
+      ? buildTrackedFlightsGeoJSONWorker(
+          filtered.tracked,
+          payload.bounds,
+          payload.dtSeconds,
+          serverBboxScoped,
+        )
       : null,
     shipsGeoJSON: buildShipsGeoJSONWorker(
       filtered.ships,
       payload.activeLayers,
       payload.bounds,
       payload.dtSeconds,
+      serverBboxScoped,
     ),
     meshtasticGeoJSON: payload.activeLayers.sigint_meshtastic
-      ? buildSigintGeoJSONWorker(dynamicData.sigint, 'meshtastic', payload.bounds)
+      ? buildSigintGeoJSONWorker(dynamicData.sigint, 'meshtastic', payload.bounds, serverBboxScoped)
       : null,
     aprsGeoJSON: payload.activeLayers.sigint_aprs
-      ? buildSigintGeoJSONWorker(dynamicData.sigint, 'aprs', payload.bounds)
+      ? buildSigintGeoJSONWorker(dynamicData.sigint, 'aprs', payload.bounds, serverBboxScoped)
       : null,
   };
 }
