@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   clearAdminSessionToken,
@@ -53,7 +54,9 @@ async function verifyAdminKey(
         + 'environment and restart.',
     };
   }
-  if (adminKey !== configuredAdmin) {
+  const presented = Buffer.from(String(adminKey || ''));
+  const expected = Buffer.from(configuredAdmin);
+  if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
     return { ok: false, detail: 'Invalid admin key' };
   }
   return { ok: true };

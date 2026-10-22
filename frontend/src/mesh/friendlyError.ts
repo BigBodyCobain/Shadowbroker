@@ -29,7 +29,7 @@ const RULES: Rule[] = [
   },
   {
     test: has('control_plane_request_failed:401', 'control_plane_request_failed:403', 'access denied', 'forbidden'),
-    text: 'This action is only available on the computer running ShadowBroker.',
+    text: 'This needs operator access. On the computer running ShadowBroker it works directly; from another device, sign in with the admin key in Settings first.',
   },
   {
     test: has(

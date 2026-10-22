@@ -699,6 +699,19 @@ Open `http://localhost:3000` to view the dashboard.
 > `BACKEND_PORT=8001` in `.env`; leave `BACKEND_URL` as `http://backend:8000`
 > because that is the Docker-internal port.
 >
+> **Sharing the dashboard on your network** (`make up-lan`, or `BIND=0.0.0.0`
+> with `SHADOWBROKER_LAN_MODE=1`): set a strong `ADMIN_KEY` first. In LAN mode
+> the dashboard no longer trusts browsers automatically, because it cannot tell
+> your browser from another device on the network; every browser, including
+> yours, signs in once with the admin key in Settings. If you bind to `0.0.0.0`
+> *without* LAN mode, anyone who can open the dashboard gets full operator
+> control (messages, contacts, gate keys and settings).
+>
+> **Backend behind nginx/Caddy on the same machine** (no Docker): every request
+> then arrives from `127.0.0.1`, which the backend trusts as the local operator.
+> Set `SHADOWBROKER_UNTRUSTED_LOOPBACK=true` and a strong `ADMIN_KEY` so
+> operator routes require the key. The Docker relay does not need this.
+>
 > **Running the backend outside Docker** (`cd backend && python main.py`):
 > the dev server binds **loopback only** (`127.0.0.1:8000`) so other machines on
 > your LAN cannot hit admin/local-trust routes with an empty `ADMIN_KEY`. Set

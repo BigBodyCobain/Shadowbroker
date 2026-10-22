@@ -190,7 +190,19 @@ function isSameOriginOrNonBrowser(req: NextRequest): boolean {
   }
 }
 
+function lanModeEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.SHADOWBROKER_LAN_MODE || '')
+      .trim()
+      .toLowerCase(),
+  );
+}
+
 function canUseEnvAdminKey(req: NextRequest, pathSegments: string[]): boolean {
+  // LAN mode: other devices on the network reach this proxy too, and it cannot
+  // tell them apart from the local browser (X-Forwarded-For is client-supplied).
+  // Only signed-in admin sessions get the key.
+  if (lanModeEnabled()) return false;
   const joined = pathSegments.join('/');
   const origin = req.headers.get('origin');
 

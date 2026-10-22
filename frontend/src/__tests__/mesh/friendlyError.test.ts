@@ -14,7 +14,7 @@ describe('friendlyInfonetError', () => {
   });
 
   it('maps control plane status codes', () => {
-    expect(friendlyInfonetError('control_plane_request_failed:403')).toMatch(/only available on the computer/);
+    expect(friendlyInfonetError('control_plane_request_failed:403')).toMatch(/needs operator access/);
     expect(friendlyInfonetError(new Error('Failed to fetch'))).toMatch(/Could not reach/);
     expect(friendlyInfonetError('control_plane_rate_limited')).toMatch(/Wait a few seconds/);
   });

@@ -243,7 +243,20 @@ def _is_local_or_docker(host: str) -> bool:
     return host in {"127.0.0.1", "::1", "localhost"}
 
 
+def _lan_mode_enabled() -> bool:
+    """Dashboard is shared on the network (``make up-lan``).
+
+    The frontend proxy cannot tell which browser is on this machine (Next.js
+    forwards client-supplied X-Forwarded-For verbatim), so in LAN mode the
+    frontend container is no longer implicitly the operator: every browser
+    signs in with ADMIN_KEY.
+    """
+    return str(os.environ.get("SHADOWBROKER_LAN_MODE", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _docker_bridge_local_operator_enabled() -> bool:
+    if _lan_mode_enabled():
+        return False
     return str(os.environ.get("SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR", "")).strip().lower() in {
         "1",
         "true",
@@ -338,9 +351,19 @@ def _is_docker_bridge_host(host: str) -> bool:
     return host in _resolve_trusted_bridge_ips()
 
 
+def _loopback_untrusted() -> bool:
+    """Opt-in for a backend behind a reverse proxy on the same host.
+
+    nginx/Caddy on the same machine make every internet request arrive from
+    127.0.0.1, and they add no header we can rely on, so the operator says so
+    explicitly. Loopback callers then need X-Admin-Key like anyone else.
+    """
+    return str(os.environ.get("SHADOWBROKER_UNTRUSTED_LOOPBACK", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _is_trusted_local_runtime_host(host: str) -> bool:
     if _is_local_or_docker(host):
-        return True
+        return not _loopback_untrusted()
     return _docker_bridge_local_operator_enabled() and _is_docker_bridge_host(host)
 
 
