@@ -67,7 +67,11 @@ describe('page.tsx decomposition — InfonetTerminal onClose wormhole teardown',
         ? page.indexOf('</InfonetTerminal>')
         : page.indexOf('/>', page.indexOf('<InfonetTerminal')) + 2,
     );
-    expect(infonetSection).toContain('endInfonetTerminalSession');
+    // Close is routed through closeInfonet so the leave notice can confirm first.
+    expect(infonetSection).toContain('onClose={closeInfonet}');
+    const closeHandler = page.slice(page.indexOf('const closeInfonet'), page.indexOf('const toggleInfonet'));
+    expect(closeHandler).toContain('requestInfonetLeave');
+    expect(closeHandler).toContain('endInfonetTerminalSession');
   });
 
   it('page.tsx imports endInfonetTerminalSession from infonetTerminalSession', () => {

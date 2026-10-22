@@ -16,6 +16,8 @@ import MapLegend from '@/components/MapLegend';
 import ScaleBar from '@/components/ScaleBar';
 import MeshChat from '@/components/MeshChat';
 import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
+import { requestInfonetLeave } from '@/lib/infonetLeaveNotice';
+import InfonetLeaveConfirm from '@/components/InfonetLeaveConfirm';
 import ShodanPanel from '@/components/ShodanPanel';
 import ReconPanel from '@/components/ReconPanel';
 import ScmPanel from '@/components/ScmPanel';
@@ -181,15 +183,20 @@ export default function Dashboard() {
 
   useEffect(() => subscribeMeshTerminalOpen(openInfonet), [openInfonet]);
 
-  const toggleInfonet = useCallback(() => {
-    setInfonetOpen((prev) => {
-      if (prev) {
-        void endInfonetTerminalSession();
-        return false;
-      }
-      return true;
+  const closeInfonet = useCallback(() => {
+    requestInfonetLeave(() => {
+      setInfonetOpen(false);
+      void endInfonetTerminalSession();
     });
   }, []);
+
+  const toggleInfonet = useCallback(() => {
+    if (infonetOpen) {
+      closeInfonet();
+    } else {
+      setInfonetOpen(true);
+    }
+  }, [closeInfonet, infonetOpen]);
 
   const [activeLayers, setActiveLayers] = useState<ActiveLayers>(getDefaultActiveLayers);
   // Backend-driven layer overrides. Additive on top of activeLayers, never
@@ -1067,13 +1074,12 @@ export default function Dashboard() {
         {/* INFONET TERMINAL */}
         <InfonetTerminal
           isOpen={infonetOpen}
-          onClose={() => {
-            setInfonetOpen(false);
-            void endInfonetTerminalSession();
-          }}
+          onClose={closeInfonet}
           onOpenLiveGate={openLiveGateFromShell}
           onOpenDeadDrop={openDeadDropFromShell}
         />
+
+        <InfonetLeaveConfirm />
 
         {/* BACKEND DISCONNECTED BANNER */}
         {backendStatus === 'disconnected' && (

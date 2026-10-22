@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield } from 'lucide-react';
 import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
+import { requestInfonetLeave } from '@/lib/infonetLeaveNotice';
 import InfonetShell from '@/components/InfonetTerminal/InfonetShell';
 import { friendlyInfonetError } from '@/mesh/friendlyError';
 
@@ -159,8 +160,10 @@ export default function InfonetTerminalPanel({
   }, [onExpandedChange, startWormholeLane]);
 
   const handleShellClose = useCallback(() => {
-    resetSession();
-    onTeardown();
+    requestInfonetLeave(() => {
+      resetSession();
+      onTeardown();
+    });
   }, [onTeardown, resetSession]);
 
   if (!active) {

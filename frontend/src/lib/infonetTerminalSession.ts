@@ -20,8 +20,15 @@ import { notifyInfonetSessionEnd } from '@/lib/meshTerminalLauncher';
 
 let nodeWasEnabledBeforeSession = false;
 let sessionEndInFlight: Promise<void> | null = null;
+let sessionActive = false;
+
+/** True between beginInfonetTerminalSession() and endInfonetTerminalSession(). */
+export function isInfonetSessionActive(): boolean {
+  return sessionActive;
+}
 
 export async function beginInfonetTerminalSession(): Promise<void> {
+  sessionActive = true;
   try {
     const before = await fetchNodeSettingsSnapshot().catch(() => null);
     nodeWasEnabledBeforeSession = Boolean(before?.enabled);
@@ -43,6 +50,7 @@ export async function endInfonetTerminalSession(): Promise<void> {
   if (sessionEndInFlight) {
     return sessionEndInFlight;
   }
+  sessionActive = false;
   sessionEndInFlight = (async () => {
     abortWormholeInteractivePrep();
     try {
