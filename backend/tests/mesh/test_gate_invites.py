@@ -248,3 +248,16 @@ def test_dm_decrypt_strips_gate_key_frame_before_returning(env, monkeypatch):
     assert "shared-secret" not in json.dumps(result)
     assert result["gate_key_event"]["status"] == "pending"
     assert result["plaintext"].startswith("[Gate key]")
+
+
+def test_gate_release_floor_matches_dm_when_rns_is_off():
+    from services.mesh.mesh_privacy_policy import evaluate_network_release, release_lane_required_tier
+
+    tor_only = {"rns_enabled": False}
+    with_rns = {"rns_enabled": True}
+    assert release_lane_required_tier("gate", wormhole_state=tor_only) == "private_transitional"
+    assert release_lane_required_tier("dm", wormhole_state=tor_only) == "private_transitional"
+    # Enabling RNS keeps the stronger two-transport floor.
+    assert release_lane_required_tier("gate", wormhole_state=with_rns) == "private_strong"
+    # Other lanes are untouched.
+    assert release_lane_required_tier("trust_graph", wormhole_state=tor_only) == "private_strong"
