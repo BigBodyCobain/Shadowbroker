@@ -123,6 +123,7 @@ import {
   rootWitnessBadgeLabel,
   rootWitnessContinuityLabel,
 } from '@/mesh/contactTrustSummary';
+import GateKeySharingPanel from './GateKeySharingPanel';
 
 type ViewTab = 'mailbox' | 'compose' | 'requests' | 'contacts' | 'restricted';
 type MailFolder = 'inbox' | 'sent' | 'junk' | 'spam' | 'trash';
@@ -2914,6 +2915,8 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           );
         })}
       </div>
+
+      <GateKeySharingPanel />
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'mailbox' && (

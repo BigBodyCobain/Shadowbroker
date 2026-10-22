@@ -33,6 +33,7 @@ import {
 } from '@/mesh/wormholeIdentityClient';
 import { gateEnvelopeDisplayText, gateEnvelopeState, isEncryptedGateEnvelope } from '@/mesh/gateEnvelope';
 import { validateEventPayload } from '@/mesh/meshSchema';
+import GateKeySharingPanel from './GateKeySharingPanel';
 
 const GATE_INTROS: Record<string, string> = {
   infonet:
@@ -973,6 +974,8 @@ export default function GateView({
               : String(status?.detail || 'Gate access still syncing')}
         </div>
       </div>
+
+      <GateKeySharingPanel gateId={gateId} onKeyChanged={() => void refreshGate({ force: true })} />
 
       <div className="mb-4 relative shrink-0">
         <div className="flex items-center border border-gray-800 bg-[#0a0a0a] p-2">
