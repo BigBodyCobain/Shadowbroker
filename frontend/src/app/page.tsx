@@ -16,6 +16,8 @@ import MapLegend from '@/components/MapLegend';
 import ScaleBar from '@/components/ScaleBar';
 import MeshChat from '@/components/MeshChat';
 import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
+import { requestInfonetLeave } from '@/lib/infonetLeaveNotice';
+import InfonetLeaveConfirm from '@/components/InfonetLeaveConfirm';
 import ShodanPanel from '@/components/ShodanPanel';
 import ReconPanel from '@/components/ReconPanel';
 import ScmPanel from '@/components/ScmPanel';
@@ -26,7 +28,7 @@ import AIIntelPanel from '@/components/AIIntelPanel';
 import GlobalTicker from '@/components/GlobalTicker';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import OnboardingModal, { useOnboarding } from '@/components/OnboardingModal';
-import ChangelogModal, { useChangelog } from '@/components/ChangelogModal';
+import ChangelogModal, { markChangelogSeen, useChangelog } from '@/components/ChangelogModal';
 import StartupWarmupModal, { useStartupWarmupNotice } from '@/components/StartupWarmupModal';
 import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
 import {
@@ -181,15 +183,20 @@ export default function Dashboard() {
 
   useEffect(() => subscribeMeshTerminalOpen(openInfonet), [openInfonet]);
 
-  const toggleInfonet = useCallback(() => {
-    setInfonetOpen((prev) => {
-      if (prev) {
-        void endInfonetTerminalSession();
-        return false;
-      }
-      return true;
+  const closeInfonet = useCallback(() => {
+    requestInfonetLeave(() => {
+      setInfonetOpen(false);
+      void endInfonetTerminalSession();
     });
   }, []);
+
+  const toggleInfonet = useCallback(() => {
+    if (infonetOpen) {
+      closeInfonet();
+    } else {
+      setInfonetOpen(true);
+    }
+  }, [closeInfonet, infonetOpen]);
 
   const [activeLayers, setActiveLayers] = useState<ActiveLayers>(getDefaultActiveLayers);
   // Backend-driven layer overrides. Additive on top of activeLayers, never
@@ -614,7 +621,7 @@ export default function Dashboard() {
 
             {/* LEFT HUD CONTAINER — mirrors right side: one scroll container, scrollbar on LEFT edge */}
             <motion.div
-              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
+              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
               style={{ direction: 'rtl' }}
               animate={{ x: leftOpen ? 0 : -360 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -1010,9 +1017,15 @@ export default function Dashboard() {
         {/* ONBOARDING MODAL */}
         {showOnboarding && (
           <OnboardingModal
-            onClose={() => setShowOnboarding(false)}
+            onClose={() => {
+              setShowOnboarding(false);
+              markChangelogSeen();
+              setShowChangelog(false);
+            }}
             onOpenSettings={() => {
               setShowOnboarding(false);
+              markChangelogSeen();
+              setShowChangelog(false);
               setSettingsOpen(true);
             }}
           />
@@ -1061,13 +1074,12 @@ export default function Dashboard() {
         {/* INFONET TERMINAL */}
         <InfonetTerminal
           isOpen={infonetOpen}
-          onClose={() => {
-            setInfonetOpen(false);
-            void endInfonetTerminalSession();
-          }}
+          onClose={closeInfonet}
           onOpenLiveGate={openLiveGateFromShell}
           onOpenDeadDrop={openDeadDropFromShell}
         />
+
+        <InfonetLeaveConfirm />
 
         {/* BACKEND DISCONNECTED BANNER */}
         {backendStatus === 'disconnected' && (

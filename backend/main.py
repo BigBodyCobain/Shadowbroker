@@ -10049,6 +10049,13 @@ def compose_wormhole_dm(
     }
 
 
+def _intercept_gate_key_frame(peer_id: str, plain_text: str) -> tuple[str, dict | None]:
+    """Pull gate-key control frames out of DM text so secrets never reach the UI."""
+    from services.mesh.mesh_gate_invites import intercept_dm_plaintext
+
+    return intercept_dm_plaintext(str(peer_id or "").strip(), plain_text)
+
+
 def decrypt_wormhole_dm_envelope(
     *,
     peer_id: str,
@@ -10102,6 +10109,7 @@ def decrypt_wormhole_dm_envelope(
             )
             alias_applied = bool(alias_result.get("ok"))
         mark_contact_alias_reply_observed(str(peer_id or "").strip())
+        plain_text, gate_key_event = _intercept_gate_key_frame(peer_id, plain_text)
         response = {
             "ok": True,
             "peer_id": str(peer_id or "").strip(),
@@ -10112,6 +10120,8 @@ def decrypt_wormhole_dm_envelope(
         }
         if alias_update:
             response["alias_update_applied"] = alias_applied
+        if gate_key_event:
+            response["gate_key_event"] = gate_key_event
         return response
 
     from services.wormhole_supervisor import get_transport_tier
@@ -10140,6 +10150,7 @@ def decrypt_wormhole_dm_envelope(
         )
         alias_applied = bool(alias_result.get("ok"))
     mark_contact_alias_reply_observed(str(peer_id or "").strip())
+    plain_text, gate_key_event = _intercept_gate_key_frame(peer_id, plain_text)
     response = {
         "ok": True,
         "peer_id": str(peer_id or "").strip(),
@@ -10150,6 +10161,8 @@ def decrypt_wormhole_dm_envelope(
     }
     if alias_update:
         response["alias_update_applied"] = alias_applied
+    if gate_key_event:
+        response["gate_key_event"] = gate_key_event
     return response
 
 

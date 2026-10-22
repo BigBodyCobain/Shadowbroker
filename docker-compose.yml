@@ -96,6 +96,8 @@ services:
       # The bundled Docker UI talks to the backend across Docker's private bridge.
       # Treat that bridge as local operator access while ports remain bound to 127.0.0.1 by default.
       - SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR=${SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR:-1}
+      # LAN mode (make up-lan) turns that bridge trust off: browsers sign in with ADMIN_KEY.
+      - SHADOWBROKER_LAN_MODE=${SHADOWBROKER_LAN_MODE:-}
       # Issue #250: bridge trust is now bound to specific container hostnames
       # (default: 'frontend' compose service + 'shadowbroker-frontend' container
       # name). If you rename the frontend service or run with a different
@@ -158,6 +160,8 @@ services:
       - BACKEND_URL=http://backend:8000
       # Lets the server-side proxy authenticate protected local-node API calls.
       - ADMIN_KEY=${ADMIN_KEY:-}
+      # LAN mode: only signed-in browsers get the admin key (see backend note).
+      - SHADOWBROKER_LAN_MODE=${SHADOWBROKER_LAN_MODE:-}
     depends_on:
       backend:
         condition: service_healthy

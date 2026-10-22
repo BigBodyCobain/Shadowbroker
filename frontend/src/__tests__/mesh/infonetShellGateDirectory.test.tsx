@@ -50,7 +50,7 @@ describe('InfonetShell gate directory', () => {
       vi.advanceTimersByTime(2500);
     });
 
-    expect(screen.getByText('AVAILABLE OBFUSCATED GATES:')).toBeTruthy();
+    expect(screen.getByText('AVAILABLE GATES:')).toBeTruthy();
     expect(screen.getByRole('button', { name: /\[>\]\s*infonet/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /\[>\]\s*gathered-intel/i })).toBeTruthy();
   });

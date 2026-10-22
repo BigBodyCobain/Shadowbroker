@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "infonet-terminal",
+    "src/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

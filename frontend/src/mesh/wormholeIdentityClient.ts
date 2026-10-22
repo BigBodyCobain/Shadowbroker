@@ -2198,3 +2198,93 @@ export async function signRawMeshMessage(
     protocolVersion: PROTOCOL_VERSION,
   };
 }
+
+export interface WormholeGateKeySharing {
+  ok: boolean;
+  gate_id: string;
+  secret_id: string;
+  version: number;
+  upstream_peer_id: string;
+  shared: boolean;
+  grantees: string[];
+  detail?: string;
+}
+
+export interface WormholeGateInvite {
+  invite_id: string;
+  op: 'invite' | 'rekey';
+  gate_id: string;
+  gate_name: string;
+  from_peer_id: string;
+  from_trust_level: string;
+  secret_id: string;
+  version: number;
+  note: string;
+  received_at: number;
+}
+
+const gateInviteRequestOptions = {
+  requireAdminSession: false,
+  capabilityIntent: 'wormhole_gate_key',
+  sessionProfileHint: 'gate_operator',
+  enforceProfileHint: true,
+} as const;
+
+function postGateInviteJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return controlPlaneJson<T>(path, {
+    ...gateInviteRequestOptions,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchWormholeGateKeySharing(gateId: string): Promise<WormholeGateKeySharing> {
+  return controlPlaneJson<WormholeGateKeySharing>(
+    `/api/wormhole/gate/${encodeURIComponent(gateId)}/key/sharing`,
+    gateInviteRequestOptions,
+  );
+}
+
+export async function fetchWormholeGateInvites(): Promise<WormholeGateInvite[]> {
+  const result = await controlPlaneJson<{ ok: boolean; invites?: WormholeGateInvite[] }>(
+    '/api/wormhole/gate/invites',
+    gateInviteRequestOptions,
+  );
+  return Array.isArray(result.invites) ? result.invites : [];
+}
+
+export function sendWormholeGateInvite(
+  gateId: string,
+  peerId: string,
+  note = '',
+): Promise<{ ok: boolean; secret_id?: string; recipient_trust_level?: string; detail?: string }> {
+  return postGateInviteJson('/api/wormhole/gate/invite', { gate_id: gateId, peer_id: peerId, note });
+}
+
+export async function acceptWormholeGateInvite(
+  inviteId: string,
+): Promise<{ ok: boolean; gate_id?: string; detail?: string }> {
+  const result = await postGateInviteJson<{ ok: boolean; gate_id?: string; detail?: string }>(
+    '/api/wormhole/gate/invite/accept',
+    { invite_id: inviteId },
+  );
+  if (result.gate_id) {
+    gateKeyStatusCache.delete(normalizeGateId(result.gate_id));
+  }
+  return result;
+}
+
+export function declineWormholeGateInvite(inviteId: string): Promise<{ ok: boolean }> {
+  return postGateInviteJson('/api/wormhole/gate/invite/decline', { invite_id: inviteId });
+}
+
+export function rekeyWormholeGate(
+  gateId: string,
+  excludePeerIds: string[] = [],
+): Promise<{ ok: boolean; delivered?: string[]; failed?: { peer_id: string; detail: string }[] }> {
+  return postGateInviteJson('/api/wormhole/gate/key/rekey', {
+    gate_id: gateId,
+    exclude_peer_ids: excludePeerIds,
+  });
+}

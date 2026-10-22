@@ -32,9 +32,12 @@ up-lan:
 		exit 1; \
 	fi
 	@echo "Detected LAN IP: $(LAN_IP)"
-	BIND=0.0.0.0 CORS_ORIGINS=http://$(LAN_IP):3000 $(COMPOSE) up -d
+	BIND=0.0.0.0 SHADOWBROKER_LAN_MODE=1 CORS_ORIGINS=http://$(LAN_IP):3000 $(COMPOSE) up -d
 	@echo ""
 	@echo "Shadowbroker is now running and can be accessed by LAN devices at http://$(LAN_IP):3000"
+	@echo "LAN mode: every browser, including this computer's, must sign in with ADMIN_KEY"
+	@echo "(Settings -> admin key) before using messages, gates or settings. Set a strong"
+	@echo "ADMIN_KEY in .env; without one, protected features stay locked."
 
 ## Stop all containers
 down:

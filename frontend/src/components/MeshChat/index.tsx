@@ -12,6 +12,7 @@ import {
   type MeshChatFlyoutRect,
 } from './meshChatFlyout';
 import { endInfonetTerminalSession } from '@/lib/infonetTerminalSession';
+import { requestInfonetLeave } from '@/lib/infonetLeaveNotice';
 import { motion, AnimatePresence } from '@/lib/motion';
 import {
   Antenna,
@@ -557,7 +558,13 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
       >
         {/* HEADER */}
         <div
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => {
+            if (expanded && activeTab === 'infonet') {
+              requestInfonetLeave(() => setExpanded(false));
+            } else {
+              setExpanded(!expanded);
+            }
+          }}
           className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40 shrink-0 select-none"
         >
           <div className="flex items-center gap-2">
@@ -597,7 +604,11 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                 <button
                   key={tab.key}
                   onClick={() => {
-                    setActiveTab(tab.key);
+                    if (activeTab === 'infonet' && tab.key !== 'infonet') {
+                      requestInfonetLeave(() => setActiveTab(tab.key));
+                    } else {
+                      setActiveTab(tab.key);
+                    }
                   }}
                   className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[12px] font-mono tracking-wider transition-colors ${
                     activeTab === tab.key
@@ -1680,9 +1691,12 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
               {senderPopupContact && !senderPopupContact.blocked ? (
                 <button
                   onClick={() => {
-                    setActiveTab('dms');
-                    openChat(senderPopup.userId);
+                    const userId = senderPopup.userId;
                     setSenderPopup(null);
+                    requestInfonetLeave(() => {
+                      setActiveTab('dms');
+                      openChat(userId);
+                    });
                   }}
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-[13px] font-mono text-green-300 hover:bg-green-950/20 transition-colors"
                 >

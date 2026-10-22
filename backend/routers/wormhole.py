@@ -419,6 +419,22 @@ class WormholeGateKeyGrantRequest(BaseModel):
     recipient_scope: str = "member"
 
 
+class WormholeGateInviteRequest(BaseModel):
+    gate_id: str
+    peer_id: str
+    note: str = ""
+
+
+class WormholeGateInviteDecisionRequest(BaseModel):
+    invite_id: str
+
+
+class WormholeGateKeyRekeyRequest(BaseModel):
+    gate_id: str
+    exclude_peer_ids: list[str] = []
+    reason: str = "manual"
+
+
 class WormholeGateComposeRequest(BaseModel):
     gate_id: str
     plaintext: str
@@ -921,6 +937,64 @@ async def api_wormhole_gate_key_grant(request: Request, body: WormholeGateKeyGra
         recipient_dh_pub=str(body.recipient_dh_pub or ""),
         recipient_scope=str(body.recipient_scope or "member"),
     )
+
+
+@router.post("/api/wormhole/gate/invite", dependencies=[Depends(require_local_operator)])
+@limiter.limit("20/minute")
+async def api_wormhole_gate_invite(request: Request, body: WormholeGateInviteRequest):
+    from services.mesh.mesh_gate_invites import send_gate_invite
+
+    return await asyncio.to_thread(
+        send_gate_invite,
+        str(body.gate_id or ""),
+        str(body.peer_id or ""),
+        note=str(body.note or ""),
+    )
+
+
+@router.get("/api/wormhole/gate/invites", dependencies=[Depends(require_local_operator)])
+@limiter.limit("60/minute")
+async def api_wormhole_gate_invites(request: Request):
+    from services.mesh.mesh_gate_invites import list_pending_gate_invites
+
+    return list_pending_gate_invites()
+
+
+@router.post("/api/wormhole/gate/invite/accept", dependencies=[Depends(require_local_operator)])
+@limiter.limit("20/minute")
+async def api_wormhole_gate_invite_accept(request: Request, body: WormholeGateInviteDecisionRequest):
+    from services.mesh.mesh_gate_invites import accept_gate_invite
+
+    return await asyncio.to_thread(accept_gate_invite, str(body.invite_id or ""))
+
+
+@router.post("/api/wormhole/gate/invite/decline", dependencies=[Depends(require_local_operator)])
+@limiter.limit("20/minute")
+async def api_wormhole_gate_invite_decline(request: Request, body: WormholeGateInviteDecisionRequest):
+    from services.mesh.mesh_gate_invites import decline_gate_invite
+
+    return decline_gate_invite(str(body.invite_id or ""))
+
+
+@router.post("/api/wormhole/gate/key/rekey", dependencies=[Depends(require_local_operator)])
+@limiter.limit("10/minute")
+async def api_wormhole_gate_key_rekey(request: Request, body: WormholeGateKeyRekeyRequest):
+    from services.mesh.mesh_gate_invites import rotate_gate_key
+
+    return await asyncio.to_thread(
+        rotate_gate_key,
+        str(body.gate_id or ""),
+        exclude_peer_ids=list(body.exclude_peer_ids or []),
+        reason=str(body.reason or "manual"),
+    )
+
+
+@router.get("/api/wormhole/gate/{gate_id}/key/sharing", dependencies=[Depends(require_local_operator)])
+@limiter.limit("60/minute")
+async def api_wormhole_gate_key_sharing(request: Request, gate_id: str):
+    from services.mesh.mesh_gate_invites import gate_key_status
+
+    return gate_key_status(gate_id)
 
 
 def _backend_gate_plaintext_guard(
