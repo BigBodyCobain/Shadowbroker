@@ -33,6 +33,7 @@ import {
 } from '@/mesh/wormholeIdentityClient';
 import { gateEnvelopeDisplayText, gateEnvelopeState, isEncryptedGateEnvelope } from '@/mesh/gateEnvelope';
 import { validateEventPayload } from '@/mesh/meshSchema';
+import { friendlyInfonetError } from '@/mesh/friendlyError';
 import GateKeySharingPanel from './GateKeySharingPanel';
 
 const GATE_INTROS: Record<string, string> = {
@@ -530,7 +531,7 @@ export default function GateView({
       await applyGateMessages(snapshot.messages as GateMessage[]);
       return true;
     } catch (error) {
-      setRoomError(error instanceof Error ? error.message : 'Failed to load gate room');
+      setRoomError(friendlyInfonetError(error, 'Could not load this room.'));
       return false;
     } finally {
       setLoading(false);
@@ -648,7 +649,7 @@ export default function GateView({
         }
         const ready = await refreshGate({ force: true });
         if (!ready) {
-          setRoomError(error instanceof Error ? error.message : 'Failed to load gate room');
+          setRoomError(friendlyInfonetError(error, 'Could not load this room.'));
           scheduleRetry();
           return;
         }
@@ -804,11 +805,7 @@ export default function GateView({
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Gate post failed';
       // Suppress technical sequence/replay errors — just show a clean retry hint
-      if (/replay|sequence/i.test(errMsg)) {
-        setRoomError('Message could not be posted — try again');
-      } else {
-        setRoomError(errMsg);
-      }
+      setRoomError(friendlyInfonetError(errMsg, 'Your post did not go through. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -970,8 +967,8 @@ export default function GateView({
           {status?.has_local_access
             ? `LIVE ROOM READY • ${status.identity_scope || entryMode || 'gate'} access`
             : loading
-              ? 'CONNECTING TO OBFUSCATED GATE LANE...'
-              : String(status?.detail || 'Gate access still syncing')}
+              ? 'CONNECTING TO ROOM...'
+              : friendlyInfonetError(status?.detail, 'This room is still syncing. Try again in a moment.')}
         </div>
       </div>
 

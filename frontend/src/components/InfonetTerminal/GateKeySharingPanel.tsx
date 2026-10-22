@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { getContacts } from '@/mesh/meshIdentity';
+import { friendlyInfonetError } from '@/mesh/friendlyError';
 import {
   acceptWormholeGateInvite,
   declineWormholeGateInvite,
@@ -58,7 +59,7 @@ export default function GateKeySharingPanel({ gateId, onKeyChanged }: GateKeySha
       setInvites(await fetchWormholeGateInvites());
       if (gateId) setSharing(await fetchWormholeGateKeySharing(gateId));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Key sharing unavailable');
+      setNotice(friendlyInfonetError(error, 'Key sharing is unavailable right now.'));
     }
   }, [gateId]);
 
@@ -73,7 +74,7 @@ export default function GateKeySharingPanel({ gateId, onKeyChanged }: GateKeySha
       setNotice(await action());
       await refresh();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Request failed');
+      setNotice(friendlyInfonetError(error));
     } finally {
       setBusy(false);
     }

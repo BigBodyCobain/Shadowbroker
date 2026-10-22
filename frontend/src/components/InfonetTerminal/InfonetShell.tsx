@@ -315,7 +315,7 @@ export default function InfonetShell({
       }
     >
       <p className={`${variant === 'landing' ? 'text-[11px]' : ''} text-gray-400 uppercase tracking-[0.18em]`}>
-        AVAILABLE OBFUSCATED GATES:
+        AVAILABLE GATES:
       </p>
       <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 ${variant === 'landing' ? 'gap-x-8 gap-y-1.5 mt-2' : 'gap-2 mt-2'}`}>
         {GATES.map(gate => (

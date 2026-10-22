@@ -4,6 +4,26 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield } from 'lucide-react';
 import { beginInfonetTerminalSession } from '@/lib/infonetTerminalSession';
 import InfonetShell from '@/components/InfonetTerminal/InfonetShell';
+import { friendlyInfonetError } from '@/mesh/friendlyError';
+
+/** Seconds since `running` became true, ticking once a second; 0 when idle. */
+function useElapsedSeconds(running: boolean): number {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+  return elapsed;
+}
+
+function formatElapsed(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 type Props = {
   active: boolean;
@@ -33,7 +53,7 @@ function InfonetIntro({
       <div className="w-full max-w-sm border border-cyan-900/40 bg-cyan-950/10 px-4 py-4">
         <div className="text-sm font-mono tracking-[0.22em] text-cyan-300 mb-2">INFONET TERMINAL</div>
         <p className="text-[12px] font-mono text-[var(--text-secondary)] leading-[1.6] text-left">
-          Obfuscated Wormhole lane for the Infonet shell. Leave this tab to shut Wormhole down.
+          Private chat and rooms over Tor. Entering starts a private connection (the first start can take up to a minute); leaving this tab disconnects it.
         </p>
         {status && !error && (
           <div className="mt-3 text-left text-[12px] font-mono text-cyan-300/85 leading-relaxed border border-cyan-900/30 bg-cyan-950/10 px-3 py-2">
@@ -76,6 +96,7 @@ export default function InfonetTerminalPanel({
   const prepStartedRef = useRef(false);
 
   const shellOpen = active && sessionActive;
+  const laneElapsed = useElapsedSeconds(laneBusy);
 
   const resetSession = useCallback(() => {
     setSessionActive(false);
@@ -114,7 +135,7 @@ export default function InfonetTerminalPanel({
     if (prepStartedRef.current) return;
     prepStartedRef.current = true;
     setLaneError('');
-    setLaneStatus('Starting Wormhole obfuscated lane…');
+    setLaneStatus('Connecting privately over Tor… the first start can take up to a minute.');
     setLaneBusy(true);
     try {
       await onEnterWormhole();
@@ -122,11 +143,7 @@ export default function InfonetTerminalPanel({
     } catch (err) {
       prepStartedRef.current = false;
       setSessionActive(false);
-      const message =
-        typeof err === 'object' && err !== null && 'message' in err
-          ? String((err as { message?: string }).message)
-          : 'Could not start Wormhole.';
-      setLaneError(message);
+      setLaneError(friendlyInfonetError(err, 'Could not start the private connection. Try again.'));
       setLaneStatus('');
     } finally {
       setLaneBusy(false);
@@ -173,7 +190,9 @@ export default function InfonetTerminalPanel({
     <div className="flex-1 min-h-0 flex flex-col border-l-2 border-cyan-800/25 bg-[#04070b]">
       <div className="flex items-center justify-between gap-2 border-b border-cyan-900/40 px-2 py-1.5 shrink-0">
         <div className="min-w-0 text-[12px] font-mono tracking-[0.14em] text-cyan-300/90 truncate">
-          {laneBusy ? 'wormhole · obfuscated lane starting' : 'infonet terminal'}
+          {laneBusy
+            ? `connecting privately over tor · ${formatElapsed(laneElapsed)}${laneElapsed >= 90 ? ' · still working' : ''}`
+            : 'infonet terminal'}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {!expanded ? (

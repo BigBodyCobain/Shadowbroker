@@ -26,7 +26,7 @@ import AIIntelPanel from '@/components/AIIntelPanel';
 import GlobalTicker from '@/components/GlobalTicker';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import OnboardingModal, { useOnboarding } from '@/components/OnboardingModal';
-import ChangelogModal, { useChangelog } from '@/components/ChangelogModal';
+import ChangelogModal, { markChangelogSeen, useChangelog } from '@/components/ChangelogModal';
 import StartupWarmupModal, { useStartupWarmupNotice } from '@/components/StartupWarmupModal';
 import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
 import {
@@ -614,7 +614,7 @@ export default function Dashboard() {
 
             {/* LEFT HUD CONTAINER — mirrors right side: one scroll container, scrollbar on LEFT edge */}
             <motion.div
-              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
+              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
               style={{ direction: 'rtl' }}
               animate={{ x: leftOpen ? 0 : -360 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -1010,9 +1010,15 @@ export default function Dashboard() {
         {/* ONBOARDING MODAL */}
         {showOnboarding && (
           <OnboardingModal
-            onClose={() => setShowOnboarding(false)}
+            onClose={() => {
+              setShowOnboarding(false);
+              markChangelogSeen();
+              setShowChangelog(false);
+            }}
             onOpenSettings={() => {
               setShowOnboarding(false);
+              markChangelogSeen();
+              setShowChangelog(false);
               setSettingsOpen(true);
             }}
           />
