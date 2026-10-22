@@ -35,7 +35,7 @@
     "react-dom": "^19.3.0",
     "react-map-gl": "^8.1.0",
     "satellite.js": "^6.0.2",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
