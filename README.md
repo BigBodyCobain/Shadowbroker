@@ -223,7 +223,7 @@ ShadowBroker v0.9.7 ships **InfoNet** (decentralized intelligence mesh + Soverei
 | Channel | Privacy Status | Details |
 |---|---|---|
 | **Meshtastic / APRS** | **PUBLIC** | RF radio transmissions are public and interceptable by design. |
-| **InfoNet Gate Chat** | **OBFUSCATED** | Messages are obfuscated with gate personas and canonical payload signing, but NOT end-to-end encrypted. Metadata is not hidden despite being designed through Tor and Reticulum (Work in progress). |
+| **InfoNet Gate Chat** | **ENCRYPTED CONTENT, OBFUSCATED METADATA** | Message content is encrypted under a per-gate key that members share through invites sent inside end-to-end encrypted DMs. Gate personas and canonical payload signing obfuscate senders, but gate id, timing and key epoch are visible, and anyone holding the gate key reads the room. |
 | **Dead Drop DMs** | **STRONGEST CURRENT LANE** | Token-based epoch mailbox with SAS word verification. Strongest lane in this build, but not yet confidently private. |
 | **Sovereign Shell governance** | **PUBLIC LEDGER** | Petitions, votes, upgrade hashes, and dispute stakes are signed events on a public hashchain. Pseudonymous via gate persona, but governance actions are intentionally observable. |
 | **Privacy primitives (RingCT / stealth / DEX)** | **NOT YET WIRED** | Locked Protocol contracts are in place, but the cryptographic scheme has not been chosen. The privacy-core Rust crate is the integration target for a future sprint. |
@@ -274,7 +274,7 @@ The first decentralized intelligence communication and governance layer built di
 * **Locked Protocol Contracts** — Stable interfaces in `services/infonet/privacy/contracts.py` for ring signatures, stealth addresses, Pedersen commitments, range proofs, and DEX matching. The `privacy-core` Rust crate is the integration target — no caller of the privacy module needs to know which scheme is active.
 * **Sprint 11+ Path** — When the cryptographic scheme is chosen, primitives wire into the locked Protocols without API churn.
 
-> **Experimental Testnet — No Privacy Guarantee:** InfoNet messages are obfuscated but NOT end-to-end encrypted. The Mesh network (Meshtastic/APRS) is NOT private — radio transmissions are inherently public. The privacy primitive contracts are scaffolded but not yet wired. Do not send anything sensitive on any channel. Treat all channels as open and public for now.
+> **Experimental Testnet — No Privacy Guarantee:** InfoNet gate content is encrypted for members who hold the gate key, but metadata is visible and the code is unaudited. The Mesh network (Meshtastic/APRS) is NOT private — radio transmissions are inherently public. The privacy primitive contracts are scaffolded but not yet wired. Do not send anything sensitive on any channel. Treat all channels as open and public for now.
 
 ### 🔍 Recon Toolkit & Shodan (Osiris-derived, security-first)
 
