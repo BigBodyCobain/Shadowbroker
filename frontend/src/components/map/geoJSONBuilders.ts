@@ -1717,6 +1717,85 @@ export function buildTelegramOsintGeoJSON(
   };
 }
 
+// ─── Snap Map OSINT (watch-zone activity density) ─────────────────────────
+
+export const SNAPMAP_LEVEL_COLORS: Record<string, string> = {
+  unknown: '#64748b',
+  warmup: '#64748b',
+  normal: '#22c55e',
+  elevated: '#eab308',
+  high: '#f97316',
+  critical: '#ef4444',
+};
+
+/** 48-gon approximating a geodesic circle — good enough for zones ≤ 85 km. */
+function snapmapCircleRing(lat: number, lng: number, radiusM: number, steps = 48): [number, number][] {
+  const ring: [number, number][] = [];
+  const dLat = radiusM / 111_320;
+  const dLng = radiusM / (111_320 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+  for (let i = 0; i <= steps; i += 1) {
+    const a = (i / steps) * 2 * Math.PI;
+    ring.push([lng + dLng * Math.cos(a), lat + dLat * Math.sin(a)]);
+  }
+  return ring;
+}
+
+/**
+ * One footprint polygon + one centroid point per watch zone.
+ * The point carries the activity count (circle size) and the A/B/C rating (label).
+ */
+export function buildSnapmapOsintGeoJSON(
+  payload?: {
+    zones?: Array<{
+      id: string;
+      label: string;
+      lat: number;
+      lng: number;
+      radius_m: number;
+      count_1h?: number;
+      count_24h?: number;
+      level?: string;
+      reliability?: string;
+      z?: number;
+      status?: string;
+    }>;
+  } | null,
+): FC {
+  const zones = payload?.zones;
+  if (!zones?.length) return null;
+  const features: GeoJSON.Feature[] = [];
+  for (const zone of zones) {
+    if (!Number.isFinite(zone.lat) || !Number.isFinite(zone.lng)) continue;
+    const level = zone.level || 'unknown';
+    const props = {
+      id: zone.id,
+      type: 'snapmap_osint',
+      name: zone.label,
+      lat: zone.lat,
+      lng: zone.lng,
+      level,
+      color: SNAPMAP_LEVEL_COLORS[level] || SNAPMAP_LEVEL_COLORS.unknown,
+      count_1h: zone.count_1h ?? 0,
+      count_24h: zone.count_24h ?? 0,
+      reliability: zone.reliability || 'C',
+      z: zone.z ?? 0,
+      status: zone.status || 'pending',
+      tag: `${zone.reliability || 'C'} · ${zone.count_1h ?? 0}/h`,
+    };
+    features.push({
+      type: 'Feature',
+      properties: { ...props, geom: 'zone' },
+      geometry: { type: 'Polygon', coordinates: [snapmapCircleRing(zone.lat, zone.lng, zone.radius_m)] },
+    });
+    features.push({
+      type: 'Feature',
+      properties: { ...props, geom: 'center' },
+      geometry: { type: 'Point', coordinates: [zone.lng, zone.lat] },
+    });
+  }
+  return features.length ? { type: 'FeatureCollection', features } : null;
+}
+
 // ─── Malware C2 / URLhaus ─────────────────────────────────────────────────
 
 export function buildMalwareGeoJSON(

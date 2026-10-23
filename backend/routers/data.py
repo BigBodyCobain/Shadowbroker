@@ -1006,7 +1006,7 @@ async def live_data_slow(
             "scanners", "weather_alerts", "ukraine_alerts", "air_quality", "volcanoes",
             "fishing_activity", "psk_reporter", "correlations", "uap_sightings", "wastewater",
             "crowdthreat", "threat_level", "trending_markets", "road_corridor_trends",
-            "malware_threats", "cyber_threats", "scm_suppliers", "telegram_osint", "gt_risk",
+            "malware_threats", "cyber_threats", "scm_suppliers", "telegram_osint", "snapmap_osint", "gt_risk",
         )
         freshness = get_source_timestamps_snapshot()
         payload = {
@@ -1072,6 +1072,11 @@ async def live_data_slow(
             )
             if active_layers.get("telegram_osint", True)
             else {"posts": [], "total": 0, "geolocated": 0},
+            "snapmap_osint": (
+                d.get("snapmap_osint") or {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0}
+            )
+            if active_layers.get("snapmap_osint", False)
+            else {"zones": [], "alerts": [], "total_zones": 0, "anomalies": 0},
             "gt_risk": (
                 d.get("gt_risk")
                 or {"enabled": False, "heatmap": {"type": "FeatureCollection", "features": []}, "clusters": []}

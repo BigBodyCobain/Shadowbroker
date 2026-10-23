@@ -212,7 +212,8 @@
     "telegramOsint": "OSINT تلگرام",
     "strategicRisk": "ریسک راهبردی",
     "derivedOsint": "OSINT استنتاجی (ریسک راهبردی)",
-    "derivedOsintSource": "آزمایشی · به‌طور پیش‌فرض غیرفعال"
+    "derivedOsintSource": "آزمایشی · به‌طور پیش‌فرض غیرفعال",
+    "snapmapOsint": "Snap Map activity (zones)"
   },
   "gtLean": {
     "title": "فعال‌سازی OSINT استنتاجی روی یک گره با منابع محدود؟",
@@ -350,5 +351,19 @@
     "translatedFrom": "ترجمه‌شده از {lang}",
     "showOriginal": "نمایش نسخه اصلی ({lang})",
     "showTranslation": "نمایش ترجمه"
+  },
+  "snapmap": {
+    "level": "Level",
+    "lastHour": "Last hour",
+    "baseline": "Baseline",
+    "warmup": "Calibrating: the baseline builds up over the next scans.",
+    "corroboration": "Corroboration (other layers)",
+    "keywords": "Keywords",
+    "reliabilityHint": "A = analyst-verified · B = corroborated by another source · C = Snap Map only",
+    "confirmPlaceholder": "Verification note (geolocation, source…)",
+    "confirm": "Confirm after verification (A)",
+    "confirmError": "Confirmation failed",
+    "scanned": "Scanned",
+    "disclaimer": "Public snap density — a lead to verify, not an established fact."
   }
 }

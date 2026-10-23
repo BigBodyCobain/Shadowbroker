@@ -58,6 +58,7 @@ export function getDefaultActiveLayers(): ActiveLayers {
     scm_suppliers: false,
     cyber_threats: false,
     telegram_osint: true,
+    snapmap_osint: false,
     earthquakes: true,
     firms: false,
     ukraine_alerts: true,

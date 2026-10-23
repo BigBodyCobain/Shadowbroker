@@ -27,6 +27,7 @@ _SLOW_LAYER_KEYS: frozenset[str] = frozenset(
         "cyber_threats",
         "scm_suppliers",
         "telegram_osint",
+        "snapmap_osint",
         "gt_risk",
     }
 )
@@ -125,6 +126,12 @@ def _slow_fetch(key: str) -> None:
 
         fetch_telegram_osint()
         logger.info("Telegram OSINT loaded (layer enabled)")
+        return
+    if key == "snapmap_osint":
+        from services.fetchers.snapmap_osint import fetch_snapmap_osint
+
+        fetch_snapmap_osint()
+        logger.info("Snap Map OSINT loaded (layer enabled)")
         return
     if key == "gt_risk":
         from analytics.integration import maybe_refresh_gt_analytics

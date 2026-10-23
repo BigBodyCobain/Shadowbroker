@@ -212,7 +212,8 @@
     "telegramOsint": "OSINT Telegram",
     "strategicRisk": "Carte de risque stratégique",
     "derivedOsint": "OSINT dérivé (risque stratégique)",
-    "derivedOsintSource": "Expérimental · désactivé par défaut"
+    "derivedOsintSource": "Expérimental · désactivé par défaut",
+    "snapmapOsint": "Activité Snap Map (zones)"
   },
   "gtLean": {
     "title": "Activer l'OSINT dérivé sur un nœud limité ?",
@@ -350,5 +351,19 @@
     "translatedFrom": "Traduit depuis {lang}",
     "showOriginal": "AFFICHER L'ORIGINAL ({lang})",
     "showTranslation": "AFFICHER LA TRADUCTION"
+  },
+  "snapmap": {
+    "level": "Niveau",
+    "lastHour": "Dernière heure",
+    "baseline": "Référence",
+    "warmup": "Calibrage en cours : la référence se construit sur les prochains passages.",
+    "corroboration": "Recoupements (autres couches)",
+    "keywords": "Mots-clés",
+    "reliabilityHint": "A = vérifié par un analyste · B = recoupé par une autre source · C = Snap Map seul",
+    "confirmPlaceholder": "Note de vérification (géolocalisation, source…)",
+    "confirm": "Confirmer après vérification (A)",
+    "confirmError": "Échec de la confirmation",
+    "scanned": "Scan il y a",
+    "disclaimer": "Densité de snaps publics — signal à vérifier, pas un fait établi."
   }
 }

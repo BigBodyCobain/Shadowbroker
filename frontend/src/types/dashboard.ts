@@ -970,6 +970,7 @@ export interface DashboardData {
     timestamp?: string | null;
     channels?: string[];
   };
+  snapmap_osint?: SnapmapOsintPayload;
   gt_risk?: GTRiskPayload;
 }
 
@@ -1168,6 +1169,73 @@ export interface TelegramOsintPost {
   embed_url?: string | null;
 }
 
+export type SnapmapLevel = 'unknown' | 'warmup' | 'normal' | 'elevated' | 'high' | 'critical';
+export type SnapmapReliability = 'A' | 'B' | 'C';
+
+export interface SnapmapMediaRef {
+  id: string;
+  time: string;
+  type: 'video' | 'image';
+  url: string | null;
+  locality?: string;
+}
+
+export interface SnapmapCorroboration {
+  layer: string;
+  title: string;
+  distance_km: number;
+}
+
+export interface SnapmapZone {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  radius_m: number;
+  category?: string;
+  count_24h: number;
+  count_1h: number;
+  baseline_mean: number | null;
+  baseline_std: number | null;
+  baseline_samples?: number;
+  z: number;
+  level: SnapmapLevel;
+  reliability: SnapmapReliability;
+  corroboration: SnapmapCorroboration[];
+  keyword_hits: string[];
+  media: SnapmapMediaRef[];
+  status: 'pending' | 'ok' | 'warmup' | 'error';
+  last_scan: string | null;
+  alert_id?: number;
+}
+
+export interface SnapmapAlert {
+  id: number;
+  zone_id: string;
+  label: string;
+  time: string;
+  level: SnapmapLevel;
+  z: number;
+  count_1h: number;
+  baseline_mean: number | null;
+  reliability: SnapmapReliability;
+  corroboration: SnapmapCorroboration[];
+  confirmed: boolean;
+  analyst_note?: string | null;
+}
+
+export interface SnapmapOsintPayload {
+  zones?: SnapmapZone[];
+  alerts?: SnapmapAlert[];
+  total_zones?: number;
+  anomalies?: number;
+  timestamp?: string | null;
+  interval_minutes?: number;
+  archive_media?: boolean;
+  error?: string | null;
+  source?: string;
+}
+
 export interface MalwareThreat {
   id: string;
   lat: number;
@@ -1305,6 +1373,7 @@ export interface ActiveLayers {
   scm_suppliers: boolean;
   cyber_threats: boolean;
   telegram_osint: boolean;
+  snapmap_osint: boolean;
   gt_risk: boolean;
 }
 

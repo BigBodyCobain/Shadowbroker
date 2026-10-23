@@ -123,6 +123,7 @@ const FRESHNESS_MAP: Record<string, string> = {
   scm_suppliers: 'scm_suppliers',
   cyber_threats: 'cyber_threats',
   telegram_osint: 'telegram_osint',
+  snapmap_osint: 'snapmap_osint',
   gt_risk: 'gt_risk',
 };
 
@@ -199,6 +200,7 @@ const WORLDVIEW_PANEL_DATA_KEYS = [
   'frontlines',
   'gdelt',
   'telegram_osint',
+  'snapmap_osint',
   'crowdthreat',
   'correlations',
   'gt_risk',
@@ -1505,6 +1507,13 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           source: 't.me public channels',
           count: data?.telegram_osint?.geolocated || 0,
           icon: Radio,
+        },
+        {
+          id: 'snapmap_osint',
+          name: t('layers.snapmapOsint'),
+          source: 'Snap Map · watch zones',
+          count: data?.snapmap_osint?.anomalies || 0,
+          icon: MapPin,
         },
         {
           id: 'crowdthreat',
