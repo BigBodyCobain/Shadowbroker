@@ -32,7 +32,7 @@
     "hls.js": "^1.7.3",
     "lucide-react": "^0.575.0",
     "maplibre-gl": "^6.14.0",
-    "next": "^16.4.0",
+    "next": "^16.4.3",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.3.0",
@@ -48,7 +48,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.12",
     "concurrently": "^10.0.6",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
@@ -57,7 +57,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^8.3.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "postcss": "8.5.30",
