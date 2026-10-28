@@ -12,13 +12,13 @@ export default function TrendingPosts() {
       <div className="space-y-3">
         <div className="text-sm text-gray-500 leading-relaxed">
           <p className="text-amber-400/80 font-bold mb-1">TEST-NET ACTIVE</p>
-          <p>Gates are decentralized chatrooms running on the Infonet mesh. All messages are end-to-end encrypted via Wormhole.</p>
+          <p>Gates are chatrooms on the Infonet mesh. Posts are encrypted for members who hold the room key; which room you post in, and when, is still visible.</p>
           <p className="mt-2">Type <span className="text-green-400 font-bold">gates</span> or <span className="text-green-400 font-bold">g/</span> to browse available rooms.</p>
         </div>
         <div className="mt-3 pt-3 border-t border-gray-800">
           <p className="text-red-500 font-bold text-xs mb-1">SHADOWBROKER ADVISORY</p>
           <p className="text-[11px] text-red-400/70 leading-relaxed">
-            This is a <span className="text-red-400 font-bold">testnet</span>. Treat all communications as <span className="text-red-400 font-bold">obfuscated, not encrypted</span>. Do not assume full privacy, anonymity, or end-to-end encryption. Transport security is experimental and unaudited. Use at your own risk.
+            This is a <span className="text-red-400 font-bold">testnet</span>. Message content is encrypted, but the code is <span className="text-red-400 font-bold">unaudited</span> and activity metadata is visible. Don&apos;t share anything that would hurt you if it leaked.
           </p>
         </div>
       </div>

@@ -16,7 +16,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string; border: string
   rf_anomaly: { label: 'RF ANOMALY', color: 'text-gray-400', border: 'border-gray-500/50' },
   military_buildup: { label: 'MILITARY BUILDUP', color: 'text-red-400', border: 'border-red-500/50' },
   infra_cascade: { label: 'INFRASTRUCTURE CASCADE', color: 'text-blue-400', border: 'border-blue-500/50' },
-  analysis_zone: { label: 'OPENCLAW ANALYSIS', color: 'text-cyan-400', border: 'border-cyan-500/50' },
+  analysis_zone: { label: 'AGENT ANALYSIS', color: 'text-cyan-400', border: 'border-cyan-500/50' },
 };
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -79,7 +79,7 @@ export function CorrelationPopup({ alert, onClose }: CorrelationPopupProps) {
             {isAnalysisZone ? (
               <>
                 <div className={`map-popup-title ${meta.color}`}>
-                  {alert.title || 'OPENCLAW ANALYSIS'}
+                  {alert.title || 'AGENT ANALYSIS'}
                 </div>
                 {alert.category && (
                   <div className="text-[11px] font-mono tracking-widest mt-0.5">
@@ -139,7 +139,7 @@ export function CorrelationPopup({ alert, onClose }: CorrelationPopupProps) {
         {isAnalysisZone && (
           <div className="mt-2 pt-1.5 border-t border-cyan-500/10">
             <div className="text-[10px] text-cyan-500/40 text-center">
-              Placed by OpenClaw agent — click trash icon to remove
+              Placed by AI agent — click trash icon to remove
             </div>
           </div>
         )}

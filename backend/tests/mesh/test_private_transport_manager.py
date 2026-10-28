@@ -141,6 +141,12 @@ def test_plain_language_readiness_state_mapping_remains_stable():
 def test_pending_outbox_on_startup_resume_requests_warmup(monkeypatch):
     import main
 
+    # RNS-enabled node: the DM floor stays private_strong.
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": True},
+    )
+
     calls = []
     started = {"value": 0}
     woken = {"value": 0}

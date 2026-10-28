@@ -216,7 +216,7 @@
   },
   "gtLean": {
     "title": "Enable Derived OSINT on a lean node?",
-    "message": "Shadowbroker detected a 1 vCPU cap on this node. Turning on the Strategic Risk map layer is safe for display, but enabling the backend engine (GT_ANALYTICS_ENABLED) may slow Telegram, GDELT, and other OSINT fetches. Use OpenClaw watchdog alerts without the full engine on fleet nodes.",
+    "message": "Shadowbroker detected a 1 vCPU cap on this node. Turning on the Strategic Risk map layer is safe for display, but enabling the backend engine (GT_ANALYTICS_ENABLED) may slow Telegram, GDELT, and other OSINT fetches. Use AI-agent watchdog alerts without the full engine on fleet nodes.",
     "confirm": "Turn on layer anyway",
     "cancel": "Cancel"
   },
@@ -268,7 +268,7 @@
     "tabOperational": "Operational",
     "benchmarkNote": "Static labeled corpus — regression test, not live forecasting.",
     "operationalLoading": "Loading rolling operational trend…",
-    "operationalEmpty": "No weekly snapshots yet — freeze runs Mondays 00:05 UTC or via OpenClaw.",
+    "operationalEmpty": "No weekly snapshots yet — freeze runs Mondays 00:05 UTC or via your AI agent.",
     "operationalWeeks": "{stored} weeks stored · {scorable} scorable",
     "operationalLabeled": "{labeled} labeled · {pending} pending",
     "operationalTrend": "Week-over-week accuracy",

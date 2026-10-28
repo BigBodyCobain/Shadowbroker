@@ -123,6 +123,8 @@ import {
   rootWitnessBadgeLabel,
   rootWitnessContinuityLabel,
 } from '@/mesh/contactTrustSummary';
+import GateKeySharingPanel from './GateKeySharingPanel';
+import { friendlyInfonetError } from '@/mesh/friendlyError';
 
 type ViewTab = 'mailbox' | 'compose' | 'requests' | 'contacts' | 'restricted';
 type MailFolder = 'inbox' | 'sent' | 'junk' | 'spam' | 'trash';
@@ -610,7 +612,7 @@ function normalizeMailError(message: string): string {
   ) {
     return 'This contact is saved. Messages can be saved now and will send automatically when the contact is reachable.';
   }
-  return detail;
+  return friendlyInfonetError(detail, 'Secure mail hit a problem. Try again.');
 }
 
 function shouldSaveMailForLater(message: string): boolean {
@@ -1924,7 +1926,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
     }
     if (requiresVerifiedFirstContact(contacts[recipient])) {
       setComposeStatus('');
-      setComposeError('Import a signed invite first. Unverified TOFU first-contact requests are disabled.');
+      setComposeError('Add this person as a contact first: paste the contact invite they shared with you. This node only accepts new contacts from invites, so nobody can pose as them.');
       return;
     }
 
@@ -2186,7 +2188,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         setActiveTab('mailbox');
         setSelectedFolder('sent');
       } catch (error) {
-        setComposeError(error instanceof Error ? error.message : 'contact request failed');
+        setComposeError(friendlyInfonetError(error, 'Contact request did not go through. Try again.'));
       } finally {
         setInviteBusy(false);
       }
@@ -2384,7 +2386,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       await refreshDmAddressHandles();
     } catch (error) {
       if (!automatic) {
-        setComposeError(error instanceof Error ? error.message : 'Contact address could not be created.');
+        setComposeError(friendlyInfonetError(error, 'Contact address could not be created. Try again.'));
       }
     } finally {
       setDmAddressBusy('');
@@ -2457,7 +2459,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         );
         await refreshDmAddressHandles();
       } catch (error) {
-        setComposeError(error instanceof Error ? error.message : 'DM address revoke failed');
+        setComposeError(friendlyInfonetError(error, 'Could not revoke that address. Try again.'));
       } finally {
         setDmAddressBusy('');
       }
@@ -2496,7 +2498,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         setDmAddressCopyStatus(`Renamed ${shortHandle(address.handle)} to ${label}.`);
         await refreshDmAddressHandles();
       } catch (error) {
-        setComposeError(error instanceof Error ? error.message : 'DM address label update failed');
+        setComposeError(friendlyInfonetError(error, 'Could not rename that address. Try again.'));
       } finally {
         setDmAddressBusy('');
       }
@@ -2634,7 +2636,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             : `Contact accepted: ${displayNameForPeer(mail.senderId, getContacts())}.`,
         );
       } catch (error) {
-        setComposeError(error instanceof Error ? error.message : 'accept failed');
+        setComposeError(friendlyInfonetError(error, 'Could not accept the request. Try again.'));
       } finally {
         setBusy(false);
       }
@@ -2705,7 +2707,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             : `Request denied: ${displayNameForPeer(mail.senderId, getContacts())}.`,
         );
       } catch (error) {
-        setComposeError(error instanceof Error ? error.message : 'deny failed');
+        setComposeError(friendlyInfonetError(error, 'Could not decline the request. Try again.'));
       } finally {
         setBusy(false);
       }
@@ -2914,6 +2916,8 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           );
         })}
       </div>
+
+      <GateKeySharingPanel />
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'mailbox' && (

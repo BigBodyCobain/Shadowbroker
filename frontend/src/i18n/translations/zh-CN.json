@@ -268,7 +268,7 @@
     "tabOperational": "运营验证",
     "benchmarkNote": "静态标注语料 — 回归测试，非实时预测。",
     "operationalLoading": "正在加载滚动运营趋势…",
-    "operationalEmpty": "尚无周快照 — 每周一 00:05 UTC 自动冻结，或通过 OpenClaw。",
+    "operationalEmpty": "尚无周快照 — 每周一 00:05 UTC 自动冻结，或通过您的 AI 代理。",
     "operationalWeeks": "已存 {stored} 周 · {scorable} 周可评分",
     "operationalLabeled": "已标注 {labeled} · 待标注 {pending}",
     "operationalTrend": "逐周准确率",

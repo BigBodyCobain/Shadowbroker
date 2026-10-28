@@ -439,6 +439,12 @@ def test_review_export_blocks_private_default_when_controls_have_override():
     ],
 )
 def test_lane_floor_failure_has_no_delivery_or_public_side_effects(monkeypatch, lane, current_tier, payload):
+    # Floors are the strict two-transport ones on an RNS-enabled node; a
+    # Tor-only node relaxes them to private_transitional.
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": True},
+    )
     public_calls = []
     private_calls = []
 

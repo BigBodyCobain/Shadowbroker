@@ -1324,8 +1324,92 @@ class GateManager:
         }
         gate["gate_secret_archive"] = _normalized_gate_secret_archive(archive)
         gate["gate_secret"] = _generate_gate_secret()
+        gate["gate_secret_version"] = int(gate.get("gate_secret_version", 0) or 0) + 1
         self._save()
         return dict(gate["gate_secret_archive"])
+
+    def get_gate_key_meta(self, gate_id: str) -> dict[str, Any]:
+        """Return non-secret key-distribution metadata for a gate."""
+        gate = self.gates.get(str(gate_id or "").strip().lower())
+        if not gate:
+            return {}
+        return {
+            "gate_secret_version": int(gate.get("gate_secret_version", 0) or 0),
+            "key_upstream": str(gate.get("key_upstream", "") or ""),
+            "key_grants": {
+                str(peer): dict(grant or {})
+                for peer, grant in dict(gate.get("key_grants") or {}).items()
+            },
+        }
+
+    def record_key_grant(self, gate_id: str, peer_id: str, *, secret_id: str, op: str) -> None:
+        gate_key = str(gate_id or "").strip().lower()
+        peer_key = str(peer_id or "").strip()
+        with self._gate_lock:
+            gate = self.gates.get(gate_key)
+            if not gate or not peer_key:
+                return
+            grants = dict(gate.get("key_grants") or {})
+            grants[peer_key] = {"secret_id": str(secret_id or ""), "granted_at": time.time(), "op": str(op or "")}
+            gate["key_grants"] = grants
+            self._save()
+
+    def drop_key_grants(self, gate_id: str, peer_ids: list[str]) -> None:
+        gate_key = str(gate_id or "").strip().lower()
+        with self._gate_lock:
+            gate = self.gates.get(gate_key)
+            if not gate:
+                return
+            grants = dict(gate.get("key_grants") or {})
+            for peer in peer_ids:
+                grants.pop(str(peer or "").strip(), None)
+            gate["key_grants"] = grants
+            self._save()
+
+    def adopt_gate_secret(
+        self,
+        gate_id: str,
+        secret: str,
+        *,
+        version: int,
+        upstream_peer_id: str,
+        previous_valid_through_epoch: int = 0,
+    ) -> dict[str, Any]:
+        """Replace the local gate secret with one received from another member.
+
+        The prior secret moves into the single-slot archive so history this
+        node already holds stays readable, bounded by the same epoch ceiling
+        the ban/kick rotation uses.
+        """
+        gate_key = str(gate_id or "").strip().lower()
+        new_secret = str(secret or "").strip()
+        if not new_secret:
+            return {"ok": False, "detail": "gate secret required"}
+        with self._gate_lock:
+            gate = self.gates.get(gate_key)
+            if not gate:
+                return {"ok": False, "detail": "Gate not found"}
+            current_secret = str(gate.get("gate_secret", "") or "")
+            if current_secret == new_secret:
+                gate["gate_secret_version"] = max(int(gate.get("gate_secret_version", 0) or 0), int(version or 0))
+                gate["key_upstream"] = str(upstream_peer_id or "")
+                self._save()
+                return {"ok": True, "gate_id": gate_key, "changed": False}
+            if current_secret:
+                gate["gate_secret_archive"] = _normalized_gate_secret_archive(
+                    {
+                        "previous_secret": current_secret,
+                        "previous_valid_through_event_id": "",
+                        "previous_valid_through_epoch": max(0, int(previous_valid_through_epoch or 0)),
+                        "rotated_at": time.time(),
+                        "reason": "adopted_invite",
+                    }
+                )
+            gate["gate_secret"] = new_secret
+            gate["gate_secret_version"] = max(0, int(version or 0))
+            gate["key_upstream"] = str(upstream_peer_id or "")
+            self._save()
+            return {"ok": True, "gate_id": gate_key, "changed": True}
 
     def remove_member(self, gate_id: str, member_id: str, *, kind: str = "leave") -> dict[str, Any]:
         """Single authority for gate-member removal and ban/kick secret rotation."""
@@ -1374,6 +1458,18 @@ class GateManager:
                         previous_valid_through_epoch=int(removed.get("previous_epoch", 0) or 0),
                     )
                 rotated = True
+                # Other nodes hold the old secret; hand the new one to every
+                # grantee or the gate splits after a kick.
+                try:
+                    from services.mesh.mesh_gate_invites import redistribute_after_local_rotation
+
+                    redistribute_after_local_rotation(gate_key)
+                except Exception:
+                    logger.exception(
+                        "gate key redistribution failed after %s for %s",
+                        removal_kind,
+                        privacy_log_label(gate_key, label="gate"),
+                    )
             else:
                 logger.info(
                     "Gate secret rotation disabled; observed %s for %s member %s without rotating",

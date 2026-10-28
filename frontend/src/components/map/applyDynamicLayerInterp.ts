@@ -1,8 +1,7 @@
 import type * as GeoJSON from 'geojson';
 import { interpolatePosition } from '@/utils/positioning';
 import type { DynamicMapLayersResult } from '@/components/map/dynamicMapLayers.worker';
-
-const UNBOUNDED_INTERP_SECONDS = Number.POSITIVE_INFINITY;
+import { MAX_INTERP_SECONDS } from '@/lib/constants';
 
 type InterpProps = {
   baseLat?: number;
@@ -33,7 +32,7 @@ function interpCoords(props: InterpProps, dtSeconds: number): [number, number] |
     spd,
     dtSeconds,
     0,
-    UNBOUNDED_INTERP_SECONDS,
+    MAX_INTERP_SECONDS,
   );
   return [newLng, newLat];
 }

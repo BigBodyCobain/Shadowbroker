@@ -3086,7 +3086,7 @@ function SarSettingsTab() {
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${openclawEnabled ? 'bg-green-400' : 'bg-gray-500'}`} />
                 <span className="text-[11px]">
-                  OpenClaw SAR integration:{' '}
+                  AI agent SAR integration:{' '}
                   {openclawEnabled ? 'Enabled' : 'Disabled'}
                 </span>
               </div>

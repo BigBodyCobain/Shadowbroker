@@ -95,7 +95,20 @@ def test_private_dm_compose_queues_when_strong_transport_unavailable(monkeypatch
     assert item["required_tier"] == "private_strong"
 
 
-def test_gate_compose_queues_when_transitional_transport_unavailable(monkeypatch):
+@pytest.mark.parametrize(
+    ("rns_enabled", "expected_tier"),
+    [
+        # Tor-only node: gates share the DM lane's Tor floor.
+        (False, "private_transitional"),
+        # RNS configured: the two-transport floor stays in force.
+        (True, "private_strong"),
+    ],
+)
+def test_gate_compose_queues_when_transitional_transport_unavailable(monkeypatch, rns_enabled, expected_tier):
+    monkeypatch.setattr(
+        "services.wormhole_supervisor.get_wormhole_state",
+        lambda: {"rns_enabled": rns_enabled},
+    )
     response = main._queue_gate_release(
         current_tier="private_control_only",
         gate_id="gate-1",
@@ -112,7 +125,7 @@ def test_gate_compose_queues_when_transitional_transport_unavailable(monkeypatch
     item = _outbox_item(response["outbox_id"])
     assert item["lane"] == "gate"
     assert item["release_state"] == "queued"
-    assert item["required_tier"] == "private_strong"
+    assert item["required_tier"] == expected_tier
 
 
 def test_queued_dm_releases_automatically_once_transport_upgrades_to_private_strong(monkeypatch):

@@ -11,6 +11,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 ALLOWED_GATE_SECRET_WRITERS = {
     "ensure_gate_secret",
     "_rotate_gate_secret_for_member_removal_locked",
+    # Cross-node key distribution: installs a secret received from a member.
+    "adopt_gate_secret",
 }
 
 

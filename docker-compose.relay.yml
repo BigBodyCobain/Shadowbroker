@@ -10,6 +10,10 @@ services:
       # Keep Tor wormhole up across redeploys (no NODE UI on headless relay).
       MESH_INFONET_RELAY_AUTO_WORMHOLE: "true"
       MESH_ARTI_ENABLED: "true"
+      # A relay serves the mesh only: skip the map-data fetchers (about 1.5 GB
+      # and 30-50% CPU) but keep the Infonet sync workers running.
+      MESH_ONLY: "${MESH_ONLY:-true}"
+      SHADOWBROKER_MESH_NODE_RUNTIME: "${SHADOWBROKER_MESH_NODE_RUNTIME:-true}"
     volumes:
       - relay_data:/app/data
     restart: unless-stopped

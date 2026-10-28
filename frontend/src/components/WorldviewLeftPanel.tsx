@@ -1547,7 +1547,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
         {
           id: 'ai_intel',
           name: t('layers.aiIntel'),
-          source: 'OpenClaw AI',
+          source: 'AI Agent',
           count: null,
           icon: Zap,
         },

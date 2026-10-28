@@ -59,6 +59,9 @@ const nextConfig: NextConfig = {
   typescript: {
     tsconfigPath: 'tsconfig.build.json',
     ignoreBuildErrors: skipTypecheck,
+    // Next 16.3+ type-checks every file tsconfig includes; keep the build on
+    // app code. Tests are type-checked by Vitest/tsc separately.
+    tsconfigPath: 'tsconfig.build.json',
   },
   ...(!isDesktopExport
     ? {

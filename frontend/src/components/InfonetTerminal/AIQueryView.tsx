@@ -331,7 +331,7 @@ I can directly execute these commands:
   • help
 
 For complex queries (natural language research, web search,
-multi-step investigations), connect OpenClaw with an LLM
+multi-step investigations), connect an AI agent with an LLM
 provider to unlock full agent capabilities.
 
 Type "help" for the full command list.`,
@@ -399,10 +399,10 @@ Make sure the ShadowBroker backend is running on localhost:8000.`,
                 ? 'bg-purple-900/40 border border-purple-500/50 text-purple-300'
                 : 'bg-purple-900/20 border border-purple-800/30 text-purple-500 hover:bg-purple-900/30 hover:text-purple-300 hover:border-purple-600/40'
             }`}
-            title="Connect your OpenClaw agent"
+            title="Connect your AI agent"
           >
             <Link2 size={13} />
-            Connect OpenClaw
+            Connect AI Agent
           </button>
           <button
             onClick={() => setMessages([{
@@ -418,13 +418,13 @@ Make sure the ShadowBroker backend is running on localhost:8000.`,
         </div>
       </div>
 
-      {/* Connect OpenClaw Panel */}
+      {/* Connect AI Agent Panel */}
       {showConnect && (
         <div className="border-b border-purple-900/40 bg-purple-950/15 px-4 py-4 shrink-0 overflow-y-auto max-h-[60vh]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Link2 size={14} className="text-purple-400" />
-              <span className="text-sm font-bold tracking-wider text-purple-400 uppercase">Connect Your OpenClaw Agent</span>
+              <span className="text-sm font-bold tracking-wider text-purple-400 uppercase">Connect Your AI Agent</span>
             </div>
             <button onClick={() => setShowConnect(false)} className="text-gray-600 hover:text-gray-300 transition-colors">
               <X size={14} />
@@ -454,16 +454,16 @@ Make sure the ShadowBroker backend is running on localhost:8000.`,
               <div className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">Setup Instructions</div>
               <div className="bg-black/60 border border-gray-800/40 rounded-sm p-3 space-y-2 text-[13px] leading-relaxed">
                 <p className="text-cyan-400 font-bold">Step 1: Install the ShadowBroker Skill</p>
-                <p className="text-gray-400">Copy the <code className="text-purple-300 bg-purple-900/30 px-1">openclaw-skills/shadowbroker/</code> folder into your OpenClaw&apos;s skills directory.</p>
+                <p className="text-gray-400">Copy the <code className="text-purple-300 bg-purple-900/30 px-1">openclaw-skills/shadowbroker/</code> folder into your agent&apos;s skills directory.</p>
 
                 <p className="text-cyan-400 font-bold mt-2">Step 2: Configure the API Endpoint</p>
-                <p className="text-gray-400">Tell your OpenClaw agent to connect to:</p>
+                <p className="text-gray-400">Tell your AI agent to connect to:</p>
                 <code className="block bg-purple-950/40 border border-purple-800/30 px-2 py-1 text-purple-300 text-[13px] rounded-sm">
                   SHADOWBROKER_URL={apiEndpoint}
                 </code>
 
                 <p className="text-cyan-400 font-bold mt-2">Step 3: Tell Your Agent</p>
-                <p className="text-gray-400">Paste this into your OpenClaw&apos;s system prompt or instructions:</p>
+                <p className="text-gray-400">Paste this into your agent&apos;s system prompt or instructions:</p>
                 <div className="relative">
                   <pre className="bg-purple-950/40 border border-purple-800/30 px-2 py-2 text-[12px] text-purple-200 rounded-sm overflow-x-auto whitespace-pre-wrap">{`You have a skill called "shadowbroker" that connects you to a real-time global OSINT intelligence platform. Use it to:
 - Query military flights, ships, satellites, SIGINT, earthquakes, and 30+ data layers

@@ -140,6 +140,15 @@ const CONTRIBUTORS: ChangelogContributor[] = [
   },
 ];
 
+/** A brand-new install has nothing to catch up on; skip this version's notes. */
+export function markChangelogSeen() {
+  try {
+    localStorage.setItem(STORAGE_KEY, 'true');
+  } catch {
+    /* storage unavailable: the modal just shows once more */
+  }
+}
+
 export function useChangelog() {
   const [show, setShow] = useState(false);
   useEffect(() => {

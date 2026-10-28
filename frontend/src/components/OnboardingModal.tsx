@@ -516,7 +516,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                         STEP 3 - COPY THIS INTO YOUR AGENT
                       </p>
                       <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1">
-                        Generate a local key, then copy these variables into OpenClaw, Hermes, or another HMAC agent.
+                        Generate a local key, then set these variables in your agent&apos;s environment (Hermes, Claude Code, or any HMAC-capable agent).
                       </p>
                     </div>
                     <button

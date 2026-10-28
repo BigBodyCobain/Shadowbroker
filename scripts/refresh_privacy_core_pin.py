@@ -5,9 +5,7 @@ import re
 from pathlib import Path
 
 
-TRUE_VALUES = {"1", "true", "yes", "on", "allow", "enabled"}
 PIN_KEY = "PRIVACY_CORE_ALLOWED_SHA256"
-PRIVATE_LANE_KEYS = ("MESH_ARTI_ENABLED", "MESH_RNS_ENABLED")
 
 
 def _repo_root() -> Path:
@@ -38,14 +36,6 @@ def _parse_env(lines: list[str]) -> dict[str, str]:
     return values
 
 
-def _private_lane_enabled(values: dict[str, str]) -> bool:
-    for key in PRIVATE_LANE_KEYS:
-        value = values.get(key, "")
-        if value.strip().lower() in TRUE_VALUES:
-            return True
-    return False
-
-
 def _replace_or_append_pin(lines: list[str], digest: str) -> tuple[list[str], bool]:
     updated: list[str] = []
     replaced = False
@@ -66,22 +56,17 @@ def _replace_or_append_pin(lines: list[str], digest: str) -> tuple[list[str], bo
 def main() -> int:
     root = _repo_root()
     env_path = root / "backend" / ".env"
-    if not env_path.is_file():
-        print("[*] privacy-core trust pin refresh skipped: backend/.env not found.")
-        return 0
-
     library_path = _privacy_core_library(root)
     if library_path is None:
         print("[*] privacy-core trust pin refresh skipped: shared library not found.")
         return 0
 
-    text = env_path.read_text(encoding="utf-8-sig")
+    # Pin the locally built library whether or not private lanes were enabled
+    # in .env: most operators turn Wormhole on from the UI, and without a pin
+    # the private lanes report "unattested" and refuse privacy claims.
+    text = env_path.read_text(encoding="utf-8-sig") if env_path.is_file() else ""
     lines = text.splitlines()
     values = _parse_env(lines)
-    has_pin = PIN_KEY in values
-    if not has_pin and not _private_lane_enabled(values):
-        print("[*] privacy-core trust pin refresh skipped: private-lane mode is not enabled.")
-        return 0
 
     digest = hashlib.sha256(library_path.read_bytes()).hexdigest()
     if values.get(PIN_KEY, "").strip().lower() == digest:

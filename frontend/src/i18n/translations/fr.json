@@ -268,7 +268,7 @@
     "tabOperational": "Opérationnel",
     "benchmarkNote": "Corpus historique étiqueté — test de régression, pas prévision live.",
     "operationalLoading": "Chargement de la tendance opérationnelle…",
-    "operationalEmpty": "Aucun instantané hebdomadaire — gel chaque lundi 00:05 UTC ou via OpenClaw.",
+    "operationalEmpty": "Aucun instantané hebdomadaire — gel chaque lundi 00:05 UTC ou via votre agent IA.",
     "operationalWeeks": "{stored} semaines · {scorable} exploitables",
     "operationalLabeled": "{labeled} étiquetés · {pending} en attente",
     "operationalTrend": "Précision semaine après semaine",

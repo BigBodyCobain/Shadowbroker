@@ -35,7 +35,9 @@ async function verifyAdminKey(
       detail: 'No admin key configured. Set ADMIN_KEY on the frontend and backend, then restart to enable operator login.',
     };
   }
-  if (Buffer.byteLength(adminKey) !== Buffer.byteLength(configuredAdmin) || !timingSafeEqual(Buffer.from(adminKey), Buffer.from(configuredAdmin))) {
+  const presented = Buffer.from(String(adminKey || ''));
+  const expected = Buffer.from(configuredAdmin);
+  if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
     return { ok: false, detail: 'Invalid admin key' };
   }
   return { ok: true };

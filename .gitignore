@@ -213,6 +213,7 @@ docs/mesh/*
 !docs/mesh/mesh-canonical-fixtures.json
 !docs/mesh/mesh-merkle-fixtures.json
 !docs/mesh/wormhole-dm-root-operations-runbook.md
+!docs/mesh/gate-invites.md
 .local-docs/
 infonet-economy/
 updatestuff.md

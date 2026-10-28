@@ -95,6 +95,7 @@ services:
       - APRS_IS_PRIVATE_SERVER=${APRS_IS_PRIVATE_SERVER:-false}
       - APRS_IS_FILTER=${APRS_IS_FILTER:-}
       # These hosts are trusted only for rate-limit forwarding, never authorization.
+      - SHADOWBROKER_LAN_MODE=${SHADOWBROKER_LAN_MODE:-}
       # (default: 'frontend' compose service + 'shadowbroker-frontend' container
       # name). If you rename the frontend service or run with a different
       # container_name, list the hostnames here (comma-separated, no spaces).
@@ -158,6 +159,7 @@ services:
       - ADMIN_KEY=${ADMIN_KEY:?Set ADMIN_KEY to at least 32 random characters in .env}
       - SHADOWBROKER_ALLOWED_ORIGINS=${SHADOWBROKER_ALLOWED_ORIGINS:-}
       - MESH_SCOPED_TOKENS=${MESH_SCOPED_TOKENS:-}
+      - SHADOWBROKER_LAN_MODE=${SHADOWBROKER_LAN_MODE:-}
     depends_on:
       backend:
         condition: service_healthy

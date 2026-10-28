@@ -7,7 +7,8 @@ security than the code provides.
 | Claim | Status | Implementation Notes |
 |---|---|---|
 | InfoNet is a decentralized intelligence mesh. | Supported as testnet | Mesh routing, signed events, peer sync, gate personas, and Wormhole relay code are present, but deployment topology is still experimental. |
-| Gate chat is private. | Not supported | Gate chat is obfuscated and signed, not end-to-end private. Public claims must say "obfuscated" rather than "private". |
+| Gate chat is private. | Not supported | Gate content is encrypted (MLS plus a gate-secret envelope) but metadata is visible and every key holder reads every envelope. Public claims must say "encrypted content, obfuscated metadata" rather than "private". |
+| Members on different nodes can read the same gate. | Supported as testnet | The gate secret is shared through an operator-accepted invite sent inside an end-to-end encrypted DM; rotation redistributes to grantees. Without an accepted invite, other nodes cannot read the room. |
 | Dead Drop DMs are the strongest current private lane. | Supported with caveats | DM mailboxes, token handling, SAS/contact verification, sealed payloads, and witness/root transparency code exist. The lane is still experimental and should not be described as confidently private. |
 | Sovereign Shell governance is public. | Supported | Governance events are signed public records and should be documented as observable. |
 | Function Keys provide anonymous citizenship proof. | Partial | Nullifiers, challenge-response, receipts, denial codes, and settlement scaffolding exist. Blind-signature issuance is not complete. |

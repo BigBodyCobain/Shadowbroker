@@ -157,7 +157,8 @@ describe('MaplibreViewer decomposition — selection and dismissal', () => {
   it('satellite popup calls onEntityClick(null) on close', () => {
     const satSection = viewer.slice(
       viewer.indexOf("selectedEntity?.type === 'satellite'"),
-      viewer.indexOf("selectedEntity?.type === 'satellite'") + 500,
+      // 500 chars left no slack: onClose ended exactly at the window edge (LF) and fell outside on CRLF checkouts.
+      viewer.indexOf("selectedEntity?.type === 'satellite'") + 900,
     );
     expect(satSection).toContain('<SatellitePopup');
     expect(satSection).toContain('onClose={() => onEntityClick?.(null)}');

@@ -195,7 +195,9 @@ def runtime_route_enforcement_tier(path: str, method: str, *, static_tier: str) 
 def release_lane_required_tier(lane: str, *, wormhole_state: dict[str, Any] | None = None) -> str:
     normalized_lane = str(lane or "").strip().lower()
     required = network_release_required_tier(normalized_lane)
-    if normalized_lane != "dm":
+    # Gates publish over Tor first (RNS is the fallback carrier), so they get
+    # the same Tor-only floor as DMs when RNS is not part of this node.
+    if normalized_lane not in {"dm", "gate"}:
         return required
     state = wormhole_state
     if state is None:

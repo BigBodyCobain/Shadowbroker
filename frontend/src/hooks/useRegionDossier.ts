@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import type { RegionDossier, SelectedEntity } from '@/types/dashboard';
 import { API_BASE } from '@/lib/api';
 
@@ -77,34 +77,39 @@ function buildLimitedDossier(lat: number, lng: number, error?: string): RegionDo
   } as RegionDossier;
 }
 
+/**
+ * Placeholder shown while the live Sentinel-2 search is in flight. It must not
+ * look like a result: previously the Esri fallback filled this slot, so a slow
+ * search read as "right-click only returns generic imagery".
+ */
+const SEARCHING_SENTINEL = { found: false, searching: true };
+
 /** Self-hosted backend routes (#351) — no browser-direct third-party dossier calls. */
-async function fetchDossierBundle(
-  lat: number,
-  lng: number,
-): Promise<{ dossier: Record<string, unknown> | null; sentinel2: Record<string, unknown> }> {
+async function fetchSentinelScenes(lat: number, lng: number): Promise<Record<string, unknown>> {
   const qs = `lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
-  const [dossierRes, sentinelRes] = await Promise.allSettled([
-    fetch(`${API_BASE}/api/region-dossier?${qs}`),
-    fetch(`${API_BASE}/api/sentinel2/search?${qs}`),
-  ]);
-
-  let dossier: Record<string, unknown> | null = null;
-  if (dossierRes.status === 'fulfilled' && dossierRes.value.ok) {
-    dossier = await dossierRes.value.json();
-  } else if (dossierRes.status === 'fulfilled') {
-    console.warn('[Dossier] Backend region-dossier HTTP', dossierRes.value.status);
-  } else {
-    console.warn('[Dossier] Backend region-dossier failed:', dossierRes.reason);
+  try {
+    const res = await fetch(`${API_BASE}/api/sentinel2/search?${qs}`);
+    if (res.ok) return await res.json();
+    console.warn('[Dossier] Backend sentinel2/search HTTP', res.status);
+  } catch (e) {
+    console.warn('[Dossier] Backend sentinel2/search failed:', e);
   }
+  return {
+    ...buildLocalSentinelFallback(lat, lng),
+    message: 'Live Sentinel-2 search failed; showing Esri World Imagery instead.',
+  };
+}
 
-  let sentinel2: Record<string, unknown> = buildLocalSentinelFallback(lat, lng);
-  if (sentinelRes.status === 'fulfilled' && sentinelRes.value.ok) {
-    sentinel2 = await sentinelRes.value.json();
-  } else if (sentinelRes.status === 'rejected') {
-    console.warn('[Dossier] Backend sentinel2/search failed:', sentinelRes.reason);
+async function fetchRegionDossier(lat: number, lng: number): Promise<Record<string, unknown> | null> {
+  const qs = `lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
+  try {
+    const res = await fetch(`${API_BASE}/api/region-dossier?${qs}`);
+    if (res.ok) return await res.json();
+    console.warn('[Dossier] Backend region-dossier HTTP', res.status);
+  } catch (e) {
+    console.warn('[Dossier] Backend region-dossier failed:', e);
   }
-
-  return { dossier, sentinel2 };
+  return null;
 }
 
 function dossierFromBackend(
@@ -133,18 +138,19 @@ export function useRegionDossier(
 ) {
   const [regionDossier, setRegionDossier] = useState<RegionDossier | null>(null);
   const [regionDossierLoading, setRegionDossierLoading] = useState(false);
+  const requestRef = useRef(0);
 
   const handleMapRightClick = useCallback(
     async (coords: { lat: number; lng: number }) => {
       const { lat, lng } = coords;
-      const esriFallback = buildLocalSentinelFallback(lat, lng);
+      const request = ++requestRef.current;
+      const isCurrent = () => requestRef.current === request;
 
       setSelectedEntity({
         type: 'region_dossier',
         id: `${lat.toFixed(4)}_${lng.toFixed(4)}`,
         extra: coords,
       });
-      setRegionDossierLoading(true);
 
       const cached = getCached(lat, lng);
       if (cached) {
@@ -153,33 +159,37 @@ export function useRegionDossier(
         return;
       }
 
-      setRegionDossier({
-        ...buildLimitedDossier(lat, lng),
-        sentinel2: esriFallback,
+      setRegionDossierLoading(true);
+      setRegionDossier({ ...buildLimitedDossier(lat, lng), sentinel2: SEARCHING_SENTINEL });
+
+      // The imagery and the place lookup are independent: show Sentinel-2 scenes the
+      // moment they arrive instead of waiting for the (often slower) region dossier.
+      const sentinelPromise = fetchSentinelScenes(lat, lng).then((sentinel2) => {
+        if (isCurrent()) setRegionDossier((prev) => (prev ? { ...prev, sentinel2 } : prev));
+        return sentinel2;
+      });
+      const dossierPromise = fetchRegionDossier(lat, lng).then((dossier) => {
+        if (isCurrent()) {
+          setRegionDossier((prev) => {
+            const sentinel2 = (prev?.sentinel2 as Record<string, unknown> | undefined) ?? SEARCHING_SENTINEL;
+            return dossier
+              ? dossierFromBackend(lat, lng, dossier, sentinel2)
+              : {
+                  ...buildLimitedDossier(lat, lng, 'Region dossier unavailable — check backend connection'),
+                  sentinel2,
+                };
+          });
+        }
+        return dossier;
       });
 
       try {
-        const { dossier, sentinel2 } = await fetchDossierBundle(lat, lng);
-
-        if (!dossier) {
-          setRegionDossier({
-            ...buildLimitedDossier(lat, lng, 'Region dossier unavailable — check backend connection'),
-            sentinel2,
-          });
-          return;
-        }
-
-        const result = dossierFromBackend(lat, lng, dossier, sentinel2);
-        setRegionDossier(result);
-        setCache(lat, lng, result);
+        const [sentinel2, dossier] = await Promise.all([sentinelPromise, dossierPromise]);
+        if (dossier && !sentinel2.fallback) setCache(lat, lng, dossierFromBackend(lat, lng, dossier, sentinel2));
       } catch (e) {
         console.error('[Dossier] Unexpected error:', e);
-        setRegionDossier({
-          ...buildLimitedDossier(lat, lng, 'Region dossier request failed unexpectedly'),
-          sentinel2: esriFallback,
-        });
       } finally {
-        setRegionDossierLoading(false);
+        if (isCurrent()) setRegionDossierLoading(false);
       }
     },
     [setSelectedEntity],
