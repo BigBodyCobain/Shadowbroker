@@ -1,4 +1,4 @@
-"""LAN mode removes the implicit operator trust given to the frontend container."""
+"""Operator credentials remain required on LAN, Docker, and loopback."""
 
 import pytest
 from fastapi import HTTPException
@@ -19,9 +19,12 @@ def _frontend_ip(monkeypatch):
     monkeypatch.setattr(auth, "_current_admin_key", lambda: "k" * 32)
 
 
-def test_frontend_container_is_trusted_outside_lan_mode(monkeypatch):
+def test_frontend_container_requires_credentials_outside_lan_mode(monkeypatch):
     monkeypatch.delenv("SHADOWBROKER_LAN_MODE", raising=False)
-    auth.require_local_operator(_Req("172.18.0.5"))
+    with pytest.raises(HTTPException) as exc:
+        auth.require_local_operator(_Req("172.18.0.5"))
+    assert exc.value.status_code == 403
+    auth.require_local_operator(_Req("172.18.0.5", {"X-Admin-Key": "k" * 32}))
 
 
 def test_lan_mode_requires_admin_key_from_frontend_container(monkeypatch):
@@ -33,9 +36,12 @@ def test_lan_mode_requires_admin_key_from_frontend_container(monkeypatch):
     auth.require_local_operator(_Req("172.18.0.5", {"X-Admin-Key": "k" * 32}))
 
 
-def test_lan_mode_keeps_loopback_tools_working(monkeypatch):
+def test_lan_mode_keeps_authenticated_loopback_tools_working(monkeypatch):
     monkeypatch.setenv("SHADOWBROKER_LAN_MODE", "1")
-    auth.require_local_operator(_Req("127.0.0.1"))
+    with pytest.raises(HTTPException) as exc:
+        auth.require_local_operator(_Req("127.0.0.1"))
+    assert exc.value.status_code == 403
+    auth.require_local_operator(_Req("127.0.0.1", {"X-Admin-Key": "k" * 32}))
 
 
 def test_untrusted_loopback_requires_admin_key(monkeypatch):
