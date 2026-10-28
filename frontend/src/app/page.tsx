@@ -336,7 +336,11 @@ export default function Dashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layers: activeLayers }),
-      }).then(() => {
+      }).then((response) => {
+        // Shared dashboards can view public layers without controlling the
+        // server's fetchers or authenticated integrations.
+        if (response.status === 401 || response.status === 403) return;
+        if (!response.ok) throw new Error(`Layer sync failed (${response.status})`);
         if (triggerRefetch) {
           window.dispatchEvent(new Event(LAYER_TOGGLE_EVENT));
         }

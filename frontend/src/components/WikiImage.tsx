@@ -34,7 +34,13 @@ export default function WikiImage({
   const [loading, setLoading] = useState(true);
 
   // Extract article title from URL
-  const title = wikiUrl.replace(/^https?:\/\/[^/]+\/wiki\//, '');
+  const rawTitle = wikiUrl.replace(/^https?:\/\/[^/]+\/wiki\//, '');
+  let title = rawTitle;
+  try {
+    title = decodeURIComponent(rawTitle);
+  } catch {
+    // Keep malformed legacy references usable as plain article titles.
+  }
 
   useEffect(() => {
     let cancelled = false;

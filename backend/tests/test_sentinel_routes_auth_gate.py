@@ -1,29 +1,6 @@
-"""Issues #299, #300, #301 (tg12): Sentinel proxy routes must require
-local-operator auth.
-
-Before the fix, three Sentinel proxy routes in ``backend/routers/tools.py``
-were decorated only with ``@limiter.limit(...)`` — no
-``Depends(require_local_operator)``:
-
-  * ``POST /api/sentinel/token``  — Copernicus CDSE OAuth relay for
-    caller-supplied client_id + client_secret. Anonymous access made the
-    backend a free OAuth-mint relay for any Sentinel account.
-  * ``POST /api/sentinel/tile``   — Sentinel Hub Process API relay.
-    Caller supplies their own credentials, backend mints a token if
-    needed and relays the PNG. Anonymous access was a bandwidth + quota
-    relay for any Copernicus account.
-  * ``GET  /api/sentinel2/search`` — Planetary Computer STAC search with
-    Esri imagery fallback. No caller credentials are involved, but the
-    route is still an anonymous external-search relay.
-
-The fix adds ``dependencies=[Depends(require_local_operator)]`` to each.
-The parameterized regression in ``test_control_surface_auth.py`` covers
-the basic 403 path. This file adds the harder property: when the auth
-gate fires, **the underlying upstream HTTP call never happens** — no
-outbound Copernicus token mint, no Sentinel Hub Process call, no
-Planetary Computer STAC search. The egress-on-403 property is what
-separates a real gate from a route that returns 403 *after* burning a
-quota.
+"""Credential-backed Sentinel token/tile calls require operator authentication
+and must not contact upstream on denial. Public Sentinel-2 catalog searches
+remain available without sign-in, with coordinate validation and rate limits.
 """
 
 from __future__ import annotations
@@ -183,24 +160,20 @@ class TestSentinelTileAuthGate:
 # ---------------------------------------------------------------------------
 
 
-class TestSentinel2SearchAuthGate:
-    def test_anonymous_caller_is_rejected(self, remote):
-        r = remote.get("/api/sentinel2/search?lat=0&lng=0")
-        assert r.status_code == 403
-
-    def test_no_upstream_search_on_403(self, remote):
-        """The Planetary Computer STAC search MUST NOT be called when
-        the gate fires."""
-        fake = MagicMock(side_effect=AssertionError(
-            "search_sentinel2_scene was called despite 403 — gate bypassable"
-        ))
-        # Patch the underlying service function — that's the network
-        # surface. If the auth dep fires first, the handler body never
-        # runs and this stays uncalled.
+class TestPublicSentinel2Catalog:
+    def test_public_catalog_search_requires_no_operator_login(self, remote):
+        fake = MagicMock(return_value={"found": True, "platform": "Sentinel-2C"})
         with patch("services.sentinel_search.search_sentinel2_scene", fake):
-            r = remote.get("/api/sentinel2/search?lat=0&lng=0")
-        assert r.status_code == 403
-        assert fake.call_count == 0
+            r = remote.get("/api/sentinel2/search?lat=39.74&lng=-104.99")
+        assert r.status_code == 200
+        assert r.json()["found"] is True
+        fake.assert_called_once_with(39.74, -104.99)
+
+    def test_invalid_public_coordinates_do_not_reach_upstream(self, remote):
+        with patch("services.sentinel_search.search_sentinel2_scene") as search:
+            r = remote.get("/api/sentinel2/search?lat=100&lng=0")
+        assert r.status_code == 422
+        search.assert_not_called()
 
     def test_authenticated_loopback_caller_reaches_handler(self, loopback):
         """Valid credentials reach the mocked search function."""

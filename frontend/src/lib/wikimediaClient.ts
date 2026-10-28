@@ -58,8 +58,13 @@ export async function fetchWikipediaSummary(
       return null;
     }
   })().then((summary) => {
-    _summaryCache.set(trimmed, { summary, inflight: null, loaded: true });
-    evictIfOverCap();
+    if (summary) {
+      _summaryCache.set(trimmed, { summary, inflight: null, loaded: true });
+      evictIfOverCap();
+    } else {
+      // A temporary upstream failure must not hide the portrait for the session.
+      _summaryCache.delete(trimmed);
+    }
     return summary;
   });
 

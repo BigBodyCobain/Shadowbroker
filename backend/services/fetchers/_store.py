@@ -467,7 +467,7 @@ active_layers: dict[str, bool] = {
     "ships_passenger": True,
     "ships_tracked_yachts": True,
     "earthquakes": True,
-    "cctv": False,
+    "cctv": True,
     "ukraine_frontline": True,
     "global_incidents": True,
     "gps_jamming": True,

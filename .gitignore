@@ -304,3 +304,6 @@ CLAUDE.md
 # module. If a real test for that function is needed, write it under a
 # meaningful name in tests/test_carrier_tracker_quality.py.
 backend/tests/test_carrier_tracker_region_centers.py
+
+# Generated from the installed MapLibre dependency by next.config.ts
+/frontend/public/maplibre-gl-worker.mjs

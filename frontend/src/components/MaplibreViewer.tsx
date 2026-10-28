@@ -25,9 +25,7 @@ import {
 } from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
 import * as maplibregl from 'maplibre-gl';
-maplibregl.setWorkerUrl(
-  new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString(),
-);
+maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
 import FishingDestinationRoute from '@/components/map/FishingDestinationRoute';

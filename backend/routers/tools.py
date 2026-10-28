@@ -130,25 +130,16 @@ def api_wikidata_sparql(request: Request, body: WikidataSparqlRequest):
 #   * /api/sentinel/tile   — same shape as the token route but for tile
 #     imagery. Without gating, the backend acts as an anonymous quota and
 #     bandwidth relay for Sentinel Hub Process API calls.
-#   * /api/sentinel2/search — hits the Planetary Computer STAC search API
-#     and falls back to Esri imagery. No caller credentials are involved,
-#     but the route is still an anonymous external-search relay. We gate
-#     it the same way for consistency with the rest of the operator-only
-#     helper surface.
-#
-# Gating is via require_local_operator (loopback / bridge / admin key),
-# matching the same allowlist already used by /api/region-dossier and
-# the other operator helpers further up this file. Single-operator nodes
-# see no behavior change — their dashboard already lives on loopback or
-# the trusted Docker bridge, so it still resolves.
-@router.get("/api/sentinel2/search", dependencies=[Depends(require_local_operator)])
+# Public Sentinel-2 catalog searches use no operator credentials or paid
+# Process API quota. Keep coordinate validation and the per-client rate limit.
+@router.get("/api/sentinel2/search")
 @limiter.limit("30/minute")
 def api_sentinel2_search(
     request: Request,
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
 ):
-    """Search for latest Sentinel-2 imagery at a point. Sync for threadpool execution."""
+    """Search the public Sentinel-2 catalog without exposing operator credentials. Sync for threadpool execution."""
     from services.sentinel_search import search_sentinel2_scene
     return search_sentinel2_scene(lat, lng)
 
