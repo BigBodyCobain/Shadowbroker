@@ -4,6 +4,21 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    groups:
+      react-runtime:
+        applies-to: version-updates
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      react-runtime-security:
+        applies-to: security-updates
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
