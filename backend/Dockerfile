@@ -55,7 +55,7 @@ COPY backend/pyproject.toml /workspace/backend/pyproject.toml
 # Install Python dependencies using the lockfile. Playwright's Chromium install
 # also includes the matching headless-shell bundle used by default headless
 # launches; the runtime-user assertion below verifies both are actually present.
-RUN cd /workspace/backend && uv sync --frozen --no-dev --extra road-corridor \
+RUN cd /workspace/backend && uv sync --locked --no-dev --extra road-corridor \
     && playwright install --with-deps chromium \
     && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 

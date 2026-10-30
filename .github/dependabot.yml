@@ -19,7 +19,7 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
-  - package-ecosystem: "pip"
-    directory: "/backend"
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"

@@ -71,8 +71,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Check Python lockfile freshness
+        run: uv lock --check
       - name: Install dependencies
-        run: cd backend && uv sync --frozen --group dev
+        run: cd backend && uv sync --locked --group dev
       - run: cd backend && uv run ruff check .
       - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
