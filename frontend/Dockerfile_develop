@@ -1,0 +1,56 @@
+FROM node:20-alpine AS base
+
+# ====================== DEPENDENCIES ======================
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Copy only package files first (best caching)
+COPY package.json package-lock.json ./
+
+# Install dependencies
+RUN npm ci --frozen-lockfile
+
+# ====================== BUILDER ======================
+FROM base AS builder
+WORKDIR /app
+
+# Copy dependencies from previous stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source code (this layer will be invalidated most often)
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# NEXT_PUBLIC_* vars must exist at build time
+ARG NEXT_PUBLIC_API_URL=""
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+RUN npm run build
+
+# ====================== RUNNER ======================
+FROM base AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built standalone output + static files
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
