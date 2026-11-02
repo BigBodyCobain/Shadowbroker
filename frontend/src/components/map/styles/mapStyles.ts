@@ -33,7 +33,7 @@ export function cartoTileUrls(theme: BasemapTheme, cartoApiKey: string): string[
   const key = cartoApiKey.trim();
   return CARTO_SUBDOMAINS.map(
     (s) =>
-      `https://${s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}@2x.png?key=${encodeURIComponent(key)}`,
+      `https://` + s + `.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}@2x.png?key=${encodeURIComponent(key)}`,
   );
 }
 
@@ -44,7 +44,32 @@ export function cartoTileUrls(theme: BasemapTheme, cartoApiKey: string): string[
 export function buildBasemapStyle(
   theme: BasemapTheme,
   cartoApiKey?: string | null,
+  mapStyle?: string,
 ): string | StyleSpecification {
+  if (mapStyle === 'OSM') {
+    return {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['/api/osm-tile/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: OSM_ATTRIBUTION_HTML,
+        },
+      },
+      layers: [
+        {
+          id: 'osm-base',
+          type: 'raster',
+          source: 'osm',
+          minzoom: 0,
+          maxzoom: 22,
+        },
+      ],
+    };
+  }
+
   const key = (cartoApiKey || '').trim();
   if (!key) return OPENFREEMAP_STYLE_URLS[theme];
 
@@ -65,3 +90,12 @@ export function buildBasemapStyle(
 
 export const darkStyle = buildBasemapStyle('dark');
 export const lightStyle = buildBasemapStyle('light');
+
+/** Standard OpenStreetMap raster tiles — selectable basemap (no API key).
+ *  Proxied through backend to satisfy OSM tile usage policy (Referer header). */
+export const osmTiles = {
+  tiles: ['/api/osm-tile/{z}/{x}/{y}.png'],
+  tileSize: 256,
+  maxzoom: 19,
+  attribution: OSM_ATTRIBUTION_HTML,
+};

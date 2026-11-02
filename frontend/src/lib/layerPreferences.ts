@@ -6,7 +6,7 @@ export const DASHBOARD_PREFS_STORAGE_KEY = 'sb_dashboard_prefs_v1';
 export const DASHBOARD_PREFS_VERSION = 1;
 export const LAYER_PREFERENCES_CHANGED_EVENT = 'sb:layer-preferences-changed';
 
-export const MAP_STYLES = ['DEFAULT', 'SATELLITE'] as const;
+export const MAP_STYLES = ['DEFAULT', 'SATELLITE', 'OSM'] as const;
 export type MapStyle = (typeof MAP_STYLES)[number];
 
 export const LAYER_SECTION_IDS = [
@@ -50,6 +50,7 @@ export function getDefaultActiveLayers(): ActiveLayers {
     satellites: true,
     gibs_imagery: false,
     highres_satellite: false,
+    osm_basemap: false,
     sentinel_hub: false,
     viirs_nightlights: false,
     road_corridor_trends: false,
