@@ -486,14 +486,16 @@ export default function Dashboard() {
     [],
   );
 
-  const stylesList = ['DEFAULT', 'SATELLITE'];
-
   const cycleStyle = () => {
     setActiveStyle((prev) => {
-      const idx = stylesList.indexOf(prev);
-      const next = stylesList[(idx + 1) % stylesList.length] as MapStyle;
-      // Auto-toggle High-Res Satellite layer with SATELLITE style
-      setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
+      const order: MapStyle[] = ['DEFAULT', 'SATELLITE', 'OSM'];
+      const idx = order.indexOf(prev);
+      const next = order[(idx + 1) % order.length];
+      setActiveLayers((l) => ({
+        ...l,
+        highres_satellite: next === 'SATELLITE',
+        osm_basemap: next === 'OSM',
+      }));
       return next;
     });
   };
@@ -508,6 +510,7 @@ export default function Dashboard() {
       sar: false,
       gibs_imagery: false,
       highres_satellite: false,
+      osm_basemap: false,
       sentinel_hub: false,
       viirs_nightlights: false,
       road_corridor_trends: false,
@@ -542,6 +545,7 @@ export default function Dashboard() {
         <ErrorBoundary name="Map">
           <MaplibreViewer
             activeLayers={firstPaintActiveLayers}
+            activeStyle={activeStyle}
             activeFilters={activeFilters}
             effects={memoizedEffects}
             onEntityClick={setSelectedEntity}

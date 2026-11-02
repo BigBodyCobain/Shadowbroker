@@ -43,6 +43,7 @@ import {
   Droplets,
   Radar,
   MapPin,
+  Map,
   Truck,
   RefreshCw,
 } from 'lucide-react';
@@ -700,6 +701,7 @@ function SdrTracker({
 const TOGGLE_ALL_EXCLUDED_LAYERS = new Set<string>([
   'gibs_imagery',
   'highres_satellite',
+  'osm_basemap',
   'sentinel_hub',
   'viirs_nightlights',
   'road_corridor_trends',
