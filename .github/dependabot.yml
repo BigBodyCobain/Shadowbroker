@@ -32,3 +32,12 @@ updates:
       - "/backend"
     schedule:
       interval: "weekly"
+    # Runtime version jumps are planned on purpose, not taken from a weekly
+    # bump: Node is pinned to the same LTS line in both images and CI, and a
+    # new Python minor needs wheels for every dependency (e.g. pyproj) first.
+    # Patch updates still come through.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
