@@ -44,7 +44,7 @@ dependencies = [
 [project.optional-dependencies]
 road-corridor = [
     "geopandas>=1.0.0",
-    "imageio>=2.34.0",
+    "imageio>=2.38.0",
     "osmnx>=2.0.0",
     "rasterio>=1.4.0",
     "scikit-learn>=1.5.0",
