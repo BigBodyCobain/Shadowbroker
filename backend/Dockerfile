@@ -18,7 +18,7 @@ RUN cargo build --release --lib \
     && ls -la target/release/libprivacy_core.so
 
 # ---- Stage 2: Python backend ----
-FROM python:3.11-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 WORKDIR /app
 
