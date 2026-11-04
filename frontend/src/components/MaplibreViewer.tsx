@@ -20,8 +20,12 @@ import {
   CARTO_ATTRIBUTION_HTML,
   OPENFREEMAP_ATTRIBUTION_HTML,
   OSM_ATTRIBUTION_HTML,
+  darkStyle,
+  lightStyle,
+  osmTiles,
 } from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
+
 import maplibregl from 'maplibre-gl';
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
@@ -388,6 +392,7 @@ function buildPolymarketUrl(prediction: { slug?: string; title?: string } | null
 
 const MaplibreViewer = ({
   activeLayers,
+  activeStyle,
   activeFilters,
   onEntityClick,
   flyToLocation,
@@ -437,8 +442,8 @@ const MaplibreViewer = ({
   const { theme } = useTheme();
   const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
   const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
-    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
-    [theme, cartoApiKey],
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey, activeStyle),
+    [theme, cartoApiKey, activeStyle],
   );
 
   const initialViewState = useMemo<ViewState>(
@@ -2049,6 +2054,27 @@ const MaplibreViewer = ({
           >
             <Layer
               id="esri-world-imagery-layer"
+              type="raster"
+              paint={{
+                'raster-opacity': 1,
+                'raster-fade-duration': 300,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* OpenStreetMap standard raster tiles — selectable basemap */}
+        {false && (
+          <Source
+            id="osm-standard"
+            type="raster"
+            tiles={osmTiles.tiles}
+            tileSize={osmTiles.tileSize}
+            maxzoom={osmTiles.maxzoom}
+            attribution={osmTiles.attribution}
+          >
+            <Layer
+              id="osm-standard-layer"
               type="raster"
               paint={{
                 'raster-opacity': 1,
