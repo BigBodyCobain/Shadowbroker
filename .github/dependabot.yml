@@ -19,7 +19,16 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
-  - package-ecosystem: "pip"
-    directory: "/backend"
+  # uv (not pip) so Python bumps update uv.lock as well as pyproject.toml.
+  # Docker and CI install from the lock with --frozen; a pyproject-only bump
+  # passes CI without ever installing the new version.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directories:
+      - "/frontend"
+      - "/backend"
     schedule:
       interval: "weekly"

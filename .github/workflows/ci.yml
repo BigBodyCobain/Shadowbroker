@@ -71,6 +71,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Verify uv.lock matches pyproject.toml
+        # Docker and CI install with --frozen, which ignores pyproject.toml.
+        # A stale lock means dependency bumps never actually ship.
+        run: uv lock --check
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
       - run: cd backend && uv run ruff check .
