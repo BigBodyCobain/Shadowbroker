@@ -582,8 +582,21 @@ async def get_layers(request: Request):
 @limiter.limit("30/minute")
 async def update_layers(update: LayerUpdate, request: Request):
     """Receive frontend layer toggle state. Starts/stops streams accordingly."""
+    import os as _os
+
     from services.fetchers._store import active_layers, bump_active_layers_version, is_any_active
     from services.layer_enable_refresh import refresh_newly_enabled_layers, snapshot_active_layers
+
+    # SB_PIN_LAYERS: comma-separated layer keys the dashboard may NOT disable.
+    # Guards against stale browser sessions replaying an all-off snapshot on
+    # every reload (recurring incident 2026-11-04: AIS stream + cyber_threats
+    # killed three times by POST /api/layers replays from saved localStorage).
+    # The operator unpins by removing the env var and restarting.
+    _pinned = {
+        name.strip()
+        for name in _os.environ.get("SB_PIN_LAYERS", "").split(",")
+        if name.strip()
+    }
 
     layers_before = snapshot_active_layers()
     old_ships = is_any_active("ships_military", "ships_cargo", "ships_civilian", "ships_passenger", "ships_tracked_yachts")
@@ -591,8 +604,15 @@ async def update_layers(update: LayerUpdate, request: Request):
     old_aprs = is_any_active("sigint_aprs")
     old_viirs = is_any_active("viirs_nightlights")
     changed = False
+    rejected_pins = []
     for key, value in update.layers.items():
         if key in active_layers:
+            if key in _pinned and value is False:
+                # Pinned layers stay on regardless of what a dashboard
+                # session replays; never let a stale tab kill the stream.
+                if active_layers[key]:
+                    rejected_pins.append(key)
+                continue
             if active_layers[key] != value:
                 changed = True
             active_layers[key] = value
@@ -610,6 +630,10 @@ async def update_layers(update: LayerUpdate, request: Request):
         from services.ais_stream import start_ais_stream
         start_ais_stream()
         logger.info("AIS stream started (ship layer enabled)")
+    if rejected_pins:
+        logger.warning(
+            "Ignored dashboard request to disable pinned layers: %s", ",".join(sorted(rejected_pins))
+        )
     from services.sigint_bridge import sigint_grid
     from services.aprs_is_bridge import aprs_is_bridge
     if old_mesh and not new_mesh:
