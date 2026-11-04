@@ -29,9 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     tor \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Node 20 is EOL. Refuse to build on a Node runtime older than 24.22.1, the
+# October 2026 security release that fixes CVE-2026-111497 (Brotli decoder).
+RUN node -e "const [a,b,c]=process.versions.node.split('.').map(Number); if (a<24||(a===24&&(b<22||(b===22&&c<1)))) { console.error('Node '+process.versions.node+' is older than 24.22.1'); process.exit(1); } console.log('Node '+process.versions.node)"
 
 # Install UV for fast, reproducible Python dependency management
 ADD https://astral.sh/uv/install.sh /uv-installer.sh
