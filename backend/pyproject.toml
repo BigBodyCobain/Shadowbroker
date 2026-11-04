@@ -13,7 +13,7 @@ dependencies = [
     "apscheduler==3.10.3",
     "beautifulsoup4>=4.9.0",
     "cachetools==7.2.6",
-    "cryptography>=46.0.7",
+    "cryptography>=50.0.2",
     "defusedxml>=0.7.1",
     "fastapi==0.149.0",
     "feedparser==6.0.11",
