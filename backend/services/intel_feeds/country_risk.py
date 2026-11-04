@@ -1,11 +1,14 @@
 """Country risk index (static scores + USGS quake enrichment)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from services.network_utils import fetch_with_curl
+
+logger = logging.getLogger(__name__)
 
 RISK_FACTORS: dict[str, dict[str, Any]] = {
     "UA": {"base": 85, "tags": ["active_conflict", "infrastructure_damage"]},
@@ -68,7 +71,8 @@ def build_country_risk_payload() -> dict[str, Any]:
                 for code in RISK_FACTORS:
                     if code.lower() in place.lower():
                         quake_risks[code] = quake_risks.get(code, 0) + mag
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Country risk: quake risk fetch failed: {exc}")
         pass
 
     countries = []

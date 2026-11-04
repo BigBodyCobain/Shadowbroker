@@ -744,7 +744,8 @@ def _oracle_resolution_sweep():
                         dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
                         if dt.timestamp() > now:
                             continue  # Market hasn't ended yet
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning(f"Market resolution: failed to parse end_date for title {title}: {exc}")
                         continue
                 else:
                     continue  # No end date, can't auto-resolve

@@ -198,7 +198,8 @@ def fetch_wastewater():
                     plant_map[pid]["pathogens"] = result["pathogens"]
                     plant_map[pid]["alert_count"] = result["alert_count"]
                     plant_map[pid]["collection_date"] = result["collection_date"]
-            except Exception:
+            except Exception as exc:
+                logger.warning(f"WastewaterSCAN: failed to process plant {pid}: {exc}")
                 pass
 
     nodes = list(plant_map.values())
