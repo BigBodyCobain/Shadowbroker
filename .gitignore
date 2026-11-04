@@ -204,6 +204,7 @@ graphify-out/
 # ========================
 docs/*
 !docs/OUTBOUND_DATA.md
+!docs/HOMEPAGE_WIDGET.md
 !docs/production-hardening.md
 !docs/contributor-map.md
 !docs/mesh/

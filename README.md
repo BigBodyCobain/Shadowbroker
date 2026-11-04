@@ -670,6 +670,8 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 
 **Outbound privacy & audit (#348–#366):** Each self-hosted install uses its own backend IP and per-install User-Agent handle. See [docs/OUTBOUND_DATA.md](docs/OUTBOUND_DATA.md) for what contacts third parties, opt-in/env controls, and accepted tradeoffs (CCTV Referer, basemap CDN, LiveUAMap, etc.).
 
+**Home dashboard widgets (#650):** `http://localhost:3000/api/summary` returns the global threat level and headline counts as small, flat JSON for [Homepage](https://gethomepage.dev), Homarr, Uptime Kuma and similar tools. See [docs/HOMEPAGE_WIDGET.md](docs/HOMEPAGE_WIDGET.md) for a ready-to-paste Homepage config.
+
 </details>
 
 ---

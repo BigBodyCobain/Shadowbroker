@@ -170,6 +170,71 @@ async def health_check(request: Request):
     }
 
 
+# Issue #650: a tiny, flat summary for home-dashboard widgets (gethomepage.dev
+# "customapi", Homarr, Uptime Kuma keyword checks, etc.). /api/live-data is
+# megabytes; this is a few hundred bytes built from counts the store already
+# holds, so it is cheap enough to poll every few seconds. Flat keys keep the
+# widget mapping one-line per field. Read-only and contains nothing beyond what
+# the public dashboard already shows, so it needs no auth (same as /api/health).
+_SUMMARY_DATA_KEYS: tuple[str, ...] = (
+    "last_updated",
+    "threat_level",
+    "commercial_flights",
+    "military_flights",
+    "private_flights",
+    "private_jets",
+    "tracked_flights",
+    "ships",
+    "satellites",
+    "uavs",
+    "earthquakes",
+    "liveuamap",
+    "gdelt",
+    "gps_jamming",
+    "news",
+    "firms_fires",
+    "cctv",
+)
+
+
+def build_summary() -> dict:
+    from services.fetchers._store import get_latest_data_subset_refs
+
+    d = get_latest_data_subset_refs(*_SUMMARY_DATA_KEYS)
+    threat = d.get("threat_level") if isinstance(d.get("threat_level"), dict) else {}
+    drivers = threat.get("drivers") or []
+    count = _health_row_count
+    return {
+        # Threat level is computed with the news cycle; until the first cycle
+        # finishes it reports UNKNOWN rather than a misleading GREEN.
+        "threat_level": threat.get("level") or "UNKNOWN",
+        "threat_score": threat.get("score"),
+        "threat_color": threat.get("color"),
+        "threat_driver": drivers[0] if drivers else None,
+        "flights": count(d.get("commercial_flights")),
+        "military_flights": count(d.get("military_flights")),
+        "private_flights": count(d.get("private_flights")) + count(d.get("private_jets")),
+        "tracked_flights": count(d.get("tracked_flights")),
+        "ships": count(d.get("ships")),
+        "satellites": count(d.get("satellites")),
+        "uavs": count(d.get("uavs")),
+        "earthquakes": count(d.get("earthquakes")),
+        "incidents": count(d.get("liveuamap")) + count(d.get("gdelt")),
+        "gps_jamming_zones": count(d.get("gps_jamming")),
+        "news": count(d.get("news")),
+        "fires": count(d.get("firms_fires")),
+        "cctv": count(d.get("cctv")),
+        "last_updated": d.get("last_updated"),
+        "version": _get_app_version(),
+    }
+
+
+@router.get("/api/summary")
+@limiter.limit("60/minute")
+async def summary(request: Request):
+    return JSONResponse(build_summary(), headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/api/debug-latest", dependencies=[Depends(require_admin)])
 @limiter.limit("30/minute")
 async def debug_latest_data(request: Request):
