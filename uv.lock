@@ -179,7 +179,7 @@ requires-dist = [
     { name = "osmnx", marker = "extra == 'road-corridor'", specifier = ">=2.0.0" },
     { name = "paho-mqtt", specifier = ">=1.6.0,<2.0.0" },
     { name = "playwright", specifier = "==1.64.0" },
-    { name = "playwright-stealth", specifier = "==1.0.6" },
+    { name = "playwright-stealth", specifier = "==2.0.3" },
     { name = "pydantic", specifier = "==2.13.3" },
     { name = "pydantic-settings", specifier = "==2.8.1" },
     { name = "pynacl", specifier = ">=1.5.0" },
@@ -1684,14 +1684,14 @@ wheels = [
 
 [[package]]
 name = "playwright-stealth"
-version = "1.0.6"
+version = "2.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "playwright" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/dc/4e88b517e4c9cfb63f1b0b67d59adddcef2dc2fe0883b90e07119d15895a/playwright-stealth-1.0.6.tar.gz", hash = "sha256:b504d951d00fac755c7d13665a29611d415180510bd7d23f14ebc89439ba2043", size = 19984, upload-time = "2023-09-08T02:25:48.464Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/db/6ade5d539c7d151b9defc78fafa8b65aa52352617d0e7699b47008bd801f/playwright_stealth-2.0.3.tar.gz", hash = "sha256:1d8e488fbdd8f190f1269ea8cf5d57d14df3a9f1af1001c41ee3588b2aac3133", size = 25751, upload-time = "2026-04-04T02:50:33.88Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/10/60981cb8d8e22487061b98a0803313c4fb519cc95ab1421516304a0cfcd0/playwright_stealth-1.0.6-py3-none-any.whl", hash = "sha256:b1b2bcf58eb6859aa53d42c49b91c4e27b74a6d13fc3d0c85eea513dd55efda3", size = 28288, upload-time = "2023-09-08T02:28:46.586Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/10/607c409712c02a26c4cb794820514cb7fdaaeac15fb05bed917fb8a354b3/playwright_stealth-2.0.3-py3-none-any.whl", hash = "sha256:1887ade423ab7ff8ae16d363a30a38de0b5817e1e4a29d47b74bf3a0e3dbfcb4", size = 34385, upload-time = "2026-04-04T02:50:35.246Z" },
 ]
 
 [[package]]
