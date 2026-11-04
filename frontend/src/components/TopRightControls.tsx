@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Github,
   Download,
   AlertCircle,
   CheckCircle2,
@@ -14,6 +13,7 @@ import {
   Server,
   Copy,
 } from 'lucide-react';
+import GithubIcon from '@/components/icons/GithubIcon';
 import { API_BASE } from '@/lib/api';
 import { useTranslation } from '@/i18n';
 import { controlPlaneFetch } from '@/lib/controlPlane';
@@ -1247,9 +1247,9 @@ export default function TopRightControls({
           className={`${btnBase} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {updateStatus === 'checking' && (
-            <Github size={11} className="animate-spin text-cyan-400" />
+            <GithubIcon size={11} className="animate-spin text-cyan-400" />
           )}
-          {updateStatus === 'idle' && <Github size={11} className="text-cyan-400" />}
+          {updateStatus === 'idle' && <GithubIcon size={11} className="text-cyan-400" />}
           {updateStatus === 'uptodate' && <CheckCircle2 size={11} className="text-green-400" />}
           {updateStatus === 'error' && <AlertCircle size={11} className="text-red-400" />}
 
