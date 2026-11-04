@@ -1,5 +1,5 @@
 # ---- Stage 1: Compile privacy-core Rust library ----
-FROM --platform=$BUILDPLATFORM rust:1.88-slim-bookworm AS rust-builder
+FROM --platform=$BUILDPLATFORM rust:1.98-slim-bookworm AS rust-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
