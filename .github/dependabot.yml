@@ -4,6 +4,11 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    # @types/node tracks the Node runtime we ship (24.x in both images and CI);
+    # newer majors describe APIs that don't exist at runtime.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       react-runtime:
         applies-to: version-updates
