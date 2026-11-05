@@ -177,3 +177,58 @@ class TestHealthEndpointEscalation:
         # not the AIS check. Practically: status==ok in a fresh test run.
         # (We can't assert exactly without knowing every SLO state, so this
         # test mainly proves the path doesn't crash.)
+
+
+_SHIP_LAYERS = (
+    "ships_military",
+    "ships_cargo",
+    "ships_civilian",
+    "ships_passenger",
+    "ships_tracked_yachts",
+)
+
+
+def _set_ship_layers(monkeypatch, value: bool):
+    from services.fetchers import _store
+
+    for key in _SHIP_LAYERS:
+        monkeypatch.setitem(_store.active_layers, key, value)
+
+
+class TestShipLayersOff:
+    """#666: with every ship layer off the stream is stopped on purpose, so
+    neither the banner nor /api/health should report an upstream outage."""
+
+    def test_status_reports_ship_layer_state(self, monkeypatch):
+        _reset_ais_module()
+        from services.ais_stream import ais_proxy_status
+        from services.fetchers import _store
+
+        _set_ship_layers(monkeypatch, True)
+        assert ais_proxy_status()["ship_layers_active"] is True
+
+        _set_ship_layers(monkeypatch, False)
+        assert ais_proxy_status()["ship_layers_active"] is False
+
+        # Any single ship layer on counts as active.
+        monkeypatch.setitem(_store.active_layers, "ships_cargo", True)
+        assert ais_proxy_status()["ship_layers_active"] is True
+
+    def test_layers_off_with_api_key_does_not_escalate(self, client, monkeypatch):
+        _reset_ais_module()
+        _set_ship_layers(monkeypatch, False)
+        from services import ais_stream as ais
+
+        with ais._vessels_lock:
+            ais._proxy_spawn_count = 5
+            ais._last_msg_at = time.time() - 600
+
+        # Baseline: same state but no key, so AIS can't be the reason for any
+        # non-"ok" status (other SLOs may be red in the test environment).
+        monkeypatch.delenv("AIS_API_KEY", raising=False)
+        baseline = client.get("/api/health").json()["status"]
+
+        monkeypatch.setenv("AIS_API_KEY", "test-key")
+        body = client.get("/api/health").json()
+        assert body["ais_proxy"]["ship_layers_active"] is False
+        assert body["status"] == baseline

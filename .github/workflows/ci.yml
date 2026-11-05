@@ -96,6 +96,8 @@ jobs:
             tests/test_xquik_news.py \
             tests/test_aprs_is_resource_safety.py \
             tests/test_summary_endpoint.py \
+            tests/test_cyber_status_kev_dates.py \
+            tests/test_ais_upstream_health.py \
             -v --tb=short
 
 
