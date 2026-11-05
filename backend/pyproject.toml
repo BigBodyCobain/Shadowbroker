@@ -24,7 +24,7 @@ dependencies = [
     "pydantic-settings==2.15.0",
     "pystac-client==0.9.1",
     "python-dotenv==1.2.4",
-    "requests==2.33.0",
+    "requests==2.34.2",
     "PySocks==1.7.1",
     "reverse-geocoder==1.5.1",
     "sgp4==2.27",
