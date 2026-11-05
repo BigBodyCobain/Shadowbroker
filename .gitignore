@@ -17,6 +17,10 @@ backend/.venv-repair*/
 .env.development.local
 .env.test.local
 .env.production.local
+# Personal compose overrides are auto-loaded by `docker compose`, so a committed
+# one would apply to every clone. Shared dev settings live in
+# docker-compose.fleet-dev.yml and are loaded explicitly.
+docker-compose.override.yml
 .npmrc
 .pypirc
 .netrc
