@@ -190,7 +190,7 @@ requires-dist = [
     { name = "requests", specifier = "==2.34.2" },
     { name = "reverse-geocoder", specifier = "==1.5.1" },
     { name = "scikit-learn", marker = "extra == 'road-corridor'", specifier = ">=1.5.0" },
-    { name = "sentinelhub", marker = "extra == 'road-corridor'", specifier = ">=3.10.0" },
+    { name = "sentinelhub", marker = "extra == 'road-corridor'", specifier = ">=3.12.0" },
     { name = "sgp4", specifier = "==2.27" },
     { name = "shapely", marker = "extra == 'road-corridor'", specifier = ">=2.0.0" },
     { name = "slowapi", specifier = "==0.1.9" },
@@ -2822,7 +2822,7 @@ wheels = [
 
 [[package]]
 name = "sentinelhub"
-version = "3.11.5"
+version = "3.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aenum" },
@@ -2847,9 +2847,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "utm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/89/f8/4a9ee1e9d77c7e4df96f4becdce7ebf603ad804fb4a348ec930149f808ba/sentinelhub-3.11.5.tar.gz", hash = "sha256:5ca5023189d1186284e8b11da8cac6faaea7d80a091986d6205e8b211198804d", size = 209723, upload-time = "2026-03-10T10:52:35.629Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/62/21ae2be8a9a7470068597b6847b2bfed68a45971e1ba3b5872a53ae51079/sentinelhub-3.12.0.tar.gz", hash = "sha256:4779d642a70228bb902d335b22bb70f0a2a21c17c632189c56232ca721c88c6d", size = 209701, upload-time = "2026-09-16T09:16:46.594Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/b5/4c539571e0950a3c2fd1782001ebdbd371944ee94bc4d68982f1d307d870/sentinelhub-3.11.5-py3-none-any.whl", hash = "sha256:6f34fee45e367d5d6a54e9201a4f4559fb998d9a8a508e2f1483ecf010175773", size = 240401, upload-time = "2026-03-10T10:52:33.675Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/a2/586aff74daaf7314202d93af76d341b59d43c4e65bf5f73720e80a5e0d63/sentinelhub-3.12.0-py3-none-any.whl", hash = "sha256:2cb2df9a1841c6bb860e7110a4e7499519af10cbbef4dfd0e2c714462db19fc5", size = 240375, upload-time = "2026-09-16T09:16:44.819Z" },
 ]
 
 [[package]]
