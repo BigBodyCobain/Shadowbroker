@@ -24,6 +24,13 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # Everything else that's a minor or patch bump lands as one weekly PR.
+      # Majors still get their own PR so each can be reviewed on its own, and
+      # security updates stay individual so they aren't held up by the batch.
+      # (A package matches the first group listed, so React stays in its own.)
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
   # uv (not pip) so Python bumps update uv.lock as well as pyproject.toml.
   # Docker and CI install from the lock with --frozen; a pyproject-only bump
   # passes CI without ever installing the new version.
@@ -31,6 +38,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # One weekly PR for minor/patch bumps, same rules as npm above.
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
   - package-ecosystem: "docker"
     directories:
       - "/frontend"
