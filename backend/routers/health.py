@@ -127,6 +127,8 @@ async def health_check(request: Request):
     if (
         os.environ.get("AIS_API_KEY")
         and ais_status.get("connected") is False
+        # Ship layers all off = stream stopped on purpose, not an outage.
+        and ais_status.get("ship_layers_active", True)
         and top_status == "ok"
     ):
         top_status = "degraded"
