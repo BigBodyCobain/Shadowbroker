@@ -889,6 +889,47 @@ def start_scheduler():
         misfire_grace_time=60,
     )
 
+    # AIS stream reconciliation — converges stream state to layer state every
+    # 2 minutes. A browser replaying a stale all-off layer preference (saved
+    # localStorage) can otherwise stop the stream mid-session and nothing
+    # restarts it, because the enable-transition logic in the layers router
+    # only fires on an edge it observes. Observed 3x on 2026-11-04.
+    def _reconcile_ais_stream():
+        from services import ais_stream as _ais
+        from services.fetchers._store import is_any_active
+
+        # Bail out quietly when the AIS stream can't run at all: no key or the
+        # proxy disabled means start_ais_stream() would refuse anyway —
+        # reconciling here would only warn-loop every 2 minutes.
+        if not _ais.API_KEY or not _ais.ais_stream_proxy_enabled():
+            return
+
+        ships_active = is_any_active(
+            "ships_military",
+            "ships_cargo",
+            "ships_civilian",
+            "ships_passenger",
+            "ships_tracked_yachts",
+        )
+        running = bool(getattr(_ais, "_ws_running", False))
+        if ships_active and not running:
+            logger.warning(
+                "AIS reconcile: ship layers active but stream stopped — restarting"
+            )
+            _ais.start_ais_stream()
+        elif not ships_active and running:
+            logger.info("AIS reconcile: all ship layers off — stopping stream")
+            _ais.stop_ais_stream()
+
+    _scheduler.add_job(
+        lambda: _run_task_with_health(_reconcile_ais_stream, "reconcile_ais_stream"),
+        "interval",
+        minutes=2,
+        id="ais_reconcile",
+        max_instances=1,
+        misfire_grace_time=60,
+    )
+
     # Flight observation pruning — drops icao24 → first_seen_at entries we
     # haven't seen in an hour. Same cadence as AIS prune for symmetry; the
     # per-tick scan is O(in-flight aircraft) so it's cheap.
