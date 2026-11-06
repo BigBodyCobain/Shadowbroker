@@ -13,6 +13,12 @@ const eslintConfig = defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
       'react-hooks/refs': 'off',
+      // eslint-config-next 16.4 turns on two more React Compiler diagnostics.
+      // The compiler isn't enabled here, so these flag code it would skip
+      // optimizing rather than runtime bugs. Keep them visible as warnings
+      // (20 sites, mostly useMeshChatController.ts) until they're cleaned up.
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/immutability': 'warn',
       'prefer-const': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },

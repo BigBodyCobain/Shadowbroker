@@ -11,6 +11,23 @@ from services.network_utils import fetch_with_curl
 logger = logging.getLogger(__name__)
 
 
+def _parse_kev_date(value: str) -> datetime | None:
+    """Parse a CISA KEV ``dateAdded`` value as an aware UTC datetime.
+
+    The catalog uses date-only strings ("2026-11-03"), which ``fromisoformat``
+    returns as *naive* datetimes. Subtracting one from an aware "now" raises
+    TypeError, so every entry used to be skipped and the layer always showed
+    zero recent threats (reported in #666).
+    """
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def fetch_cyber_threats() -> dict[str, Any]:
     if not is_any_active("cyber_threats"):
         return latest_data.get("cyber_threats") or {"threats": [], "stats": {}}
@@ -28,11 +45,10 @@ def fetch_cyber_threats() -> dict[str, Any]:
             now = datetime.now(timezone.utc)
             recent = []
             for v in vulns:
-                try:
-                    added = datetime.fromisoformat(v.get("dateAdded", "").replace("Z", "+00:00"))
-                    days = (now - added).total_seconds() / 86400
-                except Exception:
+                added = _parse_kev_date(v.get("dateAdded", ""))
+                if added is None:
                     continue
+                days = (now - added).total_seconds() / 86400
                 if days <= 30:
                     recent.append(v)
             recent = recent[:10]

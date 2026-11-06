@@ -1,4 +1,6 @@
-FROM node:20-alpine AS base
+# Node 24 LTS. Node 20 is EOL and never got the CVE-2026-111497 Brotli fix,
+# which shipped in 24.22.1 (Node.js security release of 2026-10-21).
+FROM node:24.22.2-alpine AS base
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat

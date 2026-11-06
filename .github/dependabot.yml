@@ -4,6 +4,11 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    # @types/node tracks the Node runtime we ship (24.x in both images and CI);
+    # newer majors describe APIs that don't exist at runtime.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       react-runtime:
         applies-to: version-updates
@@ -19,7 +24,37 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
-  - package-ecosystem: "pip"
-    directory: "/backend"
+      # Everything else that's a minor or patch bump lands as one weekly PR.
+      # Majors still get their own PR so each can be reviewed on its own, and
+      # security updates stay individual so they aren't held up by the batch.
+      # (A package matches the first group listed, so React stays in its own.)
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+  # uv (not pip) so Python bumps update uv.lock as well as pyproject.toml.
+  # Docker and CI install from the lock with --frozen; a pyproject-only bump
+  # passes CI without ever installing the new version.
+  - package-ecosystem: "uv"
+    directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # One weekly PR for minor/patch bumps, same rules as npm above.
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "docker"
+    directories:
+      - "/frontend"
+      - "/backend"
+    schedule:
+      interval: "weekly"
+    # Runtime version jumps are planned on purpose, not taken from a weekly
+    # bump: Node is pinned to the same LTS line in both images and CI, and a
+    # new Python minor needs wheels for every dependency (e.g. pyproj) first.
+    # Patch updates still come through.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
