@@ -84,7 +84,19 @@ jobs:
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
       - name: Audit Python dependencies
-        run: cd backend && uv run --frozen --with pip-audit --with "filelock>=4.2.1" pip-audit --skip-editable --progress-spinner off
+        # Audit the locked pins, not the runtime env: pip-audit's own helpers
+        # (e.g. filelock) otherwise get scanned too, and the patched filelock
+        # needs Python 3.11 while the project env runs on 3.10. Pins are split
+        # by Python marker so both the 3.10 and the 3.11+ versions get checked.
+        run: |
+          cd backend
+          uv export --frozen --no-hashes --no-emit-project --no-emit-workspace -o "$RUNNER_TEMP/req.txt" > /dev/null
+          grep -vE "python_full_version >= '3\.11" "$RUNNER_TEMP/req.txt" | sed -E 's/ ;.*$//' | grep -vE '^\s*(#|$)' > "$RUNNER_TEMP/req-py310.txt"
+          grep -vE "python_full_version < '3\.11'( |$)|python_full_version < '3\.11\.5'" "$RUNNER_TEMP/req.txt" | sed -E 's/ ;.*$//' | grep -vE '^\s*(#|$)' > "$RUNNER_TEMP/req-py311.txt"
+          for f in req-py310 req-py311; do
+            echo "== $f"
+            uvx --python 3.11 --with "filelock>=4.2.1" pip-audit -r "$RUNNER_TEMP/$f.txt" --no-deps --disable-pip --progress-spinner off
+          done
       - run: cd backend && uv run ruff check .
       - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
