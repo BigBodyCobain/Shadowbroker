@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "anyio>=4.14.2",
     "apscheduler==3.11.3",
-    "beautifulsoup4>=4.9.0",
+    "beautifulsoup4>=4.15.0",
     "cachetools==7.2.8",
     "cryptography>=50.0.2",
     "defusedxml>=0.7.1",
