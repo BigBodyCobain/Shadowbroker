@@ -84,7 +84,7 @@ jobs:
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
       - name: Audit Python dependencies
-        run: cd backend && uv run --frozen --with pip-audit pip-audit --skip-editable --progress-spinner off
+        run: cd backend && uv run --frozen --with pip-audit --with "filelock>=4.2.1" pip-audit --skip-editable --progress-spinner off
       - run: cd backend && uv run ruff check .
       - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"

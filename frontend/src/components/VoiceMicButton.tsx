@@ -23,12 +23,12 @@ interface PhaseVisual {
 /** Per-phase visual matrix: border / text / chip. */
 const PHASE_MATRIX: Record<VoicePhase, PhaseVisual> = {
   'opt-in-required': {
-    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md cursor-pointer hover:border-violet-800 hover:text-violet-200',
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md opacity-50 cursor-pointer hover:border-violet-800 hover:text-violet-200',
     chip: 'states.optInRequired',
     interactive: false,
   },
   'lean-unavailable': {
-    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md opacity-70 cursor-not-allowed',
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md opacity-50 cursor-not-allowed',
     chip: 'states.leanMode',
     interactive: false,
   },
