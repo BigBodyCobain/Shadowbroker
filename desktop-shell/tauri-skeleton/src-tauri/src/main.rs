@@ -9,7 +9,7 @@ mod local_custody;
 pub mod policy;
 mod tray;
 
-use bridge::{clear_native_audit_report, get_native_audit_report, invoke_local_control};
+use bridge::{clear_native_audit_report, get_native_audit_report, invoke_local_control, bootstrap_operator_session};
 use companion::{companion_disable, companion_enable, companion_open_browser, companion_status};
 use policy::SharedAuditRing;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -151,6 +151,17 @@ const DESKTOP_INIT_SCRIPT: &str = r#"
     }
   }
 
+  var originalFetch = window.fetch.bind(window);
+  var sessionReady;
+  window.fetch = function(input, init) {
+    var url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, window.location.href);
+    if (url.origin === window.location.origin && url.pathname.indexOf('/api/') === 0) {
+      if (!sessionReady) sessionReady = window.__TAURI__.core.invoke('bootstrap_operator_session');
+      return sessionReady.then(function() { return originalFetch(input, init); });
+    }
+    return originalFetch(input, init);
+  };
+
   window.__SHADOWBROKER_DESKTOP__ = {
     invokeLocalControl: function(command, payload, meta) {
       var expectedCap = _capMap[command];
@@ -280,7 +291,18 @@ fn desktop_local_custody_status() -> local_custody::LocalCustodyStatus {
 
 fn main() {
     let explicit_backend_url = std::env::var("SHADOWBROKER_BACKEND_URL").ok();
-    let admin_key = std::env::var("SHADOWBROKER_ADMIN_KEY").ok();
+    let admin_key = std::env::var("SHADOWBROKER_ADMIN_KEY")
+        .or_else(|_| std::env::var("ADMIN_KEY")).ok().or_else(|| {
+            #[cfg(debug_assertions)]
+            {
+                let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../backend/.env");
+                let text = std::fs::read_to_string(file).ok()?;
+                text.lines().find_map(|line| backend_runtime::parse_env_value(line, "ADMIN_KEY"))
+                    .filter(|key| key.len() >= 32).map(str::to_string)
+            }
+            #[cfg(not(debug_assertions))]
+            { None }
+        });
 
     // Frontend URL detection:
     // - If SHADOWBROKER_FRONTEND_URL is explicitly set → honor it (dev mode
@@ -306,6 +328,7 @@ fn main() {
             desktop_update_context,
             desktop_local_custody_status,
             invoke_local_control,
+            bootstrap_operator_session,
             get_native_audit_report,
             clear_native_audit_report,
             companion_status,
@@ -423,7 +446,7 @@ fn main() {
 
             app.manage(DesktopAppState {
                 backend_base_url: resolved_backend_base_url.clone(),
-                admin_key: resolved_admin_key,
+                admin_key: resolved_admin_key.clone(),
                 audit_ring,
                 owns_managed_backend,
             });
@@ -449,7 +472,7 @@ fn main() {
                 // server task is spawned inside and continues running for
                 // the app's lifetime (owned by AppServerHandle below).
                 match tauri::async_runtime::block_on(async move {
-                    companion_server::start_companion_server(root, backend).await
+                    companion_server::start_companion_server(root, backend, resolved_admin_key.clone()).await
                 }) {
                     Ok(server) => {
                         let url_string = server.url();

@@ -9,6 +9,7 @@ const shortcuts = [
   { key: 'S', desc: 'Open settings' },
   { key: 'K', desc: 'Open map legend (KEY)' },
   { key: 'F', desc: 'Focus search bar' },
+  { key: 'V', desc: 'Hold to talk (voice console)' },
   { key: 'Esc', desc: 'Deselect / close modals' },
   { key: 'Space', desc: 'Toggle this overlay' },
 ];
@@ -80,7 +81,7 @@ export default function KeyboardShortcutsOverlay({
 
             {/* Footer */}
             <div className="mt-6 pt-3 border-t border-[var(--border-primary)]">
-              <div className="text-[9px] font-mono tracking-[0.25em] text-[var(--text-muted)] text-center uppercase">
+              <div className="text-[10px] font-mono tracking-[0.25em] text-[var(--text-muted)] text-center uppercase">
                 Shortcuts are disabled when typing in inputs
               </div>
             </div>

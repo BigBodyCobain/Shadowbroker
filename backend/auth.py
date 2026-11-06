@@ -155,6 +155,8 @@ def _scope_allows_exact(required_scopes: set[str], allowed_scopes: list[str]) ->
 
 
 def _check_scoped_auth(request: Request, required_scope: str) -> tuple[bool, str]:
+    if not operator_origin_allowed(request):
+        return False, "Forbidden — untrusted browser origin"
     admin_key = _current_admin_key()
     scoped_tokens = _scoped_admin_tokens()
     presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
@@ -180,6 +182,8 @@ def _check_explicit_scoped_auth(
     request: Request,
     required_scopes: set[str],
 ) -> tuple[bool, str, str]:
+    if not operator_origin_allowed(request):
+        return False, "Forbidden — untrusted browser origin", ""
     admin_key = _current_admin_key()
     scoped_tokens = _scoped_admin_tokens()
     presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
@@ -367,16 +371,43 @@ def _is_trusted_local_runtime_host(host: str) -> bool:
     return _docker_bridge_local_operator_enabled() and _is_docker_bridge_host(host)
 
 
+def operator_origin_allowed(request: Request) -> bool:
+    """Browser provenance is checked independently of credentials and source IP."""
+    origin = str(request.headers.get("origin", "") or "").strip()
+    site = str(request.headers.get("sec-fetch-site", "") or "").lower()
+    if not origin:
+        return site in {"", "same-origin"}
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return False
+        def origin_tuple(value):
+            url = urlsplit(value.strip())
+            return url.scheme, url.hostname, url.port or (443 if url.scheme == "https" else 80)
+        allowed = [
+            "http://localhost:3000", "http://127.0.0.1:3000",
+            "http://localhost:8000", "http://127.0.0.1:8000",
+        ]
+        for name in ("CORS_ORIGINS", "SHADOWBROKER_ALLOWED_ORIGINS"):
+            allowed.extend(os.environ.get(name, "").split(","))
+        return origin_tuple(origin) in {origin_tuple(value) for value in allowed if value.strip()}
+    except ValueError:
+        return False
+
+
 def require_local_operator(request: Request):
-    """Allow local tooling on loopback / Docker internal network, or a valid admin key."""
-    host = (request.client.host or "").lower() if request.client else ""
-    if _is_trusted_local_runtime_host(host) or (_debug_mode_enabled() and host == "test"):
+    """Require an explicit operator credential, including on loopback and Docker."""
+    if not operator_origin_allowed(request):
+        raise HTTPException(status_code=403, detail="Forbidden — untrusted browser origin")
+    if _is_debug_test_request(request):
         return
     admin_key = _current_admin_key()
     presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
     if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
         return
-    raise HTTPException(status_code=403, detail="Forbidden — local operator access only")
+    raise HTTPException(status_code=403, detail="Forbidden — operator authentication required")
 
 
 # ---------------------------------------------------------------------------
@@ -494,10 +525,9 @@ async def require_openclaw_or_local(request: Request):
     This is used on /api/ai/* routes to permit remote agent access
     without exposing the full admin surface.
     """
-    host = (request.client.host or "").lower() if request.client else ""
-
-    # 1. Local runtime path — loopback, plus bundled Docker bridge when compose opts in
-    if _is_trusted_local_runtime_host(host) or (_debug_mode_enabled() and host == "test"):
+    if not operator_origin_allowed(request):
+        raise HTTPException(status_code=403, detail="Forbidden — untrusted browser origin")
+    if _is_debug_test_request(request):
         return
 
     # 2. Admin key — full trust
@@ -546,8 +576,8 @@ def _validate_admin_startup() -> None:
 
     if not admin_key:
         logger.warning(
-            "ADMIN_KEY is not set. Local-operator/admin endpoints will reject "
-            "remote callers until ADMIN_KEY is configured."
+            "ADMIN_KEY is not set. Operator endpoints reject requests until "
+            "an explicit operator credential is configured."
         )
         return
 

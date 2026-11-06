@@ -41,7 +41,9 @@ export const LOCALES: ReadonlyArray<{ code: Locale; label: string }> = [
   { code: 'fa', label: 'فارسی' },
 ];
 
-const translations: Record<Locale, Record<string, Record<string, string>>> = {
+// Values may nest deeper than two levels (e.g. voice.micAria.<phase>);
+// resolve() walks arbitrary dot paths, so leaves only need to be strings.
+const translations: Record<Locale, Record<string, Record<string, unknown>>> = {
   en,
   'zh-CN': zhCN,
   fr,

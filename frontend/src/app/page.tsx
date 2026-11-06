@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from '@/lib/motion';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Target } from 'lucide-react';
 import WorldviewLeftPanel from '@/components/WorldviewLeftPanel';
 
 import NewsFeed from '@/components/NewsFeed';
@@ -25,6 +25,7 @@ import CyberThreatPanel from '@/components/CyberThreatPanel';
 import EntityGraphPanel from '@/components/EntityGraphPanel';
 import { isEntityGraphEligible } from '@/lib/entityGraph';
 import AIIntelPanel from '@/components/AIIntelPanel';
+import ToolsPanel from '@/components/ToolsPanel';
 import GlobalTicker from '@/components/GlobalTicker';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import OnboardingModal, { useOnboarding } from '@/components/OnboardingModal';
@@ -44,12 +45,16 @@ import {
 } from '@/lib/layerPreferences';
 import type { ShodanSearchMatch } from '@/types/shodan';
 import { API_BASE } from '@/lib/api';
+import { findNewsArticle } from '@/lib/newsArticles';
 import { useDataPolling, LAYER_TOGGLE_EVENT } from '@/hooks/useDataPolling';
 import { useBackendStatus, useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useReverseGeocode } from '@/hooks/useReverseGeocode';
 import { useRegionDossier } from '@/hooks/useRegionDossier';
 import { useGtDossier } from '@/hooks/useGtDossier';
 import { useAgentActions } from '@/hooks/useAgentActions';
+import { useVoiceAgent, type UseVoiceAgentResult } from '@/hooks/useVoiceAgent';
+import VoiceMicButton from '@/components/VoiceMicButton';
+import VoiceHudPanel from '@/components/VoiceHudPanel';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import KeyboardShortcutsOverlay from '@/components/KeyboardShortcutsOverlay';
@@ -224,6 +229,39 @@ export default function Dashboard() {
     saveMapStyle(activeStyle);
   }, [activeStyle, layerPrefsHydrated]);
 
+  // exposes the basemap to CSS so sensor filters can tame bright satellite imagery
+  useEffect(() => {
+    document.documentElement.setAttribute('data-basemap', activeStyle === 'SATELLITE' ? 'satellite' : 'map');
+  }, [activeStyle]);
+
+  // The bottom fade on the HUD columns is a "more below" cue, so it only shows while a
+  // column actually has content past its bottom edge.
+  useEffect(() => {
+    const update = () => {
+      document.querySelectorAll<HTMLElement>('.sb-left-col, .sb-right-col').forEach((el) => {
+        const more = el.scrollHeight - el.clientHeight - el.scrollTop > 4;
+        if (el.dataset.more !== String(more)) el.dataset.more = String(more);
+      });
+    };
+    const ro = new ResizeObserver(update);
+    const watch = () => {
+      document.querySelectorAll<HTMLElement>('.sb-left-col, .sb-right-col').forEach((el) => {
+        ro.observe(el);
+        Array.from(el.children).forEach((c) => ro.observe(c));
+      });
+      update();
+    };
+    watch();
+    // panels mount late (secondary boot) and expand/collapse, so re-check on a slow beat
+    const id = window.setInterval(watch, 1500);
+    document.addEventListener('scroll', update, true);
+    return () => {
+      ro.disconnect();
+      window.clearInterval(id);
+      document.removeEventListener('scroll', update, true);
+    };
+  }, []);
+
   useEffect(() => {
     if (!layerPrefsHydrated) return;
     saveActiveFilters(activeFilters);
@@ -282,6 +320,11 @@ export default function Dashboard() {
     return () => window.clearTimeout(id);
   }, [criticalPaintReady, secondaryBootReady]);
 
+  // Voice console actions resolve through this ref: the V shortcut is
+  // registered here while the single useVoiceAgent binding site sits further
+  // down, next to the other agent wiring (§3.5).
+  const voiceRef = useRef<UseVoiceAgentResult | null>(null);
+
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     toggleLeft: () => setLeftOpen((p) => !p),
@@ -290,7 +333,13 @@ export default function Dashboard() {
     openSettings: () => setSettingsOpen(true),
     openLegend: () => setLegendOpen((p) => !p),
     openShortcuts: () => setShortcutsOpen((p) => !p),
+    voicePtt: {
+      begin: () => { voiceRef.current?.beginPtt(); },
+      end: () => { voiceRef.current?.endPtt(); },
+    },
     deselectEntity: () => {
+      // Escape also cancels an open mic or aborts a thinking turn (§5.4).
+      voiceRef.current?.cancelActive();
       if (shortcutsOpen) { setShortcutsOpen(false); return; }
       if (settingsOpen) { setSettingsOpen(false); return; }
       if (legendOpen) { setLegendOpen(false); return; }
@@ -321,7 +370,11 @@ export default function Dashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layers: activeLayers }),
-      }).then(() => {
+      }).then((response) => {
+        // Shared dashboards can view public layers without controlling the
+        // server's fetchers or authenticated integrations.
+        if (response.status === 401 || response.status === 403) return;
+        if (!response.ok) throw new Error(`Layer sync failed (${response.status})`);
         if (triggerRefetch) {
           window.dispatchEvent(new Event(LAYER_TOGGLE_EVENT));
         }
@@ -365,7 +418,12 @@ export default function Dashboard() {
   // Left panel accordion state
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
   const [leftMeshExpanded, setLeftMeshExpanded] = useState(true);
-  const [leftShodanMinimized, setLeftShodanMinimized] = useState(true);
+  const dockIntroDone = useRef(false);
+  // Screens under 1200px tall (1080p and laptops): start the comms panel collapsed so the
+  // Data Layers list gets the room; users can still expand it.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerHeight < 1200) setLeftMeshExpanded(false);
+  }, []);
 
   const launchMeshChatTab = useCallback(
     (
@@ -523,7 +581,42 @@ export default function Dashboard() {
   // useAgentActions at the top of Dashboard.
   useAgentActions(handleMapRightClick, ({ lat, lng, zoom }) => {
     setFlyToLocation({ lat, lng, zoom, ts: Date.now() });
-  }, secondaryBootReady);
+  }, secondaryBootReady, (reference) => {
+    const article = findNewsArticle(reference);
+    if (article) setSelectedEntity({ id: article.id, type: 'news', name: article.title });
+  });
+
+  // Voice console (U4) — the single wiring site for client tool bindings (§3.5).
+  const voice = useVoiceAgent({
+    flyTo: (target: { lat: number; lng: number; zoom?: number; bounds?: [number, number, number, number] }) => {
+      setFlyToLocation({ ...target, ts: Date.now() });
+    },
+    toggleLayer: (layer, enabled) => {
+      if (!Object.prototype.hasOwnProperty.call(activeLayers, layer)) return null;
+      // §3.4 executor discipline ("actual ≠ requested ⇒ ok:false"): the
+      // updater below assigns `enabled` unconditionally at this key and no
+      // other reducer can rewrite it before React commits, so the committed
+      // value equals the requested value by construction — returning it IS
+      // the applied state. (The refusal path above is the only way to get null.)
+      setActiveLayers((prev) => ({ ...prev, [layer]: enabled }));
+      return enabled;
+    },
+    applyMapStyle: (style) => {
+      setActiveStyle(style);
+      setActiveLayers((l) => ({ ...l, highres_satellite: style === 'SATELLITE' }));
+      return style;
+    },
+    setFilter: (filterKey, values) => setActiveFilters((prev) => ({ ...prev, [filterKey]: values })),
+    setSelectedEntity,
+    // §2.6 selectedEntity regen trigger (U6): page-local selection widened
+    // into the hook bindings; only its identity is read.
+    selectedEntity,
+    viewSummary: () => ({
+      activeLayers: { ...activeLayers, ...layerOverrides },
+      filters: activeFilters,
+    }),
+  });
+  voiceRef.current = voice;
 
   // Eavesdrop Mode State
   const [isEavesdropping] = useState(false);
@@ -591,37 +684,25 @@ export default function Dashboard() {
               transition={{ duration: 1 }}
               className="absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
             >
-              <div className="w-8 h-8 flex items-center justify-center">
-                {/* Target Reticle Icon */}
-                <div className="w-6 h-6 rounded-full border border-cyan-500 relative flex items-center justify-center">
-                  <div className="w-4 h-4 rounded-full bg-cyan-500/30"></div>
-                  <div className="absolute top-[-2px] bottom-[-2px] w-[1px] bg-cyan-500"></div>
-                  <div className="absolute left-[-2px] right-[-2px] h-[1px] bg-cyan-500"></div>
-                </div>
-              </div>
+              {/* Brand mark — same artwork as the website */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/sb-mark-72.webp" alt="" width={40} height={33} className="sb-brand-mark" />
               <div className="flex flex-col">
-                <h1
-                  className="text-2xl font-bold tracking-[0.4em] text-[var(--text-primary)] flex items-center gap-3 text-glow"
-                  style={{ fontFamily: 'var(--font-roboto-mono), monospace' }}
-                >
-                  S H A D O W <span className="text-cyan-400">B R O K E R</span>
+                <h1 className="sb-wordmark" aria-label="ShadowBroker">
+                  SHADOW<span className="sb-wordmark-accent">BROKER</span>
                 </h1>
-                <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.3em] mt-1 ml-1">
+                <span className="sb-wordmark-sub">
                   {t('brand.subtitle')}
                 </span>
               </div>
             </motion.div>
 
-            {/* SYSTEM METRICS TOP LEFT */}
-            <div className="absolute top-2 left-6 text-[11px] font-mono tracking-widest text-cyan-500/50 z-[200] pointer-events-none hud-zone">
-              {t('brand.systemMetrics')}
-            </div>
 
             {/* SYSTEM METRICS TOP RIGHT — removed, label moved into TimelineScrubber */}
 
             {/* LEFT HUD CONTAINER — mirrors right side: one scroll container, scrollbar on LEFT edge */}
             <motion.div
-              className="absolute left-6 top-24 bottom-9 w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
+              className="sb-left-col absolute left-6 top-24 bottom-[60px] w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
               style={{ direction: 'rtl' }}
               animate={{ x: leftOpen ? 0 : -360 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
@@ -637,6 +718,11 @@ export default function Dashboard() {
                       shodanResultCount={shodanResults.length}
                       onSettingsClick={() => setSettingsOpen(true)}
                       onLegendClick={() => setLegendOpen(true)}
+                      mapStyle={activeStyle}
+                      onMapStyleChange={(style) => {
+                        setActiveStyle(style);
+                        setActiveLayers((l) => ({ ...l, highres_satellite: style === 'SATELLITE' }));
+                      }}
                       onOpenSarAoiEditor={() => setSarAoiEditorOpen(true)}
                       gibsDate={gibsDate}
                       setGibsDate={setGibsDate}
@@ -660,9 +746,17 @@ export default function Dashboard() {
                     />
                   </ErrorBoundary>
                 ) : (
-                  <div className="bg-[#05090d]/95 border border-cyan-900/50 p-4 font-mono text-cyan-500/70">
-                    <div className="text-[11px] tracking-[0.2em] text-cyan-400 font-bold">{t('nav.dataLayers')}</div>
-                    <div className="mt-3 text-[10px] tracking-wider">{t('nav.prioritizingMapFeeds')}</div>
+                  <div className="sb-panel px-3 py-3 font-mono text-cyan-500/70" aria-busy="true">
+                    <div className="sb-title text-cyan-400">{t('nav.dataLayers')}</div>
+                    <div className="mt-1 text-[10.5px] tracking-wider text-[var(--text-muted)]">{t('nav.prioritizingMapFeeds')}</div>
+                    <div className="mt-3 flex flex-col gap-2.5" aria-hidden="true">
+                      {[72, 64, 52, 58].map((w) => (
+                        <div key={w} className="flex items-center justify-between">
+                          <span className="sb-skel h-3 rounded-md" style={{ width: `${w}%` }} />
+                          <span className="sb-skel h-3.5 w-7 rounded-full" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -683,60 +777,58 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* 3. SHODAN CONNECTOR (Bottom) */}
+              {/* 3. TOOLS — Shodan, Recon, Supply Chain, Cyber Threats and AI Intel share one tabbed card */}
               {secondaryBootReady && (
                 <div className="contents" style={{ direction: 'ltr' }}>
-                  <ShodanPanel
-                    currentResults={shodanResults}
-                    onOpenSettings={() => setSettingsOpen(true)}
-                    settingsOpen={settingsOpen}
-                    onResultsChange={(results, queryLabel) => {
-                      setShodanResults(results);
-                      setShodanQueryLabel(queryLabel);
-                      setActiveLayers((prev) => ({ ...prev, shodan_overlay: results.length > 0 }));
+                  <ToolsPanel
+                    panels={{
+                      shodan: (
+                        <ShodanPanel
+                          embedded
+                          currentResults={shodanResults}
+                          onOpenSettings={() => setSettingsOpen(true)}
+                          settingsOpen={settingsOpen}
+                          onResultsChange={(results, queryLabel) => {
+                            setShodanResults(results);
+                            setShodanQueryLabel(queryLabel);
+                            setActiveLayers((prev) => ({ ...prev, shodan_overlay: results.length > 0 }));
+                          }}
+                          onSelectEntity={setSelectedEntity}
+                          onStyleChange={setShodanStyle}
+                        />
+                      ),
+                      recon: <ReconPanel embedded />,
+                      scm: <ScmPanel embedded layerEnabled={activeLayers.scm_suppliers} />,
+                      cyber: <CyberThreatPanel embedded layerEnabled={activeLayers.cyber_threats} />,
+                      ai: (
+                        <AIIntelPanel
+                          embedded
+                          onFlyTo={handleFlyTo}
+                          pinPlacementMode={pinPlacementMode}
+                          onPinPlacementModeChange={setPinPlacementMode}
+                        />
+                      ),
                     }}
-                    onSelectEntity={setSelectedEntity}
-                    onStyleChange={setShodanStyle}
-                    isMinimized={leftShodanMinimized}
-                    onMinimizedChange={setLeftShodanMinimized}
                   />
                 </div>
               )}
-
-              {/* 4. RECON + SCM */}
-              {secondaryBootReady && (
-                <div className="contents" style={{ direction: 'ltr' }}>
-                  <ReconPanel />
-                  <ScmPanel layerEnabled={activeLayers.scm_suppliers} />
-                  <CyberThreatPanel layerEnabled={activeLayers.cyber_threats} />
-                </div>
-              )}
-
-              {/* 5. AI INTEL */}
-              {secondaryBootReady && (
-                <div className="contents" style={{ direction: 'ltr' }}>
-                  <AIIntelPanel
-                    onFlyTo={handleFlyTo}
-                    pinPlacementMode={pinPlacementMode}
-                    onPinPlacementModeChange={setPinPlacementMode}
-                  />
-                </div>
-              )}
+              {/* soft fade at the bottom edge = "more below" cue for the scrolling column */}
+              <div aria-hidden="true" className="sb-col-fade" />
             </motion.div>
 
             {/* LEFT SIDEBAR TOGGLE TAB — aligns with Data Layers section */}
             <motion.div
-              className="absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone"
+              className={`absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${leftOpen ? 'sb-edge-left-open' : ''}`}
               animate={{ x: leftOpen ? 344 : 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
               <button
                 onClick={() => setLeftOpen(!leftOpen)}
-                className="flex flex-col items-center gap-1.5 py-5 px-1.5 bg-cyan-950/40 border border-cyan-800/50 border-l-0 rounded-r text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
+                className="flex flex-col items-center gap-1.5 py-5 px-1.5 sb-edge-tab border border-l-0 rounded-r-lg text-cyan-400/80 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
               >
                 {leftOpen ? <ChevronLeft size={10} /> : <ChevronRight size={10} />}
                 <span
-                  className="text-[7px] font-mono tracking-[0.2em] font-bold"
+                  className="text-[11px] font-mono tracking-[0.18em] font-bold"
                   style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                 >
                   {t('nav.layers')}
@@ -746,17 +838,17 @@ export default function Dashboard() {
 
             {/* RIGHT SIDEBAR TOGGLE TAB */}
             <motion.div
-              className="absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone"
+              className={`absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${rightOpen ? 'sb-edge-right-open' : ''}`}
               animate={{ x: rightOpen ? -424 : 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
               <button
                 onClick={() => setRightOpen(!rightOpen)}
-                className="flex flex-col items-center gap-1.5 py-5 px-1.5 bg-cyan-950/40 border border-cyan-800/50 border-r-0 rounded-l text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
+                className="flex flex-col items-center gap-1.5 py-5 px-1.5 sb-edge-tab border border-r-0 rounded-l-lg text-cyan-400/80 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
               >
                 {rightOpen ? <ChevronRight size={10} /> : <ChevronLeft size={10} />}
                 <span
-                  className="text-[7px] font-mono tracking-[0.2em] font-bold"
+                  className="text-[11px] font-mono tracking-[0.18em] font-bold"
                   style={{ writingMode: 'vertical-rl' }}
                 >
                   {t('nav.intel')}
@@ -766,7 +858,7 @@ export default function Dashboard() {
 
             {/* RIGHT HUD CONTAINER — slides off right edge when hidden */}
             <motion.div
-              className="absolute right-6 top-24 bottom-9 w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
+              className="sb-right-col absolute right-6 top-24 bottom-[60px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
               animate={{ x: rightOpen ? 0 : 440 }}
               transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             >
@@ -820,7 +912,7 @@ export default function Dashboard() {
               </div>
 
               {/* BOTTOM RIGHT - NEWS FEED (fills remaining space) */}
-              <div className={`flex-1 min-h-0 flex flex-col ${rightFocusedPanel ? 'hidden' : ''}`}>
+              <div className={`flex-1 min-h-[300px] flex flex-col ${rightFocusedPanel ? 'hidden' : ''}`}>
                 <ErrorBoundary name="NewsFeed">
                   <NewsFeed
                     selectedEntity={selectedEntity}
@@ -838,58 +930,76 @@ export default function Dashboard() {
             {/* BOTTOM CENTER COORDINATE / LOCATION BAR — hidden when fullscreen overlays are open */}
             {!(selectedEntity?.type === 'region_dossier' && regionDossier?.sentinel2) && selectedEntity?.type !== 'cctv' && selectedEntity?.type !== 'news' && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                // intro only on first appearance; re-mounting after a dossier closes is instant
+                initial={dockIntroDone.current ? false : { opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1, duration: 1 }}
-                className="absolute bottom-9 left-1/2 -translate-x-1/2 z-[200] pointer-events-auto flex flex-col items-center gap-2 hud-zone"
+                transition={dockIntroDone.current ? { duration: 0 } : { delay: 1, duration: 1 }}
+                onAnimationComplete={() => {
+                  dockIntroDone.current = true;
+                }}
+                className="sb-dock absolute bottom-[60px] left-1/2 -translate-x-1/2 z-[200] pointer-events-auto flex flex-col items-center gap-2 hud-zone"
               >
-                {/* LOCATE BAR — search by coordinates or place name */}
-                <LocateBar
-                  onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
-                  onOpenChange={setLocateBarOpen}
-                />
+                {/* LOCATE BAR + VOICE MIC — flex row wrap (§5.1) */}
+                <div className="relative flex items-center gap-2">
+                  <LocateBar
+                    onLocate={(lat, lng, bounds) => setFlyToLocation({ lat, lng, bounds, ts: Date.now() })}
+                    onOpenChange={setLocateBarOpen}
+                  />
+                  <ErrorBoundary name="VoiceMicButton">
+                    <VoiceMicButton />
+                  </ErrorBoundary>
+                  <button type="button" aria-label="Open mission workspace" className="sb-chip flex items-center gap-2 px-5 py-2 text-[11px] font-mono tracking-[0.15em] uppercase text-cyan-300 hover:text-cyan-100" onClick={() => { voice.missions.setOpen(true); voice.openPanel(); }}><Target size={12} aria-hidden="true" />Missions</button>
+                  {voice.state.panelOpen && (
+                    <ErrorBoundary name="VoiceHudPanel">
+                      <VoiceHudPanel onSubmit={voice.submitText} onClose={voice.closePanel} missionWorkspace={voice.missions} />
+                    </ErrorBoundary>
+                  )}
+                </div>
 
-                <div
-                  className="bg-[#0a0a0a]/90 border border-cyan-900/40 px-6 py-2 flex items-center gap-6 border-b-2 border-b-cyan-800 cursor-pointer backdrop-blur-sm"
-                  onClick={cycleStyle}
-                >
+                <div className="sb-panel sb-statusbar px-6 py-2 flex items-center gap-6">
                   {/* Coordinates */}
-                  <div className="flex flex-col items-center min-w-[140px]">
-                    <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
+                  <div className="flex flex-col items-center min-w-[140px] sb-wide-only">
+                    <div className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.14em]">
                       {t('controls.coordinates')}
                     </div>
                     <div className="text-[14px] text-cyan-400 font-mono font-bold tracking-wide">
                       {mouseCoords
                         ? `${mouseCoords.lat.toFixed(4)}, ${mouseCoords.lng.toFixed(4)}`
-                        : '0.0000, 0.0000'}
+                        : '—'}
                     </div>
                   </div>
 
                   {/* Divider */}
-                  <div className="w-px h-6 bg-[var(--border-primary)]" />
+                  <div className="w-px h-6 bg-[var(--border-primary)] sb-wide-only" />
 
                   {/* Location name */}
-                  <div className="flex flex-col items-center min-w-[180px] max-w-[320px]">
-                    <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
+                  <div className="flex flex-col items-center w-[260px] min-w-0 sb-wide-only">
+                    <div className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.14em]">
                       {t('controls.location')}
                     </div>
-                    <div className="text-[13px] text-[var(--text-secondary)] font-mono truncate max-w-[320px]">
-                      {locationLabel || t('controls.hoverMap')}
+                    <div className="text-[13px] text-[var(--text-secondary)] font-mono truncate w-full text-center">
+                      {locationLabel || (mouseCoords ? '—' : t('controls.hoverMap'))}
                     </div>
                   </div>
 
                   {/* Divider */}
-                  <div className="w-px h-6 bg-[var(--border-primary)]" />
+                  <div className="w-px h-6 bg-[var(--border-primary)] sb-wide-only" />
 
                   {/* Style preset (compact) */}
-                  <div className="flex flex-col items-center">
-                    <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
-                      {t('controls.style')}
-                    </div>
-                    <div className="text-[14px] text-cyan-400 font-mono font-bold">
-                      {activeStyle}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={cycleStyle}
+                    title={`Switch basemap to ${activeStyle === 'SATELLITE' ? 'MAP' : 'SATELLITE'} (also under VIEW)`}
+                    aria-label={`Basemap: ${activeStyle === 'SATELLITE' ? 'satellite' : 'map'}. Click to switch.`}
+                    className="sb-style-cell group flex flex-col items-center w-[104px] -my-1 py-1 rounded-lg border border-transparent hover:border-cyan-500/40 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                  >
+                    <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.14em] group-hover:text-cyan-300">
+                      {t('controls.style')} ⇄
+                    </span>
+                    <span className="text-[14px] text-cyan-400 font-mono font-bold">
+                      {activeStyle === 'SATELLITE' ? 'SATELLITE' : 'MAP'}
+                    </span>
+                  </button>
 
                   {/* Divider */}
                   <div className="w-px h-6 bg-[var(--border-primary)]" />
@@ -902,7 +1012,7 @@ export default function Dashboard() {
                         className="flex flex-col items-center"
                         title={`Kp Index: ${sw?.kp_index ?? 'N/A'}`}
                       >
-                        <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-[0.2em]">
+                        <div className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.14em]">
                           {t('controls.solar')}
                         </div>
                         <div
@@ -926,7 +1036,7 @@ export default function Dashboard() {
                   {/* Feed Health */}
                   <div className="flex items-center gap-3">
                     {feedHealth.map((f) => (
-                      <div key={f.label} className="flex items-center gap-1 text-[10px] font-mono tracking-wider">
+                      <div key={f.label} className="flex items-center gap-1 text-[10px] font-mono tracking-wider whitespace-nowrap">
                         <span className={`feed-dot feed-dot-${f.status}`} />
                         <span className="text-[var(--text-muted)]">{f.label}</span>
                         <span className="text-cyan-400 font-bold">{f.count}</span>
@@ -949,9 +1059,10 @@ export default function Dashboard() {
           </button>
         )}
 
-        {/* DYNAMIC SCALE BAR — hidden when fullscreen overlays or locate bar are open */}
+
+        {/* MAP SCALE + MEASURE — sits on the map itself (bottom-left of the open map area) */}
         {!(selectedEntity?.type === 'region_dossier' && regionDossier?.sentinel2) && selectedEntity?.type !== 'cctv' && selectedEntity?.type !== 'news' && !locateBarOpen && (
-        <div className="absolute bottom-[7rem] left-[23rem] z-[201] pointer-events-auto">
+        <div className="sb-scalebar absolute z-[201] pointer-events-auto">
           <ScaleBar
             zoom={mapView.zoom}
             latitude={mapView.latitude}
@@ -970,7 +1081,60 @@ export default function Dashboard() {
         <div
           className="absolute inset-0 pointer-events-none z-[2]"
           style={{
-            background: 'radial-gradient(circle, transparent 40%, rgba(0,0,0,0.8) 100%)',
+            background:
+              'radial-gradient(ellipse 120% 90% at 50% 45%, transparent 48%, rgba(2,6,14,0.82) 100%), radial-gradient(60% 50% at 50% 0%, rgba(30,155,255,0.07), transparent 70%)',
+          }}
+        />
+
+        {/* SENSOR MODE OPTICS — vignette / grain / scanlines over the map only (HUD stays crisp) */}
+        <div aria-hidden="true" className="sb-sensor-fx absolute inset-0 pointer-events-none z-[3]" />
+
+        {/* SENSOR FILTERS for the map canvas. Each blends the optic grade with ~20% of the
+            original colours so data categories stay distinguishable (usable, not just moody). */}
+        <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute' }}>
+          <defs>
+            <filter id="sb-f-flir" colorInterpolationFilters="sRGB">
+              <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" result="lum" />
+              <feComponentTransfer in="lum" result="iron">
+                <feFuncR type="table" tableValues="0.06 0.3 0.62 0.9 1 1 1" />
+                <feFuncG type="table" tableValues="0.02 0.03 0.08 0.32 0.62 0.86 1" />
+                <feFuncB type="table" tableValues="0.12 0.36 0.5 0.2 0.05 0.25 0.9" />
+              </feComponentTransfer>
+              <feComposite in="iron" in2="SourceGraphic" operator="arithmetic" k1="0" k2="0.82" k3="0.22" k4="0" />
+            </filter>
+            <filter id="sb-f-flir-sat" colorInterpolationFilters="sRGB">
+              <feColorMatrix type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" />
+              <feComponentTransfer result="iron">
+                <feFuncR type="table" tableValues="0.06 0.26 0.46 0.56 0.6 0.62" />
+                <feFuncG type="table" tableValues="0.02 0.03 0.07 0.16 0.24 0.3" />
+                <feFuncB type="table" tableValues="0.12 0.32 0.42 0.32 0.28 0.32" />
+              </feComponentTransfer>
+              <feComposite in="iron" in2="SourceGraphic" operator="arithmetic" k1="0" k2="0.88" k3="0.12" k4="0" />
+            </filter>
+            <filter id="sb-f-nvg" colorInterpolationFilters="sRGB">
+              <feColorMatrix type="matrix" values="0.1 0.2 0.05 0 0  0.4 0.9 0.2 0 0.04  0.1 0.25 0.05 0 0  0 0 0 1 0" />
+              <feComponentTransfer result="phosphor">
+                <feFuncG type="gamma" amplitude="1.12" exponent="1.08" offset="0" />
+                <feFuncR type="gamma" amplitude="1" exponent="1.1" offset="0" />
+              </feComponentTransfer>
+              <feComposite in="phosphor" in2="SourceGraphic" operator="arithmetic" k1="0" k2="0.82" k3="0.24" k4="0" />
+            </filter>
+            <filter id="sb-f-crt" colorInterpolationFilters="sRGB">
+              <feColorMatrix type="matrix" values="0.42 0.78 0.12 0 0  0.32 0.74 0.14 0 0.02  0.02 0.04 0.01 0 0  0 0 0 1 0" />
+              <feComponentTransfer result="mono">
+                <feFuncG type="gamma" amplitude="1.3" exponent="0.85" offset="0" />
+              </feComponentTransfer>
+              <feComposite in="mono" in2="SourceGraphic" operator="arithmetic" k1="0" k2="0.85" k3="0.18" k4="0" />
+            </filter>
+          </defs>
+        </svg>
+
+        {/* HEADER SCRIM — keeps the wordmark and HUD labels readable over busy map areas */}
+        <div
+          className="absolute inset-x-0 top-0 h-[230px] pointer-events-none z-[3]"
+          style={{
+            background:
+              'radial-gradient(ellipse 520px 230px at 0% 0%, rgba(3,6,12,0.9), transparent 75%), linear-gradient(180deg, rgba(3,6,12,0.78) 0%, rgba(3,6,12,0.32) 55%, transparent 100%)',
           }}
         />
 
@@ -1083,23 +1247,35 @@ export default function Dashboard() {
 
         {/* BACKEND DISCONNECTED BANNER */}
         {backendStatus === 'disconnected' && (
-          <div className="absolute top-0 left-0 right-0 z-[9000] flex items-center justify-center py-2 bg-red-950/90 border-b border-red-500/40 backdrop-blur-sm">
-            <span className="text-[10px] font-mono tracking-widest text-red-400">
-              {t('backend.offline')}
-            </span>
+          <div role="status" className="sb-offline-toast absolute top-5 left-1/2 -translate-x-1/2 z-[9000] flex items-center gap-2 px-4 py-2">
+            <span className="sb-alert-dot text-[#ff3b5c] shrink-0" aria-hidden="true" />
+            {(() => {
+              const msg = String(t('backend.offline'));
+              const cut = msg.indexOf(' — ');
+              const head = cut > 0 ? msg.slice(0, cut) : msg;
+              const rest = cut > 0 ? msg.slice(cut + 3) : '';
+              return (
+                <span className="flex items-baseline gap-x-3 gap-y-0.5 flex-wrap">
+                  <span className="font-[family-name:var(--font-display)] text-[13px] font-bold tracking-[0.14em] text-[#ff6b84] whitespace-nowrap">
+                    {head}
+                  </span>
+                  {rest && <span className="sb-prose text-[12.5px] text-[#ffc2cd]">{rest}</span>}
+                </span>
+              );
+            })()}
           </div>
         )}
         {/* BOTTOM TICKER TOGGLE TAB — moved to center-right to avoid panel overlap */}
         <motion.div
-           className={`absolute bottom-0 right-[28rem] z-[8001] pointer-events-auto hud-zone transition-opacity duration-300 ${tickerOpen ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
+           className={`absolute bottom-0 right-6 z-[8001] pointer-events-auto hud-zone transition-opacity duration-300 ${tickerOpen ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
            animate={{ y: tickerOpen ? -28 : 0 }}
            transition={{ type: 'spring', damping: 30, stiffness: 250 }}
         >
           <button
             onClick={() => setTickerOpen(!tickerOpen)}
-            className="flex items-center gap-2 px-3 py-1 bg-cyan-950/40 border border-cyan-800/50 border-b-0 rounded-t text-cyan-700 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
+            className="flex items-center gap-2 px-3 py-1 sb-edge-tab border border-b-0 rounded-t-lg text-cyan-400/80 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
           >
-            <div className="text-[7.5px] font-mono tracking-[0.25em] font-bold uppercase">
+            <div className="text-[10px] font-mono tracking-[0.25em] font-bold uppercase">
               {t('nav.markets')}
             </div>
             {tickerOpen ? <ChevronDown size={10} /> : <ChevronUp size={10} />}

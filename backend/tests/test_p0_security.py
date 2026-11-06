@@ -77,8 +77,8 @@ class TestRequireLocalOperator:
             except HTTPException as e:
                 return e.status_code
 
-    def test_loopback_passes_without_key(self):
-        assert self._call_with_host("127.0.0.1") == 200
+    def test_loopback_requires_key(self):
+        assert self._call_with_host("127.0.0.1") == 403
 
     def test_rfc1918_10_blocked_without_key(self):
         assert self._call_with_host("10.0.0.1") == 403
@@ -93,13 +93,11 @@ class TestRequireLocalOperator:
             with patch("auth._resolve_trusted_bridge_ips", return_value=frozenset({"172.18.0.3"})):
                 assert self._call_with_host("172.18.0.3") == 403
 
-    def test_docker_bridge_passes_with_compose_opt_in(self):
-        # Issue #250: opt-in alone is no longer sufficient — the source IP
-        # must also reverse-match a trusted frontend container hostname.
-        # Here we simulate Docker DNS resolving "frontend" to 172.18.0.3.
+    def test_docker_bridge_requires_key_even_with_legacy_compose_opt_in(self):
+        # Even a known frontend IP cannot authenticate an operator request.
         with patch.dict("os.environ", {"SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR": "1"}):
             with patch("auth._resolve_trusted_bridge_ips", return_value=frozenset({"172.18.0.3"})):
-                assert self._call_with_host("172.18.0.3") == 200
+                assert self._call_with_host("172.18.0.3") == 403
 
     def test_unknown_bridge_ip_blocked_even_with_compose_opt_in(self):
         # Issue #250 core regression: a rogue container on the same bridge

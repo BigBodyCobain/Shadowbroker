@@ -53,6 +53,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { onTileLoadingChange, resetTileLoading } from '@/lib/sentinelHub';
 import packageJson from '../../package.json';
 import { useTheme } from '@/lib/ThemeContext';
+import DisplayMenu, { SENSOR_CODE } from '@/components/DisplayMenu';
+import type { MapStyle } from '@/lib/layerPreferences';
 import { useTranslation } from '@/i18n';
 import SarModeChooserModal from './SarModeChooserModal';
 import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
@@ -366,16 +368,16 @@ function ScannerTracker({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Radio size={14} className="text-red-400" />
-          <span className="text-[12px] text-red-400 font-mono tracking-widest font-bold">
+          <span className="sb-title text-red-400">
             SCANNER TRACKER
           </span>
           {isPlaying && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 animate-pulse">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 animate-pulse">
               LIVE
             </span>
           )}
           {isLoading && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
               TUNING
             </span>
           )}
@@ -414,7 +416,7 @@ function ScannerTracker({
         <button
           onClick={isPlaying ? stop : () => void fetchAndPlay()}
           disabled={isLoading}
-          className={`px-2 py-1.5 border text-[9px] font-mono tracking-wider flex items-center justify-center gap-1.5 ${isPlaying ? 'border-red-500/50 text-red-300 bg-red-950/40 hover:bg-red-950/60' : 'border-red-700/50 text-red-500 hover:bg-red-950/30'} transition-colors ${isLoading ? 'opacity-50' : ''}`}
+          className={`px-2 py-1.5 border text-[10px] font-mono tracking-wider flex items-center justify-center gap-1.5 ${isPlaying ? 'border-red-500/50 text-red-300 bg-red-950/40 hover:bg-red-950/60' : 'border-red-700/50 text-red-500 hover:bg-red-950/30'} transition-colors ${isLoading ? 'opacity-50' : ''}`}
           title={isPlaying ? 'Stop' : 'Play latest intercept'}
         >
           {isPlaying ? <Square size={11} /> : <Play size={11} />}
@@ -422,7 +424,7 @@ function ScannerTracker({
         </button>
         <button
           onClick={toggleScan}
-          className={`px-2 py-1.5 text-[9px] font-mono border tracking-wider flex items-center justify-center gap-1.5 ${isScanning ? 'bg-red-900/60 border-red-400 text-red-300 animate-pulse' : 'border-red-800/50 text-red-600 hover:border-red-500'} transition-colors`}
+          className={`px-2 py-1.5 text-[10px] font-mono border tracking-wider flex items-center justify-center gap-1.5 ${isScanning ? 'bg-red-900/60 border-red-400 text-red-300 animate-pulse' : 'border-red-800/50 text-red-600 hover:border-red-500'} transition-colors`}
           title="Auto-scan: continuously play intercepted bursts"
         >
           <FastForward size={10} />
@@ -466,7 +468,7 @@ function ScannerTracker({
       <div className="flex items-center gap-2">
         <button
           onClick={onFlyTo}
-          className="flex-1 text-center px-2 py-1.5 border border-[var(--border-primary)] hover:border-red-400/50 hover:text-red-400 text-[var(--text-muted)] text-[9px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 text-center px-2 py-1.5 border border-[var(--border-primary)] hover:border-red-400/50 hover:text-red-400 text-[var(--text-muted)] text-[10px] font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5"
         >
           <Globe size={10} /> RE-LOCK
         </button>
@@ -711,6 +713,8 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onResetLayers,
   onSettingsClick,
   onLegendClick,
+  mapStyle,
+  onMapStyleChange,
   gibsDate,
   setGibsDate,
   gibsOpacity,
@@ -738,6 +742,8 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
   onResetLayers?: () => void;
   onSettingsClick?: () => void;
   onLegendClick?: () => void;
+  mapStyle?: MapStyle;
+  onMapStyleChange?: (style: MapStyle) => void;
   gibsDate?: string;
   setGibsDate?: (d: string) => void;
   gibsOpacity?: number;
@@ -769,7 +775,8 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
     setInternalMinimized(newVal);
     onMinimizedChange?.(newVal);
   };
-  const { theme, toggleTheme, hudColor, cycleHudColor } = useTheme();
+  const { sensor } = useTheme();
+  const [displayOpen, setDisplayOpen] = useState(false);
   const [gibsPlaying, setGibsPlaying] = useState(false);
   const [potusEnabled, setPotusEnabled] = useState(true);
   const [meshtasticScanning, setMeshtasticScanning] = useState(false);
@@ -1593,33 +1600,33 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       initial={{ opacity: 0, x: -50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 1 }}
-      className={`w-full flex flex-col pointer-events-none ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-[300px]'}`}
+      className={`w-full flex flex-col pointer-events-none ${displayOpen ? 'relative z-[40]' : ''} ${isMinimized ? 'flex-shrink-0' : 'flex-[3.4_1_0%] min-h-[264px]'}`}
     >
       {/* Header */}
-      <div className="mb-4 pointer-events-auto">
-        <div className="text-[9px] text-[var(--text-muted)] font-mono tracking-[0.3em] mb-3 opacity-50">
-          TOP SECRET // SI-TK // NOFORN · KH11-4094 OPS-4168
-        </div>
+      <div className="sb-panel sb-header-card relative z-[30] !overflow-visible mb-3 px-3.5 py-3 pointer-events-auto">
         <div className="flex items-center gap-1.5">
-          <h1 className="text-xl font-bold tracking-[0.25em] text-[var(--text-heading)] mr-1">FLIR</h1>
+          <div className="mr-auto flex flex-col leading-none">
+            <h1 className="sb-mode-label" aria-live="polite" title="Active sensor mode">{SENSOR_CODE[sensor]}</h1>
+            <span className="mt-1 text-[10px] font-mono tracking-[0.16em] text-[var(--text-muted)]">v{packageJson.version}</span>
+          </div>
           <button
-            onClick={toggleTheme}
-            className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <button
-            onClick={cycleHudColor}
-            className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
-            title={hudColor === 'cyan' ? 'Switch to Matrix HUD' : 'Switch to Cyan HUD'}
+            type="button"
+            data-display-toggle
+            onClick={() => setDisplayOpen((o) => !o)}
+            aria-expanded={displayOpen}
+            aria-haspopup="dialog"
+            className={`sb-icon-btn shrink-0 h-8 px-2.5 border flex items-center justify-center gap-1.5 transition-all hover:bg-cyan-950/30 ${
+              displayOpen ? 'border-cyan-400/60 text-cyan-200' : 'border-cyan-900/40 text-cyan-400/70 hover:text-cyan-300'
+            }`}
+            title="Display: sensor mode, basemap, theme, HUD colour"
           >
             <Palette size={14} />
+            <span className="text-[10px] font-mono tracking-widest font-bold">VIEW</span>
           </button>
           {onSettingsClick && (
             <button
               onClick={onSettingsClick}
-              className="w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30 group"
+              className="sb-icon-btn shrink-0 w-8 h-8 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30 group"
               title="System Settings"
             >
               <Settings
@@ -1631,23 +1638,24 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
           {onLegendClick && (
             <button
               onClick={onLegendClick}
-              className="h-8 px-2.5 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center gap-1.5 text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
+              className="sb-icon-btn shrink-0 h-8 px-2.5 border border-cyan-900/40 hover:border-cyan-500/50 flex items-center justify-center gap-1.5 text-cyan-400/70 hover:text-cyan-300 transition-all hover:bg-cyan-950/30"
               title="Map Legend / Icon Key"
             >
               <BookOpen size={12} />
               <span className="text-[10px] font-mono tracking-widest font-bold">KEY</span>
             </button>
           )}
-          <span
-            className="h-8 px-2.5 border border-cyan-900/40 flex items-center justify-center text-[10px] text-cyan-400/60 font-mono tracking-widest select-none"
-          >
-            v{packageJson.version}
-          </span>
         </div>
+        <DisplayMenu
+          open={displayOpen}
+          onClose={() => setDisplayOpen(false)}
+          mapStyle={mapStyle}
+          onMapStyleChange={onMapStyleChange}
+        />
       </div>
 
       {/* Data Layers Box */}
-      <div className={`bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 pointer-events-auto flex flex-col relative overflow-hidden max-h-full ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
+      <div className={`sb-panel pointer-events-auto flex flex-col relative overflow-hidden max-h-full ${isMinimized ? 'flex-shrink-0' : 'flex-[2.6_1_0%] min-h-[208px]'}`}>
         {/* Header / Toggle */}
         <div 
           className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
@@ -1655,7 +1663,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
         >
           <div className="flex items-center gap-2">
             <Layers size={16} className="text-cyan-400" />
-            <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+            <span className="sb-title text-cyan-400">
               DATA LAYERS
             </span>
           </div>
@@ -1704,9 +1712,9 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-y-auto styled-scrollbar"
+              className="overflow-y-auto styled-scrollbar sb-scroll-fade"
             >
-              <div className="flex flex-col gap-6 p-4 pt-2 pb-6">
+              <div className="flex flex-col gap-4 p-4 pt-2 pb-5">
                 {/* SDR TRACKER — pinned to TOP when active, with embedded receiver */}
                 {trackedSdr && (
                   <SdrTracker
@@ -1727,42 +1735,40 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
 
                 {/* POTUS Fleet — pinned to TOP when aircraft are active */}
                 {potusEnabled && potusFlights.length > 0 && (
-                  <div className="bg-[#ff1493]/5 border border-[#ff1493]/30 p-3 -mt-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Shield size={14} className="text-[#ff1493]" />
-                        <span className="text-[12px] text-[#ff1493] font-mono tracking-widest font-bold">
-                          POTUS FLEET
-                        </span>
-                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-full bg-[#ff1493]/20 border border-[#ff1493]/40 text-[#ff1493] animate-pulse">
-                          {potusFlights.length} ACTIVE
-                        </span>
-                      </div>
+                  <div className="rounded-xl bg-[#ff1493]/[0.06] border border-[#ff1493]/30 px-3 py-2 -mt-1 shrink-0">
+                    <div className="flex items-center gap-2 mb-1.5 whitespace-nowrap min-w-0">
+                      <Shield size={13} className="text-[#ff1493] shrink-0" />
+                      <span className="text-[12px] font-mono font-bold tracking-[0.12em] text-[#ff1493] shrink-0">
+                        POTUS FLEET
+                      </span>
+                      <span
+                        className="text-[10.5px] font-mono tabular-nums px-1.5 rounded-md bg-[#ff1493]/15 border border-[#ff1493]/35 text-[#ff6fb8] shrink-0"
+                        title={`${potusFlights.length} active`}
+                      >
+                        {potusFlights.length}<span className="max-[1599px]:hidden"> ACTIVE</span>
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setPotusEnabled(false);
                         }}
-                        className="text-[11px] font-mono text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 px-1.5 py-0.5 transition-colors"
+                        className="ml-auto shrink-0 text-[10.5px] font-mono tracking-[0.1em] text-[var(--text-muted)] hover:text-[#ff1493] border border-[var(--border-primary)] hover:border-[#ff1493]/40 rounded-md px-1.5 transition-colors"
                         title="Hide POTUS Fleet tracker"
                       >
                         HIDE
                       </button>
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1">
                       {potusFlights.map((pf) => {
-                        const color =
-                          pf.meta.type === 'AF1'
-                            ? '#ff1493'
-                            : pf.meta.type === 'M1'
-                              ? '#ff1493'
-                              : '#3b82f6';
+                        // one pink family inside the card (AF1/M1 full pink, the rest a lighter pink)
+                        const color = pf.meta.type === 'AF1' || pf.meta.type === 'M1' ? '#ff4fa8' : '#ff8cc6';
                         const alt = pf.flight.alt || 0;
                         const speed = pf.flight.speed_knots || 0;
                         return (
                           <div
                             key={pf.flight.icao24}
-                            className="flex items-center justify-between p-2 border cursor-pointer transition-all hover:bg-[var(--bg-secondary)]/60"
+                            className="flex items-end gap-3 px-2 py-1 rounded-lg border cursor-pointer transition-all hover:bg-[var(--bg-secondary)]/60 whitespace-nowrap min-w-0"
+                            title={`${pf.meta.label} — fly to and track`}
                             style={{ borderColor: `${color}40`, background: `${color}10` }}
                             onClick={() => {
                               if (onFlyTo && pf.flight.lat != null && pf.flight.lng != null) {
@@ -1773,16 +1779,16 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                               }
                             }}
                           >
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold font-mono" style={{ color }}>
+                            <div className="flex flex-col min-w-0 flex-1 leading-tight">
+                              <span className="text-[11px] font-bold font-mono truncate" style={{ color }}>
                                 {pf.meta.label}
                               </span>
-                              <span className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">
+                              <span className="text-[10.5px] text-[var(--text-muted)] font-mono tabular-nums shrink-0">
                                 {alt > 0 ? `${Math.round(alt).toLocaleString()} ft` : 'GND'} ·{' '}
                                 {speed > 0 ? `${Math.round(speed)} kts` : 'STATIC'}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <div
                                 className="w-1.5 h-1.5 rounded-full animate-pulse"
                                 style={{ backgroundColor: color }}
@@ -1818,8 +1824,10 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                     <div key={section.id} className="flex flex-col">
                       {/* Section header */}
                       <div className="flex items-center justify-between mb-1">
-                        <div
-                          className="flex items-center gap-2 cursor-pointer flex-1"
+                        <button
+                          type="button"
+                          aria-expanded={expanded}
+                          className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 text-left"
                           onClick={() =>
                             setExpandedSections((prev) => ({ ...prev, [section.id]: !expanded }))
                           }
@@ -1827,44 +1835,41 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                           <SectionIcon
                             size={12}
                             className={`${
-                              section.layers[0]?.id === 'shodan_overlay'
-                                ? anyOn
-                                  ? 'text-green-400'
-                                  : 'text-green-700/70'
-                                : anyOn
-                                  ? 'text-cyan-400'
-                                  : 'text-[var(--text-muted)]'
-                            } transition-colors`}
+                              anyOn ? 'text-cyan-400' : 'text-[var(--text-muted)]'
+                            } shrink-0 transition-colors`}
                           />
                           <span
-                            className={`text-[13px] font-mono tracking-[0.2em] font-bold ${
-                              section.layers[0]?.id === 'shodan_overlay' ? 'text-green-400' : 'text-[var(--text-muted)]'
+                            className={`min-w-0 truncate text-[13px] font-mono tracking-[0.12em] font-bold ${
+                              anyOn ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)] opacity-70'
                             }`}
                           >
                             {section.label}
                           </span>
                           {anyOn && totalCount > 0 && (
                             <span
-                              className={`text-[12px] font-mono ${
-                                section.layers[0]?.id === 'shodan_overlay' ? 'text-green-500/70' : 'text-cyan-500/50'
+                              className={`shrink-0 text-[12px] font-mono ${
+                                'text-cyan-300/80'
                               }`}
                             >
                               {totalCount.toLocaleString()}
                             </span>
                           )}
                           {expanded ? (
-                            <ChevronUp size={10} className="text-[var(--text-muted)]" />
+                            <ChevronUp size={10} className="shrink-0 text-[var(--text-muted)]" />
                           ) : (
-                            <ChevronDown size={10} className="text-[var(--text-muted)]" />
+                            <ChevronDown size={10} className="shrink-0 text-[var(--text-muted)]" />
                           )}
-                        </div>
+                        </button>
                         <button
                           className="relative w-8 h-4 rounded-full transition-colors shrink-0"
+                          role="switch"
+                          aria-checked={allOn ? 'true' : anyOn ? 'mixed' : 'false'}
+                          aria-label={`Turn all ${section.label} layers ${allOn ? 'off' : 'on'}`}
                           style={{
-                            backgroundColor: allOn
-                              ? section.layers[0]?.id === 'shodan_overlay' ? 'rgb(34 197 94 / 0.5)' : 'rgb(6 182 212 / 0.5)'
+                            background: allOn
+                              ? 'rgba(var(--sb-accent-rgb), 0.5)'
                               : anyOn
-                                ? 'rgb(6 182 212 / 0.25)'
+                                ? 'linear-gradient(90deg, rgba(var(--sb-accent-rgb), 0.5) 0 50%, rgb(100 116 139 / 0.3) 50% 100%)'
                                 : 'rgb(100 116 139 / 0.3)',
                           }}
                           onClick={() => {
@@ -1887,17 +1892,23 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                             }
                           }}
                           title={
-                            allOn ? `Disable all ${section.label}` : `Enable all ${section.label}`
+                            allOn
+                              ? `Disable all ${section.label}`
+                              : anyOn
+                                ? `Some ${section.label} layers are on — click to enable all`
+                                : `Enable all ${section.label}`
                           }
                         >
                           <span
                             className="absolute top-0.5 w-3 h-3 rounded-full transition-all"
                             style={{
                               left: allOn ? '18px' : anyOn ? '10px' : '2px',
+                              // partial: hollow ring so it reads as "some on", not a glitch
+                              boxShadow: !allOn && anyOn ? 'inset 0 0 0 3px var(--sb-accent)' : undefined,
                               backgroundColor: allOn
-                                ? section.layers[0]?.id === 'shodan_overlay' ? 'rgb(74 222 128)' : 'rgb(34 211 238)'
+                                ? 'var(--sb-accent)'
                                 : anyOn
-                                  ? 'rgb(34 211 238 / 0.6)'
+                                  ? 'rgba(var(--sb-bg-rgb), 0.9)'
                                   : 'rgb(148 163 184 / 0.5)',
                             }}
                           />
@@ -1940,7 +1951,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                     });
                                   }}
                                 >
-                                  <div className="flex gap-3">
+                                  <div className="flex gap-3 min-w-0">
                                     <div
                                       className={`mt-0.5 ${
                                         layer.id === 'shodan_overlay'
@@ -1958,7 +1969,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                         <Icon size={14} strokeWidth={1.5} />
                                       )}
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                       <span
                                         className={`text-[12px] font-medium ${
                                           layer.id === 'shodan_overlay'
@@ -1972,7 +1983,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       >
                                         {layer.name}
                                       </span>
-                                      <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-wider mt-0.5">
+                                      <span title={layer.source} className="block max-w-full text-[11px] text-[var(--text-muted)] font-mono tracking-wide mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
                                         {layer.id === 'shodan_overlay'
                                           ? layer.source
                                           : (
@@ -2007,23 +2018,26 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                       </span>
                                     )}
                                     {layer.id !== 'shodan_overlay' && (
-                                      <div
-                                        className={`text-[11px] font-mono tracking-wider px-1.5 py-0.5 rounded-full border ${
+                                      <span
+                                        aria-hidden="true"
+                                        className={`relative inline-block w-7 h-3.5 rounded-full transition-colors ${
                                           active
-                                            ? layer.id === 'shodan_overlay'
-                                              ? 'border-green-500/50 text-green-400 bg-green-950/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
-                                              : layer.id === 'sentinel_hub'
-                                                ? 'border-purple-500/50 text-purple-400 bg-purple-950/30 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                                                : 'border-cyan-500/50 text-cyan-400 bg-cyan-950/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
-                                          : 'border-[var(--border-primary)] text-[var(--text-muted)] bg-transparent'
+                                            ? layer.id === 'sentinel_hub'
+                                              ? 'bg-purple-500/50'
+                                              : 'bg-cyan-500/50'
+                                            : 'bg-slate-500/30'
                                         }`}
                                       >
-                                        {active
-                                          ? layer.id === 'sentinel_hub'
-                                            ? 'SCAN'
-                                            : 'ON'
-                                          : 'OFF'}
-                                      </div>
+                                        <span
+                                          className={`absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all ${
+                                            active
+                                              ? layer.id === 'sentinel_hub'
+                                                ? 'left-[15px] bg-purple-300'
+                                                : 'left-[15px] bg-cyan-300'
+                                              : 'left-0.5 bg-slate-400/60'
+                                          }`}
+                                        />
+                                      </span>
                                     )}
                                   </div>
                                 </div>
@@ -2125,7 +2139,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                     <button
                                       type="button"
                                       onClick={onOpenSarAoiEditor}
-                                      className="flex items-center gap-1.5 text-[9px] font-mono tracking-wide text-cyan-400 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10 px-2.5 py-1 rounded transition"
+                                      className="flex items-center gap-1.5 text-[10px] font-mono tracking-wide text-cyan-400 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-500/50 bg-cyan-500/5 hover:bg-cyan-500/10 px-2.5 py-1 rounded transition"
                                     >
                                       <MapPin size={10} />
                                       EDIT AOIs
@@ -2148,7 +2162,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                                         <select
                                           value={sentinelPreset || 'TRUE-COLOR'}
                                           onChange={(e) => setSentinelPreset(e.target.value)}
-                                          className="flex-1 bg-[var(--bg-primary)]/80 border border-purple-500/30 px-2 py-1 text-[9px] font-mono text-purple-300 outline-none focus:border-purple-500 cursor-pointer"
+                                          className="flex-1 bg-[var(--bg-primary)]/80 border border-purple-500/30 px-2 py-1 text-[10px] font-mono text-purple-300 outline-none focus:border-purple-500 cursor-pointer"
                                         >
                                           <option value="TRUE-COLOR">True Color (S2)</option>
                                           <option value="FALSE-COLOR">False Color IR</option>

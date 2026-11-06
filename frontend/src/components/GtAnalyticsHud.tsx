@@ -46,7 +46,7 @@ export default function GtAnalyticsHud({
           {t('gtHud.title')}
         </span>
         {!isMinimized && (
-          <span className="text-[9px] font-mono tracking-wider text-amber-600/70">
+          <span className="text-[10px] font-mono tracking-wider text-amber-600/70">
             {t('gtHud.dragHint')}
           </span>
         )}

@@ -79,14 +79,14 @@ function runExportBuild() {
     process.platform === 'win32'
       ? spawnSync(
           process.env.ComSpec || 'cmd.exe',
-          ['/d', '/s', '/c', 'npm.cmd run build -- --webpack'],
+          ['/d', '/s', '/c', 'npm.cmd run build'],
           {
             cwd: buildFrontendDir,
             env,
             stdio: 'inherit',
           },
         )
-      : spawnSync('npm', ['run', 'build', '--', '--webpack'], {
+      : spawnSync('npm', ['run', 'build'], {
           cwd: buildFrontendDir,
           env,
           stdio: 'inherit',

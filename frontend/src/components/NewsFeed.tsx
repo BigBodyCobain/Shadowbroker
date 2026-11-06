@@ -1484,10 +1484,9 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                             </div>
                         )}
                         {item.machine_assessment && (
-                            <div className="mt-2 p-2 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
-                                <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
-                                <span className="font-bold text-white">&gt;_ SYS.ANALYSIS: </span>
-                                <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
+                            <div className="mt-1.5 pl-2 border-l border-cyan-700/50 text-[10.5px] text-[var(--text-muted)] font-mono leading-snug">
+                                <span className="text-cyan-400/80">SYS.ANALYSIS </span>
+                                <span className="text-[var(--text-muted)]">{item.machine_assessment}</span>
                             </div>
                         )}
                         {item.link && (
@@ -1578,7 +1577,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className={`w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col z-10 font-mono pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}
+            className={`w-full sb-panel flex flex-col z-10 font-mono pointer-events-auto overflow-hidden transition-all duration-300 ${isMinimized ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}
         >
             <div
                 className="px-3 py-2.5 border-b border-cyan-900/40 relative overflow-hidden cursor-pointer hover:bg-cyan-950/30 transition-colors"
@@ -1587,7 +1586,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 <div className="flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-2">
                         <AlertTriangle size={16} className="text-cyan-400" />
-                        <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+                        <span className="sb-title text-cyan-400">
                             GLOBAL THREAT INTERCEPT
                         </span>
                     </div>
@@ -1628,10 +1627,10 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="text-[10px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10 gap-2"
+                            className="text-[11px] text-cyan-500/80 mt-1 flex items-center justify-between font-bold relative z-10 gap-2"
                         >
                             <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="px-1 border border-cyan-500/30 shrink-0">SYS.STATUS: MONITORING</span>
+                                <span title="SYS.STATUS: MONITORING" className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-cyan-500/35 bg-cyan-500/10 text-cyan-300 shrink-0"><span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_currentColor]" aria-hidden="true" />MONITORING</span>
                                 <button
                                     type="button"
                                     onClick={(e) => {
@@ -1644,10 +1643,10 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                             setPmConsentOpen(true);
                                         }
                                     }}
-                                    className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 border rounded-sm transition-colors ${
+                                    className={`shrink-0 flex items-center gap-1 px-2 py-0.5 border !rounded-full transition-colors ${
                                         marketsCorrelationEnabled
                                             ? 'border-purple-500/50 bg-purple-950/40 text-purple-300'
-                                            : 'border-cyan-800/40 bg-black/40 text-cyan-700 hover:text-purple-300 hover:border-purple-600/40'
+                                            : 'border-cyan-800/50 bg-cyan-500/5 text-cyan-400/80 hover:text-purple-300 hover:border-purple-600/40'
                                     }`}
                                     title={
                                         marketsCorrelationEnabled
@@ -1659,7 +1658,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                     MKT {marketsCorrelationEnabled ? 'ON' : 'OFF'}
                                 </button>
                             </div>
-                            <span className="flex items-center gap-1 shrink-0"><Clock size={10} /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
+                            <span className="flex items-center gap-1 shrink-0 whitespace-nowrap tabular-nums"><Clock size={10} className="shrink-0" /> {data?.last_updated ? formatTime(data.last_updated) : "SCANNING"}</span>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -1953,29 +1952,29 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 styled-scrollbar"
+                        className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 styled-scrollbar sb-scroll-fade"
                     >
                         {news.map((item: any, idx: number) => {
                             let bgClass, titleClass, badgeClass;
                             const isBreaking = item.breaking === true;
                             if (isBreaking) {
-                                bgClass = "bg-red-950/30 border-red-500/60";
+                                bgClass = "bg-red-950/30 border-red-500/50 border-l-red-400";
                                 titleClass = "text-red-300 font-bold";
                                 badgeClass = "bg-red-500/20 text-red-300 border-red-400/50";
                             } else if (item.risk_score >= 9) {
-                                bgClass = "bg-red-950/20 border-red-500/30";
+                                bgClass = "bg-red-950/20 border-red-500/30 border-l-red-400/80";
                                 titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-red-500/10 text-red-400 border-red-500/30";
                             } else if (item.risk_score >= 7) {
-                                bgClass = "bg-orange-950/20 border-orange-500/30";
+                                bgClass = "bg-orange-950/15 border-orange-500/25 border-l-orange-400/80";
                                 titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-orange-500/10 text-orange-400 border-orange-500/30";
                             } else if (item.risk_score >= 4) {
-                                bgClass = "bg-yellow-950/20 border-yellow-500/30";
+                                bgClass = "bg-[rgba(var(--sb-glass-hi),0.32)] border-[var(--border-primary)] border-l-yellow-400/70";
                                 titleClass = "text-cyan-300 font-bold";
                                 badgeClass = "bg-yellow-500/10 text-yellow-500 border-yellow-500/30";
                             } else {
-                                bgClass = "bg-green-950/20 border-green-500/30";
+                                bgClass = "bg-[rgba(var(--sb-glass-hi),0.32)] border-[var(--border-primary)] border-l-green-400/60";
                                 titleClass = "text-cyan-300 font-medium";
                                 badgeClass = "bg-green-500/10 text-green-400 border-green-500/30";
                             }
@@ -1988,30 +1987,22 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                     initial={idx < 15 ? { opacity: 0, x: -10 } : { opacity: 1, x: 0 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={idx < 15 ? { delay: 0.1 + (idx * 0.05) } : { duration: 0 }}
-                                    className={`p-2 rounded-sm border-l-[2px] border-r border-t border-b ${bgClass} flex flex-col gap-1 relative group shrink-0`}
+                                    className={`p-2.5 rounded-lg border border-l-[2px] ${bgClass} flex flex-col gap-1 relative group shrink-0`}
                                 >
-                                    <div className="flex items-center justify-between text-[12px] text-[var(--text-secondary)] uppercase tracking-widest">
-                                        <span className="font-bold flex items-center gap-1 text-white">
-                                            {isBreaking && <span className="text-red-400 mr-1">BREAKING</span>}
-                                            &gt;_ {item.source}
+                                    <div className="flex items-center justify-between gap-3 text-[12px] text-[var(--text-secondary)] uppercase tracking-widest">
+                                        <span className="font-bold flex items-center gap-1 text-white min-w-0">
+                                            <span className="truncate" title={item.source}>&gt;_ {item.source}</span>
                                         </span>
-                                        <span>[{item.published ? formatTime(item.published) : ''}]</span>
+                                        <span className="shrink-0 tabular-nums tracking-[0.08em] text-[var(--text-muted)]">{item.published ? formatTime(item.published) : ''}</span>
                                     </div>
 
                                     <button
                                         onClick={() => onArticleClick?.(idx, item.coords?.[0], item.coords?.[1], item.title)}
-                                        className={`text-left text-[12px] ${titleClass} hover:text-[var(--text-primary)] transition-colors leading-tight cursor-pointer`}
+                                        className={`sb-prose text-left text-[13.5px] font-semibold ${titleClass} hover:text-[var(--text-primary)] transition-colors !leading-snug cursor-pointer`}
                                     >
                                         {item.title}
                                     </button>
 
-                                    {item.machine_assessment && (
-                                        <div className="mt-1 p-1.5 bg-black/60 border border-cyan-800/50 rounded-sm text-[11px] text-cyan-400 font-mono leading-tight relative overflow-hidden shadow-[inset_0_0_10px_rgba(0,255,255,0.05)]">
-                                            <div className="absolute top-0 left-0 w-[2px] h-full bg-cyan-500 animate-pulse"></div>
-                                            <span className="font-bold text-white">&gt;_ SYS.ANALYSIS: </span>
-                                            <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
-                                        </div>
-                                    )}
                                     {marketsCorrelationEnabled && item.prediction_odds && item.prediction_odds.consensus_pct != null && (
                                         <div className="mt-1 px-1.5 py-1 bg-purple-950/30 border border-purple-500/30 rounded-sm text-[11px] font-mono flex items-center gap-1.5">
                                             <span className="text-purple-400 font-bold">MKT</span>
@@ -2030,13 +2021,13 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                 item.sentiment > 0.1 ? 'bg-green-500/10 text-green-400 border-green-500/30' :
                                                 'bg-gray-500/10 text-gray-400 border-gray-500/30'
                                             }`}>
-                                                {item.sentiment < -0.1 ? '▼' : item.sentiment > 0.1 ? '▲' : '—'}{' '}
+                                                {item.sentiment < -0.1 ? '▼' : item.sentiment > 0.1 ? '▲' : '●'}{' '}
                                                 {item.sentiment > 0 ? '+' : ''}{item.sentiment.toFixed(2)}
                                             </span>
                                         )}
                                         {item.oracle_score != null && (
                                             <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
-                                                item.oracle_score >= 7 ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' :
+                                                item.oracle_score >= 7 ? 'bg-red-500/10 text-red-400 border-red-500/30' :
                                                 item.oracle_score >= 4 ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' :
                                                 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                                             }`}>

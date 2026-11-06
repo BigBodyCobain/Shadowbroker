@@ -566,7 +566,7 @@ def _run_prediction_markets_disable() -> None:
         logger.warning("Prediction markets disable cleanup failed: %s", e)
 
 
-@router.get("/api/layers", dependencies=[Depends(require_local_operator)])
+@router.get("/api/layers")
 async def get_layers(request: Request):
     """Report operator layer state plus any live overrides.
 

@@ -77,6 +77,10 @@ function pct(value: number, min: number, max: number): number {
 export default function TimelinePanel() {
   const tm = useTimeMachine();
   const [isMinimized, setIsMinimized] = useState(false);
+  // short laptop screens: start collapsed so the intel feed below gets the room
+  useEffect(() => {
+    if (window.innerHeight < 820) setIsMinimized(true);
+  }, []);
   const [configOpen, setConfigOpen] = useState(false);
   const [tmEnabled, setTmEnabled] = useState(false);
   const [tmSaving, setTmSaving] = useState(false);
@@ -222,7 +226,7 @@ export default function TimelinePanel() {
   }, [commitScrub, isScrubbing, scrubOffsetMs]);
 
   return (
-    <div className="bg-[rgba(5,10,18,0.92)] border border-cyan-900/40 backdrop-blur-sm">
+    <div className="sb-panel">
       <div
         className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
         onClick={() => setIsMinimized(!isMinimized)}
@@ -230,7 +234,7 @@ export default function TimelinePanel() {
         <div className="flex items-center gap-2 min-w-0">
           <Clock size={16} className={isSnapshot ? 'text-amber-400' : 'text-cyan-400'} />
           <span
-            className={`text-[12px] font-mono tracking-widest font-bold ${
+            className={`sb-title ${
               isSnapshot ? 'text-amber-400' : 'text-cyan-400'
             }`}
           >
@@ -277,8 +281,8 @@ export default function TimelinePanel() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Radio size={12} className={tmEnabled ? 'text-emerald-400' : 'text-red-500/60'} />
-              <span className={`text-[11px] font-mono tracking-wider ${tmEnabled ? 'text-emerald-400' : 'text-red-400/60'}`}>
+              <Radio size={12} className={tmEnabled ? 'text-emerald-400' : 'text-[var(--text-muted)]'} />
+              <span className={`text-[11px] font-mono tracking-wider ${tmEnabled ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>
                 {tmEnabled ? 'LIVE CAPTURE ON' : 'SNAPSHOTS OFF'}
               </span>
             </div>
@@ -395,7 +399,7 @@ export default function TimelinePanel() {
                   />
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="shrink-0 text-[9px] font-mono tracking-[0.24em] text-[var(--text-muted)] opacity-70">
+                  <span className="shrink-0 text-[10px] font-mono tracking-[0.24em] text-[var(--text-muted)] opacity-70">
                     SNAPS
                   </span>
                   <div className="relative h-2 flex-1 rounded-full bg-cyan-950/25">
@@ -506,14 +510,14 @@ export default function TimelinePanel() {
               </button>
             </div>
           ) : (
-            <div className="w-full border border-cyan-900/30 rounded-sm py-4 px-3 bg-cyan-950/10 text-center">
-              <div className="text-[12px] font-mono text-[var(--text-muted)] tracking-wider leading-relaxed mb-3">
-                Enable snapshots to record map state and play it back later.
+            <div className="w-full border border-cyan-900/30 rounded-xl py-2.5 px-3 bg-cyan-950/10 flex items-center gap-3">
+              <div className="sb-prose flex-1 min-w-0 text-[12.5px] !leading-snug text-[#a9bbd2]">
+                Record map state and play it back later.
               </div>
               <button
                 type="button"
                 onClick={toggleTm}
-                className="px-5 py-2 text-[12px] font-mono tracking-wider font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-700/50 hover:border-cyan-500/60 bg-cyan-950/30 hover:bg-cyan-950/50 rounded-sm transition-colors"
+                className="sb-btn-primary shrink-0 px-3 py-1.5 text-[11px] font-mono tracking-wider"
               >
                 ENABLE SNAPSHOTS
               </button>

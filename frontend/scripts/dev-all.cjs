@@ -4,6 +4,8 @@ const path = require("path");
 const frontendDir = path.resolve(__dirname, "..");
 const backendLauncher = path.resolve(frontendDir, "..", "start-backend.js");
 const nextBin = require.resolve("next/dist/bin/next");
+process.env.ADMIN_KEY = require("./dev-admin.cjs").ensureDevAdminKey(frontendDir);
+console.log("[security] Operator login uses ADMIN_KEY in backend/.env or frontend/.env.local.");
 
 /** @type {import("child_process").ChildProcess[]} */
 const children = [];
@@ -55,7 +57,7 @@ process.on("SIGTERM", () => shutdown(0));
 start(
   "frontend",
   process.execPath,
-  [nextBin, "dev", "--hostname", "127.0.0.1", "--port", "3000"],
+  [nextBin, "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3000"],
   frontendDir,
 );
 start("backend", process.execPath, [backendLauncher], frontendDir);

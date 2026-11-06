@@ -35,10 +35,10 @@ const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
       initial={{ opacity: 0, x: -50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 1 }}
-      className={`w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono pointer-events-auto overflow-hidden transition-all duration-300 flex-shrink-0 ${isMinimized ? 'h-[50px]' : 'h-[320px]'}`}
+      className={`w-full sb-panel z-10 flex flex-col font-mono pointer-events-auto overflow-hidden transition-all duration-300 flex-shrink-0 ${isMinimized ? 'h-[50px]' : 'h-[320px]'}`}
     >
       {/* Record / Orbit Tracker Header */}
-      <div className="flex items-center gap-3 mb-6 border border-cyan-900/40 bg-[#0a0a0a]/90 backdrop-blur-sm px-4 py-2 rounded-sm relative pointer-events-auto">
+      <div className="flex items-center gap-3 mb-6 sb-panel px-4 py-2 rounded-sm relative pointer-events-auto">
         <div className="absolute -top-1 -left-1 w-2 h-2 border-t border-l border-[var(--text-muted)]/50"></div>
         <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b border-r border-[var(--text-muted)]/50"></div>
         <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
@@ -50,13 +50,13 @@ const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
       </div>
 
       {/* Right side controls box */}
-      <div className="bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 pointer-events-auto border-r-2 border-r-cyan-900/40 flex flex-col relative overflow-hidden h-full">
+      <div className="sb-panel pointer-events-auto border-r-2 border-r-cyan-900/40 flex flex-col relative overflow-hidden h-full">
         {/* Header / Toggle */}
         <div
           className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-cyan-950/30 transition-colors border-b border-cyan-900/40"
           onClick={() => setIsMinimized(!isMinimized)}
         >
-          <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+          <span className="sb-title text-cyan-400">
             DISPLAY CONFIG
           </span>
           {isMinimized ? (
@@ -92,7 +92,7 @@ const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
                       BLOOM
                     </span>
                   </div>
-                  <span className="text-[9px] font-mono tracking-wider text-[var(--text-muted)]">
+                  <span className="text-[10px] font-mono tracking-wider text-[var(--text-muted)]">
                     {effects.bloom ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -113,7 +113,7 @@ const WorldviewRightPanel = React.memo(function WorldviewRightPanel({
                       <div className="absolute left-0 top-0 bottom-0 w-[49%] bg-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.5)]"></div>
                       <div className="absolute left-[49%] top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full"></div>
                     </div>
-                    <span className="text-[9px] font-mono text-cyan-400">49%</span>
+                    <span className="text-[10px] font-mono text-cyan-400">49%</span>
                   </div>
                 </div>
 

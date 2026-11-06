@@ -10,7 +10,8 @@
  * 6. Production CSP preserves required directives
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+afterEach(() => vi.unstubAllEnvs());
 import { NextRequest } from 'next/server';
 
 import { proxy, config as proxyConfig } from '@/proxy';
@@ -143,7 +144,8 @@ describe('proxy matcher and privileged API boundary', () => {
     expect(response.headers.get('Content-Security-Policy')).toBeNull();
   });
 
-  it('preserves a legitimate reverse-proxy Forwarded host on an internal direct Host', () => {
+  it('accepts an explicitly configured reverse-proxy origin on an internal direct Host', () => {
+    vi.stubEnv('SHADOWBROKER_ALLOWED_ORIGINS', 'https://shadowbroker.example');
     const req = new NextRequest('http://frontend:3000/api/settings/api-keys', {
       method: 'GET',
       headers: {

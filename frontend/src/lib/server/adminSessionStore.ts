@@ -1,4 +1,17 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
+
+export function verifyPresentedAdminKey(presented: string): string {
+  if (!presented) return '';
+  const configured = [process.env.ADMIN_KEY || ''];
+  try {
+    configured.push(...Object.keys(JSON.parse(process.env.MESH_SCOPED_TOKENS || '{}')));
+  } catch { /* Invalid scoped-token configuration grants no access. */ }
+  const candidate = Buffer.from(presented);
+  return configured.some((key) => {
+    const expected = Buffer.from(key);
+    return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+  }) ? presented : '';
+}
 
 type AdminSessionRecord = {
   adminKey: string;

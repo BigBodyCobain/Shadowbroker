@@ -50,6 +50,12 @@ jobs:
           const dom = require('react-dom/package.json').version;
           if (react !== dom) throw new Error('React runtime mismatch: react=' + react + ', react-dom=' + dom);
           console.log('React and React DOM match: ' + react);"
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Test development credential bootstrap
+        run: node --test scripts/dev-admin.test.cjs
+      - name: Run operator HTTP security regressions
+        run: npx vitest run --pool=threads src/__tests__/proxy src/__tests__/desktop/adminSessionBoundary.test.ts src/__tests__/voice
       - run: npm run lint
       - run: npm run format:check
       - run: npx vitest run --reporter=verbose
@@ -77,6 +83,20 @@ jobs:
         run: uv lock --check
       - name: Install dependencies
         run: cd backend && uv sync --frozen --group dev
+      - name: Audit Python dependencies
+        # Audit the locked pins, not the runtime env: pip-audit's own helpers
+        # (e.g. filelock) otherwise get scanned too, and the patched filelock
+        # needs Python 3.11 while the project env runs on 3.10. Pins are split
+        # by Python marker so both the 3.10 and the 3.11+ versions get checked.
+        run: |
+          cd backend
+          uv export --frozen --no-hashes --no-emit-project --no-emit-workspace -o "$RUNNER_TEMP/req.txt" > /dev/null
+          grep -vE "python_full_version >= '3\.11" "$RUNNER_TEMP/req.txt" | sed -E 's/ ;.*$//' | grep -vE '^\s*(#|$)' > "$RUNNER_TEMP/req-py310.txt"
+          grep -vE "python_full_version < '3\.11'( |$)|python_full_version < '3\.11\.5'" "$RUNNER_TEMP/req.txt" | sed -E 's/ ;.*$//' | grep -vE '^\s*(#|$)' > "$RUNNER_TEMP/req-py311.txt"
+          for f in req-py310 req-py311; do
+            echo "== $f"
+            uvx --python 3.11 --with "filelock>=4.2.1" pip-audit -r "$RUNNER_TEMP/$f.txt" --no-deps --disable-pip --progress-spinner off
+          done
       - run: cd backend && uv run ruff check .
       - run: cd backend && uv run black --check .
       - run: cd backend && uv run python -c "from services.fetchers.retry import with_retry; from services.env_check import validate_env; print('Module imports OK')"
@@ -84,6 +104,15 @@ jobs:
         run: |
           cd backend
           uv run pytest \
+            tests/test_operator_http_boundary.py \
+            tests/test_control_surface_auth.py \
+            tests/test_sentinel_routes_auth_gate.py \
+            tests/test_agent_shell_ws_auth.py \
+            tests/test_p0_security.py \
+            tests/test_voice_setup_api.py \
+            tests/test_voice_provider_catalog.py \
+            tests/test_agent_article_actions.py \
+            tests/test_mission_workspace.py \
             tests/mesh/test_mesh_node_bootstrap_runtime.py \
             tests/mesh/test_mesh_infonet_sync_support.py \
             tests/mesh/test_mesh_canonical.py \
@@ -111,3 +140,7 @@ jobs:
           node-version: 24
       - name: Verify portable desktop backend staging
         run: node --test desktop-shell/tauri-skeleton/scripts/build-backend-runtime.test.cjs
+      - name: Verify native operator sessions and custody boundaries
+        env:
+          TAURI_CONFIG: '{"bundle":{"resources":[]}}'
+        run: cargo test --manifest-path desktop-shell/tauri-skeleton/src-tauri/Cargo.toml --bin shadowbroker-tauri-shell --quiet

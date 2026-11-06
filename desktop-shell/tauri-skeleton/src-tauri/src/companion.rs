@@ -155,22 +155,18 @@ impl CompanionState {
 /// Only `127.0.0.1`, `localhost`, and `::1` (including bracketed `[::1]`)
 /// are considered loopback. `0.0.0.0`, LAN IPs, and public hosts are rejected.
 pub fn is_loopback_origin(url: &str) -> bool {
-    let after_scheme = match url.split_once("://") {
-        Some((_, rest)) => rest,
-        None => return false,
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
     };
-    let host_port = after_scheme.split('/').next().unwrap_or("");
-    let host = if host_port.starts_with('[') {
-        // IPv6: [::1]:port
-        host_port
-            .split(']')
-            .next()
-            .unwrap_or("")
-            .trim_start_matches('[')
-    } else {
-        host_port.split(':').next().unwrap_or("")
-    };
-    matches!(host, "127.0.0.1" | "localhost" | "::1")
+    matches!(parsed.scheme(), "http" | "https")
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && matches!(
+            parsed.host(),
+            Some(url::Host::Domain("localhost"))
+                | Some(url::Host::Ipv4(std::net::Ipv4Addr::LOCALHOST))
+                | Some(url::Host::Ipv6(std::net::Ipv6Addr::LOCALHOST))
+        )
 }
 
 // ---------------------------------------------------------------------------

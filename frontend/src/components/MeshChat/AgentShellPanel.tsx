@@ -75,53 +75,27 @@ function readIntroAcknowledged(): boolean {
 function ShellIntro({ onAcknowledge }: { onAcknowledge: () => void }) {
 
   return (
-
-    <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-5 py-8 text-center border-l-2 border-cyan-800/20 bg-[#04070b]">
-
-      <div className="w-full max-w-sm border border-cyan-900/40 bg-cyan-950/10 px-5 py-6">
-
-        <div className="inline-flex items-center justify-center w-10 h-10 border border-cyan-700/40 bg-black/30 text-cyan-300 mb-4">
-
-          <Terminal size={18} />
-
+    <div className="flex-1 min-h-0 flex flex-col overflow-y-auto styled-scrollbar sb-scroll-fade px-3 pt-3 pb-4">
+      <div className="w-full shrink-0 rounded-xl border border-cyan-900/40 bg-cyan-950/10 px-3.5 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-lg border border-cyan-700/40 bg-black/30 text-cyan-300">
+            <Terminal size={15} />
+          </div>
+          <div className="sb-title text-cyan-300 mr-auto">OPERATOR SHELL</div>
+          <button
+            type="button"
+            onClick={onAcknowledge}
+            className="sb-btn-primary shrink-0 px-3 py-1.5 text-[11px] font-mono tracking-[0.14em]"
+          >
+            OPEN SHELL
+          </button>
         </div>
-
-        <div className="text-sm font-mono tracking-[0.22em] text-cyan-300 mb-3">OPERATOR SHELL</div>
-
-        <p className="text-[13px] font-mono text-[var(--text-secondary)] leading-[1.75] text-left">
-
-          Connect your own agent CLIs here — Claude Code, Codex, Gemini, Hermes, or whatever you run locally.
-
+        <p className="mt-2 text-[12px] sb-prose text-[var(--text-muted)] !leading-snug" title="Run your own agent CLIs — Claude Code, Codex, Gemini, Hermes — inside your Shadowbroker workspace.">
+          Your agent CLIs, in your workspace.
         </p>
-
-        <p className="mt-3 text-[13px] font-mono text-[var(--text-secondary)] leading-[1.75] text-left">
-
-          The session opens in your Shadowbroker workspace by default. Use it for repo scripts, mesh
-
-          tools, or any terminal workflow you already rely on.
-
-        </p>
-
-        <button
-
-          type="button"
-
-          onClick={onAcknowledge}
-
-          className="mt-5 w-full px-4 py-2.5 text-sm font-mono tracking-[0.18em] text-cyan-200 border border-cyan-600/50 bg-cyan-950/30 hover:bg-cyan-950/50 hover:border-cyan-400/60 transition-colors"
-
-        >
-
-          OPEN SHELL
-
-        </button>
-
       </div>
-
     </div>
-
   );
-
 }
 
 

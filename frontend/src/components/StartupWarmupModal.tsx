@@ -17,6 +17,14 @@ export default function StartupWarmupModal({ onClose }: StartupWarmupModalProps)
     onClose();
   };
 
+  // Escape closes it like the other dialogs
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleDismiss(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -36,7 +44,7 @@ export default function StartupWarmupModal({ onClose }: StartupWarmupModalProps)
         className="fixed inset-0 z-[10001] flex items-center justify-center pointer-events-none"
       >
         <div
-          className="w-[520px] max-w-[calc(100vw-32px)] bg-[var(--bg-secondary)]/98 border border-cyan-900/50 pointer-events-auto overflow-hidden"
+          className="w-[520px] max-w-[calc(100vw-32px)] sb-panel sb-modal pointer-events-auto overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-5 border-b border-[var(--border-primary)]/80 flex items-center justify-between">
@@ -45,7 +53,7 @@ export default function StartupWarmupModal({ onClose }: StartupWarmupModalProps)
                 <Database size={18} className="text-cyan-400" />
               </div>
               <div>
-                <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-primary)] font-mono">
+                <h2 className="sb-modal-title">
                   STARTUP CACHE
                 </h2>
                 <span className="text-[13px] text-[var(--text-muted)] font-mono tracking-widest">
@@ -69,7 +77,7 @@ export default function StartupWarmupModal({ onClose }: StartupWarmupModalProps)
                   <p className="text-[11px] text-cyan-300 font-mono font-bold tracking-widest">
                     MASS DATA SYNTHESIS
                   </p>
-                  <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                  <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                     The first launch builds local caches for flights, ships, satellites, CCTV, fires,
                     and threat intelligence. Cached launches paint the map much faster; a brand-new
                     install can take a few minutes while upstream feeds are synthesized.

@@ -1,29 +1,6 @@
-"""Issues #299, #300, #301 (tg12): Sentinel proxy routes must require
-local-operator auth.
-
-Before the fix, three Sentinel proxy routes in ``backend/routers/tools.py``
-were decorated only with ``@limiter.limit(...)`` — no
-``Depends(require_local_operator)``:
-
-  * ``POST /api/sentinel/token``  — Copernicus CDSE OAuth relay for
-    caller-supplied client_id + client_secret. Anonymous access made the
-    backend a free OAuth-mint relay for any Sentinel account.
-  * ``POST /api/sentinel/tile``   — Sentinel Hub Process API relay.
-    Caller supplies their own credentials, backend mints a token if
-    needed and relays the PNG. Anonymous access was a bandwidth + quota
-    relay for any Copernicus account.
-  * ``GET  /api/sentinel2/search`` — Planetary Computer STAC search with
-    Esri imagery fallback. No caller credentials are involved, but the
-    route is still an anonymous external-search relay.
-
-The fix adds ``dependencies=[Depends(require_local_operator)]`` to each.
-The parameterized regression in ``test_control_surface_auth.py`` covers
-the basic 403 path. This file adds the harder property: when the auth
-gate fires, **the underlying upstream HTTP call never happens** — no
-outbound Copernicus token mint, no Sentinel Hub Process call, no
-Planetary Computer STAC search. The egress-on-403 property is what
-separates a real gate from a route that returns 403 *after* burning a
-quota.
+"""Credential-backed Sentinel token/tile calls require operator authentication
+and must not contact upstream on denial. Public Sentinel-2 catalog searches
+remain available without sign-in, with coordinate validation and rate limits.
 """
 
 from __future__ import annotations
@@ -50,16 +27,17 @@ class _PeerClient:
     explicitly to exercise the real ``require_local_operator`` path.
     """
 
-    def __init__(self, peer_ip: str):
+    def __init__(self, peer_ip: str, headers=None):
         from main import app
 
         self._loop = asyncio.new_event_loop()
         self._transport = ASGITransport(app=app, client=(peer_ip, 12345))
         self._base = f"http://{peer_ip}:8000"
+        self._headers = headers or {}
 
     def _do(self, method: str, url: str, **kw):
         async def go():
-            async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
+            async with AsyncClient(transport=self._transport, base_url=self._base, headers=self._headers) as ac:
                 return await ac.request(method, url, **kw)
 
         return self._loop.run_until_complete(go())
@@ -84,9 +62,11 @@ def remote():
 
 @pytest.fixture
 def loopback():
-    """127.0.0.1 caller — must pass the gate exactly like the operator."""
-    client = _PeerClient("127.0.0.1")
-    yield client
+    """An explicitly authenticated operator on loopback."""
+    key = "audit-operator-key-" + "x" * 32
+    client = _PeerClient("127.0.0.1", headers={"X-Admin-Key": key})
+    with patch("auth._current_admin_key", return_value=key):
+        yield client
     client.close()
 
 
@@ -127,19 +107,8 @@ class TestSentinelTokenAuthGate:
         assert r.status_code == 403
         assert fake_post.call_count == 0
 
-    def test_loopback_caller_passes_auth(self, loopback):
-        """A 127.0.0.1 caller must pass the gate. We don't care about
-        the upstream response shape — just that the request reaches the
-        handler (which would then try to talk to Copernicus). We patch
-        ``requests.post`` to return a 401 so the test doesn't hit the
-        real network.
-
-        Note: FastAPI's ``TestClient`` reports ``request.client.host``
-        as ``"testclient"`` by default, which is NOT on the loopback
-        allowlist (``127.0.0.1`` / ``::1`` / ``localhost``). The
-        ``loopback`` fixture below uses raw ASGI with an explicit
-        ``127.0.0.1`` peer IP so the auth gate sees real loopback.
-        """
+    def test_authenticated_loopback_caller_passes_auth(self, loopback):
+        """Valid credentials reach the handler without contacting Copernicus."""
         fake_resp = MagicMock()
         fake_resp.status_code = 401
         fake_resp.content = b'{"error": "invalid_client"}'
@@ -191,30 +160,23 @@ class TestSentinelTileAuthGate:
 # ---------------------------------------------------------------------------
 
 
-class TestSentinel2SearchAuthGate:
-    def test_anonymous_caller_is_rejected(self, remote):
-        r = remote.get("/api/sentinel2/search?lat=0&lng=0")
-        assert r.status_code == 403
-
-    def test_no_upstream_search_on_403(self, remote):
-        """The Planetary Computer STAC search MUST NOT be called when
-        the gate fires."""
-        fake = MagicMock(side_effect=AssertionError(
-            "search_sentinel2_scene was called despite 403 — gate bypassable"
-        ))
-        # Patch the underlying service function — that's the network
-        # surface. If the auth dep fires first, the handler body never
-        # runs and this stays uncalled.
+class TestPublicSentinel2Catalog:
+    def test_public_catalog_search_requires_no_operator_login(self, remote):
+        fake = MagicMock(return_value={"found": True, "platform": "Sentinel-2C"})
         with patch("services.sentinel_search.search_sentinel2_scene", fake):
-            r = remote.get("/api/sentinel2/search?lat=0&lng=0")
-        assert r.status_code == 403
-        assert fake.call_count == 0
+            r = remote.get("/api/sentinel2/search?lat=39.74&lng=-104.99")
+        assert r.status_code == 200
+        assert r.json()["found"] is True
+        fake.assert_called_once_with(39.74, -104.99)
 
-    def test_loopback_caller_reaches_handler(self, loopback):
-        """127.0.0.1 must pass the gate and reach the search function.
-        Uses raw ASGI peer IP via the ``loopback`` fixture — TestClient
-        would set ``request.client.host`` to ``"testclient"`` which
-        isn't on the loopback allowlist."""
+    def test_invalid_public_coordinates_do_not_reach_upstream(self, remote):
+        with patch("services.sentinel_search.search_sentinel2_scene") as search:
+            r = remote.get("/api/sentinel2/search?lat=100&lng=0")
+        assert r.status_code == 422
+        search.assert_not_called()
+
+    def test_authenticated_loopback_caller_reaches_handler(self, loopback):
+        """Valid credentials reach the mocked search function."""
         fake = MagicMock(return_value={"ok": True, "results": []})
         with patch("services.sentinel_search.search_sentinel2_scene", fake):
             r = loopback.get("/api/sentinel2/search?lat=0&lng=0")

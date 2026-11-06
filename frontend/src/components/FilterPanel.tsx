@@ -318,13 +318,6 @@ const FilterPanel = React.memo(function FilterPanel({
     },
   ];
 
-  const borderColors: Record<string, string> = {
-    cyan: 'border-cyan-500/20 hover:border-cyan-500/40',
-    orange: 'border-orange-500/20 hover:border-orange-500/40',
-    yellow: 'border-yellow-500/20 hover:border-yellow-500/40',
-    pink: 'border-pink-500/20 hover:border-pink-500/40',
-    blue: 'border-blue-500/20 hover:border-blue-500/40',
-  };
   const textColors: Record<string, string> = {
     cyan: 'text-cyan-400',
     orange: 'text-orange-400',
@@ -346,7 +339,7 @@ const FilterPanel = React.memo(function FilterPanel({
         initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
+        className="w-full sb-panel z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
       >
         {/* Header Toggle */}
         <div
@@ -355,7 +348,7 @@ const FilterPanel = React.memo(function FilterPanel({
         >
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-cyan-400" />
-            <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
+            <span className="sb-title text-cyan-400">
               {t('filters.title').toUpperCase()}
             </span>
             {activeCount > 0 && (
@@ -394,7 +387,7 @@ const FilterPanel = React.memo(function FilterPanel({
                 return (
                   <div
                     key={section.key}
-                    className={`border transition-all cursor-pointer group ${borderColors[section.color] || 'border-[var(--border-primary)]'} hover:bg-[var(--bg-primary)]/30`}
+                    className={`border rounded-xl transition-all cursor-pointer group border-[var(--border-primary)] hover:border-[var(--border-secondary)] hover:bg-[var(--bg-primary)]/30`}
                     onClick={() => setOpenModal(section.key)}
                   >
                     <div className="flex items-center justify-between p-2.5 px-3">
@@ -411,7 +404,7 @@ const FilterPanel = React.memo(function FilterPanel({
                           </span>
                         )}
                         {layerOff && (
-                          <span className="text-[9px] text-amber-400/80 tracking-widest">
+                          <span className="text-[10px] text-amber-400/80 tracking-widest">
                             LAYER OFF
                           </span>
                         )}

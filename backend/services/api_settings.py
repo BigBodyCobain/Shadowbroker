@@ -225,6 +225,72 @@ API_REGISTRY = [
         "url": "https://dataspace.copernicus.eu/",
         "required": False,
     },
+    # AI Voice Agent — provider keys are brokered server-side only: the browser
+    # never holds a provider key and never dials a third-party host
+    # (docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.
+    {
+        "id": "voice_openai_api_key",
+        "env_key": "VOICE_OPENAI_API_KEY",
+        "name": "Voice Agent — OpenAI API Key",
+        "description": "Server-side key for the operator-configured OpenAI realtime voice endpoint. Used only by the backend voice broker when the voice agent is explicitly enabled; operator speech is sent to the configured endpoint (docs/OUTBOUND_DATA.md).",
+        "category": "Voice",
+        "url": "https://platform.openai.com/api-keys",
+        "required": False,
+    },
+    {
+        "id": "voice_gemini_api_key",
+        "env_key": "VOICE_GEMINI_API_KEY",
+        "name": "Voice Agent — Gemini Live API Key",
+        "description": "Server-side Google Gemini API key for the Gemini Live realtime voice provider. Used only by the backend voice broker when the voice agent is explicitly enabled; operator speech is sent to Google's Live API (Google's free tier may use uploaded audio for product improvement; paid tiers do not — docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.",
+        "category": "Voice",
+        "url": "https://aistudio.google.com/apikey",
+        "required": False,
+    },
+    {
+        "id": "voice_anthropic_api_key",
+        "env_key": "VOICE_ANTHROPIC_API_KEY",
+        "name": "Voice Agent — Anthropic API Key",
+        "description": "Server-side Anthropic API key for the voice agent's Claude TEXT leg. Anthropic has no realtime speech API — this enables the typed console and HUD briefs only; the microphone/realtime path stays closed. Used only by the backend voice broker when the voice agent is explicitly enabled (docs/OUTBOUND_DATA.md). Values are disclosed as is_set booleans only.",
+        "category": "Voice",
+        "url": "https://console.anthropic.com/settings/keys",
+        "required": False,
+    },
+    {
+        "id": "voice_compat_api_key",
+        "env_key": "VOICE_COMPAT_API_KEY",
+        "name": "Voice Agent — Compatible Gateway API Key",
+        "description": "Server-side key for an OpenAI-compatible gateway (e.g. a local Ollama/LM Studio proxy or internal gateway) used by the voice agent. Optional for local endpoints that need no auth.",
+        "category": "Voice",
+        "url": None,
+        "required": False,
+    },
+    {
+        "id": "voice_xai_api_key",
+        "env_key": "VOICE_XAI_API_KEY",
+        "name": "AI Console — xAI API Key",
+        "description": "Server-side xAI credential for Grok text commands. Never returned to the browser.",
+        "category": "Voice",
+        "url": "https://console.x.ai/",
+        "required": False,
+    },
+    {
+        "id": "voice_stt_api_key",
+        "env_key": "VOICE_STT_API_KEY",
+        "name": "AI Console — Speech Input API Key",
+        "description": "Server-side credential for the explicitly selected speech-to-text API. Optional for a local speech server.",
+        "category": "Voice",
+        "url": None,
+        "required": False,
+    },
+    {
+        "id": "voice_openrouter_api_key",
+        "env_key": "VOICE_OPENROUTER_API_KEY",
+        "name": "AI Console — OpenRouter API Key",
+        "description": "Server-side OpenRouter credential, including hosted Meta/Llama models. Never returned to the browser.",
+        "category": "Voice",
+        "url": "https://openrouter.ai/settings/keys",
+        "required": False,
+    },
     {
         "id": "carto_api_key",
         "env_key": "CARTO_API_KEY",
@@ -236,11 +302,36 @@ API_REGISTRY = [
     },
 ]
 
+# Voice-agent behavioral settings (two-step opt-in switches and provider
+# coordinates) deliberately do NOT get API_REGISTRY rows: the keys panel
+# renders registry rows as credential slots ("CONFIGURED / NOT CONFIGURED"
+# badge for a secret), which would misrepresent consent toggles and base URLs
+# as API keys. They ride ALLOWED_ENV_KEYS via this explicit frozenset union
+# instead — that is what makes them persistable through _write_env_values and
+# loadable by load_persisted_api_keys_into_environ, under the standing rule
+# that real process environment variables always win over persisted file rows
+# (the loader only fills unset/empty vars).
+VOICE_PERSISTED_SETTING_ENV_KEYS = frozenset({
+    "VOICE_STT_PROVIDER",
+    "VOICE_STT_MODEL",
+    "VOICE_STT_BASE_URL",
+    "VOICE_PROVIDER",
+    "VOICE_API_PROVIDER",
+    "VOICE_API_STYLE",
+    "VOICE_AGENT_OUTBOUND_ENABLE",
+    "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE",
+    "VOICE_CHAT_MODEL",
+    "VOICE_GEMINI_MODEL",
+    "VOICE_MODEL_STANDARD",
+    "VOICE_LOCAL_TTS_ENABLE",
+    "VOICE_COMPAT_BASE_URL",
+})
+
 ALLOWED_ENV_KEYS = {
     str(api["env_key"])
     for api in API_REGISTRY
     if api.get("env_key")
-}
+} | VOICE_PERSISTED_SETTING_ENV_KEYS
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -271,6 +362,25 @@ def _quote_env_value(value: str) -> str:
     return f'"{escaped}"'
 
 
+def _atomic_replace_env_file(path: Path, lines: list[str]) -> None:
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.tmp.", text=True)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("\n".join(lines).rstrip() + "\n")
+        if os.name != "nt":
+            os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, path)
+        if os.name != "nt":
+            os.chmod(path, 0o600)
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
+
+
 def _write_env_values(path: Path, updates: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
@@ -291,22 +401,32 @@ def _write_env_values(path: Path, updates: dict[str, str]) -> None:
         if key not in seen:
             next_lines.append(f"{key}={_quote_env_value(value)}")
 
-    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.tmp.", text=True)
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("\n".join(next_lines).rstrip() + "\n")
-        if os.name != "nt":
-            os.chmod(tmp_path, 0o600)
-        os.replace(tmp_path, path)
-        if os.name != "nt":
-            os.chmod(path, 0o600)
-    finally:
-        try:
-            if tmp_path.exists():
-                tmp_path.unlink()
-        except OSError:
-            pass
+    # Upsert semantics: an existing row for a key is REPLACED in place (the
+    # loop above rewrites it and marks it seen) — saving a new key over an old
+    # one therefore replaces the stored value instead of appending a duplicate.
+    _atomic_replace_env_file(path, next_lines)
+
+
+def _remove_env_values(path: Path, keys: set[str]) -> None:
+    """Drop every matching ``KEY=...`` row from the env file (upsert's inverse).
+
+    Idempotent: removing keys that are absent succeeds without touching the
+    file. Comments, blank lines, and unrelated rows are preserved verbatim.
+    """
+    key_set = {str(k).strip().upper() for k in keys if str(k or "").strip()}
+    if not path.exists() or not key_set:
+        return
+    kept: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if (
+            "=" in stripped
+            and not stripped.startswith("#")
+            and stripped.split("=", 1)[0].strip() in key_set
+        ):
+            continue
+        kept.append(raw_line)
+    _atomic_replace_env_file(path, kept)
 
 
 def load_persisted_api_keys_into_environ() -> None:

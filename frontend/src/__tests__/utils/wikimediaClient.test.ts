@@ -94,4 +94,14 @@ describe('lib/wikimediaClient', () => {
     globalThis.fetch = vi.fn(async () => new Response('{}', { status: 404 })) as any;
     expect(await fetchWikipediaSummary('Nonexistent Article 12345')).toBeNull();
   });
+  it('retries portrait summaries after temporary failures', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ title: 'Recovered operator', thumbnail: 'https://upload.wikimedia.org/recovered.jpg' }), { status: 200 }));
+    globalThis.fetch = fetchMock;
+    expect(await fetchWikipediaSummary('Recovered operator')).toBeNull();
+    expect((await fetchWikipediaSummary('Recovered operator'))?.thumbnail).toContain('recovered.jpg');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
 });

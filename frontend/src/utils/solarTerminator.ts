@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 /**
  * Solar Terminator — computes the day/night boundary polygon for real-time rendering.
  *

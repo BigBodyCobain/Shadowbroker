@@ -41,7 +41,7 @@ const TABS: Array<{
   { id: 'sweep', label: 'IP SWEEP', param: 'ip', path: 'sweep' },
 ];
 
-export default function ReconPanel() {
+export default function ReconPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useTranslation();
   const [isMinimized, setIsMinimized] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>('ip');
@@ -86,14 +86,15 @@ export default function ReconPanel() {
   }, [active, activeTab, query, loading]);
 
   return (
-    <div className="pointer-events-auto flex-shrink-0 border border-cyan-700/40 bg-black/75 backdrop-blur-sm shadow-[0_0_18px_rgba(34,211,238,0.10)]">
+    <div className={embedded ? "pointer-events-auto" : "pointer-events-auto flex-shrink-0 sb-panel"}>
+      {!embedded && (
       <div
-        className="flex items-center justify-between border-b border-cyan-700/30 bg-cyan-950/20 px-3 py-2.5 cursor-pointer hover:bg-cyan-950/40 transition-colors"
+        className="flex items-center justify-between border-b border-[var(--border-primary)] bg-[rgba(var(--sb-accent-rgb),0.035)] px-3 py-2.5 cursor-pointer hover:bg-[rgba(var(--sb-accent-rgb),0.08)] transition-colors"
         onClick={() => setIsMinimized((prev) => !prev)}
       >
         <div className="flex items-center gap-2">
           <Radar size={16} className="text-cyan-400" />
-          <span className="text-[12px] font-mono font-bold tracking-widest text-cyan-400">
+          <span className="sb-title text-cyan-300">
             {t('recon.title').toUpperCase()}
           </span>
         </div>
@@ -105,8 +106,9 @@ export default function ReconPanel() {
           )}
         </div>
       </div>
+      )}
 
-      {!isMinimized && (
+      {(embedded || !isMinimized) && (
         <div className="px-3 py-2 space-y-2">
           <div className="flex items-center gap-1.5 text-[11px] font-mono">
             <select

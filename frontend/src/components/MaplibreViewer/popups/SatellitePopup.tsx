@@ -75,7 +75,7 @@ export function SatellitePopup({ sat, maneuverAlert, onClose }: SatellitePopupPr
           <div className="mt-1.5 p-1.5 rounded bg-red-900/30 border border-red-500/40">
             <div className="text-[11px] font-mono tracking-widest text-red-400 mb-0.5">MANEUVER DETECTED</div>
             {maneuverAlert.reasons.map((r, i) => (
-              <div key={i} className="text-[9px] text-red-300/80 font-mono">{r}</div>
+              <div key={i} className="text-[10px] text-red-300/80 font-mono">{r}</div>
             ))}
           </div>
         )}
@@ -115,7 +115,7 @@ export function SatellitePopup({ sat, maneuverAlert, onClose }: SatellitePopupPr
           <div className="mt-1.5">
             <a href={sat.wiki} target="_blank" rel="noopener noreferrer"
               className="block text-center px-2 py-1 rounded bg-yellow-900/30 border border-yellow-500/20
-                hover:bg-yellow-800/40 hover:border-yellow-400/40 text-yellow-300 text-[9px] font-mono tracking-widest">
+                hover:bg-yellow-800/40 hover:border-yellow-400/40 text-yellow-300 text-[10px] font-mono tracking-widest">
               WIKIPEDIA ↗
             </a>
           </div>

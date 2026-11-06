@@ -184,6 +184,67 @@ export function setBackendStatus(next: BackendStatus) {
   for (const fn of statusListeners) fn();
 }
 
+// ── Poll-meta side channel (voice-agent U4, §3.9) ─────────────────────────
+// mergeData skips the protocol/meta fields of live-data payloads, so delivery
+// mode / layer versions / layer totals never materialize as store layers.
+// Voice grounding and tool executors read them through this pure-read side
+// channel instead; data-key subscribers see zero churn from it.
+
+export interface PollMeta {
+  mode: string | null;
+  layerVersions: Record<string, number> | null;
+  layerTotals: Record<string, number> | null;
+  updatedAt: number;
+}
+
+let pollMeta: PollMeta = { mode: null, layerVersions: null, layerTotals: null, updatedAt: 0 };
+const pollMetaListeners = new Set<Listener>();
+
+/** Merge one payload's meta fields into the side channel (called from useDataPolling). */
+export function setPollMeta(patch: Partial<Omit<PollMeta, 'updatedAt'>>): void {
+  const prev = pollMeta;
+  const same =
+    prev.mode === (patch.mode ?? prev.mode) &&
+    valuesEquivalent(prev.layerVersions, patch.layerVersions ?? prev.layerVersions) &&
+    valuesEquivalent(prev.layerTotals, patch.layerTotals ?? prev.layerTotals);
+  pollMeta = {
+    mode: patch.mode ?? prev.mode,
+    layerVersions: patch.layerVersions ?? prev.layerVersions,
+    layerTotals: patch.layerTotals ?? prev.layerTotals,
+    updatedAt: Date.now(),
+  };
+  if (same && prev.updatedAt !== 0) {
+    pollMeta.updatedAt = prev.updatedAt;
+    return;
+  }
+  for (const fn of pollMetaListeners) fn();
+}
+
+/** Latest known poll meta (pure read, no subscription). */
+export function getPollMeta(): PollMeta {
+  return pollMeta;
+}
+
+/** Subscribe to poll-meta changes (fires only when meta actually changes). */
+export function usePollMeta(): PollMeta {
+  const subscribe = useMemo(() => {
+    return (onStoreChange: Listener) => {
+      pollMetaListeners.add(onStoreChange);
+      return () => {
+        pollMetaListeners.delete(onStoreChange);
+      };
+    };
+  }, []);
+  const getSnapshot = useMemo(() => () => pollMeta, []);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** Pure synchronous read of one store value without subscribing
+ *  (voice client-tool executors resolve entities against live layers). */
+export function readDataKey(key: string): unknown {
+  return store[key];
+}
+
 // ── Read API (hooks) ─────────────────────────────────────────────────────
 
 /** Subscribe to a single data key.  Component only re-renders when that key's

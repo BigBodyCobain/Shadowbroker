@@ -501,6 +501,9 @@ def update_slow_data():
             correlations = compute_correlations(snapshot)
             with _data_lock:
                 latest_data["correlations"] = correlations
+            # Stamp adjacent to (not inside) _data_lock — _mark_fresh acquires
+            # the same non-reentrant lock itself.
+            _mark_fresh("correlations")
     except Exception as e:
         logger.error("Correlation engine failed: %s", e)
     try:
