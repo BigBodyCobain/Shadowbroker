@@ -45,7 +45,7 @@ export function MeasurementLayers({
           <div className="flex flex-col items-center pointer-events-none">
             <div className="w-6 h-6 rounded-full border-2 border-cyan-400 animate-ping absolute opacity-20" />
             <div className="w-4 h-4 rounded-full bg-cyan-500 border-2 border-cyan-300 shadow-[0_0_12px_rgba(0,255,255,0.6)] flex items-center justify-center">
-              <span className="text-[7px] font-mono font-bold text-black">{idx + 1}</span>
+              <span className="text-[10px] font-mono font-bold text-black">{idx + 1}</span>
             </div>
           </div>
         </Marker>

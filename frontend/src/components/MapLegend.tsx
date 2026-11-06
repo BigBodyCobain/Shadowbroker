@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from '@/lib/motion';
-import { X, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
 import ExternalImage from '@/components/ExternalImage';
 import { useTranslation } from '@/i18n';
 
@@ -39,9 +39,9 @@ function IconImg({ svg }: { svg: string }) {
     <ExternalImage
       src={`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`}
       alt=""
-      width={16}
-      height={16}
-      className="w-4 h-4 flex-shrink-0"
+      width={26}
+      height={26}
+      className="w-7 h-7 p-[1px] flex-shrink-0 rounded-md bg-[rgba(207,233,255,0.14)] ring-1 ring-[rgba(207,233,255,0.14)] [filter:drop-shadow(0_0_0.6px_rgba(235,245,255,0.85))]"
       draggable={false}
     />
   );
@@ -159,7 +159,7 @@ const LEGEND: LegendCategory[] = [
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="orange" stroke="black"><polygon points="3,21 21,21 20,4 16,4 16,3 12,3 12,4 4,4" /><rect x="15" y="6" width="3" height="10" /></svg>`,
         label: 'Aircraft Carrier (orange)',
       },
-      { svg: clusterCircle('#3b82f6', '#1d4ed8'), label: 'Ship Cluster (count inside)' },
+      { svg: clusterCircle('#0a3460', '#45d8ff'), label: 'Ship Cluster (count inside)' },
     ],
   },
   {
@@ -342,39 +342,26 @@ const MapLegend = React.memo(function MapLegend({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-h-[80vh] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border border-cyan-900/50 z-[9999] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.3)]"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(520px,calc(100vw-40px))] min-[1700px]:w-[860px] max-h-[80vh] sb-panel sb-modal z-[9999] flex flex-col shadow-[0_0_60px_rgba(0,0,0,0.3)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-[var(--border-primary)]/80 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="cyan"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <path d="M12 3v12" />
-                    <path d="m8 11 4 4 4-4" />
-                  </svg>
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+                  <BookOpen size={16} className="text-cyan-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-primary)] font-mono">
+                  <h2 className="sb-modal-title">
                     {t('legend.title').toUpperCase()}
                   </h2>
-                  <span className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">
+                  <span className="text-[10.5px] text-[var(--text-muted)] font-mono tracking-widest">
                     ICON REFERENCE KEY
                   </span>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
+                className="w-8 h-8 rounded-lg border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
               >
                 <X size={14} />
               </button>
@@ -387,7 +374,7 @@ const MapLegend = React.memo(function MapLegend({
                 return (
                   <div
                     key={cat.name}
-                    className="border border-[var(--border-primary)]/60 overflow-hidden"
+                    className="border border-[var(--border-primary)]/60 overflow-hidden rounded-xl"
                   >
                     {/* Category Header */}
                     <button
@@ -395,7 +382,7 @@ const MapLegend = React.memo(function MapLegend({
                       className="w-full flex items-center justify-between px-3 py-2 bg-[var(--bg-secondary)]/50 hover:bg-[var(--bg-secondary)]/80 transition-colors"
                     >
                       <span
-                        className={`text-[9px] font-mono tracking-widest font-bold px-2 py-0.5 border ${cat.color}`}
+                        className={`text-[11px] font-mono tracking-[0.14em] font-bold px-2 py-0.5 border rounded-md ${cat.color}`}
                       >
                         {cat.name}
                       </span>
@@ -416,14 +403,14 @@ const MapLegend = React.memo(function MapLegend({
                           transition={{ duration: 0.15 }}
                           className="border-t border-[var(--border-primary)]/40"
                         >
-                          <div className="grid grid-cols-1 gap-0">
+                          <div className="grid grid-cols-1 min-[1700px]:grid-cols-2 gap-0 py-1">
                             {cat.items.map((item, idx) => (
                               <div
                                 key={idx}
                                 className="flex items-center gap-3 px-4 py-1.5 hover:bg-[var(--bg-secondary)]/30 transition-colors"
                               >
                                 <IconImg svg={item.svg} />
-                                <span className="text-[11px] text-[var(--text-secondary)] font-mono">
+                                <span className="sb-prose text-[13px] text-[#c3d2e6]">
                                   {item.label}
                                 </span>
                               </div>
@@ -439,7 +426,7 @@ const MapLegend = React.memo(function MapLegend({
 
             {/* Footer */}
             <div className="p-3 border-t border-[var(--border-primary)]/80 flex-shrink-0">
-              <div className="text-[9px] text-[var(--text-muted)] font-mono text-center tracking-wider">
+              <div className="text-[10.5px] text-[var(--text-muted)] font-mono text-center tracking-wider">
                 {LEGEND.reduce((sum, c) => sum + c.items.length, 0)} ICON DEFINITIONS ACROSS{' '}
                 {LEGEND.length} CATEGORIES
               </div>

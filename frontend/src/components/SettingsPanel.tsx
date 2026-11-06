@@ -1184,7 +1184,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -300 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 w-[480px] bg-[var(--bg-secondary)]/95 backdrop-blur-sm border-r border-cyan-900/50 z-[9999] flex flex-col overflow-hidden shadow-[4px_0_40px_rgba(0,0,0,0.3)]"
+            className="sb-drawer fixed left-0 top-0 bottom-0 w-[540px] max-w-[calc(100vw-24px)] z-[9999] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-[var(--border-primary)]/80">
@@ -1193,10 +1193,10 @@ const SettingsPanel = React.memo(function SettingsPanel({
                   <Settings size={16} className="text-cyan-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-primary)] font-mono">
+                  <h2 className="sb-modal-title">
                     {t('settings.title').toUpperCase()}
                   </h2>
-                  <span className="text-[13px] text-[var(--text-muted)] font-mono tracking-widest">
+                  <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.18em] whitespace-nowrap">
                     SETTINGS &amp; DATA SOURCES
                   </span>
                 </div>
@@ -1280,10 +1280,10 @@ const SettingsPanel = React.memo(function SettingsPanel({
                       nativeProtected
                         ? 'Protected via native desktop bridge'
                         : adminSessionReady
-                          ? 'Operator tools unlocked. Enter key only to reseed or recover...'
-                          : 'Enter operator key for protected settings tabs...'
+                          ? 'Unlocked · key only to reseed'
+                          : 'Operator key…'
                     }
-                    className="flex-1 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] px-2 py-1 text-sm font-mono text-[var(--text-secondary)] outline-none focus:border-cyan-700 placeholder:text-[var(--text-muted)]/50"
+                    className="flex-1 min-w-0 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] px-2 py-1 text-sm font-mono text-[var(--text-secondary)] outline-none focus:border-cyan-700 placeholder:text-[var(--text-muted)]/50"
                   />
                   {nativeProtected ? null : adminSessionReady ? (
                     <button
@@ -1311,8 +1311,8 @@ const SettingsPanel = React.memo(function SettingsPanel({
                     </button>
                   )}
                   <span
-                    className={`text-[12px] font-mono tracking-widest ${
-                      adminSessionReady ? 'text-green-400/70' : 'text-yellow-400/70'
+                    className={`shrink-0 px-1.5 py-0.5 rounded-md border text-[10px] font-mono tracking-widest ${
+                      adminSessionReady ? 'text-green-400/80 border-green-500/30' : 'text-yellow-400/80 border-yellow-500/30'
                     }`}
                   >
                     {nativeProtected ? 'NATIVE' : adminSessionReady ? 'ACTIVE' : 'LOCKED'}
@@ -1365,16 +1365,16 @@ const SettingsPanel = React.memo(function SettingsPanel({
             <div className="grid grid-cols-5 min-w-0 shrink-0 border-b border-[var(--border-primary)]/60">
               <button
                 onClick={() => setActiveTab('api-keys')}
-                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-3 text-[12px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'api-keys' ? 'text-cyan-400 border-b-2 border-cyan-500 bg-cyan-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Key size={10} className="shrink-0" />
+                <Key size={13} className="shrink-0" />
                 <span className="truncate">{t('settings.general').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('news-feeds')}
-                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-3 text-[12px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'news-feeds' ? 'text-orange-400 border-b-2 border-orange-500 bg-orange-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Rss size={10} className="shrink-0" />
+                <Rss size={13} className="shrink-0" />
                 <span className="truncate">{t('settings.feeds').toUpperCase()}</span>
                 {feedsDirty && (
                   <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-orange-400 animate-pulse" />
@@ -1382,23 +1382,23 @@ const SettingsPanel = React.memo(function SettingsPanel({
               </button>
               <button
                 onClick={() => setActiveTab('sentinel')}
-                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-3 text-[12px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sentinel' ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Satellite size={10} className="shrink-0" />
+                <Satellite size={13} className="shrink-0" />
                 <span className="truncate">SENTINEL</span>
               </button>
               <button
                 onClick={() => setActiveTab('sar')}
-                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-3 text-[12px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'sar' ? 'text-amber-400 border-b-2 border-amber-500 bg-amber-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Radar size={10} className="shrink-0" />
+                <Radar size={13} className="shrink-0" />
                 <span className="truncate">{t('settings.sar').toUpperCase()}</span>
               </button>
               <button
                 onClick={() => setActiveTab('protocol')}
-                className={`min-w-0 px-1.5 py-2.5 text-[11px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                className={`min-w-0 px-1.5 py-3 text-[12px] font-mono tracking-wide font-bold transition-colors flex items-center justify-center gap-1 ${activeTab === 'protocol' ? 'text-green-400 border-b-2 border-green-500 bg-green-950/10' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
               >
-                <Shield size={10} className="shrink-0" />
+                <Shield size={13} className="shrink-0" />
                 <span className="truncate">{t('settings.infonet').toUpperCase()}</span>
               </button>
             </div>
@@ -2304,11 +2304,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
                 <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/10 space-y-2">
                   <div className="flex items-start gap-2">
                     <Shield size={12} className="text-cyan-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                    <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                       API keys are saved locally by this backend. Values are write-only: the app
                       stores the key and shows CONFIGURED, but it never reads the secret back into
                       the browser. Keys marked with{' '}
-                      <Key size={8} className="inline text-yellow-500" /> unlock the richest live
+                      <Key size={13} className="inline -mt-0.5 text-yellow-500" aria-label="key" /> unlock the richest live
                       aircraft and vessel feeds.
                     </p>
                   </div>
@@ -2357,7 +2357,48 @@ const SettingsPanel = React.memo(function SettingsPanel({
                 </div>
 
                 {/* API List */}
-                <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto styled-scrollbar p-4 space-y-3 flex flex-col">
+                  {apis.length === 0 && (
+                    <div className="mt-2 w-full rounded-2xl border border-[var(--border-primary)] bg-[rgba(3,8,18,0.5)] px-6 py-8 text-center">
+                      <div className="mx-auto mb-4 w-10 h-10 rounded-xl border border-cyan-500/30 bg-cyan-500/10 flex items-center justify-center">
+                        <Key size={18} className="text-cyan-400" />
+                      </div>
+                      <div className="sb-title text-cyan-300">API keys are locked</div>
+                      <p className="sb-prose mt-2 text-[13px] text-[#a9bbd2]">
+                        Keys are stored on your backend and shown only to the operator. Unlock operator
+                        tools above with your <span className="font-mono text-cyan-300">ADMIN_KEY</span> to
+                        view or edit them.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void fetchKeys()}
+                        className="mt-5 px-4 py-2 rounded-lg border border-cyan-700/50 text-[11px] font-mono tracking-widest text-cyan-300 hover:text-cyan-200 hover:border-cyan-500/60 hover:bg-cyan-950/40 transition-colors"
+                      >
+                        RELOAD KEY LIST
+                      </button>
+                    </div>
+                  )}
+                  {apis.length === 0 && (
+                    <ul className="mt-4 grid gap-2 text-left">
+                      {[
+                        ['GENERAL', 'Data-source API keys and credentials'],
+                        ['FEEDS', 'News and RSS sources for the intel rail'],
+                        ['SENTINEL', 'Copernicus imagery access'],
+                        ['SAR', 'Radar scenes and AOI defaults'],
+                        ['INFONET', 'Mesh, Wormhole and node identity'],
+                      ].map(([tab, desc]) => (
+                        <li key={tab} className="flex items-baseline gap-3 rounded-xl border border-[var(--border-primary)]/60 bg-[rgba(var(--sb-glass-hi),0.25)] px-3.5 py-2.5">
+                          <span className="w-[84px] shrink-0 text-[10.5px] font-mono tracking-[0.16em] text-cyan-300">{tab}</span>
+                          <span className="sb-prose text-[12.5px] text-[var(--text-muted)]">{desc}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {apis.length === 0 && (
+                    <p className="mt-auto pt-8 text-center text-[11px] font-mono tracking-[0.14em] text-[var(--text-muted)]">
+                      SETTINGS AND SECRETS STAY ON YOUR LOCAL BACKEND
+                    </p>
+                  )}
                   {Object.entries(grouped).map(([category, categoryApis]) => {
                     const colorClass =
                       CATEGORY_COLORS[category] || 'text-gray-400 border-gray-700 bg-gray-900/20';
@@ -2552,10 +2593,14 @@ const SettingsPanel = React.memo(function SettingsPanel({
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-[var(--border-primary)]/80">
+                <div className={`p-4 border-t border-[var(--border-primary)]/80 ${apis.length === 0 ? 'hidden' : ''}`}>
                   <div className="flex items-center justify-between text-[13px] text-[var(--text-muted)] font-mono">
-                    <span>{apis.length} REGISTERED APIs</span>
-                    <span>{apis.filter((a) => a.has_key && a.is_set).length} KEYS CONFIGURED</span>
+                    {apis.length === 0 ? null : (
+                      <>
+                        <span>{apis.length} REGISTERED APIS</span>
+                        <span>{apis.filter((a) => a.has_key && a.is_set).length} KEYS CONFIGURED</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </>
@@ -2568,7 +2613,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
                 <div className="mx-4 mt-4 p-3 border border-orange-900/30 bg-orange-950/10">
                   <div className="flex items-start gap-2">
                     <Rss size={12} className="text-orange-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                    <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                       Configure RSS/Atom feeds for the Threat Intel news panel. Each feed is scored
                       by keyword heuristics and weighted by the priority you set. Up to{' '}
                       <span className="text-orange-400">{MAX_FEEDS}</span> sources.

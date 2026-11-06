@@ -65,6 +65,7 @@ const COLOR_SWATCHES = [
 ];
 
 interface Props {
+  embedded?: boolean;
   onOpenSettings: () => void;
   onResultsChange: (results: ShodanSearchMatch[], queryLabel: string) => void;
   onSelectEntity: (entity: SelectedEntity | null) => void;
@@ -177,6 +178,7 @@ export default function ShodanPanel({
   isMinimized: isMinimizedProp,
   onMinimizedChange,
   settingsOpen,
+  embedded = false,
 }: Props) {
   const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
@@ -500,14 +502,15 @@ export default function ShodanPanel({
   }, [countSummary, currentResults.length, hostSummary, unmappedCount]);
 
   return (
-    <div className="pointer-events-auto flex-shrink-0 border border-green-700/40 bg-black/75 backdrop-blur-sm shadow-[0_0_18px_rgba(34,197,94,0.12)]">
+    <div className={embedded ? "pointer-events-auto" : "pointer-events-auto flex-shrink-0 sb-panel"}>
+      {!embedded && (
       <div
-        className="flex items-center justify-between border-b border-green-700/30 bg-green-950/20 px-3 py-2.5 cursor-pointer hover:bg-green-950/40 transition-colors"
+        className="flex items-center justify-between border-b border-[var(--border-primary)] bg-[rgba(var(--sb-accent-rgb),0.035)] px-3 py-2.5 cursor-pointer hover:bg-[rgba(var(--sb-accent-rgb),0.08)] transition-colors"
         onClick={() => setIsMinimized((prev) => !prev)}
       >
         <div className="flex items-center gap-2">
           <Radar size={16} className="text-green-400" />
-          <span className="text-[12px] font-mono font-bold tracking-widest text-green-400">
+          <span className="sb-title text-cyan-300">
             {t('shodan.title').toUpperCase()}
           </span>
           {currentResults.length > 0 && (
@@ -524,8 +527,9 @@ export default function ShodanPanel({
           )}
         </div>
       </div>
+      )}
 
-      {!isMinimized && (
+      {(embedded || !isMinimized) && (
       <>
       <div className="px-3 py-2">
         <div className="mb-2 flex items-center gap-1.5 text-[11px] font-mono">
@@ -560,7 +564,7 @@ export default function ShodanPanel({
                 href="https://account.shodan.io/billing"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto text-[9px] text-green-500/60 hover:text-green-400 transition-colors"
+                className="ml-auto text-[10px] text-green-500/60 hover:text-green-400 transition-colors"
               >
                 GET KEY →
               </a>
@@ -583,7 +587,7 @@ export default function ShodanPanel({
                   }
                 }}
                 placeholder="Paste your Shodan API key"
-                className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60 placeholder:text-green-800"
+                className="flex-1 min-w-0 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60 placeholder:text-green-800"
               />
               <button
                 onClick={() => setShowKey(!showKey)}
@@ -683,7 +687,7 @@ export default function ShodanPanel({
               {SHAPE_OPTIONS.find((s) => s.value === styleConfig.shape)?.glyph ?? '●'}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
             {/* Shape */}
             <div className="flex items-center gap-1">
               {SHAPE_OPTIONS.map((opt) => (
@@ -718,9 +722,8 @@ export default function ShodanPanel({
                 </button>
               ))}
             </div>
-            <div className="w-px h-5 bg-green-900/40" />
-            {/* Color swatches */}
-            <div className="flex items-center gap-1 flex-wrap">
+            {/* Color swatches: their own full-width row */}
+            <div className="flex items-center gap-1.5 flex-wrap basis-full">
               {COLOR_SWATCHES.map((hex) => (
                 <button
                   key={hex}
@@ -746,7 +749,7 @@ export default function ShodanPanel({
               value={presetLabel}
               onChange={(e) => setPresetLabel(e.target.value)}
               placeholder="label"
-              className="flex-1 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60"
+              className="flex-1 min-w-0 border border-green-900/50 bg-black/70 px-2 py-1 text-[11px] font-mono text-green-300 outline-none transition-colors focus:border-green-500/60"
             />
             <button onClick={handleSavePreset} title="Save preset" className="border border-green-600/40 p-1 text-green-400 transition-colors hover:border-green-500/70">
               <Save size={11} />
@@ -790,8 +793,8 @@ export default function ShodanPanel({
           {status?.warning && <span className="ml-1 text-yellow-500/70">· {status.warning}</span>}
         </div>
         {error && (
-          <div className="mt-1.5 flex items-center justify-between border border-red-900/40 bg-red-950/20 px-2 py-1 text-[11px] font-mono text-red-300">
-            <span className="truncate">{error}</span>
+          <div className="mt-1.5 flex items-start justify-between gap-2 border border-red-900/40 bg-red-950/20 px-2 py-1 text-[11px] font-mono text-red-300">
+            <span className="min-w-0 break-words leading-snug">{error}</span>
             {lastAction && (
               <button
                 onClick={() => { setError(null); lastAction(); }}

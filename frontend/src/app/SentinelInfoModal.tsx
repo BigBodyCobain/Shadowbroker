@@ -22,7 +22,7 @@ export function SentinelInfoModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
 
-          <p className="text-[11px] text-[var(--text-secondary)] font-mono leading-relaxed">
+          <p className="text-[11px] sb-prose text-[#c3d2e6] leading-relaxed">
             You now have access to ESA Sentinel-2 satellite imagery directly on the map.
             This uses the Copernicus Data Space Ecosystem with your own credentials.
           </p>
@@ -38,7 +38,7 @@ export function SentinelInfoModal({ onClose }: { onClose: () => void }) {
               ].map((l) => (
                 <div key={l.name} className="p-2 border border-purple-900/30 bg-purple-950/10">
                   <div className="text-[10px] font-mono text-white">{l.name}</div>
-                  <div className="text-[9px] text-[var(--text-muted)]">{l.desc}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{l.desc}</div>
                 </div>
               ))}
             </div>

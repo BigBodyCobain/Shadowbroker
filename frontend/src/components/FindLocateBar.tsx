@@ -367,7 +367,7 @@ const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: 
 
   return (
     <div ref={containerRef} className="relative w-full pointer-events-auto">
-      <div className="flex items-center gap-2 bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 px-3 py-2 focus-within:border-cyan-500/40 transition-colors">
+      <div className="flex items-center gap-2 sb-panel px-3 py-2 focus-within:border-cyan-500/40 transition-colors">
         <Search size={12} className="text-slate-500 flex-shrink-0" />
         <input
           ref={inputRef}
@@ -444,7 +444,7 @@ const FindLocateBar = React.memo(function FindLocateBar({ onLocate, onFilter }: 
             exit={{ opacity: 0, y: -4 }}
             className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-secondary)]/90 backdrop-blur-sm border border-[var(--border-primary)] z-50 p-4 text-center"
           >
-            <div className="text-[9px] text-[var(--text-muted)] font-mono tracking-widest">
+            <div className="text-[10px] text-[var(--text-muted)] font-mono tracking-widest">
               NO MATCHING ASSETS
             </div>
           </motion.div>

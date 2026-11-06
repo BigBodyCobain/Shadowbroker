@@ -230,7 +230,7 @@ export function CorrelationPopup({ alert, onClose }: CorrelationPopupProps) {
           <div className="mt-2 pt-2 border-t border-[var(--border-primary)]/20">
             <div className="text-[11px] font-mono tracking-widest text-[var(--text-muted)] mb-1.5">ALTERNATIVE EXPLANATIONS</div>
             {alert.alternatives.map((alt, i) => (
-              <div key={i} className="text-[9px] text-[#8899aa] mb-0.5 flex items-start gap-1">
+              <div key={i} className="text-[10px] text-[#8899aa] mb-0.5 flex items-start gap-1">
                 <span className="text-gray-500">-</span> {alt}
               </div>
             ))}

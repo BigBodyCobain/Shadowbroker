@@ -81,7 +81,7 @@ export default function KeyboardShortcutsOverlay({
 
             {/* Footer */}
             <div className="mt-6 pt-3 border-t border-[var(--border-primary)]">
-              <div className="text-[9px] font-mono tracking-[0.25em] text-[var(--text-muted)] text-center uppercase">
+              <div className="text-[10px] font-mono tracking-[0.25em] text-[var(--text-muted)] text-center uppercase">
                 Shortcuts are disabled when typing in inputs
               </div>
             </div>

@@ -1,25 +1,44 @@
 @import 'tailwindcss';
 
+/* Palette and type follow the ShadowBroker website (deep navy, signal cyan, glass panels). */
 :root {
-  --background: #0a0a0a;
-  --foreground: #d1d5db;
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #080808;
-  --bg-tertiary: #0f0f0f;
-  --bg-panel: rgba(10, 10, 10, 0.92);
-  --border-primary: rgba(8, 145, 178, 0.30);
-  --border-secondary: rgba(8, 145, 178, 0.45);
-  --border-glow: rgba(6, 182, 212, 0.18);
-  --text-primary: rgb(209, 213, 219);
-  --text-secondary: rgb(34, 211, 238);
-  --text-muted: rgb(8, 145, 178);
-  --text-heading: rgb(207, 250, 254);
-  --hover-accent: rgba(8, 51, 68, 0.2);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
-  --font-geist-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans',
-    sans-serif;
+  --background: #03060c;
+  --foreground: #d6e3f5;
+  --bg-primary: #040912;
+  --bg-secondary: #050b16;
+  --bg-tertiary: #08111f;
+  --bg-panel: rgba(6, 13, 25, 0.86);
+  --border-primary: rgba(64, 160, 255, 0.2);
+  --border-secondary: rgba(64, 160, 255, 0.34);
+  --border-glow: rgba(69, 216, 255, 0.18);
+  --text-primary: #dbe7f7;
+  --text-secondary: #45d8ff;
+  --text-muted: #8ea3bf;
+  --text-heading: #e8f1ff;
+  --hover-accent: rgba(30, 155, 255, 0.1);
+  --scrollbar-thumb: rgba(143, 190, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(143, 190, 255, 0.32);
+  --sb-cyan: #45d8ff;
+  --sb-blue: #1e9bff;
+  --sb-ice: #cfe9ff;
+  --sb-red: #ff3b5c;
+  --sb-amber: #ffb020;
+  --sb-green: #2cf5a0;
+  --sb-line: rgba(var(--sb-line-rgb), 0.16);
+  --sb-line-strong: rgba(var(--sb-line-rgb), 0.32);
+  /* themeable accent channels (sensor modes override these) */
+  --sb-accent: #45d8ff;
+  --sb-accent-rgb: 69, 216, 255;
+  --sb-accent2: #1e9bff;
+  --sb-accent2-rgb: 30, 155, 255;
+  --sb-accent-soft: #7fe0ff;
+  --sb-line-rgb: 64, 160, 255;
+  --sb-glass-hi: 14, 30, 52;
+  --sb-glass: 5, 11, 22;
+  --sb-sheen: 160, 210, 255;
+  --sb-bg-rgb: 3, 6, 12;
+  --sb-ink: #e8f1ff;
+  --sb-radius: 14px;
   --font-roboto-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
@@ -27,35 +46,93 @@
 
 /* Light theme: only the map basemap changes — UI stays dark */
 [data-theme='light'] {
-  --background: #0a0a0a;
-  --foreground: #d1d5db;
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #080808;
-  --bg-tertiary: #0f0f0f;
-  --bg-panel: rgba(10, 10, 10, 0.92);
-  --border-primary: rgba(8, 145, 178, 0.30);
-  --border-secondary: rgba(8, 145, 178, 0.45);
-  --border-glow: rgba(6, 182, 212, 0.18);
-  --text-primary: rgb(209, 213, 219);
-  --text-secondary: rgb(34, 211, 238);
-  --text-muted: rgb(8, 145, 178);
-  --text-heading: rgb(207, 250, 254);
-  --hover-accent: rgba(8, 51, 68, 0.2);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+  --background: #03060c;
+  --foreground: #d6e3f5;
+  --bg-primary: #040912;
+  --bg-secondary: #050b16;
+  --bg-tertiary: #08111f;
+  --bg-panel: rgba(6, 13, 25, 0.86);
+  --border-primary: rgba(64, 160, 255, 0.2);
+  --border-secondary: rgba(64, 160, 255, 0.34);
+  --border-glow: rgba(69, 216, 255, 0.18);
+  --text-primary: #dbe7f7;
+  --text-secondary: #45d8ff;
+  --text-muted: #8ea3bf;
+  --text-heading: #e8f1ff;
+  --hover-accent: rgba(30, 155, 255, 0.1);
+  --scrollbar-thumb: rgba(143, 190, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(143, 190, 255, 0.32);
+}
+
+/* Website palette mapped onto the Tailwind scales the components already use. */
+@theme {
+  --color-black: #02050b;
+  --color-cyan-50: #ecfbff;
+  --color-cyan-100: #d3f4ff;
+  --color-cyan-200: #ade9ff;
+  --color-cyan-300: #7fe0ff;
+  --color-cyan-400: #45d8ff;
+  --color-cyan-500: #22bdf2;
+  --color-cyan-600: #149bd2;
+  --color-cyan-700: #127aa8;
+  --color-cyan-800: #145f86;
+  --color-cyan-900: #134a6b;
+  --color-cyan-950: #0a2c46;
+  --color-gray-50: #f3f7fc;
+  --color-gray-100: #e8f1ff;
+  --color-gray-200: #cfdcee;
+  --color-gray-300: #b0c0d6;
+  --color-gray-400: #8ea3bf;
+  --color-gray-500: #6c809b;
+  --color-gray-600: #4d5f78;
+  --color-gray-700: #33445c;
+  --color-gray-800: #1b293d;
+  --color-gray-900: #0d1727;
+  --color-gray-950: #070d18;
+  --color-zinc-300: #b0c0d6;
+  --color-zinc-400: #8ea3bf;
+  --color-zinc-500: #6c809b;
+  --color-zinc-600: #4d5f78;
+  --color-zinc-700: #33445c;
+  --color-zinc-800: #1b293d;
+  --color-zinc-900: #0d1727;
+  --color-zinc-950: #070d18;
+  --color-neutral-400: #8ea3bf;
+  --color-neutral-500: #6c809b;
+  --color-neutral-700: #33445c;
+  --color-neutral-800: #1b293d;
+  --color-neutral-900: #0d1727;
+  --color-neutral-950: #070d18;
+  --color-red-400: #ff6680;
+  --color-red-500: #ff3b5c;
+  --color-red-600: #e5294b;
+  --color-amber-400: #ffc24a;
+  --color-amber-500: #ffb020;
+  --color-yellow-400: #ffc845;
+  --color-yellow-500: #ffb020;
+  --color-emerald-400: #2cf5a0;
+  --color-green-400: #3ef0a6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-roboto-mono);
+  --font-mono: var(--font-jetbrains-mono), var(--font-roboto-mono);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
 }
 
 body {
+  /* next/font sets --font-chakra / --font-inter / --font-jetbrains-mono on <body>, so the
+     derived stacks must be declared here (not on :root, where those vars don't exist yet). */
+  --font-display: var(--font-chakra), 'Chakra Petch', var(--font-inter), system-ui, sans-serif;
+  --font-body: var(--font-inter), 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-geist-sans: var(--font-body);
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-jetbrains-mono), var(--font-roboto-mono), 'Roboto Mono', monospace;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Global interactive cursor hints */
@@ -521,4 +598,627 @@ textarea:disabled {
 .feed-dot-offline {
   background: #ef4444;
   box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+
+/* =====================================================================
+   WEBSITE LOOK — glass panels, display type, navy chrome
+   (matches the ShadowBroker landing site; unlayered so it wins over utilities)
+   ===================================================================== */
+.sb-panel {
+  background:
+    linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.62) 0%, rgba(var(--sb-glass), 0.84) 46%, rgba(var(--sb-glass), 0.9) 100%);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-radius);
+  box-shadow:
+    0 24px 60px -28px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(var(--sb-sheen), 0.07);
+  backdrop-filter: blur(14px) saturate(1.25);
+}
+.sb-panel:hover { border-color: rgba(var(--sb-line-rgb), 0.24); }
+/* panel header rows: softer separators */
+.sb-panel > div:first-child[class*='border-b'] { border-bottom-color: var(--sb-line) !important; }
+
+.sb-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  /* the site's soft display-type glow, kept faint so it never blurs small caps */
+  text-shadow: 0 0 14px rgba(var(--sb-accent-rgb), 0.32);
+}
+
+/* wordmark */
+.sb-wordmark {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  color: var(--sb-ink);
+  text-shadow: 0 0 24px rgba(var(--sb-accent-rgb), 0.18);
+}
+.sb-wordmark-accent {
+  background: linear-gradient(90deg, var(--sb-accent), var(--sb-accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.sb-wordmark-sub {
+  margin-top: 6px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.32em;
+  color: var(--text-muted);
+}
+
+/* map popups: same glass as panels */
+.map-popup {
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.9), rgba(var(--sb-glass), 0.96));
+  border: 1px solid var(--sb-line-strong);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(var(--sb-sheen), 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.terminal-input { border-radius: 8px; border-color: var(--sb-line-strong); background: rgba(var(--sb-bg-rgb), 0.6); }
+.terminal-input:focus { border-color: rgba(var(--sb-accent-rgb), 0.55); box-shadow: 0 0 0 3px rgba(var(--sb-accent-rgb), 0.12); }
+
+.text-glow { text-shadow: 0 0 14px rgba(var(--sb-accent-rgb), 0.35); }
+
+::selection { background: rgba(var(--sb-accent-rgb), 0.28); color: #fff; }
+
+/* chips, icon buttons and the bottom dock (website button language) */
+.sb-chip,
+.sb-chip-shape { border-radius: 10px; }
+.sb-chip {
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.78), rgba(var(--sb-glass), 0.88));
+  border: 1px solid var(--sb-line-strong);
+  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(var(--sb-sheen), 0.07);
+  backdrop-filter: blur(12px);
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.sb-chip:hover { border-color: rgba(var(--sb-accent-rgb), 0.55); }
+.sb-icon-btn {
+  border-radius: 9px;
+  background: rgba(var(--sb-glass), 0.72);
+  border-color: var(--sb-line-strong) !important;
+  backdrop-filter: blur(10px);
+}
+.sb-icon-btn:hover { border-color: rgba(var(--sb-accent-rgb), 0.55) !important; }
+.sb-mode-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.2em;
+  color: var(--sb-ink);
+  line-height: 1;
+}
+.sb-statusbar { border-radius: 14px; }
+.sb-statusbar::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--sb-accent-rgb), 0.7), transparent);
+  pointer-events: none;
+}
+.sb-statusbar { position: relative; }
+@media (max-width: 1759px) {
+  .sb-wide-only { display: none !important; }
+}
+
+/* news alert callouts on the map — glass card, risk colour kept as the border + accent */
+.sb-alert {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.9), 0 0 24px -10px var(--risk, #ffb020);
+  text-align: left !important;
+}
+/* map callouts carry their level in text ("ALERT · LVL n"), so the colour-blind cue no
+   longer needs dashed/dotted strokes: solid hairlines, weight still rising with severity */
+.sb-alert.threat-border-medium { border-width: 1.5px !important; border-style: solid !important; }
+.sb-alert.threat-border-low { border-width: 1px !important; border-style: solid !important; }
+.sb-alert-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.sb-alert-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  animation: sb-pulse 1.8s ease-in-out infinite;
+}
+.sb-alert-title {
+  margin-top: 4px;
+  max-width: 270px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.38;
+  letter-spacing: 0;
+  color: #eef5ff;
+}
+@keyframes sb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .sb-alert-dot { animation: none; } }
+
+/* modals and drawers share the panel glass, slightly more opaque */
+.sb-modal {
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.92) 0%, rgba(var(--sb-glass), 0.97) 40%, rgba(var(--sb-glass), 0.98) 100%);
+  border-color: var(--sb-line-strong);
+  border-radius: 18px;
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(var(--sb-sheen), 0.08);
+}
+.sb-modal-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sb-ink);
+}
+
+/* Soft corners for controls inside the HUD and dialogs. In the base layer so any
+   explicit rounded-* utility (toggles, dots, pills) still wins. */
+@layer base {
+  :where(.hud-zone, .sb-panel, .sb-modal) :is(button, select, textarea, input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
+    border-radius: 8px;
+  }
+}
+
+/* readable prose: Inter for sentences, mono stays for labels and data */
+.sb-prose,
+.sb-prose * {
+  font-family: var(--font-body) !important;
+  letter-spacing: 0 !important;
+}
+.sb-prose { line-height: 1.55; }
+
+/* HUD geometry: narrower columns on laptop widths, dock centred in the free map area */
+.sb-left-col { --sb-lw: 320px; }
+.sb-dock { --sb-shift: -40px; left: calc(50% + var(--sb-shift)) !important; }
+@media (max-width: 1499px) {
+  .sb-left-col { width: 296px !important; }
+  .sb-right-col { width: 344px !important; }
+  .sb-dock { --sb-shift: -24px; }
+  .sb-statusbar { gap: 14px !important; padding-left: 16px !important; padding-right: 16px !important; }
+  .sb-statusbar > div[class*='min-w-[140px]'] { min-width: 118px !important; }
+  .sb-scalebar { left: 344px !important; }
+}
+.sb-edge-tab {
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.85), rgba(var(--sb-glass), 0.92));
+  border-color: var(--sb-line-strong);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.9);
+}
+.sb-edge-tab:hover { border-color: rgba(var(--sb-accent-rgb), 0.55); color: var(--sb-accent-soft); }
+
+.sb-drawer {
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.94) 0%, rgba(var(--sb-glass), 0.97) 35%, rgba(var(--sb-glass), 0.98) 100%);
+  border-right: 1px solid var(--sb-line-strong);
+  box-shadow: 30px 0 90px -30px rgba(0, 0, 0, 0.95), inset -1px 0 0 rgba(var(--sb-sheen), 0.05);
+  backdrop-filter: blur(16px);
+}
+
+/* primary action = the website's CTA (cyan→blue fill, dark label) */
+.sb-btn-primary {
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #021018;
+  background: linear-gradient(135deg, var(--sb-accent) 0%, var(--sb-accent2) 100%);
+  box-shadow: 0 10px 30px -10px rgba(var(--sb-accent2-rgb), 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+}
+.sb-btn-primary:hover { filter: brightness(1.08); box-shadow: 0 14px 36px -10px rgba(var(--sb-accent2-rgb), 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.sb-btn-primary:active { transform: translateY(1px); }
+.sb-btn-primary:focus-visible { outline: 2px solid var(--sb-accent-soft); outline-offset: 2px; }
+
+/* scroll areas end in a soft fade instead of slicing a row in half */
+.sb-scroll-fade {
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+/* (no masks on the HUD columns: a mask makes the column the backdrop root and kills the panels' blur) */
+
+/* settings drawer floats like the other glass surfaces */
+.sb-drawer {
+  top: 12px !important;
+  bottom: 12px !important;
+  left: 12px !important;
+  border: 1px solid var(--sb-line-strong);
+  border-radius: 18px;
+}
+.sb-header-card { border-radius: 14px; }
+.sb-header-card .sb-mode-label { font-size: 20px; }
+
+/* Cards, stat boxes and icon tiles inside dialogs and panels get the same soft
+   corners as their container (base layer: explicit rounded-* utilities still win). */
+@layer base {
+  :is(.sb-modal, .sb-panel, .sb-drawer) :is(div, pre, section)[class~='border']:is([class*='p-2'], [class*='p-3'], [class*='p-4'], [class*='px-3'], [class*='px-4']) {
+    border-radius: 12px;
+  }
+  :is(.sb-modal, .sb-panel, .sb-drawer) :is(div, span)[class~='border']:is([class*='w-8 h-8'], [class*='w-10 h-10'], [class*='px-1.5 py-0.5'], [class*='px-2 py-0.5']) {
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 1499px) {
+  .sb-edge-left-open { margin-left: -24px; }
+  .sb-edge-right-open { margin-right: -56px; }
+}
+
+/* bottom dock: one glass backplate holding the action row and the status readout */
+.sb-dock {
+  padding: 8px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(var(--sb-glass-hi), 0.7), rgba(var(--sb-glass), 0.88));
+  border: 1px solid var(--sb-line);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(var(--sb-sheen), 0.07);
+  backdrop-filter: blur(14px) saturate(1.2);
+  gap: 6px !important;
+}
+.sb-dock .sb-statusbar {
+  background: rgba(var(--sb-bg-rgb), 0.45);
+  border: 1px solid var(--sb-line);
+  border-radius: 12px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.sb-dock .sb-chip { box-shadow: none; backdrop-filter: none; background: rgba(var(--sb-glass-hi), 0.6); }
+.sb-dock .sb-chip-shape { backdrop-filter: none !important; }
+
+/* sticky fade at the bottom of the scrolling left column */
+.sb-col-fade {
+  position: sticky;
+  bottom: -1px;
+  flex: 0 0 26px;
+  margin-top: -26px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(var(--sb-bg-rgb), 0.92));
+  z-index: 5;
+}
+
+/* short laptop screens: tighter panel headers so more of the stack fits */
+@media (max-height: 940px) {
+  .sb-left-col { gap: 8px !important; }
+  .sb-left-col .sb-panel > div:first-child[class*='py-2.5'] { padding-top: 8px; padding-bottom: 8px; }
+}
+
+/* focus ring in brand cyan everywhere */
+@layer base {
+  :focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; }
+}
+
+.sb-offline-toast {
+  /* stays between the wordmark and the right-hand header buttons; wraps to two lines on narrow screens */
+  max-width: min(1180px, calc(100vw - 740px));
+  width: max-content;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(60, 10, 22, 0.88), rgba(30, 6, 12, 0.92));
+  border: 1px solid rgba(255, 59, 92, 0.5);
+  box-shadow: 0 16px 40px -16px rgba(255, 59, 92, 0.5);
+  backdrop-filter: blur(12px);
+}
+
+/* segmented tabs (Meshtastic chat): one track, active pill — no more edge-to-edge labels */
+.sb-seg {
+  margin: 8px 10px 6px;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgba(var(--sb-bg-rgb), 0.55);
+  border: 1px solid var(--sb-line);
+}
+.sb-seg-btn { height: 28px; border-radius: 8px !important; }
+.sb-seg-btn.is-active {
+  background: linear-gradient(180deg, rgba(var(--sb-accent-rgb), 0.18), rgba(var(--sb-accent2-rgb), 0.1));
+  box-shadow: inset 0 0 0 1px rgba(var(--sb-accent-rgb), 0.35);
+}
+.sb-seg-btn:not(.is-active):hover { background: rgba(var(--sb-accent-rgb), 0.06); }
+.sb-seg-icon { display: none; }
+
+/* 4K at 100% OS scaling (CSS viewport ≥ 3000px): scale the HUD chrome so it reads like
+   it does on a 1440p screen. 4K at 150% scaling reports ~2560px and is left as-is. */
+@media (min-width: 3000px) {
+  .hud-zone, .sb-scalebar, .sb-ticker, .sb-alert, .sb-offline-toast { zoom: 1.5; }
+}
+
+.sb-skel {
+  display: inline-block;
+  background: linear-gradient(90deg, rgba(var(--sb-line-rgb), 0.08), rgba(var(--sb-line-rgb), 0.18), rgba(var(--sb-line-rgb), 0.08));
+  background-size: 200% 100%;
+  animation: sb-shimmer 1.4s linear infinite;
+}
+@keyframes sb-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sb-skel { animation: none; } }
+
+
+.sb-col-fade { position: sticky; }
+.sb-label-short { display: none; }
+@media (max-width: 1759px) {
+  .sb-label-long { display: none; }
+  .sb-label-short { display: inline; }
+}
+
+/* ticker: content fades in/out at both edges like the site's marquee */
+.sb-ticker {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 120px, #000 calc(100% - 120px), transparent 100%);
+}
+/* 4K at 100%: HTML map labels scale with the HUD */
+@media (min-width: 3000px) {
+  [data-sb-label] { zoom: 1.5; }
+}
+
+/* (no shared column backing — it read as a box-inside-a-box on light/satellite maps) */
+
+/* map scale lives on the map: bare (no plate), bottom-left of the free map area */
+.sb-scalebar {
+  left: 23rem;
+  bottom: 60px;
+  filter: drop-shadow(0 1px 2px rgba(2, 5, 11, 0.9));
+}
+@media (max-width: 2999px) {
+  /* below 4K-at-100% the centred dock (scaled 1.125x on 1440p screens) reaches under the
+     scale's spot, so the scale sits on the map just above the dock instead */
+  .sb-scalebar { bottom: 12.75rem; }
+}
+
+/* =====================================================================
+   SENSOR MODES (VIEW menu): EO / FLIR / NVG / CRT
+   - the map canvas gets a blended optic filter (svg #sb-f-* in page.tsx), keeping ~20%
+     of the original colours so data categories stay distinguishable
+   - the whole UI re-tints through the same theme variables + Tailwind scales the panels use
+   - semantic alert reds/ambers are left alone so severity always reads the same
+   ===================================================================== */
+html[data-sensor='flir'] .maplibregl-canvas { filter: url(#sb-f-flir) contrast(1.06); }
+html[data-sensor='nvg'] .maplibregl-canvas { filter: url(#sb-f-nvg) saturate(0.72) contrast(1.12) brightness(0.98); }
+html[data-sensor='crt'] .maplibregl-canvas { filter: url(#sb-f-crt) saturate(0.85) contrast(1.3) brightness(0.74); }
+
+/* ---- NVG: bright phosphor green ---- */
+html[data-sensor='nvg'] {
+  --sb-accent: #7dff9a; --sb-accent-rgb: 125, 255, 154;
+  --sb-accent2: #2fe56e; --sb-accent2-rgb: 47, 229, 110;
+  --sb-accent-soft: #b4ffc6; --sb-line-rgb: 90, 255, 140;
+  --sb-glass-hi: 10, 42, 20; --sb-glass: 3, 16, 8; --sb-sheen: 170, 255, 190; --sb-bg-rgb: 2, 10, 5;
+  --sb-ink: #e6ffec;
+  --background: #020a05; --bg-primary: #03100a; --bg-secondary: #031009; --bg-tertiary: #062012;
+  --border-primary: rgba(90, 255, 140, 0.22); --border-secondary: rgba(90, 255, 140, 0.38);
+  --text-primary: #d8ffe2; --text-secondary: #7dff9a; --text-muted: #86c99a; --text-heading: #ecfff0;
+  --color-cyan-50: #effff3; --color-cyan-100: #d6ffe0; --color-cyan-200: #b4ffc6; --color-cyan-300: #93ffb0;
+  --color-cyan-400: #7dff9a; --color-cyan-500: #3ff07a; --color-cyan-600: #22c75e; --color-cyan-700: #1a9a4a;
+  --color-cyan-800: #15763b; --color-cyan-900: #10542c; --color-cyan-950: #08321a;
+  --color-sky-400: #7dff9a; --color-sky-500: #3ff07a; --color-blue-400: #93ffb0; --color-blue-500: #3ff07a;
+}
+/* ---- FLIR: iron-bow — maroon/purple glass, hot pink + orange accents ---- */
+html[data-sensor='flir'] {
+  --sb-accent: #ff6aa8; --sb-accent-rgb: 255, 106, 168;
+  --sb-accent2: #ffa040; --sb-accent2-rgb: 255, 160, 64;
+  --sb-accent-soft: #ffb3cf; --sb-line-rgb: 255, 92, 150;
+  --sb-glass-hi: 46, 14, 44; --sb-glass: 16, 5, 18; --sb-sheen: 255, 190, 210; --sb-bg-rgb: 9, 3, 11;
+  --sb-ink: #fff0f4;
+  --background: #09030b; --bg-primary: #0c040e; --bg-secondary: #0b030c; --bg-tertiary: #180820;
+  --border-primary: rgba(255, 92, 150, 0.24); --border-secondary: rgba(255, 92, 150, 0.4);
+  --text-primary: #ffe7ef; --text-secondary: #ffb36b; --text-muted: #c99aae; --text-heading: #fff3f6;
+  --color-cyan-50: #fff0f6; --color-cyan-100: #ffdcea; --color-cyan-200: #ffc2d8; --color-cyan-300: #ffc6dc;
+  --color-cyan-400: #ff8fb8; --color-cyan-500: #ff6aa8; --color-cyan-600: #e0478a; --color-cyan-700: #b0346c;
+  --color-cyan-800: #852a55; --color-cyan-900: #5e1f40; --color-cyan-950: #361226;
+  --color-sky-400: #ff8fb8; --color-sky-500: #ff6aa8; --color-blue-400: #ffb36b; --color-blue-500: #ffa040;
+}
+/* ---- CRT: P1 yellow-green terminal on black (also the Matrix HUD colour in EO) ---- */
+html[data-sensor='crt'],
+html[data-hud='matrix']:not([data-sensor='flir']):not([data-sensor='nvg']) {
+  --sb-accent: #c2ff3a; --sb-accent-rgb: 194, 255, 58;
+  --sb-accent2: #6fd61f; --sb-accent2-rgb: 111, 214, 31;
+  --sb-accent-soft: #cfff94; --sb-line-rgb: 150, 230, 60;
+  --sb-glass-hi: 12, 22, 4; --sb-glass: 3, 7, 1; --sb-sheen: 200, 255, 150; --sb-bg-rgb: 1, 3, 0;
+  --sb-ink: #ecffd6;
+  --background: #010300; --bg-primary: #020600; --bg-secondary: #020500; --bg-tertiary: #081203;
+  --border-primary: rgba(150, 230, 60, 0.22); --border-secondary: rgba(150, 230, 60, 0.38);
+  --text-primary: #e0ffc4; --text-secondary: #a8ff3e; --text-muted: #8fb36a; --text-heading: #f0ffe0;
+  --color-cyan-50: #f6ffe9; --color-cyan-100: #e8ffc9; --color-cyan-200: #cfff94; --color-cyan-300: #b9ff66;
+  --color-cyan-400: #c2ff3a; --color-cyan-500: #9ee61f; --color-cyan-600: #6abf14; --color-cyan-700: #4f920f;
+  --color-cyan-800: #3c6e0c; --color-cyan-900: #2b4f09; --color-cyan-950: #172d04;
+  --color-sky-400: #a8ff3e; --color-sky-500: #86e61f; --color-blue-400: #b9ff66; --color-blue-500: #86e61f;
+}
+/* phosphor glow on terminal text (subtle, keeps edges sharp) */
+html[data-sensor='crt'] .hud-zone,
+html[data-sensor='nvg'] .hud-zone { text-shadow: 0 0 6px rgba(var(--sb-accent-rgb), 0.22); }
+/* primary buttons read dark-on-bright in every mode */
+html[data-sensor='flir'] .sb-btn-primary { color: #1a0410; }
+html[data-sensor='nvg'] .sb-btn-primary,
+html[data-sensor='crt'] .sb-btn-primary { color: #021006; }
+
+/* light optics over the map only (HUD stays crisp) */
+.sb-sensor-fx { opacity: 0; transition: opacity 0.35s ease; }
+html[data-sensor='flir'] .sb-sensor-fx,
+html[data-sensor='nvg'] .sb-sensor-fx,
+html[data-sensor='crt'] .sb-sensor-fx { opacity: 1; }
+html[data-sensor='flir'] .sb-sensor-fx {
+  background:
+    linear-gradient(rgba(255, 180, 120, 0.3), rgba(255, 180, 120, 0.3)) center / 1px 38px no-repeat,
+    linear-gradient(rgba(255, 180, 120, 0.3), rgba(255, 180, 120, 0.3)) center / 38px 1px no-repeat,
+    radial-gradient(ellipse 120% 95% at 50% 50%, transparent 58%, rgba(14, 2, 16, 0.55) 100%);
+}
+html[data-sensor='nvg'] .sb-sensor-fx {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.55  0 0 0 0 1  0 0 0 0 0.6  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    radial-gradient(ellipse 105% 100% at 50% 50%, transparent 54%, rgba(0, 14, 4, 0.7) 100%);
+}
+html[data-sensor='crt'] .sb-sensor-fx {
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.34) 0 1px, transparent 1px 2px),
+    radial-gradient(ellipse 100% 92% at 50% 50%, transparent 48%, rgba(0, 6, 1, 0.85) 100%);
+  box-shadow: inset 0 0 160px rgba(40, 255, 100, 0.08), inset 0 0 0 1px rgba(40, 255, 100, 0.05);
+}
+html[data-sensor='flir'] .sb-mode-label { color: #ffa040; text-shadow: 0 0 18px rgba(255, 120, 60, 0.4); }
+html[data-sensor='nvg'] .sb-mode-label { color: #9dffb1; text-shadow: 0 0 18px rgba(60, 255, 120, 0.4); }
+html[data-sensor='crt'] .sb-mode-label { color: #a8ff3e; text-shadow: 0 0 18px rgba(150, 255, 60, 0.45); }
+.sb-sensor-tile { min-height: 64px; }
+@media (prefers-reduced-motion: reduce) { .sb-sensor-fx { transition: none; } }
+
+/* sensor modes also re-tint the decorative accent families (violet/purple/blue/sky/indigo/teal);
+   red, amber, yellow, orange and green keep their semantic meaning */
+html[data-sensor='flir'] {
+  --color-violet-300: #ffb3cf; --color-violet-400: #ff8fb8; --color-violet-500: #ff6aa8; --color-violet-950: #361226;
+  --color-purple-300: #ffb3cf; --color-purple-400: #ff8fb8; --color-purple-500: #ff6aa8;
+  --color-blue-300: #ffc2d8; --color-blue-950: #361226; --color-sky-300: #ffc2d8;
+  --color-indigo-400: #ff8fb8; --color-teal-400: #ffb36b;
+}
+html[data-sensor='nvg'] {
+  --color-violet-300: #b4ffc6; --color-violet-400: #7dff9a; --color-violet-500: #3ff07a; --color-violet-950: #08321a;
+  --color-purple-300: #b4ffc6; --color-purple-400: #7dff9a; --color-purple-500: #3ff07a;
+  --color-blue-300: #b4ffc6; --color-blue-950: #08321a; --color-sky-300: #b4ffc6;
+  --color-indigo-400: #7dff9a; --color-teal-400: #7dff9a;
+}
+html[data-sensor='crt'],
+html[data-hud='matrix']:not([data-sensor='flir']):not([data-sensor='nvg']) {
+  --color-violet-300: #cfff94; --color-violet-400: #a8ff3e; --color-violet-500: #86e61f; --color-violet-950: #172d04;
+  --color-purple-300: #cfff94; --color-purple-400: #a8ff3e; --color-purple-500: #86e61f;
+  --color-blue-300: #cfff94; --color-blue-950: #172d04; --color-sky-300: #cfff94;
+  --color-indigo-400: #a8ff3e; --color-teal-400: #a8ff3e;
+}
+
+/* Display menu: opaque (it lives inside the header card, whose blur can't reach the map) */
+.sb-menu-solid {
+  background: linear-gradient(180deg, rgb(var(--sb-glass-hi)) 0%, rgb(var(--sb-glass)) 55%) !important;
+}
+
+/* scrolling HUD columns show a slim visible thumb */
+.sb-left-col.styled-scrollbar::-webkit-scrollbar-thumb,
+.sb-right-col.styled-scrollbar::-webkit-scrollbar-thumb { background: rgba(var(--sb-accent-rgb), 0.35); }
+.sb-left-col.styled-scrollbar, .sb-right-col.styled-scrollbar { scrollbar-color: rgba(var(--sb-accent-rgb), 0.35) transparent; }
+.sb-col-fade { flex-basis: 56px; margin-top: -56px; z-index: 6; background: linear-gradient(180deg, transparent, rgba(var(--sb-bg-rgb), 0.98) 70%); }
+.sb-col-fade { opacity: 0; transition: opacity 0.2s ease; }
+[data-more='true'] > .sb-col-fade { opacity: 1; }
+
+/* map scale: readable on the light basemap, solid chips so clusters never show through */
+html[data-theme='light'][data-sensor='off']:not([data-basemap='satellite']) .sb-scalebar { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.sb-scalebar button { background: rgb(var(--sb-glass)); }
+
+/* the sensor mode is a badge, not a product name */
+.sb-header-card .sb-mode-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  padding: 3px 9px 3px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--sb-accent-rgb), 0.35);
+  background: rgba(var(--sb-accent-rgb), 0.08);
+}
+.sb-header-card .sb-mode-label::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* settings drawer: full-height, anchored to the left edge */
+
+/* CRT identity: squarer terminal corners + faint scanlines across the panels too */
+html[data-sensor='crt'] { --sb-radius: 0px; }
+html[data-sensor='crt'] :is(.sb-modal, .sb-drawer, .sb-chip, .sb-chip-shape, .sb-dock, .sb-statusbar, .sb-seg, .sb-header-card, .map-popup, .sb-alert) { border-radius: 0 !important; }
+html[data-sensor='crt'] .sb-seg-btn { border-radius: 0 !important; }
+html[data-sensor='crt'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+}
+html[data-sensor='crt'] .hud-zone { text-shadow: 0 0 7px rgba(150, 255, 60, 0.3); }
+
+/* brand mark (same artwork as the website) */
+.sb-brand-mark { width: 40px; height: auto; filter: drop-shadow(0 0 12px rgba(var(--sb-accent2-rgb), 0.45)); }
+html[data-sensor='flir'] .sb-brand-mark { filter: hue-rotate(125deg) saturate(1.6) brightness(1.1) drop-shadow(0 0 10px rgba(var(--sb-accent-rgb), 0.55)); }
+html[data-sensor='nvg'] .sb-brand-mark { filter: hue-rotate(-85deg) saturate(1.4) brightness(1.15) drop-shadow(0 0 10px rgba(var(--sb-accent-rgb), 0.55)); }
+html[data-sensor='crt'] .sb-brand-mark { filter: hue-rotate(-115deg) saturate(1.5) brightness(1.1) drop-shadow(0 0 10px rgba(var(--sb-accent-rgb), 0.55)); }
+
+/* 1440p-class screens at 100% (2300–2999px): a gentle HUD scale step so 10–11px labels
+   read like ~12px; 4K (≥3000px) keeps its own 1.5x step */
+@media (min-width: 2300px) and (max-width: 2999px) {
+  .hud-zone, .sb-scalebar, .sb-ticker, .sb-alert, .sb-offline-toast, [data-sb-label] { zoom: 1.125; }
+  .sb-modal:not(.hud-zone .sb-modal), .sb-drawer { zoom: 1.2; }
+  /* zoom multiplies vh max-heights too: cap dialogs so the zoomed box still fits the screen */
+  .sb-modal:not(.hud-zone .sb-modal) { max-height: calc(90vh / 1.2) !important; }
+}
+@media (min-width: 3000px) {
+  .sb-modal:not(.hud-zone .sb-modal), .sb-drawer { zoom: 1.5; }
+  /* zoom multiplies vh max-heights too: cap dialogs so the zoomed box still fits the screen */
+  .sb-modal:not(.hud-zone .sb-modal) { max-height: calc(90vh / 1.5) !important; }
+}
+
+/* scale bar on the light basemap: dark ink */
+html[data-theme='light'][data-sensor='off']:not([data-basemap='satellite']) .sb-scalebar span:not(button span) { color: #0a2440 !important; }
+
+/* native selects open a dark OS dropdown to match the UI */
+select { color-scheme: dark; }
+
+/* sensor modes: HTML map labels follow the same blended grade as the canvas */
+html[data-sensor='flir'] [data-sb-label] { filter: url(#sb-f-flir); }
+html[data-sensor='nvg'] [data-sb-label] { filter: url(#sb-f-nvg); }
+html[data-sensor='crt'] [data-sb-label] { filter: url(#sb-f-crt); }
+
+/* Matrix HUD (EO): logo and subtitle follow the green chrome */
+html[data-hud='matrix'][data-sensor='off'] .sb-brand-mark,
+html[data-hud='matrix']:not([data-sensor]) .sb-brand-mark { filter: hue-rotate(-115deg) saturate(1.5) brightness(1.1) drop-shadow(0 0 10px rgba(var(--sb-accent-rgb), 0.55)); }
+.sb-wordmark-sub { color: color-mix(in srgb, var(--text-muted) 80%, var(--sb-ink)); }
+
+/* satellite imagery is far brighter than the vector map: compress it harder under sensor modes */
+html[data-basemap='satellite'][data-sensor='nvg'] .maplibregl-canvas { filter: url(#sb-f-nvg) saturate(0.75) contrast(1.1); }
+html[data-basemap='satellite'][data-sensor='crt'] .maplibregl-canvas { filter: url(#sb-f-crt) saturate(0.85) contrast(1.2); }
+html[data-basemap='satellite'][data-sensor='flir'] .maplibregl-canvas { filter: url(#sb-f-flir-sat) contrast(1.08); }
+
+/* CRT: square terminal corners on every control, not just the panels (pills/switches keep round) */
+/* CRT is a square-pixel terminal: every HUD surface, control and pill goes square (status dots excepted) */
+html[data-sensor='crt'] :is(.hud-zone, .sb-left-col, .sb-right-col, .sb-dock, .sb-modal, .sb-drawer, .sb-scalebar) :is(button, input, select, textarea, span, div, a, img, label):not([class*='dot']) { border-radius: 0 !important; }
+/* CRT: inline-styled radii too (legend icon tiles, map label plates), but status dots stay round */
+html[data-sensor='crt'] :is(.hud-zone, .sb-modal, .sb-drawer, [data-sb-label]) [style*='border-radius']:not([class*='dot']),
+html[data-sensor='crt'] [data-sb-label][style*='border-radius'] { border-radius: 0 !important; }
+html[data-sensor='crt'] :is(.sb-edge-tab, .sb-icon-btn, .sb-chip, .sb-btn-primary, .sb-mode-label, .sb-panel) { border-radius: 0 !important; }
+html[data-sensor='crt'] body::after { background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px); }
+
+/* 5 light basemap: the scale gets a soft light chip so bar + label read on pale land */
+html[data-theme='light'][data-sensor='off']:not([data-basemap='satellite']) .sb-scalebar { background: rgba(255, 255, 255, 0.72); border-radius: 9px; padding: 4px 8px; }
+html[data-theme='light'][data-sensor='off']:not([data-basemap='satellite']) .sb-scalebar [class*='bg-cyan-400'] { background-color: #0a5a8a !important; }
+
+/* 2 Data Layers rows never squeeze: tighter tracking on laptop widths */
+@media (max-width: 1599px) {
+  .sb-left-col button[aria-expanded] > span { letter-spacing: 0.08em; }
+  .sb-left-col button[aria-expanded] > span + span { font-size: 11px; }
+}
+
+/* laptop widths: layer group names never truncate */
+@media (max-width: 1599px) {
+  .sb-left-col button[aria-expanded] > span.truncate { font-size: 12px; }
+}
+/* the scale bar's end handle is a slim tick, not a slider knob */
+.sb-scalebar .cursor-ew-resize { width: 3px !important; border-radius: 1px !important; }
+
+/* short screens (~720px): tighten the left column's rhythm so it fits without scrolling */
+@media (max-height: 780px) {
+  .sb-left-col { gap: 0.4rem; }
+  .sb-left-col .sb-header-card { margin-bottom: 0.4rem; }
+}
+
+/* CRT: Tailwind's !rounded-* utilities are layered !important, which beats unlayered
+   !important; an important rule in an earlier layer (base) wins over them */
+@layer base {
+  html[data-sensor='crt'] [class*='!rounded']:not([class*='dot']) { border-radius: 0 !important; }
 }

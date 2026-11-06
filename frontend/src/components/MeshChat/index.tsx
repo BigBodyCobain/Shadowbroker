@@ -526,7 +526,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
   return (
     <div
       onClick={handlePanelClick}
-      className={`pointer-events-auto flex flex-col ${expanded ? 'flex-1 min-h-[300px]' : 'flex-shrink-0'}`}
+      className={`pointer-events-auto flex flex-col ${expanded ? 'flex-1 min-h-[236px]' : 'flex-shrink-0'}`}
     >
       {panelFlyout && panelDockHeight > 0 && (
         <div aria-hidden className="pointer-events-none shrink-0" style={{ height: panelDockHeight }} />
@@ -535,13 +535,13 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
       {/* Single unified box — matches Data Layers panel skin */}
       <div
         ref={panelBoxRef}
-        className={`bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 flex flex-col relative overflow-hidden ${
+        className={`sb-panel flex flex-col relative overflow-hidden ${
           panelFlyout ? 'z-[210] shadow-[0_0_28px_rgba(8,145,178,0.14)]' : ''
         }`}
         style={{
           boxShadow: panelFlyout
             ? undefined
-            : '0 0 15px rgba(8,145,178,0.06), inset 0 0 20px rgba(0,0,0,0.4)',
+            : undefined,
           ...(expanded ? { flex: panelFlyout ? undefined : '1 1 0', minHeight: panelFlyout ? undefined : 0 } : {}),
           ...(panelFlyout
             ? {
@@ -569,8 +569,8 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
         >
           <div className="flex items-center gap-2">
             <Antenna size={16} className="text-cyan-400" />
-            <span className="text-[12px] text-cyan-400 font-mono tracking-widest font-bold">
-              MESHTASTIC CHAT
+            <span className="sb-title text-cyan-400">
+              COMMS
             </span>
             {totalDmNotify > 0 && (
               <span className="text-[11px] font-mono px-1.5 py-0.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center gap-1">
@@ -589,8 +589,8 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
         {/* EXPANDED BODY */}
         {expanded && (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-            {/* TAB BAR */}
-            <div className="flex border-b border-[var(--border-primary)]/50 shrink-0">
+            {/* TAB BAR — segmented control */}
+            <div className="sb-seg flex items-center gap-1 shrink-0" role="tablist" aria-label="Chat mode">
               {[
                 {
                   key: 'dms' as Tab,
@@ -610,14 +610,23 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                       setActiveTab(tab.key);
                     }
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[12px] font-mono tracking-wider transition-colors ${
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  className={`sb-seg-btn flex-auto px-2 flex items-center justify-center gap-1.5 text-[11px] font-mono tracking-[0.06em] transition-colors ${
                     activeTab === tab.key
-                      ? 'text-cyan-300 bg-cyan-950/50 font-bold border-b border-cyan-500/50'
-                      : 'text-[var(--text-muted)] hover:text-cyan-600 border-b border-cyan-900/20'
+                      ? 'is-active text-cyan-200 font-bold'
+                      : 'text-[var(--text-muted)] hover:text-cyan-300'
                   }`}
                 >
-                  {tab.icon}
-                  {tab.label}
+                  <span className="sb-seg-icon">{tab.icon}</span>
+                  {tab.key === 'meshtastic' ? (
+                    <>
+                      <span className="sb-label-long">{tab.label}</span>
+                      <span className="sb-label-short">MESH</span>
+                    </>
+                  ) : (
+                    <span>{tab.label}</span>
+                  )}
                   {tab.badge > 0 && (
                     <span className="ml-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 animate-[blink_1s_step-end_infinite]" />
                   )}
@@ -628,8 +637,9 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                   setIdentityWizardStatus(null);
                   setIdentityWizardOpen(true);
                 }}
-                className="px-3 flex items-center justify-center border-b border-cyan-900/20 text-[var(--text-muted)] hover:text-cyan-400 hover:bg-cyan-950/30 transition-colors"
+                className="sb-seg-btn shrink-0 w-8 flex items-center justify-center text-[var(--text-muted)] hover:text-cyan-300 transition-colors"
                 title="Identity and OPSEC setup"
+                aria-label="Identity and OPSEC setup"
               >
                 <UserPlus size={11} />
               </button>
@@ -802,7 +812,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                       </button>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto styled-scrollbar px-3 py-1.5 border-l-2 border-cyan-800/25">
+                  <div className="flex-1 overflow-y-auto styled-scrollbar sb-scroll-fade px-3 py-1.5 border-l-2 border-cyan-800/25">
                     {meshView === 'message' && (
                       <div className="space-y-2 py-1 text-[11px] font-mono">
                         <div className="border border-green-700/35 bg-green-950/10 p-2">
@@ -1333,7 +1343,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
 
       {identityWizardOpen && (
         <div className="fixed inset-0 z-[450] bg-black/75 backdrop-blur-sm p-3 flex items-center justify-center">
-          <div className="w-full max-w-md border border-cyan-800/50 bg-[var(--bg-primary)] shadow-[0_0_30px_rgba(0,255,255,0.08)]">
+          <div className="w-full max-w-md sb-panel sb-modal">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]/40">
                 <div>
                 <div className="text-sm font-mono tracking-[0.24em] text-cyan-400">KEY SETUP</div>
@@ -1474,7 +1484,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
 
       {infonetUnlockOpen && (
         <div className="fixed inset-0 z-[460] bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center">
-          <div className="w-full max-w-xl border border-cyan-800/50 bg-[var(--bg-primary)] shadow-[0_0_34px_rgba(0,255,255,0.1)]">
+          <div className="w-full max-w-xl sb-panel sb-modal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)]/40">
               <div>
                 <div className="text-sm font-mono tracking-[0.24em] text-cyan-400">
@@ -1551,7 +1561,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
 
       {deadDropUnlockOpen && (
         <div className="fixed inset-0 z-[460] bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center">
-          <div className="w-full max-w-lg border border-cyan-800/50 bg-[var(--bg-primary)] shadow-[0_0_34px_rgba(0,255,255,0.1)]">
+          <div className="w-full max-w-lg sb-panel sb-modal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-primary)]/40">
               <div>
                 <div className="text-sm font-mono tracking-[0.24em] text-cyan-400">

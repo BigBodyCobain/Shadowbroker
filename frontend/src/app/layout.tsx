@@ -15,6 +15,23 @@ const jetBrainsMono = localFont({
   variable: '--font-jetbrains-mono',
 });
 
+// Website type system: Chakra Petch for display headings, Inter for body copy.
+const chakraPetch = localFont({
+  src: [
+    { path: './fonts/chakra-petch-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/chakra-petch-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/chakra-petch-latin-700-normal.woff2', weight: '700', style: 'normal' },
+  ],
+  display: 'swap',
+  variable: '--font-chakra',
+});
+
+const inter = localFont({
+  src: [{ path: './fonts/inter-latin-wght-normal.woff2', weight: '100 900', style: 'normal' }],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
 export const metadata: Metadata = {
   title: 'WORLDVIEW // ORBITAL TRACKING',
   description: 'Advanced Geopolitical Risk Dashboard',
@@ -33,7 +50,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${jetBrainsMono.variable} antialiased bg-[var(--bg-primary)]`} suppressHydrationWarning>
+      <body className={`${jetBrainsMono.variable} ${chakraPetch.variable} ${inter.variable} antialiased bg-[var(--bg-primary)]`} suppressHydrationWarning>
         <I18nProvider>
           <ThemeProvider>
             <MotionRoot>

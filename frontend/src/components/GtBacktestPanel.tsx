@@ -114,7 +114,7 @@ export default function GtBacktestPanel({ layerEnabled = false, embedded = false
 
   const shellClass = embedded
     ? 'pointer-events-auto flex-shrink-0 border-b border-amber-800/30 bg-black/70'
-    : 'pointer-events-auto flex-shrink-0 border border-amber-700/40 bg-black/75 backdrop-blur-sm shadow-[0_0_18px_rgba(245,158,11,0.10)]';
+    : 'pointer-events-auto flex-shrink-0 sb-panel';
 
   return (
     <div className={shellClass}>
@@ -124,7 +124,7 @@ export default function GtBacktestPanel({ layerEnabled = false, embedded = false
       >
         <div className="flex items-center gap-2">
           <Radar size={16} className="text-amber-400" />
-          <span className="text-[12px] font-mono font-bold tracking-widest text-amber-400">
+          <span className="sb-title text-amber-400">
             {t('gtBacktest.title').toUpperCase()}
           </span>
           {showCollectingBadge && (
@@ -318,7 +318,7 @@ export default function GtBacktestPanel({ layerEnabled = false, embedded = false
                                 className="text-[10px] font-mono text-amber-200/85 flex items-center gap-1.5"
                               >
                                 {row.ignition && (
-                                  <span className="text-orange-400 border border-orange-700/40 px-1 text-[9px]">
+                                  <span className="text-orange-400 border border-orange-700/40 px-1 text-[10px]">
                                     {t('gtBacktest.microIgnitionBadge')}
                                   </span>
                                 )}

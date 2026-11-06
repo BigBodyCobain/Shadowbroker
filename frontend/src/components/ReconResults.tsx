@@ -81,7 +81,7 @@ function DossierRow({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[9px] font-mono tracking-[0.22em] text-cyan-500/80 pt-2 pb-0.5">
+    <div className="text-[10px] font-mono tracking-[0.22em] text-cyan-500/80 pt-2 pb-0.5">
       {children}
     </div>
   );
@@ -292,7 +292,7 @@ function ThreatsDossier({ data }: { data: Record<string, unknown> }) {
         <div key={i} className="border-b border-cyan-900/25 py-1 last:border-0">
           <div className="text-[10px] font-mono text-cyan-300 leading-snug">{fmt(pulse.name)}</div>
           {pulse.adversary ? (
-            <div className="text-[9px] font-mono text-cyan-600 mt-0.5">{fmt(pulse.adversary)}</div>
+            <div className="text-[10px] font-mono text-cyan-600 mt-0.5">{fmt(pulse.adversary)}</div>
           ) : null}
         </div>
       ))}

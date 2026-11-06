@@ -89,7 +89,7 @@ export default function WatchlistWidget({
                     >
                       {item.name}
                     </div>
-                    <div className="text-[9px] font-mono text-[var(--text-muted)] tracking-wider uppercase">
+                    <div className="text-[10px] font-mono text-[var(--text-muted)] tracking-wider uppercase">
                       {item.type}
                       {item.altitude != null && ` · ${Math.round(item.altitude).toLocaleString()} ft`}
                       {item.speed != null && ` · ${Math.round(item.speed)} kts`}

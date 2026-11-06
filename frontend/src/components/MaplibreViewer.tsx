@@ -16,9 +16,19 @@ import Map, {
   AttributionControl,
 } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { createPortal } from 'react-dom';
+
+/** One consistent, local-time format for feed timestamps (sources mix GMT / +0000 / ISO). */
+function formatDossierTime(raw: unknown): string {
+  const text = String(raw ?? '');
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return text;
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 import { computeNightPolygon } from '@/utils/solarTerminator';
 import {
   buildBasemapStyle,
+  applyBasemapPalette,
   CARTO_ATTRIBUTION_HTML,
   OPENFREEMAP_ATTRIBUTION_HTML,
   OSM_ATTRIBUTION_HTML,
@@ -171,6 +181,7 @@ import {
   UavLabels,
   EarthquakeLabels,
   ThreatMarkers,
+  LabelDeclutter,
   TelegramOsintMarkers,
 } from '@/components/map/MapMarkers';
 import type { DashboardData, Flight, KiwiSDR, MaplibreViewerProps, Scanner, Ship, SigintSignal } from '@/types/dashboard';
@@ -438,7 +449,12 @@ const MaplibreViewer = ({
   const mapRef = useRef<MapRef>(null);
   const mapInitRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
-  const { theme } = useTheme();
+  const { theme: uiTheme, sensor } = useTheme();
+  // Sensor modes always grade the dark basemap; MAP TONE (light) applies to the EO view only.
+  const theme = sensor !== 'off' ? 'dark' : uiTheme;
+  // Sensor modes (FLIR / NVG / CRT) grade the whole map canvas with the website's optic
+  // filters (globals.css), so the basemap itself always uses the navy palette.
+  const basemapPalette = 'navy' as const;
   const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
   const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
     () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
@@ -1177,14 +1193,18 @@ const MaplibreViewer = ({
 
   // Load Images into the Map Style once loaded
   const onMapLoad = useCallback((e: { target: maplibregl.Map }) => {
+    if (theme !== 'light') applyBasemapPalette(e.target, basemapPalette);
     initializeMap(e.target);
     setMapReady(true);
-  }, [initializeMap]);
+  }, [initializeMap, theme, basemapPalette]);
 
   const onMapStyleData = useCallback((e: { target: maplibregl.Map }) => {
+    if (theme !== 'light') applyBasemapPalette(e.target, basemapPalette);
     initializeMap(e.target);
     setMapReady(true);
-  }, [initializeMap]);
+  }, [initializeMap, theme, basemapPalette]);
+
+
 
   useEffect(() => {
     const map = mapRef.current?.getMap();
@@ -1941,6 +1961,18 @@ const MaplibreViewer = ({
   useImperativeSource(mapForHook, 'sar-anomalies', sarAnomaliesGeoJSON, 120);
   // Remaining reactive sources → imperative (avoids React reconciling FeatureCollections)
   useImperativeSource(mapForHook, 'night-overlay', nightGeoJSON, 250);
+  // Twilight feather: the terminator line alone (no polygon closing edges), drawn wide and
+  // blurred over the night fill's hard edge so day fades into night instead of a seam.
+  const terminatorLine = useMemo<GeoJSON.FeatureCollection>(() => {
+    const poly = nightGeoJSON.features[0]?.geometry;
+    const ring = poly && poly.type === 'Polygon' ? poly.coordinates[0] : [];
+    const line = ring.filter(([lng, lat]) => Math.abs(lat) < 84.9 && Math.abs(lng) <= 180).slice(0, 361);
+    return {
+      type: 'FeatureCollection',
+      features: line.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }] : [],
+    };
+  }, [nightGeoJSON]);
+  useImperativeSource(mapForHook, 'night-twilight', terminatorLine, 250);
   useImperativeSource(mapForHook, 'frontlines', frontlineGeoJSON, 200);
   useImperativeSource(mapForHook, 'earthquakes', earthquakesGeoJSON, 100);
   useImperativeSource(mapForHook, 'gps-jamming', jammingGeoJSON, 150);
@@ -2113,6 +2145,12 @@ const MaplibreViewer = ({
             '<a href="https://github.com/BigBodyCobain/Shadowbroker/blob/main/DATA-ATTRIBUTION.md" target="_blank" rel="noopener">full sources</a>',
           ]}
         />
+        {/* Imagery anchor: an empty layer added before every data layer. Raster imagery
+            (satellite / GIBS / Sentinel) is inserted *below* it, so imagery never paints over
+            aircraft, ships, clusters or any other data layer that mounts later. */}
+        <Source id="sb-imagery-anchor" type="geojson" data={EMPTY_FC}>
+          <Layer id="sb-imagery-anchor" type="circle" paint={{ 'circle-radius': 0, 'circle-opacity': 0 }} />
+        </Source>
         {/* Esri World Imagery — high-res static satellite (zoom 0-18+) */}
         {activeLayers.highres_satellite && (
           <Source
@@ -2127,10 +2165,16 @@ const MaplibreViewer = ({
           >
             <Layer
               id="esri-world-imagery-layer"
+              beforeId="sb-imagery-anchor"
               type="raster"
               paint={{
                 'raster-opacity': 1,
                 'raster-fade-duration': 300,
+                // sensor modes dim the imagery itself so aircraft/ships stay brighter than the ground
+                // NVG gain blooms bright ground (ice, desert) into flat mint, so it gets the hardest roll-off
+                'raster-brightness-max': sensor === 'off' ? 1 : sensor === 'flir' ? 0.62 : sensor === 'crt' ? 0.42 : 0.4,
+                'raster-saturation': sensor === 'off' ? 0 : sensor === 'nvg' ? -0.6 : -0.35,
+                'raster-contrast': sensor === 'off' ? 0 : sensor === 'crt' ? -0.05 : sensor === 'nvg' ? -0.05 : 0.12,
               }}
             />
           </Source>
@@ -2150,6 +2194,7 @@ const MaplibreViewer = ({
           >
             <Layer
               id="gibs-modis-layer"
+              beforeId="sb-imagery-anchor"
               type="raster"
               paint={{
                 'raster-opacity': gibsOpacity ?? 0.6,
@@ -2173,6 +2218,7 @@ const MaplibreViewer = ({
             >
               <Layer
                 id="viirs-nightlights-layer"
+                beforeId="sb-imagery-anchor"
                 type="raster"
                 paint={{
                   'raster-opacity': 0.9,
@@ -2196,6 +2242,7 @@ const MaplibreViewer = ({
           >
             <Layer
               id="sentinel-hub-layer"
+              beforeId="sb-imagery-anchor"
               type="raster"
               paint={{
                 'raster-opacity': sentinelOpacity ?? 0.6,
@@ -2218,6 +2265,7 @@ const MaplibreViewer = ({
           >
             <Layer
               id="esri-reference-overlay-layer"
+              beforeId="sb-imagery-anchor"
               type="raster"
               paint={{
                 'raster-opacity': imageryReferenceOverlayOpacity,
@@ -2290,8 +2338,25 @@ const MaplibreViewer = ({
               id="night-overlay-layer"
               type="fill"
               paint={{
-                'fill-color': '#0a0e1a',
-                'fill-opacity': 0.35,
+                // light tone: a faint blue dusk instead of a grey lens
+                'fill-color': theme === 'light' ? '#1d3a66' : '#0a0e1a',
+                // softer on the light basemap so the terminator isn't a hard grey slab
+                'fill-opacity': theme === 'light' ? 0.08 : 0.35,
+                'fill-antialias': true,
+              }}
+            />
+          </Source>
+        )}
+        {activeLayers.day_night && (
+          <Source id="night-twilight" type="geojson" data={EMPTY_FC}>
+            <Layer
+              id="night-twilight-layer"
+              type="line"
+              paint={{
+                'line-color': theme === 'light' ? '#1d3a66' : '#0a0e1a',
+                'line-width': ['interpolate', ['linear'], ['zoom'], 1, 180, 4, 320, 7, 460],
+                'line-blur': ['interpolate', ['linear'], ['zoom'], 1, 180, 4, 320, 7, 460],
+                'line-opacity': theme === 'light' ? 0.08 : 0.34,
               }}
             />
           </Source>
@@ -4045,7 +4110,8 @@ const MaplibreViewer = ({
             paint={{
               'circle-opacity': opacityFilter,
               'circle-stroke-opacity': opacityFilter,
-              'circle-color': 'rgba(30, 64, 175, 0.85)',
+              // brand palette: deep navy-blue fill with a cyan rim (was Tailwind indigo)
+              'circle-color': 'rgba(10, 52, 96, 0.88)',
               'circle-radius': [
                 'step',
                 ['get', 'point_count'],
@@ -4059,8 +4125,8 @@ const MaplibreViewer = ({
                 5000,
                 30,
               ],
-              'circle-stroke-width': 2,
-              'circle-stroke-color': 'rgba(59, 130, 246, 1.0)',
+              'circle-stroke-width': 1.75,
+              'circle-stroke-color': 'rgba(69, 216, 255, 0.95)',
             }}
           />
 
@@ -4616,6 +4682,9 @@ const MaplibreViewer = ({
           <EarthquakeLabels earthquakes={data.earthquakes} inView={inView} />
         )}
 
+        {/* one cross-layer pass that keeps callouts and labels from printing over each other */}
+        <LabelDeclutter />
+
         {/* Maplibre HTML Custom Markers for high-importance Threat Overlays (highest z-index) */}
         {activeLayers.global_incidents && !isMapInteracting && (
           <ThreatMarkers
@@ -4814,7 +4883,7 @@ const MaplibreViewer = ({
                   )}
                   {props.source_url && (
                     <div className="mt-1.5 pt-1.5 border-t border-[var(--border-primary)]">
-                      <a href={props.source_url} target="_blank" rel="noreferrer" className="text-[9px] font-bold underline" style={{ color: accent }}>View Source</a>
+                      <a href={props.source_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold underline" style={{ color: accent }}>View Source</a>
                     </div>
                   )}
                   <div className="mt-1.5 text-[11px] tracking-wider" style={{ color: `${accent}88` }}>
@@ -5043,7 +5112,7 @@ const MaplibreViewer = ({
                         }
                         onEntityClick?.(null);
                       }}
-                      className="flex-1 text-center px-2 py-1.5 rounded bg-amber-950/40 border border-amber-500/30 hover:bg-amber-900/60 hover:border-amber-400 text-amber-400 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
+                      className="flex-1 text-center px-2 py-1.5 rounded bg-amber-950/40 border border-amber-500/30 hover:bg-amber-900/60 hover:border-amber-400 text-amber-400 text-[10px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
                     >
                       <Activity size={10} /> TRACK
                     </button>
@@ -5066,7 +5135,7 @@ const MaplibreViewer = ({
                           }
                           onEntityClick?.(null);
                         }}
-                        className="flex-1 text-center px-2 py-1.5 rounded bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30 hover:border-amber-400 text-amber-300 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
+                        className="flex-1 text-center px-2 py-1.5 rounded bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30 hover:border-amber-400 text-amber-300 text-[10px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
                       >
                         <Play size={10} /> TUNE IN
                       </button>
@@ -5276,7 +5345,7 @@ const MaplibreViewer = ({
                         }
                         onEntityClick?.(null);
                       }}
-                      className="flex-1 text-center px-2 py-1.5 rounded bg-red-950/40 border border-red-500/30 hover:bg-red-900/60 hover:border-red-400 text-red-400 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
+                      className="flex-1 text-center px-2 py-1.5 rounded bg-red-950/40 border border-red-500/30 hover:bg-red-900/60 hover:border-red-400 text-red-400 text-[10px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
                     >
                       <Activity size={10} /> TRACK
                     </button>
@@ -5298,7 +5367,7 @@ const MaplibreViewer = ({
                         }
                         onEntityClick?.(null);
                       }}
-                      className="flex-1 text-center px-2 py-1.5 rounded bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 hover:border-red-400 text-red-300 text-[9px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
+                      className="flex-1 text-center px-2 py-1.5 rounded bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 hover:border-red-400 text-red-300 text-[10px] font-mono tracking-widest transition-colors flex justify-center items-center gap-1.5"
                     >
                       <Play size={10} /> OPEN PLAYER
                     </button>
@@ -5589,7 +5658,7 @@ const MaplibreViewer = ({
                       {outagesInCountry.map((o) => `${o.region_name} (${o.severity}%)`).join(', ')}
                     </div>
                   )}
-                  <div className="mt-1.5 text-[9px] text-violet-600 tracking-wider">
+                  <div className="mt-1.5 text-[10px] text-violet-600 tracking-wider">
                     DATA CENTER
                   </div>
                 </div>
@@ -5635,7 +5704,7 @@ const MaplibreViewer = ({
                                 Country: <span className="text-white">{pp.country}</span>
                             </div>
                         )}
-                        <div className="mt-1.5 text-[9px] text-amber-600 tracking-wider">
+                        <div className="mt-1.5 text-[10px] text-amber-600 tracking-wider">
                             POWER PLANT
                         </div>
                     </div>
@@ -5675,7 +5744,7 @@ const MaplibreViewer = ({
                         <div className="map-popup-row">
                             Severity: <span className="text-white uppercase">{node.severity.replace('_', ' ')}</span>
                         </div>
-                        <div className="mt-1.5 text-[9px] text-cyan-600 tracking-wider">
+                        <div className="mt-1.5 text-[10px] text-cyan-600 tracking-wider">
                             {isLoss ? 'LIGHTS WENT DARK' : 'LIGHTS INCREASED'}
                         </div>
                     </div>
@@ -5721,7 +5790,7 @@ const MaplibreViewer = ({
                   <div className="map-popup-row">Oblast: <span className="text-white">{alert.location_title}</span></div>
                   {started && <div className="map-popup-row">Since: <span className="text-white">{started.toLocaleTimeString()}</span></div>}
                   {durationStr && <div className="map-popup-row">Duration: <span style={{ color: accent }}>{durationStr}</span></div>}
-                  <div className="mt-1.5 text-[9px] tracking-wider text-gray-500">UKRAINE AIR RAID — ALERTS.IN.UA</div>
+                  <div className="mt-1.5 text-[10px] tracking-wider text-gray-500">UKRAINE AIR RAID — ALERTS.IN.UA</div>
                 </div>
               </Popup>
             );
@@ -5746,7 +5815,7 @@ const MaplibreViewer = ({
                   <div className="map-popup-row text-white text-[10px] leading-snug">{alert.headline}</div>
                   <div className="map-popup-row">Severity: <span style={{ color: accent }}>{alert.severity}</span></div>
                   {alert.expires && <div className="map-popup-row">Expires: <span className="text-white">{new Date(alert.expires).toLocaleString()}</span></div>}
-                  <div className="mt-1 text-[9px] text-gray-400 leading-snug max-h-[60px] overflow-hidden">{alert.description}</div>
+                  <div className="mt-1 text-[10px] text-gray-400 leading-snug max-h-[60px] overflow-hidden">{alert.description}</div>
                 </div>
               </Popup>
             );
@@ -5769,7 +5838,7 @@ const MaplibreViewer = ({
                   <div className="map-popup-row">AQI: <span style={{ color: accent, fontWeight: 'bold' }}>{station.aqi}</span> <span className="text-gray-400">({label})</span></div>
                   <div className="map-popup-row">PM2.5: <span className="text-white">{station.pm25} µg/m³</span></div>
                   {station.country && <div className="map-popup-row">Country: <span className="text-white">{station.country}</span></div>}
-                  <div className="mt-1.5 text-[9px] tracking-wider text-gray-500">AIR QUALITY — OPENAQ</div>
+                  <div className="mt-1.5 text-[10px] tracking-wider text-gray-500">AIR QUALITY — OPENAQ</div>
                 </div>
               </Popup>
             );
@@ -5827,7 +5896,7 @@ const MaplibreViewer = ({
                       </div>
                     </div>
                   )}
-                  <div className="mt-1.5 text-[9px] tracking-wider" style={{ color: `${accent}99` }}>
+                  <div className="mt-1.5 text-[10px] tracking-wider" style={{ color: `${accent}99` }}>
                     SEISMIC — USGS
                   </div>
                 </div>
@@ -5855,7 +5924,7 @@ const MaplibreViewer = ({
                   {volcano.region && <div className="map-popup-row">Region: <span className="text-white">{volcano.region}</span></div>}
                   <div className="map-popup-row">Elevation: <span className="text-white">{volcano.elevation?.toLocaleString()}m</span></div>
                   <div className="map-popup-row">Last Eruption: <span className="text-white">{volcano.last_eruption_year || 'Unknown'}</span></div>
-                  <div className="mt-1.5 text-[9px] tracking-wider" style={{ color: `${accent}99` }}>
+                  <div className="mt-1.5 text-[10px] tracking-wider" style={{ color: `${accent}99` }}>
                     VOLCANO — SMITHSONIAN GVP
                   </div>
                 </div>
@@ -6144,30 +6213,30 @@ const MaplibreViewer = ({
                       </span>
                     </div>
                     {item.description && (
-                      <div className="text-[9px] text-white/70 leading-relaxed border-b border-[var(--border-primary)] pb-1.5">
+                      <div className="text-[10px] text-white/70 leading-relaxed border-b border-[var(--border-primary)] pb-1.5">
                         {item.description}
                       </div>
                     )}
                     <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
-                      <span className="text-[var(--text-muted)] text-[9px]">REGION</span>
-                      <span className="text-white text-[9px] font-bold">{item.region || 'Unknown'}</span>
+                      <span className="text-[var(--text-muted)] text-[10px]">REGION</span>
+                      <span className="text-white text-[10px] font-bold">{item.region || 'Unknown'}</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
-                      <span className="text-[var(--text-muted)] text-[9px]">TIME</span>
-                      <span className="text-white text-[9px] font-bold">
+                      <span className="text-[var(--text-muted)] text-[10px]">TIME</span>
+                      <span className="text-white text-[10px] font-bold">
                         {item.date || (item.timestamp ? new Date(Number(item.timestamp) * 1000).toLocaleString() : 'UNKNOWN')}
                       </span>
                     </div>
                     {item.category && (
                       <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
-                        <span className="text-[var(--text-muted)] text-[9px]">TYPE</span>
-                        <span className="text-yellow-300 text-[9px] font-bold">{item.category}</span>
+                        <span className="text-[var(--text-muted)] text-[10px]">TYPE</span>
+                        <span className="text-yellow-300 text-[10px] font-bold">{item.category}</span>
                       </div>
                     )}
                     {item.source && (
                       <div className="flex justify-between items-center border-b border-[var(--border-primary)] pb-1">
-                        <span className="text-[var(--text-muted)] text-[9px]">SOURCE</span>
-                        <span className="text-white/60 text-[9px]">{item.source}</span>
+                        <span className="text-[var(--text-muted)] text-[10px]">SOURCE</span>
+                        <span className="text-white/60 text-[10px]">{item.source}</span>
                       </div>
                     )}
                     {item.link && (
@@ -6176,7 +6245,7 @@ const MaplibreViewer = ({
                           href={item.link}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-yellow-400 hover:text-yellow-300 text-[9px] font-bold underline"
+                          className="text-yellow-400 hover:text-yellow-300 text-[10px] font-bold underline"
                         >
                           View Source Report
                         </a>
@@ -6230,25 +6299,31 @@ const MaplibreViewer = ({
 
           const sent = item.sentiment as number | undefined;
           const oScore = item.oracle_score as number | undefined;
-          const oTier = oScore != null ? (oScore >= 8 ? 'CRITICAL' : oScore >= 6 ? 'ELEVATED' : oScore >= 4 ? 'MODERATE' : 'LOW') : null;
-          const oTierColor = oScore != null ? (oScore >= 8 ? 'text-red-400' : oScore >= 6 ? 'text-orange-400' : oScore >= 4 ? 'text-yellow-400' : 'text-green-400') : '';
-          const oTierBg = oScore != null ? (oScore >= 8 ? 'bg-red-500/10 border-red-500/30' : oScore >= 6 ? 'bg-orange-500/10 border-orange-500/30' : oScore >= 4 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30') : '';
+          // Same tiers as the backend's machine assessment (oracle_service._build_assessment).
+          const oTier = oScore != null ? (oScore >= 7 ? 'CRITICAL' : oScore >= 4 ? 'ELEVATED' : 'ROUTINE') : null;
+          const oTierColor = oScore != null ? (oScore >= 7 ? 'text-red-400' : oScore >= 4 ? 'text-yellow-400' : 'text-cyan-300') : ''; // routine = neutral cyan, not an all-clear green
+          const oTierBg = oScore != null ? (oScore >= 7 ? 'bg-red-500/10 border-red-500/30' : oScore >= 4 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-cyan-500/10 border-cyan-500/30') : '';
           const sentColor = sent != null ? (sent < -0.1 ? 'text-red-400' : sent > 0.1 ? 'text-green-400' : 'text-gray-400') : '';
           const sentBg = sent != null ? (sent < -0.1 ? 'bg-red-500/10 border-red-500/30' : sent > 0.1 ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-500/10 border-gray-500/30') : '';
-          const sentArrow = sent != null ? (sent < -0.1 ? '▼' : sent > 0.1 ? '▲' : '—') : '';
+          const sentArrow = sent != null ? (sent < -0.1 ? '▼' : sent > 0.1 ? '▲' : '●') : '';
           const sentLabel = sent != null ? (sent < -0.1 ? 'NEGATIVE' : sent > 0.1 ? 'POSITIVE' : 'NEUTRAL') : '';
           const pred = item.prediction_odds as any;
-          const articles = (item.articles as any[]) || [];
-          const clusterCount = (item.cluster_count as number) || 1;
+          // the cluster's article list includes the lead story itself; show only the others
+          const articles = ((item.articles as any[]) || []).filter(
+            (a: any) => !(a?.title === item.title && (a?.source || '') === (item.source || '')),
+          );
+          const clusterCount = articles.length;
           const isBreaking = item.breaking === true;
 
-          return (
+          if (typeof document === 'undefined') return null;
+          // Portalled to <body> so it sits above the HUD columns (the map has its own stacking context).
+          return createPortal(
             <div
               style={{
                 position: 'fixed',
                 top: 0, left: 0, right: 0, bottom: 0,
                 zIndex: 9999,
-                background: 'rgba(0,0,0,0.88)',
+                background: 'rgba(2,5,11,0.8)',
                 backdropFilter: 'blur(12px)',
                 display: 'flex',
                 alignItems: 'center',
@@ -6261,11 +6336,12 @@ const MaplibreViewer = ({
               ref={(el) => el?.focus()}
             >
               <div
-                className={`bg-[#080c12] border ${borderColor} rounded-lg flex flex-col font-mono overflow-hidden`}
+                className={`sb-panel sb-modal border ${borderColor} flex flex-col font-mono overflow-hidden`}
                 style={{
-                  width: 'min(700px, calc(100vw - 40px))',
+                  borderColor: `${threatHex}99`,
+                  width: 'min(clamp(700px, 36vw, 900px), calc(100vw - 40px))',
                   maxHeight: 'calc(100vh - 80px)',
-                  boxShadow: `0 0 80px ${threatHex}33, 0 0 200px ${threatHex}11, inset 0 1px 0 rgba(255,255,255,0.05)`,
+                  boxShadow: `0 0 36px ${threatHex}26, 0 30px 90px -30px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05)`,
                 }}
               >
                 {/* ══════ HEADER ══════ */}
@@ -6275,7 +6351,7 @@ const MaplibreViewer = ({
                     <span className={`text-[14px] tracking-[0.25em] font-bold ${threatColor}`}>
                       {isBreaking ? 'BREAKING INTERCEPT' : 'THREAT INTERCEPT'}
                     </span>
-                    {isBreaking && <span className="text-[9px] bg-red-500 text-white px-2 py-0.5 rounded-sm font-bold animate-pulse">LIVE</span>}
+                    {isBreaking && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-sm font-bold animate-pulse">LIVE</span>}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className={`text-[14px] ${threatColor} font-bold ${rs >= 8 ? 'animate-pulse' : ''}`}>
@@ -6283,7 +6359,8 @@ const MaplibreViewer = ({
                     </span>
                     <button
                       onClick={() => onEntityClick?.(null)}
-                      className="text-[var(--text-secondary)] hover:text-white text-xl leading-none px-1 hover:bg-white/10 rounded transition-colors"
+                      aria-label="Close dossier"
+                      className={`${threatColor} hover:text-white text-xl leading-none px-1.5 hover:bg-white/10 rounded-lg transition-colors`}
                     >
                       ✕
                     </button>
@@ -6291,19 +6368,19 @@ const MaplibreViewer = ({
                 </div>
 
                 {/* ══════ SCROLLABLE BODY ══════ */}
-                <div className="overflow-y-auto styled-scrollbar flex flex-col flex-1">
+                <div className="overflow-y-auto styled-scrollbar sb-scroll-fade flex flex-col flex-1 min-h-0 pb-4">
 
                   {/* ── HEADLINE ── */}
                   <div className="px-5 pt-4 pb-3">
-                    <h2 className={`text-[18px] font-bold leading-snug ${threatColor}`}>
+                    <h2 className={`font-[family-name:var(--font-display)] text-[22px] font-semibold tracking-[0.01em] !leading-[1.25] [text-wrap:pretty] ${threatColor}`}>
                       {item.title}
                     </h2>
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[var(--text-muted)]">
-                      <span className="text-white font-bold text-[12px]">{item.source || 'UNKNOWN'}</span>
-                      {item.published && <span>• {item.published}</span>}
-                      {clusterCount > 1 && <span className="text-cyan-400 font-bold">• {clusterCount} SOURCES REPORTING</span>}
+                    <div className="flex items-center gap-3 mt-2.5 text-[12px] text-[var(--text-muted)]">
+                      <span className="text-white font-bold text-[12.5px]">{item.source || 'UNKNOWN'}</span>
+                      {item.published && <span>• {formatDossierTime(item.published)}</span>}
+                      {clusterCount > 0 && <span className="text-cyan-400 font-bold">• {clusterCount} RELATED {clusterCount === 1 ? 'REPORT' : 'REPORTS'}</span>}
                       {item.coords && (
-                        <span className="ml-auto text-[10px] font-mono text-[var(--text-muted)]">
+                        <span className="ml-auto text-[11.5px] font-mono text-[var(--text-muted)]">
                           {item.coords[0].toFixed(3)}°, {item.coords[1].toFixed(3)}°
                         </span>
                       )}
@@ -6314,11 +6391,11 @@ const MaplibreViewer = ({
                   <div className="px-5 pb-3">
                     <div className="grid grid-cols-3 gap-2">
                       {/* Oracle Score */}
-                      <label className={`border rounded p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${oTierBg || 'bg-black/40 border-cyan-800/30'}`}>
+                      <label className={`border rounded-xl p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${oTierBg || 'bg-black/40 border-cyan-800/30'}`}>
                         <input type="checkbox" className="peer sr-only" aria-label="Explain Oracle Score" />
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] tracking-[0.15em] mb-1.5">
+                        <div className="flex items-center justify-center gap-1 text-[11.5px] text-[var(--text-muted)] tracking-[0.14em] mb-1.5">
                           <span>ORACLE SCORE</span>
-                          <Info size={10} />
+                          <Info size={12} />
                         </div>
                         <div className={`text-[28px] font-bold leading-none ${oTierColor || 'text-gray-500'}`}>
                           {oScore != null ? oScore.toFixed(1) : '—'}
@@ -6331,14 +6408,14 @@ const MaplibreViewer = ({
                         </div>
                       </label>
                       {/* Sentiment */}
-                      <label className={`border rounded p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${sentBg || 'bg-black/40 border-cyan-800/30'}`}>
+                      <label className={`border rounded-xl p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${sentBg || 'bg-black/40 border-cyan-800/30'}`}>
                         <input type="checkbox" className="peer sr-only" aria-label="Explain Sentiment" />
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] tracking-[0.15em] mb-1.5">
+                        <div className="flex items-center justify-center gap-1 text-[11.5px] text-[var(--text-muted)] tracking-[0.14em] mb-1.5">
                           <span>SENTIMENT</span>
-                          <Info size={10} />
+                          <Info size={12} />
                         </div>
                         <div className={`text-[28px] font-bold leading-none ${sentColor || 'text-gray-500'}`}>
-                          {sent != null ? <>{sentArrow} {sent > 0 ? '+' : ''}{sent.toFixed(2)}</> : '—'}
+                          {sent != null ? <><span className={sentArrow === '●' ? 'text-[0.6em] align-middle' : ''}>{sentArrow}</span> {sent > 0 ? '+' : ''}{sent.toFixed(2)}</> : '—'}
                         </div>
                         {sentLabel && <div className={`text-[10px] font-bold ${sentColor} mt-1`}>{sentLabel}</div>}
                         <div className="hidden peer-checked:block mt-2 border-t border-white/10 pt-2 text-left text-[10px] leading-relaxed text-cyan-100">
@@ -6348,11 +6425,11 @@ const MaplibreViewer = ({
                         </div>
                       </label>
                       {/* Threat Level */}
-                      <label className={`border rounded p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${rs >= 8 ? 'bg-red-500/10 border-red-500/30' : rs >= 6 ? 'bg-orange-500/10 border-orange-500/30' : rs >= 4 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
+                      <label className={`border rounded-xl p-3 text-center transition-colors hover:border-white/40 cursor-pointer ${rs >= 8 ? 'bg-red-500/10 border-red-500/30' : rs >= 6 ? 'bg-orange-500/10 border-orange-500/30' : rs >= 4 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
                         <input type="checkbox" className="peer sr-only" aria-label="Explain Risk Level" />
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-[var(--text-muted)] tracking-[0.15em] mb-1.5">
+                        <div className="flex items-center justify-center gap-1 text-[11.5px] text-[var(--text-muted)] tracking-[0.14em] mb-1.5">
                           <span>RISK LEVEL</span>
-                          <Info size={10} />
+                          <Info size={12} />
                         </div>
                         <div className={`text-[28px] font-bold leading-none ${threatColor}`}>{rs}/10</div>
                         <div className={`text-[10px] font-bold ${threatColor} mt-1`}>
@@ -6426,22 +6503,13 @@ const MaplibreViewer = ({
                     </div>
                   )}
 
-                  {/* ── SYS.ANALYSIS ── */}
-                  {item.machine_assessment && (
-                    <div className="px-5 pb-3">
-                      <div className="p-3 bg-black/60 border border-cyan-800/50 rounded text-[11px] text-cyan-400 font-mono leading-relaxed relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-[3px] h-full bg-cyan-500 animate-pulse"></div>
-                        <span className="font-bold text-white text-[12px]">&gt;_ SYS.ANALYSIS: </span>
-                        <span className="text-cyan-300 opacity-90">{item.machine_assessment}</span>
-                      </div>
-                    </div>
-                  )}
+                  {/* SYS.ANALYSIS text omitted here: the score tiles above already show oracle tier and sentiment. */}
 
                   {/* ── CORROBORATING SOURCES ── */}
-                  {articles.length > 1 && (
+                  {articles.length > 0 && (
                     <div className="px-5 pb-3">
                       <div className="text-[10px] text-[var(--text-muted)] tracking-[0.2em] font-bold mb-2">
-                        CORROBORATING SOURCES ({articles.length})
+                        RELATED COVERAGE ({articles.length})
                       </div>
                       <div className="flex flex-col gap-1.5">
                         {articles.map((sub: any, si: number) => {
@@ -6457,43 +6525,44 @@ const MaplibreViewer = ({
                               className="flex items-start gap-3 py-2 px-3 border-l-2 border-cyan-800/40 bg-black/30 rounded-r hover:bg-cyan-950/30 transition-colors group cursor-pointer"
                             >
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 text-[10px]">
+                                <div className="flex items-center gap-2 text-[12px]">
                                   <span className="text-white font-bold">{sub.source}</span>
                                   <span className={`${subColor} font-bold`}>LVL: {subRs}/10</span>
-                                  {sub.published && <span className="text-[var(--text-muted)] text-[9px]">{sub.published}</span>}
+                                  {sub.published && <span className="text-[var(--text-muted)] text-[12px]">{formatDossierTime(sub.published)}</span>}
                                 </div>
-                                <div className="text-[11px] text-[var(--text-secondary)] leading-snug mt-0.5 group-hover:text-cyan-300 transition-colors">
+                                <div className="sb-prose text-[12.5px] text-[var(--text-primary)] !leading-snug mt-0.5 group-hover:text-cyan-200 transition-colors">
                                   {sub.title}
                                 </div>
                               </div>
-                              <span className="text-[11px] text-cyan-500 group-hover:text-cyan-300 shrink-0 mt-1">↗</span>
+                              <span className="text-[15px] leading-none text-cyan-500 group-hover:text-cyan-300 shrink-0 mt-0.5" aria-hidden="true">↗</span>
                             </div>
                           );
                         })}
                       </div>
                     </div>
                   )}
+                </div>
 
-                  {/* ── FOOTER ── */}
-                  <div className="px-5 py-3 flex justify-between items-center border-t border-[var(--border-primary)] mt-auto shrink-0">
+                  {/* ── FOOTER (outside the scroller so it is always visible) ── */}
+                  <div className="px-5 py-3 flex justify-between items-center border-t border-[var(--border-primary)] shrink-0">
                     {articleSourceUrl(item.link) ? (
                       <button
                         onClick={() => { const url = articleSourceUrl(item.link); if (url) window.open(url, '_blank', 'noopener,noreferrer'); }}
-                        className={`${threatColor} hover:text-white text-[12px] font-bold underline underline-offset-2 cursor-pointer`}
+                        className="sb-btn-primary px-4 py-2 rounded-lg text-[12.5px] font-mono font-bold tracking-[0.1em] cursor-pointer"
                       >
                         GO TO ARTICLE ↗
                       </button>
                     ) : <span />}
                     <button
                       onClick={() => onEntityClick?.(null)}
-                      className="text-[11px] text-[var(--text-muted)] hover:text-white border border-[var(--border-primary)] hover:border-white/30 px-3 py-1 rounded transition-colors"
+                      className="text-[12px] font-mono tracking-[0.1em] text-[var(--text-secondary)] hover:text-white border border-[var(--border-primary)] hover:border-white/30 px-4 py-2 rounded-lg transition-colors"
                     >
                       CLOSE DOSSIER
                     </button>
                   </div>
-                </div>
               </div>
-            </div>
+            </div>,
+            document.body,
           );
         })()}
 
@@ -6511,7 +6580,7 @@ const MaplibreViewer = ({
               {/* Pin dot */}
               <div className="w-4 h-4 rounded-full bg-emerald-500 border-2 border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.6)]" />
               {/* Label */}
-              <div className="mt-2 bg-black/80 border border-emerald-800 rounded px-2 py-1 text-[9px] font-mono text-emerald-400 tracking-widest whitespace-nowrap shadow-[0_0_10px_rgba(16,185,129,0.3)]">
+              <div className="mt-2 bg-black/80 border border-emerald-800 rounded px-2 py-1 text-[10px] font-mono text-emerald-400 tracking-widest whitespace-nowrap shadow-[0_0_10px_rgba(16,185,129,0.3)]">
                 {regionDossierLoading ? 'COMPILING...' : '▶ INTEL TARGET'}
               </div>
             </div>
@@ -6735,7 +6804,7 @@ const MaplibreViewer = ({
                     }
                   }}
                 />
-                <div className="text-[9px] text-gray-500 mb-2">
+                <div className="text-[10px] text-gray-500 mb-2">
                   {pendingPin.lat.toFixed(5)}, {pendingPin.lng.toFixed(5)}
                 </div>
                 <div className="flex gap-1.5">

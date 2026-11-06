@@ -291,7 +291,7 @@ export default function RadioInterceptPanel({
       initial={{ opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 1, delay: 0.2 }}
-      className="w-full flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 pointer-events-auto relative overflow-hidden max-h-full"
+      className="w-full flex flex-col sb-panel pointer-events-auto relative overflow-hidden max-h-full"
     >
       <div
         className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]/50 cursor-pointer hover:bg-[var(--bg-secondary)]/50 transition-colors"
@@ -322,14 +322,14 @@ export default function RadioInterceptPanel({
                   <span className="text-xs text-cyan-300 font-mono tracking-wide">
                     {activeFeed ? activeFeed.name : 'NO SIGNAL'}
                   </span>
-                  <span className="text-[9px] text-[var(--text-muted)] font-mono">
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono">
                     {activeFeed
                       ? `LOCATION: ${activeFeed.location.toUpperCase()}`
                       : 'AWAITING TUNING...'}
                   </span>
                 </div>
                 {activeFeed && (
-                  <div className="flex items-center gap-1 bg-red-950/40 border border-red-900/50 px-2 py-0.5 text-[9px] text-red-400 font-mono">
+                  <div className="flex items-center gap-1 bg-red-950/40 border border-red-900/50 px-2 py-0.5 text-[10px] text-red-400 font-mono">
                     <Activity size={10} className="animate-pulse" />
                     LIVE
                   </div>
@@ -410,7 +410,7 @@ export default function RadioInterceptPanel({
                       >
                         {feed.name}
                       </span>
-                      <span className="text-[9px] text-[var(--text-muted)] font-mono truncate">
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono truncate">
                         {feed.location} | {feed.category}
                       </span>
                     </div>
@@ -432,7 +432,7 @@ export default function RadioInterceptPanel({
             {data?.sigint && data.sigint.length > 0 && (
               <div className="border-t border-[var(--border-primary)]/40">
                 <div className="px-3 py-2 flex items-center justify-between">
-                  <span className="text-[9px] font-mono tracking-widest text-emerald-400 font-bold">
+                  <span className="text-[10px] font-mono tracking-widest text-emerald-400 font-bold">
                     SIGINT GRID
                   </span>
                   <div className="flex items-center gap-2 text-[11px] font-mono">

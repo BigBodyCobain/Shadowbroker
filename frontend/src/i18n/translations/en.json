@@ -142,7 +142,7 @@
   },
   "map": {
     "findLocate": "Find / Locate",
-    "searchPlaceholder": "Search coordinates, place, or callsign...",
+    "searchPlaceholder": "Search place, coords or callsign…",
     "measure": "Measure",
     "clearMeasure": "Clear measurement"
   },

@@ -138,7 +138,7 @@ export default function EntityGraphPanel({ entity, onClose }: Props) {
                     key={n.id}
                     className="border border-cyan-900/40 bg-black/50 px-2 py-1.5"
                   >
-                    <div className={`text-[9px] font-mono tracking-[0.2em] uppercase opacity-70 ${TYPE_COLORS[n.type] || 'text-cyan-500'}`}>
+                    <div className={`text-[10px] font-mono tracking-[0.2em] uppercase opacity-70 ${TYPE_COLORS[n.type] || 'text-cyan-500'}`}>
                       {n.type}
                     </div>
                     <div className="text-[11px] font-mono text-cyan-200 leading-snug">{n.label}</div>

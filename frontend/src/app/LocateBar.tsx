@@ -131,7 +131,7 @@ export function LocateBar({ onLocate, onOpenChange }: { onLocate: (lat: number, 
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 bg-[var(--bg-primary)]/80 border border-[var(--border-primary)] px-5 py-2 text-[11px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-800 transition-colors"
+        className="sb-chip flex items-center gap-2 px-5 py-2 text-[11px] font-mono tracking-[0.15em] text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-800 transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

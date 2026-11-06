@@ -23,12 +23,12 @@ interface PhaseVisual {
 /** Per-phase visual matrix: border / text / chip. */
 const PHASE_MATRIX: Record<VoicePhase, PhaseVisual> = {
   'opt-in-required': {
-    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] opacity-50 cursor-pointer hover:border-violet-800',
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md cursor-pointer hover:border-violet-800 hover:text-violet-200',
     chip: 'states.optInRequired',
     interactive: false,
   },
   'lean-unavailable': {
-    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] opacity-50 cursor-not-allowed',
+    buttonClass: 'border-[var(--border-primary)] text-[var(--text-muted)] bg-[rgba(var(--sb-glass),0.82)] backdrop-blur-md opacity-70 cursor-not-allowed',
     chip: 'states.leanMode',
     interactive: false,
   },
@@ -174,7 +174,7 @@ export default function VoiceMicButton() {
         title={tooltip}
         aria-label={t(`voice.micAria.${state.phase}`)}
         aria-disabled={!visual.interactive}
-        className={`flex items-center gap-2 border px-5 py-2 text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
+        className={`sb-chip-shape flex items-center gap-2 border px-5 py-2 text-[11px] font-mono tracking-[0.15em] transition-colors focus-visible:outline focus-visible:outline-violet-400 ${visual.buttonClass}`}
       >
         {/* Slash icon for opt-in-required */}
         {state.phase === 'opt-in-required' && (
@@ -224,12 +224,12 @@ export default function VoiceMicButton() {
         {visual.chip && (
           <span
             data-testid="voice-phase-chip"
-            className={`px-1 py-[1px] text-[11px] font-bold tracking-wide rounded-sm ${
+            className={`px-1.5 py-[1px] text-[10px] leading-[14px] font-bold tracking-wide rounded-md ${
               state.phase === 'error'
                 ? 'bg-red-500/20 border border-red-500/40 text-red-300'
                 : state.phase === 'quota-capped'
                   ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
-                  : 'bg-violet-500/20 border border-violet-500/40 text-violet-300'
+                  : 'bg-cyan-950/50 border border-cyan-800/60 text-cyan-300'
             }`}
           >
             {visual.chip.startsWith('states.') ? t(`voice.${visual.chip}`) : visual.chip}
@@ -249,7 +249,7 @@ export default function VoiceMicButton() {
                   ? t('voice.badge.txtTitle')
                   : t('voice.badge.noAiTitle')
             }
-            className="absolute -top-1.5 -right-1.5 px-1 text-[11px] font-mono font-bold bg-[var(--bg-primary)] border border-cyan-800/60 text-cyan-400"
+            className="px-1.5 py-[1px] rounded-md text-[10px] leading-[14px] font-mono font-bold bg-cyan-950/50 border border-cyan-800/60 text-cyan-300"
           >
             {state.providerResolved === 'local_text' || state.providerResolved === 'anthropic_text'
               ? 'TXT'

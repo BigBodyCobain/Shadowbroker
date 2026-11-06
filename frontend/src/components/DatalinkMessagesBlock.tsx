@@ -44,7 +44,7 @@ function DatalinkMessageRow({ message }: { message: DatalinkMessage }) {
         </button>
       ) : null}
       {showRawBlock && raw ? (
-        <div className="mt-0.5 text-[var(--text-muted)] whitespace-pre-wrap break-words text-[9px] leading-relaxed max-h-24 overflow-y-auto">
+        <div className="mt-0.5 text-[var(--text-muted)] whitespace-pre-wrap break-words text-[10px] leading-relaxed max-h-24 overflow-y-auto">
           {raw}
         </div>
       ) : null}
@@ -208,7 +208,7 @@ export default function DatalinkMessagesBlock({
         ))}
       </div>
       {hiddenCount > 0 ? (
-        <p className="text-[9px] font-mono text-[var(--text-muted)] mt-1">
+        <p className="text-[10px] font-mono text-[var(--text-muted)] mt-1">
           {hiddenCount} binary/fragment message{hiddenCount === 1 ? '' : 's'} hidden.{' '}
           <button
             type="button"
