@@ -20,6 +20,12 @@ export function AisUpstreamBanner({ onOpenApiKeys }: AisUpstreamBannerProps = {}
     return null;
   }
 
+  // Every ship layer is off, so the stream is stopped on purpose. Don't blame
+  // AISStream or push an AISHub signup for a state the operator chose.
+  if (!health.shipLayersActive) {
+    return null;
+  }
+
   // Format the staleness for the operator. ``null`` means we never received
   // anything since startup; otherwise show minutes if > 60s.
   let stalenessLabel = 'never received';

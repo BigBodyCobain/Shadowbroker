@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "source": "frontend/src/lib/clientTools.ts",
+  "note": "Single source of truth for voice-agent client-surface tool descriptors (voice-agent plan U3, §3.3). Regenerated from the marker-delimited TS descriptor block in clientTools.ts by backend/tests/test_voice_tool_registry.py::test_client_fixture_matches_ts_descriptor_block (drift guard #12) — update both together.",
+  "tools": [
+    {
+      "name": "map_fly_to",
+      "type": "camera",
+      "surface": "client",
+      "description": "Fly the operator's 2D map to a location. Optionally set zoom or fit to bounds.",
+      "parameters": {
+        "lat": {"type": "float", "required": true, "min": -90, "max": 90},
+        "lng": {"type": "float", "required": true, "min": -180, "max": 180},
+        "zoom": {"type": "float", "required": false, "min": 0, "max": 20},
+        "label": {"type": "string", "required": false}
+      },
+      "returns": "{ok, action, center:{lat,lng}, zoom, arrived}",
+      "latency_tier_ms": 900,
+      "requires_confirm": false
+    },
+    {
+      "name": "map_ease_to",
+      "type": "camera",
+      "surface": "client",
+      "description": "Ease the operator's map camera to a location over a duration instead of flying.",
+      "parameters": {
+        "lat": {"type": "float", "required": true, "min": -90, "max": 90},
+        "lng": {"type": "float", "required": true, "min": -180, "max": 180},
+        "zoom": {"type": "float", "required": false, "min": 0, "max": 20},
+        "duration_ms": {"type": "integer", "required": false, "min": 0, "max": 10000}
+      },
+      "returns": "{ok, action, center:{lat,lng}, zoom}",
+      "latency_tier_ms": 900,
+      "requires_confirm": false
+    },
+    {
+      "name": "map_fit_bounds",
+      "type": "camera",
+      "surface": "client",
+      "description": "Fit the operator's map viewport to a geographic bounding box.",
+      "parameters": {
+        "west": {"type": "float", "required": true, "min": -180, "max": 180},
+        "south": {"type": "float", "required": true, "min": -90, "max": 90},
+        "east": {"type": "float", "required": true, "min": -180, "max": 180},
+        "north": {"type": "float", "required": true, "min": -90, "max": 90},
+        "padding": {"type": "integer", "required": false, "min": 0, "max": 400}
+      },
+      "returns": "{ok, action, bounds:{west,south,east,north}}",
+      "latency_tier_ms": 900,
+      "requires_confirm": false
+    },
+    {
+      "name": "map_orbit",
+      "type": "camera",
+      "surface": "client",
+      "description": "Start or stop an orbiting camera animation around a point on the operator's map.",
+      "parameters": {
+        "lng": {"type": "float", "required": true, "min": -180, "max": 180},
+        "lat": {"type": "float", "required": true, "min": -90, "max": 90},
+        "radius_km": {"type": "float", "required": false, "min": 0, "max": 2000},
+        "speed": {"type": "float", "required": false, "min": 0, "max": 10},
+        "stop": {"type": "boolean", "required": false}
+      },
+      "returns": "{ok, action, orbiting:boolean}",
+      "latency_tier_ms": 900,
+      "requires_confirm": false
+    },
+    {
+      "name": "map_zoom",
+      "type": "camera",
+      "surface": "client",
+      "description": "Zoom the operator's map in or out by a small, medium, or large amount.",
+      "parameters": {
+        "direction": {"type": "string", "required": true, "enum": ["in", "out"]},
+        "amount": {"type": "string", "required": false, "enum": ["little", "medium", "lot"]}
+      },
+      "returns": "{ok, action, zoom}",
+      "latency_tier_ms": 500,
+      "requires_confirm": false
+    },
+    {
+      "name": "toggle_layer",
+      "type": "ui",
+      "surface": "client",
+      "description": "Enable or disable one of the operator's map data layers by id.",
+      "parameters": {
+        "layer": {"type": "string", "required": true},
+        "enabled": {"type": "boolean", "required": true}
+      },
+      "returns": "{ok, action, layer, enabled, actual_enabled}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "set_map_style",
+      "type": "ui",
+      "surface": "client",
+      "description": "Switch the operator's map basemap style between DEFAULT and SATELLITE.",
+      "parameters": {
+        "style": {"type": "string", "required": true, "enum": ["DEFAULT", "SATELLITE"]}
+      },
+      "returns": "{ok, action, style}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "set_filter",
+      "type": "ui",
+      "surface": "client",
+      "description": "Replace one filter key's value list in the operator's active filters.",
+      "parameters": {
+        "filter_key": {"type": "string", "required": true},
+        "values": {"type": "array", "required": true}
+      },
+      "returns": "{ok, action, filter_key, values}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "select_entity",
+      "type": "ui",
+      "surface": "client",
+      "description": "Select an entity on the operator's map by id or free-text query (visual-follow only; does not persist a watch).",
+      "parameters": {
+        "id": {"type": "string", "required": false},
+        "query": {"type": "string", "required": false},
+        "layer": {"type": "string", "required": false}
+      },
+      "returns": "{ok, action, entity:{id,layer,label} | selected:false}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "open_article",
+      "type": "ui",
+      "surface": "client",
+      "description": "Open an article dossier automatically in the dashboard. Use a title/topic query or the exact URL returned by search_news. Only loaded news articles can be opened; this never navigates an arbitrary URL.",
+      "parameters": {
+        "id": {
+          "type": "string",
+          "required": false
+        },
+        "query": {
+          "type": "string",
+          "required": false
+        },
+        "url": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "returns": "{ok, action, article:{id,title,url} | error}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "clear_selection",
+      "type": "ui",
+      "surface": "client",
+      "description": "Clear the operator's current entity selection.",
+      "parameters": {},
+      "returns": "{ok, action}",
+      "latency_tier_ms": 200,
+      "requires_confirm": false
+    },
+    {
+      "name": "tm_enter_snapshot",
+      "type": "ui",
+      "surface": "client",
+      "description": "Enter Time Machine snapshot mode for a stored snapshot id.",
+      "parameters": {
+        "snapshot_id": {"type": "string", "required": true}
+      },
+      "returns": "{ok, action, snapshot_id}",
+      "latency_tier_ms": 600,
+      "requires_confirm": false
+    },
+    {
+      "name": "tm_playback",
+      "type": "ui",
+      "surface": "client",
+      "description": "Control Time Machine playback: play, pause, stop, step forward, or step backward.",
+      "parameters": {
+        "action": {"type": "string", "required": true, "enum": ["play", "pause", "stop", "fwd", "back"]},
+        "speed": {"type": "float", "required": false, "min": 0, "max": 64}
+      },
+      "returns": "{ok, action, playing, speed}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "tm_seek",
+      "type": "ui",
+      "surface": "client",
+      "description": "Seek the Time Machine timeline to an ISO timestamp.",
+      "parameters": {
+        "timestamp": {"type": "string", "required": true}
+      },
+      "returns": "{ok, action, timestamp}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "tm_exit",
+      "type": "ui",
+      "surface": "client",
+      "description": "Exit Time Machine snapshot mode and return to live data.",
+      "parameters": {},
+      "returns": "{ok, action}",
+      "latency_tier_ms": 300,
+      "requires_confirm": false
+    },
+    {
+      "name": "get_view_state",
+      "type": "read",
+      "surface": "client",
+      "description": "Read the operator's current camera position, active layers, and filter summary.",
+      "parameters": {},
+      "returns": "{ok, action, view:{center,zoom}, active_layers:[...], filters:{...}}",
+      "latency_tier_ms": 100,
+      "requires_confirm": false
+    },
+    {
+      "name": "get_grounding_snapshot",
+      "type": "read",
+      "surface": "client",
+      "description": "Read the sb.grounding.v1 snapshot of what the operator is currently looking at.",
+      "parameters": {},
+      "returns": "{ok, action, snapshot:<sb.grounding.v1>}",
+      "latency_tier_ms": 100,
+      "requires_confirm": false
+    }
+  ]
+}

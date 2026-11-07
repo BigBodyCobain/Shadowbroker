@@ -168,6 +168,14 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
     onClose();
   };
 
+  // Escape closes it like the other dialogs
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleDismiss(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -187,7 +195,7 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
         className="fixed inset-0 z-[10001] flex items-center justify-center pointer-events-none"
       >
         <div
-          className="w-[700px] max-h-[90vh] bg-[var(--bg-secondary)]/98 border border-cyan-900/50 pointer-events-auto flex flex-col overflow-hidden"
+          className="w-[700px] max-h-[90vh] sb-panel sb-modal pointer-events-auto flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -195,10 +203,10 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <div className="px-2.5 py-1 bg-cyan-500/15 border border-cyan-500/30 text-xs font-mono font-bold text-cyan-400 tracking-widest">
+                  <div className="px-2.5 py-1 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-xs font-mono font-bold text-cyan-400 tracking-widest">
                     v{CURRENT_VERSION}
                   </div>
-                  <h2 className="text-base font-bold tracking-[0.15em] text-[var(--text-primary)] font-mono">
+                  <h2 className="sb-modal-title">
                     WHAT&apos;S NEW
                   </h2>
                 </div>
@@ -208,7 +216,8 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
               </div>
               <button
                 onClick={handleDismiss}
-                className="w-8 h-8 border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
+                aria-label="Close"
+                className="w-8 h-8 rounded-lg border border-[var(--border-primary)] hover:border-red-500/50 flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 transition-all hover:bg-red-950/20"
               >
                 <X size={14} />
               </button>
@@ -216,21 +225,21 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto styled-scrollbar p-5 space-y-5">
+          <div className="flex-1 overflow-y-auto styled-scrollbar sb-scroll-fade p-5 space-y-5">
             {HEADLINE_FEATURES.map((h, idx) => {
               const isPurple = h.accent === 'purple';
               const cardClass = isPurple
-                ? 'border border-purple-500/30 bg-purple-950/20 p-4 space-y-3'
-                : 'border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-3';
+                ? 'rounded-xl border border-purple-500/30 bg-purple-950/20 p-4 space-y-3'
+                : 'rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-3';
               const iconWrapClass = isPurple
-                ? 'w-9 h-9 border border-purple-500/40 bg-purple-500/10 flex items-center justify-center flex-shrink-0'
-                : 'w-9 h-9 border border-cyan-500/40 bg-cyan-500/10 flex items-center justify-center flex-shrink-0';
+                ? 'w-9 h-9 rounded-lg border border-purple-500/40 bg-purple-500/10 flex items-center justify-center flex-shrink-0'
+                : 'w-9 h-9 rounded-lg border border-cyan-500/40 bg-cyan-500/10 flex items-center justify-center flex-shrink-0';
               const titleClass = isPurple
-                ? 'text-sm font-mono text-purple-300 font-bold tracking-wide'
-                : 'text-sm font-mono text-cyan-300 font-bold tracking-wide';
+                ? 'font-[family-name:var(--font-display)] text-[16px] text-purple-200 font-semibold tracking-[0.02em]'
+                : 'font-[family-name:var(--font-display)] text-[16px] text-cyan-200 font-semibold tracking-[0.02em]';
               const subtitleClass = isPurple
-                ? 'text-xs font-mono text-purple-500/80 mt-0.5'
-                : 'text-xs font-mono text-cyan-500/80 mt-0.5';
+                ? 'sb-prose text-[12.5px] text-purple-300/80 mt-0.5'
+                : 'sb-prose text-[12.5px] text-cyan-300/80 mt-0.5';
               const ctaClass = isPurple
                 ? 'text-[11px] font-mono text-purple-400 tracking-[0.25em] font-bold'
                 : 'text-[11px] font-mono text-cyan-400 tracking-[0.25em] font-bold';
@@ -249,7 +258,7 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
                     {h.details.map((para, i) => (
                       <p
                         key={i}
-                        className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed"
+                        className="sb-prose text-[13px] !leading-relaxed text-[#c3d2e6]"
                       >
                         {para}
                       </p>
@@ -264,13 +273,13 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
             })}
 
             {/* Auto-update note for v0.9.83+ installs */}
-            <div className="border border-green-500/30 bg-green-950/15 p-3 flex items-start gap-3">
+            <div className="rounded-xl border border-green-500/30 bg-green-950/15 p-3 flex items-start gap-3">
               <KeyRound size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-1">
                 <div className="text-xs font-mono text-green-300 font-bold tracking-wide uppercase">
                   One-click update from v0.9.83
                 </div>
-                <div className="text-xs font-mono text-green-200/80 leading-relaxed">
+                <div className="sb-prose text-[13px] !leading-relaxed text-green-100/85">
                   If you installed v0.9.83, the in-app Update button verifies this release via the
                   signed Tauri updater (`latest.json` + minisign). Desktop installs on v0.9.83 or
                   later should auto-apply v0.9.84 without a manual MSI hop once the release is
@@ -289,14 +298,14 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
                 {NEW_FEATURES.map((f) => (
                   <div
                     key={f.title}
-                    className="flex items-start gap-3 p-3 border border-[var(--border-primary)]/50 bg-[var(--bg-primary)]/30 hover:border-[var(--border-secondary)] transition-colors"
+                    className="flex items-start gap-3 p-3 rounded-xl border border-[var(--border-primary)]/50 bg-[var(--bg-primary)]/30 hover:border-[var(--border-secondary)] transition-colors"
                   >
                     <div className="mt-0.5 flex-shrink-0">{f.icon}</div>
                     <div>
                       <div className="text-[13px] font-mono text-[var(--text-primary)] font-bold">
                         {f.title}
                       </div>
-                      <div className="text-xs font-mono text-[var(--text-muted)] leading-relaxed mt-0.5">
+                      <div className="sb-prose text-[13px] !leading-relaxed text-[var(--text-muted)] mt-0.5">
                         {f.desc}
                       </div>
                     </div>
@@ -315,7 +324,7 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
                 {BUG_FIXES.map((fix, i) => (
                   <div key={i} className="flex items-start gap-2 px-3 py-1.5">
                     <span className="text-green-500 text-xs mt-0.5 flex-shrink-0">+</span>
-                    <span className="text-xs font-mono text-[var(--text-secondary)] leading-relaxed">
+                    <span className="sb-prose text-[13px] !leading-relaxed text-[#c3d2e6]">
                       {fix}
                     </span>
                   </div>
@@ -333,9 +342,9 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
                 {CONTRIBUTORS.map((c, i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-2 px-3 py-2 border border-pink-500/20 bg-pink-500/5"
+                    className="flex items-start gap-2 px-3 py-2 rounded-lg border border-pink-500/20 bg-pink-500/5"
                   >
-                    <span className="text-pink-400 text-xs mt-0.5 flex-shrink-0">&hearts;</span>
+                    <span className="text-pink-400 text-[12px] leading-[19.5px] flex-shrink-0" aria-hidden="true">&hearts;</span>
                     <div>
                       <span className="text-[13px] font-mono text-pink-300 font-bold">
                         {c.name}
@@ -361,7 +370,7 @@ const ChangelogModal = React.memo(function ChangelogModal({ onClose }: Changelog
           <div className="p-4 border-t border-[var(--border-primary)]/80 flex items-center justify-center">
             <button
               onClick={handleDismiss}
-              className="px-8 py-2.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25 text-xs font-mono tracking-[0.2em] transition-all"
+              className="sb-btn-primary px-8 py-2.5 rounded-lg text-xs font-mono font-bold tracking-[0.2em] transition-all"
             >
               ACKNOWLEDGED
             </button>

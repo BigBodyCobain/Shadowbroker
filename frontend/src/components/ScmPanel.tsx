@@ -23,11 +23,12 @@ interface ScmPayload {
 }
 
 interface Props {
+  embedded?: boolean;
   /** Only evaluate threats when the map layer is enabled. */
   layerEnabled?: boolean;
 }
 
-export default function ScmPanel({ layerEnabled = false }: Props) {
+export default function ScmPanel({ layerEnabled = false, embedded = false }: Props) {
   const { t } = useTranslation();
   const [isMinimized, setIsMinimized] = useState(true);
   const [data, setData] = useState<ScmPayload | null>(null);
@@ -61,14 +62,15 @@ export default function ScmPanel({ layerEnabled = false }: Props) {
   );
 
   return (
-    <div className="pointer-events-auto flex-shrink-0 border border-cyan-700/40 bg-black/75 backdrop-blur-sm shadow-[0_0_18px_rgba(34,211,238,0.10)]">
+    <div className={embedded ? "pointer-events-auto" : "pointer-events-auto flex-shrink-0 sb-panel"}>
+      {!embedded && (
       <div
-        className="flex items-center justify-between border-b border-cyan-700/30 bg-cyan-950/20 px-3 py-2.5 cursor-pointer hover:bg-cyan-950/40 transition-colors"
+        className="flex items-center justify-between border-b border-[var(--border-primary)] bg-[rgba(var(--sb-accent-rgb),0.035)] px-3 py-2.5 cursor-pointer hover:bg-[rgba(var(--sb-accent-rgb),0.08)] transition-colors"
         onClick={() => setIsMinimized((prev) => !prev)}
       >
         <div className="flex items-center gap-2">
           <Target size={16} className="text-cyan-400" />
-          <span className="text-[12px] font-mono font-bold tracking-widest text-cyan-400">
+          <span className="sb-title text-cyan-300">
             {t('scm.title').toUpperCase()}
           </span>
           {layerEnabled && critical.length > 0 && (
@@ -96,8 +98,22 @@ export default function ScmPanel({ layerEnabled = false }: Props) {
           )}
         </div>
       </div>
+      )}
 
-      {!isMinimized && (
+      {embedded && (
+        <div className="flex items-center justify-end gap-2 px-3 pt-2 -mb-1">
+          <button
+            type="button"
+            onClick={refresh}
+            title="Refresh overlay"
+            className="flex items-center gap-1.5 text-[10.5px] font-mono tracking-[0.12em] text-cyan-500 hover:text-cyan-300 transition-colors"
+          >
+            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            REFRESH
+          </button>
+        </div>
+      )}
+      {(embedded || !isMinimized) && (
         <div className="px-3 py-2 max-h-44 overflow-y-auto styled-scrollbar space-y-1.5">
           {!layerEnabled ? (
             <div className="text-[11px] font-mono tracking-wider text-cyan-600/70 py-1">

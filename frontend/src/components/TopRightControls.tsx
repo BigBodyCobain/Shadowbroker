@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Github,
   Download,
   AlertCircle,
   CheckCircle2,
@@ -14,6 +13,7 @@ import {
   Server,
   Copy,
 } from 'lucide-react';
+import GithubIcon from '@/components/icons/GithubIcon';
 import { API_BASE } from '@/lib/api';
 import { useTranslation } from '@/i18n';
 import { controlPlaneFetch } from '@/lib/controlPlane';
@@ -582,7 +582,7 @@ export default function TopRightControls({
   // ── Confirmation Dialog ──
   const renderConfirmDialog = () => (
     <div className="absolute top-full right-0 mt-2 w-72 z-[9999]">
-      <div className="bg-[var(--bg-primary)]/95 backdrop-blur-sm border border-cyan-800/60 shadow-[0_4px_30px_rgba(0,255,255,0.15)] overflow-hidden">
+      <div className="sb-panel overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]">
           <span className="text-[10px] font-mono tracking-widest text-cyan-400">
@@ -598,7 +598,7 @@ export default function TopRightControls({
 
         {/* Actions */}
         <div className="p-3 flex flex-col gap-2">
-          <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
+          <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
             {updateDetail}
           </p>
           <button
@@ -625,7 +625,7 @@ export default function TopRightControls({
 
           <button
             onClick={() => setUpdateStatus('available')}
-            className="w-full flex items-center justify-center px-3 py-1.5 text-[9px] text-[var(--text-muted)] font-mono tracking-widest hover:text-[var(--text-secondary)] transition-colors"
+            className="w-full flex items-center justify-center px-3 py-1.5 text-[10px] text-[var(--text-muted)] font-mono tracking-widest hover:text-[var(--text-secondary)] transition-colors"
           >
             {t('update.cancel')}
           </button>
@@ -637,12 +637,12 @@ export default function TopRightControls({
   // ── Error Dialog ──
   const renderErrorDialog = () => (
     <div className="absolute top-full right-0 mt-2 w-72 z-[9999]">
-      <div className="bg-[var(--bg-primary)]/95 backdrop-blur-sm border border-red-800/60 shadow-[0_4px_30px_rgba(255,0,0,0.1)] overflow-hidden">
+      <div className="sb-panel overflow-hidden !border-red-800/60">
         <div className="px-3 py-2 border-b border-red-900/40">
           <span className="text-[10px] font-mono tracking-widest text-red-400">{t('update.updateFailed')}</span>
         </div>
         <div className="p-3 flex flex-col gap-2">
-          <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed break-words">
+          <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed break-words">
             {errorMessage}
           </p>
           <button
@@ -669,7 +669,7 @@ export default function TopRightControls({
   // ── Docker Update Dialog ──
   const renderDockerDialog = () => (
     <div className="absolute top-full right-0 mt-2 w-80 z-[9999]">
-      <div className="bg-[var(--bg-primary)]/95 backdrop-blur-sm border border-cyan-800/60 shadow-[0_4px_30px_rgba(0,255,255,0.15)] overflow-hidden">
+      <div className="sb-panel overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]">
           <span className="text-[10px] font-mono tracking-widest text-cyan-400">
             {t('update.dockerUpdate')} — v{latestVersion}
@@ -682,11 +682,11 @@ export default function TopRightControls({
           </button>
         </div>
         <div className="p-3 flex flex-col gap-2">
-          <p className="text-[9px] font-mono text-[var(--text-muted)] leading-relaxed">
+          <p className="text-[10px] font-mono text-[var(--text-muted)] leading-relaxed">
             {t('update.dockerUpdateDetail')}
           </p>
           <div className="relative bg-black/40 border border-[var(--border-primary)] p-2 group">
-            <code className="text-[9px] font-mono text-green-400 break-all">{dockerCommands}</code>
+            <code className="text-[10px] font-mono text-green-400 break-all">{dockerCommands}</code>
             <button
               onClick={() => navigator.clipboard.writeText(dockerCommands)}
               className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-cyan-400"
@@ -755,7 +755,7 @@ export default function TopRightControls({
   };
 
   // Uniform button style (matches UPDATES button)
-  const btnBase = 'flex items-center justify-center gap-1 px-2 py-1.5 bg-[var(--bg-primary)]/70 border border-[var(--border-primary)] hover:border-cyan-500/50 hover:bg-[var(--hover-accent)] transition-all text-[10px] text-[var(--text-secondary)] font-mono cursor-pointer flex-1';
+  const btnBase = 'sb-chip flex items-center justify-center gap-1.5 px-2 py-2 border border-[var(--border-primary)] hover:border-cyan-500/50 hover:bg-[var(--hover-accent)] transition-all text-[10px] text-[var(--text-secondary)] font-mono cursor-pointer flex-1';
 
   const nodeLauncherModal =
     portalReady && launcherOpen
@@ -767,7 +767,7 @@ export default function TopRightControls({
               onClick={closeLauncher}
               className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
             />
-            <div className="relative z-[1201] w-full max-w-[520px] border border-cyan-700/40 bg-[var(--bg-primary)]/96 backdrop-blur-sm shadow-[0_0_32px_rgba(0,255,255,0.12)]">
+            <div className="relative z-[1201] w-full max-w-[520px] sb-panel sb-modal">
               <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/30">
                 <div>
                   <div className="text-[10px] font-mono tracking-[0.24em] text-cyan-300">
@@ -779,7 +779,7 @@ export default function TopRightControls({
                           ? t('node.activateNode')
                           : t('node.stipulations')}
                   </div>
-                  <div className="mt-1 text-[9px] font-mono text-[var(--text-muted)]">
+                  <div className="mt-1 text-[10px] font-mono text-[var(--text-muted)]">
                     {nodeMode} • {syncOutcome} • participant-node sync does not require Wormhole
                   </div>
                 </div>
@@ -798,11 +798,11 @@ export default function TopRightControls({
                     <div className="border border-cyan-500/20 bg-cyan-950/10 px-4 py-4 text-[10px] font-mono text-cyan-100 leading-[1.8]">
                       {t('node.nodeActivated')}.
                       {(() => { const id = getNodeIdentity(); return id?.nodeId ? (
-                        <div className="mt-2 text-[9px] text-cyan-400 font-mono tracking-wide">
+                        <div className="mt-2 text-[10px] text-cyan-400 font-mono tracking-wide">
                           {id.nodeId}
                         </div>
                       ) : null; })()}
-                      <div className="mt-2 text-[9px] text-cyan-200/70 normal-case tracking-normal flex flex-wrap gap-x-3">
+                      <div className="mt-2 text-[10px] text-cyan-200/70 normal-case tracking-normal flex flex-wrap gap-x-3">
                         <span>{syncOutcome.toLowerCase()}</span>
                         {(nodeStatus?.total_events ?? 0) > 0 && <span>{nodeStatus?.total_events} {t('node.events')}</span>}
                         {(nodeStatus?.bootstrap?.sync_peer_count ?? 0) > 0 && (
@@ -819,7 +819,7 @@ export default function TopRightControls({
                       </div>
                     </div>
                     {nodeToggleError && (
-                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
+                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[10px] font-mono text-amber-200 leading-[1.7]">
                         {nodeToggleError}
                       </div>
                     )}
@@ -937,12 +937,12 @@ export default function TopRightControls({
                       )}
                     </div>
                     {activatingTimedOut && activatingPhase !== 'done' && (
-                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
+                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[10px] font-mono text-amber-200 leading-[1.7]">
                         {t('node.syncTakingLong')}
                       </div>
                     )}
                     {nodeToggleError && (
-                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
+                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[10px] font-mono text-amber-200 leading-[1.7]">
                         {nodeToggleError}
                       </div>
                     )}
@@ -962,7 +962,7 @@ export default function TopRightControls({
                       {t('node.activatePrompt')}
                     </div>
                     {(bootstrapFailed || nodeStatusError || nodeToggleError) && (
-                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[9px] font-mono text-amber-200 leading-[1.7]">
+                      <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-3 text-[10px] font-mono text-amber-200 leading-[1.7]">
                         {nodeToggleError || nodeStatusError || nodeStatus?.bootstrap?.last_bootstrap_error || 'Node runtime warning detected.'}
                       </div>
                     )}
@@ -985,7 +985,7 @@ export default function TopRightControls({
                   </>
                 ) : (
                   <>
-                    <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[9px] font-mono text-slate-200 leading-[1.85]">
+                    <div className="border border-cyan-500/20 bg-black/30 px-4 py-4 text-[10px] font-mono text-slate-200 leading-[1.85]">
                       <div className="text-cyan-300 tracking-[0.18em]">{t('node.termsTitle')}</div>
                       <ul className="mt-3 space-y-2 list-disc pl-5">
                         <li>{t('node.term1')}</li>
@@ -1045,7 +1045,7 @@ export default function TopRightControls({
               onClick={closeTerminalLauncher}
               className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
             />
-            <div className="relative z-[1201] w-full max-w-[640px] border border-cyan-700/40 bg-[var(--bg-primary)]/96 backdrop-blur-sm shadow-[0_0_32px_rgba(0,255,255,0.12)]">
+            <div className="relative z-[1201] w-full max-w-[640px] sb-panel sb-modal">
               <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-900/30">
                 <div>
                   <div className="text-[13px] font-mono tracking-[0.24em] text-cyan-300">
@@ -1247,9 +1247,9 @@ export default function TopRightControls({
           className={`${btnBase} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {updateStatus === 'checking' && (
-            <Github size={11} className="animate-spin text-cyan-400" />
+            <GithubIcon size={11} className="animate-spin text-cyan-400" />
           )}
-          {updateStatus === 'idle' && <Github size={11} className="text-cyan-400" />}
+          {updateStatus === 'idle' && <GithubIcon size={11} className="text-cyan-400" />}
           {updateStatus === 'uptodate' && <CheckCircle2 size={11} className="text-green-400" />}
           {updateStatus === 'error' && <AlertCircle size={11} className="text-red-400" />}
 

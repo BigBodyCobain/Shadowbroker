@@ -3,13 +3,15 @@
  *
  * When the agent sends a `show_satellite` or `show_sentinel` command,
  * the backend queues a display action. This hook picks it up and
- * triggers the same full-screen image viewer as a right-click dossier.
+ * triggers the same full-screen image viewer as a right-click dossier. Article
+ * actions select the existing news dossier through a page-provided callback.
  *
  * Actions are consumed on read (destructive poll) so they don't pile up.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE } from '@/lib/api';
+import type { ArticleReference } from '@/lib/newsArticles';
 
 interface AgentAction {
   action: string;
@@ -23,6 +25,7 @@ interface AgentAction {
   // fly_to extras
   zoom?: number;
   aoi_id?: string;
+  article?: ArticleReference;
 }
 
 /**
@@ -36,11 +39,15 @@ export function useAgentActions(
   onShowImage: (coords: { lat: number; lng: number }) => void,
   onFlyTo?: (coords: { lat: number; lng: number; zoom?: number }) => void,
   enabled = true,
+  onOpenArticle?: (article: ArticleReference) => void,
 ) {
   const onShowImageRef = useRef(onShowImage);
   onShowImageRef.current = onShowImage;
   const onFlyToRef = useRef(onFlyTo);
   onFlyToRef.current = onFlyTo;
+
+  const onOpenArticleRef = useRef(onOpenArticle);
+  onOpenArticleRef.current = onOpenArticle;
 
   const poll = useCallback(async () => {
     try {
@@ -50,7 +57,9 @@ export function useAgentActions(
       const actions: AgentAction[] = data.actions || [];
 
       for (const action of actions) {
-        if (action.action === 'show_image' && action.lat != null && action.lng != null) {
+        if (action.action === 'open_article' && action.article && typeof action.article === 'object') {
+          onOpenArticleRef.current?.(action.article);
+        } else if (action.action === 'show_image' && action.lat != null && action.lng != null) {
           onShowImageRef.current({ lat: action.lat, lng: action.lng });
         } else if (
           action.action === 'fly_to' &&

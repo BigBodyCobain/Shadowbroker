@@ -4,6 +4,8 @@ import {
   applyLayerDeltas,
   mergeData,
   setBackendStatus as setStoreBackendStatus,
+  setPollMeta,
+  type PollMeta,
 } from "./useDataStore";
 import { appendLiveDataBoundsParams, liveDataBoundsKey } from "@/lib/liveDataViewport";
 import { VIEWPORT_COMMITTED_EVENT } from "@/components/map/hooks/useViewportBounds";
@@ -47,12 +49,22 @@ function ingestFastPayload(
   layerVersionsRef: { current: Record<string, number> | null },
 ): boolean {
   const mode = String(json.mode || "snapshot");
+  // U4 §3.9: meta fields are skipped by mergeData — mirror them into the
+  // poll-meta side channel so voice grounding reads truthful mode/versions.
+  const meta: Partial<Omit<PollMeta, "updatedAt">> = { mode };
   if (json.layer_versions && typeof json.layer_versions === "object") {
     layerVersionsRef.current = {
       ...(layerVersionsRef.current || {}),
       ...(json.layer_versions as Record<string, number>),
     };
+    meta.layerVersions = { ...layerVersionsRef.current };
+  } else if (layerVersionsRef.current) {
+    meta.layerVersions = { ...layerVersionsRef.current };
   }
+  if (json.layer_totals && typeof json.layer_totals === "object") {
+    meta.layerTotals = { ...(json.layer_totals as Record<string, number>) };
+  }
+  setPollMeta(meta);
 
   if (mode === "delta") {
     const deltas = (json.deltas || {}) as Record<
@@ -89,6 +101,11 @@ export function pausePolling() {
   _pollingPaused = true;
 }
 
+/** True while Time Machine snapshot playback has paused live polling. */
+export function isPollingPaused(): boolean {
+  return _pollingPaused;
+}
+
 /** Resume live data polling and invalidate ETags for a full refresh. */
 export function resumePolling() {
   _pollingPaused = false;
@@ -111,7 +128,17 @@ export async function forceRefreshLiveData(): Promise<void> {
 
     if (fastRes.ok) {
       if (_fastEtagRef) _fastEtagRef.current = fastRes.headers.get('etag') || null;
-      mergeData(await fastRes.json());
+      const fastJson = await fastRes.json();
+      const mode = String(fastJson.mode || 'snapshot');
+      const meta: Partial<Omit<PollMeta, 'updatedAt'>> = { mode };
+      if (fastJson.layer_versions && typeof fastJson.layer_versions === 'object') {
+        meta.layerVersions = { ...(fastJson.layer_versions as Record<string, number>) };
+      }
+      if (fastJson.layer_totals && typeof fastJson.layer_totals === 'object') {
+        meta.layerTotals = { ...(fastJson.layer_totals as Record<string, number>) };
+      }
+      setPollMeta(meta);
+      mergeData(fastJson);
     }
     if (slowRes.ok) {
       if (_slowEtagRef) _slowEtagRef.current = slowRes.headers.get('etag') || null;

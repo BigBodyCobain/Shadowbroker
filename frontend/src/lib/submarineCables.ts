@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 /** Synthetic TeleGeography corridor overlays — not real cable routes. */
 const SYNTHETIC_CABLE_NAMES = new Set([
   'SEA-ME-WE Corridor',

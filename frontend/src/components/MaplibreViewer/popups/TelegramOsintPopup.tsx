@@ -314,7 +314,7 @@ export function TelegramOsintPopup({ posts, lat, lng, onClose }: TelegramOsintPo
               TELEGRAM INTERCEPT
             </span>
             {maxRisk >= 8 && (
-              <span className="text-[9px] bg-red-500 text-white px-2 py-0.5 rounded-sm font-bold animate-pulse">
+              <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-sm font-bold animate-pulse">
                 LIVE
               </span>
             )}

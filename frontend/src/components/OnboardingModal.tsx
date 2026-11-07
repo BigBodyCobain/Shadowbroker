@@ -8,6 +8,14 @@ const CURRENT_ONBOARDING_VERSION = '0.9.81-agentic-onboarding-1';
 const STORAGE_KEY = `shadowbroker_onboarding_complete_v${CURRENT_ONBOARDING_VERSION}`;
 const LEGACY_STORAGE_KEY = 'shadowbroker_onboarding_complete';
 
+// Static class names (Tailwind can't see `text-${color}-400` built at runtime, so those
+// fell back to the default white border/colour).
+const API_TONE: Record<string, { card: string; link: string; num: string }> = {
+  cyan: { card: 'border-cyan-900/40 bg-cyan-950/10', link: 'text-cyan-400 hover:text-cyan-300', num: 'text-cyan-500' },
+  blue: { card: 'border-blue-900/40 bg-blue-950/10', link: 'text-blue-400 hover:text-blue-300', num: 'text-blue-500' },
+  teal: { card: 'border-teal-900/40 bg-teal-950/10', link: 'text-teal-400 hover:text-teal-300', num: 'text-teal-500' },
+};
+
 const API_GUIDES = [
   {
     name: 'OpenSky Network',
@@ -112,6 +120,19 @@ const OnboardingModal = React.memo(function OnboardingModal({
     localStorage.setItem(LEGACY_STORAGE_KEY, 'true');
     onClose();
   };
+
+  // Escape closes it like the other dialogs (unless focus is in a text field)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      handleDismiss();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpenSettings = () => {
     localStorage.setItem(STORAGE_KEY, 'true');
@@ -321,7 +342,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
         className="fixed inset-0 z-[10001] flex items-center justify-center pointer-events-none"
       >
         <div
-          className="w-[580px] max-h-[85vh] bg-[var(--bg-secondary)]/98 border border-cyan-900/50 pointer-events-auto flex flex-col overflow-hidden"
+          className="w-[580px] max-h-[85vh] sb-panel sb-modal pointer-events-auto flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -332,7 +353,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                   <Shield size={20} className="text-cyan-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-primary)] font-mono">
+                  <h2 className="sb-modal-title">
                     MISSION BRIEFING
                   </h2>
                   <span className="text-[13px] text-[var(--text-muted)] font-mono tracking-widest">
@@ -350,15 +371,17 @@ const OnboardingModal = React.memo(function OnboardingModal({
           </div>
 
           {/* Step Indicators */}
-          <div className="flex gap-2 px-6 pt-4">
+          <div className="sb-seg !mx-6 !mt-4 !mb-0 flex gap-1" role="tablist" aria-label="Setup steps">
             {['API Keys', 'AI Agent', 'Trust Modes', 'Free Sources'].map((label, i) => (
               <button
                 key={label}
+                role="tab"
+                aria-selected={step === i}
                 onClick={() => setStep(i)}
-                className={`flex-1 py-1.5 text-[13px] font-mono tracking-widest border transition-all ${
+                className={`sb-seg-btn flex-1 text-[12px] font-mono tracking-[0.1em] transition-colors ${
                   step === i
-                    ? 'border-cyan-500/50 text-cyan-400 bg-cyan-950/20'
-                    : 'border-[var(--border-primary)] text-[var(--text-muted)] hover:border-[var(--border-secondary)] hover:text-[var(--text-secondary)]'
+                    ? 'is-active text-cyan-200 font-bold'
+                    : 'text-[var(--text-muted)] hover:text-cyan-300'
                 }`}
               >
                 {label.toUpperCase()}
@@ -367,7 +390,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto styled-scrollbar p-6">
+          <div className="flex-1 overflow-y-auto styled-scrollbar sb-scroll-fade p-6">
             {step === 2 && (
               <div className="space-y-4">
                 <div className="text-center py-4">
@@ -378,7 +401,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                     Real-time OSINT dashboard aggregating 12+ live intelligence sources. Flights,
                     ships, satellites, earthquakes, conflicts, and more — all on one map.
                   </p>
-                  <p className="text-[11px] text-[var(--text-secondary)] font-mono leading-relaxed max-w-md mx-auto">
+                  <p className="text-[11px] sb-prose text-[#c3d2e6] leading-relaxed max-w-md mx-auto">
                     These modes explain what lane the network is using. Set up the API keys first,
                     then use this screen to understand public mesh versus private Wormhole paths.
                   </p>
@@ -391,7 +414,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className="text-[11px] text-green-400 font-mono font-bold mb-1">
                         8 Sources Work Immediately
                       </p>
-                      <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                      <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                         Military aircraft, satellites, earthquakes, global conflicts, weather radar,
                         radio scanners, news, and market data all work out of the box — no keys
                         needed.
@@ -407,7 +430,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className="text-[11px] text-cyan-300 font-mono font-bold mb-1">
                         TRUST MODES
                       </p>
-                      <div className="space-y-1 text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                      <div className="sb-prose space-y-1 text-[13.5px] text-[#c3d2e6]">
                         <div>
                           <span className="text-orange-300">PUBLIC / DEGRADED</span> — Meshtastic,
                           APRS, and perimeter feeds. Observable and linkable.
@@ -421,7 +444,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                           Reticulum are both ready. Dead Drop / DM requires this tier for the strongest privacy posture.
                         </div>
                       </div>
-                      <p className="mt-2 text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                      <p className="mt-2 text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                         Public mesh is not private just because Wormhole exists. Use Wormhole when
                         you want the private lane, and treat public mesh as public.
                       </p>
@@ -449,7 +472,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className={`text-sm font-mono font-bold ${agentMode === 'local' ? 'text-cyan-300' : 'text-[var(--text-secondary)]'}`}>
                         Local
                       </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1">
+                      <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-1">
                         Same machine as ShadowBroker
                       </p>
                     </button>
@@ -464,7 +487,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className={`text-sm font-mono font-bold ${agentMode === 'remote' ? 'text-violet-300' : 'text-[var(--text-secondary)]'}`}>
                         Remote
                       </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1">
+                      <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-1">
                         Different machine over Tor
                       </p>
                     </button>
@@ -487,7 +510,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className="text-sm text-green-300 font-mono font-bold flex items-center gap-2">
                         <Shield size={14} /> Read Only
                       </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-mono mt-2">
+                      <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-2">
                         Can see live telemetry but cannot change anything
                       </p>
                     </button>
@@ -502,7 +525,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className="text-sm text-amber-300 font-mono font-bold flex items-center gap-2">
                         <Network size={14} /> Full Access
                       </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-mono mt-2">
+                      <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-2">
                         Can place pins, create layers, and trigger display actions
                       </p>
                     </button>
@@ -515,7 +538,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                       <p className="text-[11px] text-violet-300 font-mono font-bold tracking-widest">
                         STEP 3 - COPY THIS INTO YOUR AGENT
                       </p>
-                      <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1">
+                      <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-1">
                         Generate a local key, then set these variables in your agent&apos;s environment (Hermes, Claude Code, or any HMAC-capable agent).
                       </p>
                     </div>
@@ -535,7 +558,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                           <p className="text-[11px] text-violet-200 font-mono font-bold tracking-widest">
                             TOR REQUIRED FOR REMOTE AGENTS
                           </p>
-                          <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1 leading-relaxed">
+                          <p className="sb-prose text-[12px] text-[var(--text-muted)] mt-1">
                             ShadowBroker will install or use Tor locally, then create a private .onion link for this backend.
                           </p>
                         </div>
@@ -576,7 +599,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                   )}
                 </div>
 
-                <p className="text-[11px] text-orange-300/80 font-mono leading-relaxed">
+                <p className="sb-prose text-[12.5px] text-orange-300/90">
                   Remote agent access uses the signed HTTP API over Tor. Wormhole uses the same Tor/Arti transport lane when it is available; MLS-native agent transport is still planned.
                 </p>
               </div>
@@ -584,14 +607,14 @@ const OnboardingModal = React.memo(function OnboardingModal({
 
             {step === 0 && (
               <div className="space-y-4">
-                <div className="bg-yellow-950/20 border border-yellow-500/20 p-4">
+                <div className="bg-yellow-950/20 border border-yellow-500/20 p-4 rounded-xl">
                   <div className="flex items-start gap-2">
                     <Key size={14} className="text-yellow-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-[11px] text-yellow-400 font-mono font-bold mb-1">
                         START HERE
                       </p>
-                      <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed">
+                      <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed">
                         OpenSky Network and AIS Stream are the free keys that make ShadowBroker
                         useful immediately: live aircraft and vessel tracking. Optionally add an
                         AISHub username as a slow ships-layer backup when AISStream is silent.
@@ -602,12 +625,12 @@ const OnboardingModal = React.memo(function OnboardingModal({
                   </div>
                 </div>
 
-                <div className="border border-cyan-900/40 bg-cyan-950/10 p-4 space-y-3">
+                <div className="border border-cyan-900/40 bg-cyan-950/10 p-4 space-y-3 rounded-xl">
                   <div>
                     <p className="text-[11px] text-cyan-300 font-mono font-bold tracking-widest">
                       QUICK LOCAL SETUP
                     </p>
-                    <p className="text-sm text-[var(--text-secondary)] font-mono leading-relaxed mt-1">
+                    <p className="text-sm sb-prose text-[#c3d2e6] leading-relaxed mt-1">
                       Paste keys here once. ShadowBroker stores them server-side only and never
                       displays the secret back in the browser.
                     </p>
@@ -643,7 +666,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                   <button
                     onClick={() => void saveSetupKeys()}
                     disabled={setupSaving}
-                    className="w-full py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[11px] font-mono tracking-widest"
+                    className="w-full py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[12px] font-mono tracking-widest"
                   >
                     {setupSaving ? 'SAVING...' : 'SAVE KEYS LOCALLY'}
                   </button>
@@ -652,7 +675,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                 {API_GUIDES.map((api) => (
                   <div
                     key={api.name}
-                    className={`border border-${api.color}-900/30 bg-${api.color}-950/10 p-4`}
+                    className={`border ${API_TONE[api.color]?.card ?? API_TONE.cyan.card} p-4 rounded-xl`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -672,23 +695,23 @@ const OnboardingModal = React.memo(function OnboardingModal({
                         href={api.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`text-sm font-mono text-${api.color}-400 hover:text-${api.color}-300 flex items-center gap-1 transition-colors`}
+                        className={`text-sm font-mono ${API_TONE[api.color]?.link ?? API_TONE.cyan.link} flex items-center gap-1 transition-colors`}
                       >
                         GET KEY <ExternalLink size={10} />
                       </a>
                     </div>
-                    <p className="text-sm text-[var(--text-secondary)] font-mono mb-3">
+                    <p className="sb-prose text-[13.5px] text-[#c3d2e6] mb-3">
                       {api.description}
                     </p>
                     <ol className="space-y-1.5">
                       {api.steps.map((s, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span
-                            className={`text-[13px] font-mono text-${api.color}-500 font-bold mt-0.5 w-3 flex-shrink-0`}
+                            className={`text-[13px] font-mono ${API_TONE[api.color]?.num ?? API_TONE.cyan.num} font-bold mt-0.5 w-3 flex-shrink-0`}
                           >
                             {i + 1}.
                           </span>
-                          <span className="text-sm text-gray-300 font-mono">{s}</span>
+                          <span className="sb-prose text-[13px] text-gray-300">{s}</span>
                         </li>
                       ))}
                     </ol>
@@ -724,7 +747,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
                           {src.name}
                         </span>
                       </div>
-                      <p className="text-[13px] text-[var(--text-muted)] font-mono">{src.desc}</p>
+                      <p className="sb-prose text-[13px] text-[var(--text-muted)]">{src.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -733,12 +756,12 @@ const OnboardingModal = React.memo(function OnboardingModal({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-[var(--border-primary)]/80 flex items-center justify-between">
+          <div className="px-6 py-4 border-t border-[var(--border-primary)]/80 flex items-center justify-between bg-[rgba(3,8,18,0.5)]">
             <button
               onClick={() => setStep(Math.max(0, step - 1))}
               className={`px-4 py-2 border text-sm font-mono tracking-widest transition-all ${
                 step === 0
-                  ? 'border-[var(--border-primary)] text-[var(--text-muted)] cursor-not-allowed'
+                  ? 'border-[var(--border-primary)] text-[var(--text-muted)] opacity-40 cursor-not-allowed'
                   : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)]'
               }`}
               disabled={step === 0}
@@ -758,14 +781,14 @@ const OnboardingModal = React.memo(function OnboardingModal({
             {step < 3 ? (
               <button
                 onClick={() => setStep(step + 1)}
-                className="px-4 py-2 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-sm font-mono tracking-widest transition-all"
+                className="sb-btn-primary px-5 py-2 text-sm font-mono tracking-widest"
               >
                 NEXT
               </button>
             ) : (
               <button
                 onClick={handleDismiss}
-                className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/30 text-sm font-mono tracking-widest transition-all"
+                className="sb-btn-primary px-5 py-2 text-sm font-mono tracking-widest"
               >
                 LAUNCH
               </button>

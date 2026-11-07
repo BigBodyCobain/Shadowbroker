@@ -40,6 +40,7 @@ import {
 } from '@/lib/aiIntelClient';
 
 interface AIIntelPanelProps {
+  embedded?: boolean;
   onFlyTo?: (lat: number, lng: number) => void;
   isMinimized?: boolean;
   onMinimizedChange?: (minimized: boolean) => void;
@@ -114,7 +115,7 @@ function WormholeIdentitySection() {
       <div className="text-[11px] font-mono text-gray-500 tracking-widest uppercase flex items-center gap-2 mb-2.5">
         <Link2 size={12} />
         Agent Identity (Ed25519)
-        <span className="ml-auto text-[9px] text-cyan-600 bg-cyan-900/30 px-1.5 py-0.5 border border-cyan-700/30">
+        <span className="ml-auto text-[10px] text-cyan-600 bg-cyan-900/30 px-1.5 py-0.5 border border-cyan-700/30">
           HMAC AUTH
         </span>
       </div>
@@ -253,7 +254,7 @@ function ChannelStatusSection() {
       <div className="text-[11px] font-mono text-gray-500 tracking-widest uppercase flex items-center gap-2 mb-2.5">
         <Zap size={12} />
         Command Channel
-        <span className={`ml-auto text-[9px] text-${tierColor}-400 bg-${tierColor}-900/30 px-1.5 py-0.5 border border-${tierColor}-700/30`}>
+        <span className={`ml-auto text-[10px] text-${tierColor}-400 bg-${tierColor}-900/30 px-1.5 py-0.5 border border-${tierColor}-700/30`}>
           TIER {tier}
         </span>
       </div>
@@ -269,16 +270,16 @@ function ChannelStatusSection() {
         {/* Security badges */}
         <div className="flex gap-1.5 flex-wrap">
           {channelInfo?.forward_secrecy && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-emerald-900/30 border border-emerald-700/30 text-emerald-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-900/30 border border-emerald-700/30 text-emerald-400">
               FORWARD SECRECY
             </span>
           )}
           {channelInfo?.sealed_sender && (
-            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-emerald-900/30 border border-emerald-700/30 text-emerald-400">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-900/30 border border-emerald-700/30 text-emerald-400">
               SEALED SENDER
             </span>
           )}
-          <span className="text-[9px] font-mono px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/30 text-gray-400">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-800/50 border border-gray-700/30 text-gray-400">
             BIDIRECTIONAL
           </span>
         </div>
@@ -1184,6 +1185,7 @@ export default function AIIntelPanel({
   onMinimizedChange,
   pinPlacementMode,
   onPinPlacementModeChange,
+  embedded = false,
 }: AIIntelPanelProps) {
   const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
@@ -1431,15 +1433,16 @@ export default function AIIntelPanel({
 
   // ── Render ───────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col select-none">
+    <div className={embedded ? "flex flex-col select-none pointer-events-auto" : "sb-panel overflow-hidden flex flex-col shrink-0 select-none pointer-events-auto"}>
       {/* Header */}
+      {!embedded && (
       <div
         onClick={() => setIsMinimized(!isMinimized)}
-        className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-violet-950/40 transition-colors border-b border-violet-500/30 bg-violet-950/20"
+        className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-[rgba(var(--sb-accent-rgb),0.08)] transition-colors border-b border-[var(--border-primary)] bg-[rgba(var(--sb-accent-rgb),0.035)]"
       >
         <div className="flex items-center gap-2">
           <Brain size={16} className="text-violet-400" />
-          <span className="text-[12px] text-violet-400 font-mono tracking-widest font-bold">
+          <span className="sb-title text-cyan-300">
             {t('ai.title').toUpperCase()}
           </span>
           {totalPins > 0 && (
@@ -1461,15 +1464,16 @@ export default function AIIntelPanel({
           )}
         </div>
       </div>
+      )}
 
-      <AnimatePresence>
-        {!isMinimized && (
+            <AnimatePresence>
+        {(embedded || !isMinimized) && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden border-x border-b border-violet-500/20 bg-[var(--bg-elevated)]"
+            className="overflow-hidden"
           >
             <div className="p-3 space-y-3 max-h-[60vh] overflow-y-auto styled-scrollbar">
 
@@ -1594,7 +1598,7 @@ export default function AIIntelPanel({
                               {layer.name}
                             </span>
                           </button>
-                          <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                          <span className="text-[10px] font-mono text-[var(--text-muted)]">
                             {layer.pin_count}
                           </span>
 
@@ -1687,7 +1691,7 @@ export default function AIIntelPanel({
                               </div>
                             ))}
                             {layerPins.length > 30 && (
-                              <div className="text-[9px] font-mono text-[var(--text-muted)] text-center py-1 border-t border-[var(--border-primary)]">
+                              <div className="text-[10px] font-mono text-[var(--text-muted)] text-center py-1 border-t border-[var(--border-primary)]">
                                 + {layerPins.length - 30} more
                               </div>
                             )}
@@ -1807,8 +1811,8 @@ export default function AIIntelPanel({
                     value={satLocationQuery}
                     onChange={(e) => setSatLocationQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleLocationLookup()}
-                    placeholder="Search location (e.g. Tehran, Kyiv)..."
-                    className="flex-1 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
+                    placeholder="Search a place (e.g. Kyiv)"
+                    className="flex-1 min-w-0 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
                   />
                   <button
                     type="button"
@@ -1820,7 +1824,7 @@ export default function AIIntelPanel({
                     {satGeocoding ? '...' : 'GO'}
                   </button>
                 </div>
-                <div className="text-[9px] font-mono text-[var(--text-muted)] text-center">
+                <div className="text-[10px] font-mono text-[var(--text-muted)] text-center">
                   — or enter coordinates —
                 </div>
                 <div className="flex gap-1">
@@ -1829,7 +1833,7 @@ export default function AIIntelPanel({
                     value={satLat}
                     onChange={(e) => setSatLat(e.target.value)}
                     placeholder="Lat"
-                    className="flex-1 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
+                    className="flex-1 min-w-0 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
                   />
                   <input
                     type="text"
@@ -1837,7 +1841,7 @@ export default function AIIntelPanel({
                     onChange={(e) => setSatLng(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSatSearch()}
                     placeholder="Lng"
-                    className="flex-1 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
+                    className="flex-1 min-w-0 px-2 py-1.5 text-[11px] font-mono bg-[var(--bg-primary)] border border-sky-500/20 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-sky-500/50 outline-none"
                   />
                 </div>
                 <button
@@ -1882,7 +1886,7 @@ export default function AIIntelPanel({
                             <div className="text-[10px] font-mono text-sky-300 truncate">
                               {scene.platform} — {scene.datetime ? new Date(scene.datetime).toLocaleDateString() : 'N/A'}
                             </div>
-                            <div className="text-[9px] font-mono text-[var(--text-muted)]">
+                            <div className="text-[10px] font-mono text-[var(--text-muted)]">
                               Cloud: {scene.cloud_cover != null ? `${Math.round(scene.cloud_cover)}%` : 'N/A'}
                             </div>
                           </div>
@@ -1895,7 +1899,7 @@ export default function AIIntelPanel({
                                   const centerLng = (scene.bbox[0] + scene.bbox[2]) / 2;
                                   onFlyTo?.(centerLat, centerLng);
                                 }}
-                                className="px-2 py-0.5 text-[9px] font-mono bg-sky-600/30 border border-sky-500/40 text-sky-300 hover:bg-sky-600/50 transition-colors"
+                                className="px-2 py-0.5 text-[10px] font-mono bg-sky-600/30 border border-sky-500/40 text-sky-300 hover:bg-sky-600/50 transition-colors"
                               >
                                 SHOW ON MAP
                               </button>
@@ -1905,7 +1909,7 @@ export default function AIIntelPanel({
                                 href={scene.fullres_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-0.5 text-[9px] font-mono bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/40 transition-colors"
+                                className="px-2 py-0.5 text-[10px] font-mono bg-violet-600/20 border border-violet-500/30 text-violet-300 hover:bg-violet-600/40 transition-colors"
                               >
                                 FULL RES
                               </a>

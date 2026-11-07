@@ -837,6 +837,11 @@ def _classify_and_publish(all_adsb_flights):
         latest_data["tracked_flights"] = tracked_snapshot
         latest_data["military_flights"] = military_snapshot
 
+    # The trail-annotated snapshot above is the final authoritative write of
+    # the cycle — stamp here so layer_versions/delta-ring see the finished
+    # payload, not the pre-trail merge from earlier in the pipeline.
+    _mark_fresh("tracked_flights")
+
     # --- GPS Jamming Detection ---
     try:
         jamming_zones = detect_gps_jamming_zones(raw_flights_snapshot)

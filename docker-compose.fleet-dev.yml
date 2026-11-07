@@ -1,4 +1,20 @@
-# Auto-loaded by `docker compose` — build from local source instead of pulling stale GHCR images.
+# Maintainer dev-fleet overlay (opt-in). Builds from local source and pins the
+# sb-testnet fleet settings, including PRIVACY_CORE_DEV_OVERRIDE, which skips
+# privacy-core artifact attestation. Not for regular installs.
+#
+# This used to be docker-compose.override.yml, which `docker compose` loads
+# automatically, so every fresh clone silently got these dev settings. Load it
+# explicitly instead:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.fleet-dev.yml up -d --build
+#
+# or make it sticky for your checkout by putting this in the repo-root .env
+# (use ";" instead of ":" on Windows):
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.fleet-dev.yml
+#
+# A personal docker-compose.override.yml is still auto-loaded, and it's
+# gitignored so it never gets committed.
 services:
   backend:
     build:

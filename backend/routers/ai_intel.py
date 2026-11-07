@@ -1589,37 +1589,7 @@ async def ai_correlation_explanations(request: Request):
 
 # ---------------------------------------------------------------------------
 # Agent Tool Manifest — machine-readable tool definitions for LLM agents
-# ---------------------------------------------------------------------------
-# Any LLM agent (OpenClaw, custom, etc.) hits this endpoint once on connect
-# and loads the result as its tool definitions. No manual reading required.
-
-@router.get("/api/ai/tools", dependencies=[Depends(require_openclaw_or_local)])
-@limiter.limit("30/minute")
-async def agent_tool_manifest(request: Request):
-    """Return structured tool definitions that an LLM agent can load directly.
-
-    This is the machine-readable equivalent of /api/ai/capabilities.
-    An agent loads these as its available tools on first connect.
-    Each tool has: name, description, parameters (with types), and examples.
-    """
-    from services.openclaw_channel import READ_COMMANDS, WRITE_COMMANDS
-    from services.config import get_settings
-
-    access_tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
-    available_commands = sorted(READ_COMMANDS | WRITE_COMMANDS) if access_tier == "full" else sorted(READ_COMMANDS)
-
-    return {
-        "ok": True,
-        "version": "0.9.82",
-        "access_tier": access_tier,
-        "available_commands": available_commands,
-        "transport": {
-            "commands": "POST /api/ai/channel/command  body: {\"cmd\": \"<tool_name>\", \"args\": {<params>}}",
-            "batch": "POST /api/ai/channel/batch  body: {\"commands\": [{\"cmd\": \"...\", \"args\": {...}}, ...]}  (max 20, concurrent execution, one HTTP round-trip)",
-            "realtime_stream": "GET /api/ai/channel/sse  (Server-Sent Events — keeps Tor circuit warm, receives push events)",
-            "auth": "HMAC-SHA256 headers: X-SB-Timestamp, X-SB-Nonce, X-SB-Signature. Sign: HMAC(key, METHOD|path|ts|nonce|sha256(body))",
-        },
-        "tools": [
+_AGENT_TOOLS = [
             # ── Read Tools ────────────────────────────────────
             {
                 "name": "get_summary",
@@ -1772,6 +1742,16 @@ async def agent_tool_manifest(request: Request):
                     "compact": {"type": "boolean", "required": False, "description": "If true, strips empty/None fields from each result and rounds lat/lng to 3 decimals. Response includes format: 'compressed_v1'."},
                 },
                 "returns": "{results: [{source_layer, label, summary, type, id, lat, lng, time, score}], version: int, truncated: bool, searched_layers: [...]}",
+            },
+            {
+                "name": "show_article",
+                "type": "write",
+                "description": "Queue an article dossier to open in the dashboard. Matches current news by exact URL or title/topic query. Requires full access. queued=true means requested, not confirmed displayed; the dashboard must be open.",
+                "parameters": {
+                    "query": {"type": "string", "required": False, "description": "Article title or topic"},
+                    "url": {"type": "string", "required": False, "description": "Exact source link from a news-layer search result; never an arbitrary URL"},
+                },
+                "returns": "{queued: true, displayed: false, article: {query, url}, delivery: 'best_effort_dashboard_poll'}",
             },
             {
                 "name": "search_news",
@@ -1947,7 +1927,7 @@ async def agent_tool_manifest(request: Request):
             {
                 "name": "list_watches",
                 "type": "read",
-                "description": "List all active watchdog watches (aircraft tracking, geofences, keyword monitors, etc.).",
+                "description": "List saved watchdog watches, including pause state, check times, and latest trigger evidence (aircraft tracking, geofences, keyword monitors, etc.).",
                 "parameters": {},
                 "returns": "Array of watch objects with id, type, params, created_at",
             },
@@ -2297,7 +2277,39 @@ async def agent_tool_manifest(request: Request):
                 "description": "Clear OpenClaw-created analysis zones from the map.",
                 "parameters": {},
             },
-        ],
+]
+
+# ---------------------------------------------------------------------------
+# Any LLM agent (OpenClaw, custom, etc.) hits this endpoint once on connect
+# and loads the result as its tool definitions. No manual reading required.
+
+@router.get("/api/ai/tools", dependencies=[Depends(require_openclaw_or_local)])
+@limiter.limit("30/minute")
+async def agent_tool_manifest(request: Request):
+    """Return structured tool definitions that an LLM agent can load directly.
+
+    This is the machine-readable equivalent of /api/ai/capabilities.
+    An agent loads these as its available tools on first connect.
+    Each tool has: name, description, parameters (with types), and examples.
+    """
+    from services.openclaw_channel import READ_COMMANDS, WRITE_COMMANDS
+    from services.config import get_settings
+
+    access_tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
+    available_commands = sorted(READ_COMMANDS | WRITE_COMMANDS) if access_tier == "full" else sorted(READ_COMMANDS)
+
+    return {
+        "ok": True,
+        "version": "0.9.82",
+        "access_tier": access_tier,
+        "available_commands": available_commands,
+        "transport": {
+            "commands": "POST /api/ai/channel/command  body: {\"cmd\": \"<tool_name>\", \"args\": {<params>}}",
+            "batch": "POST /api/ai/channel/batch  body: {\"commands\": [{\"cmd\": \"...\", \"args\": {...}}, ...]}  (max 20, concurrent execution, one HTTP round-trip)",
+            "realtime_stream": "GET /api/ai/channel/sse  (Server-Sent Events — keeps Tor circuit warm, receives push events)",
+            "auth": "HMAC-SHA256 headers: X-SB-Timestamp, X-SB-Nonce, X-SB-Signature. Sign: HMAC(key, METHOD|path|ts|nonce|sha256(body))",
+        },
+        "tools": _AGENT_TOOLS,
         "sse_events": {
             "description": "Events pushed via GET /api/ai/channel/sse — keep connection open to receive these in real-time.",
             "events": {
@@ -2385,9 +2397,11 @@ async def api_capabilities(request: Request):
             "durability": {
                 "command_queue": "memory_only",
                 "task_queue": "memory_only",
-                "watch_registry": "memory_only",
+                "watch_registry": "sqlite_persistent",
+                "mission_workspace": "sqlite_persistent",
+                "mission_resume": "operator_controlled",
                 "notes": [
-                    "Restarting the backend drops in-memory channel state, pending tasks, and watchdog watches.",
+                    "Restarting the backend drops in-memory channel state and pending channel tasks. Saved watch definitions, pause state, latest triggers, and mission records survive; model runs require explicit resume.",
                     "This channel is currently a singleton process-local integration, not a multi-agent durable broker.",
                 ],
             },
@@ -2780,7 +2794,9 @@ def _connect_info_metadata(settings) -> dict:
             "durability": {
                 "command_queue": "memory_only",
                 "task_queue": "memory_only",
-                "watch_registry": "memory_only",
+                "watch_registry": "sqlite_persistent",
+                "mission_workspace": "sqlite_persistent",
+                "mission_resume": "operator_controlled",
             },
         },
         "connection_modes": {
@@ -3525,6 +3541,17 @@ async def broadcast_to_agents(msg: dict[str, Any]):
 
     Called by watchdog, correlation engine, or operator actions.
     """
+    # Voice-agent §3.8: voice CONSUMES already-broadcast alert payloads as
+    # read-only context events ({"type":"watchdog_alert","alert":…}). Best
+    # effort; voice owns no evaluation loop and this stays wire-format only.
+    if isinstance(msg, dict) and msg.get("type") == "alert":
+        try:
+            from services.voice_broker import publish_watchdog_alert
+
+            publish_watchdog_alert(msg.get("alert"))
+        except Exception:
+            pass
+
     # Push to WebSocket clients
     async with _ws_clients_lock:
         clients = list(_ws_clients)

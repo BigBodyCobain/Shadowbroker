@@ -405,6 +405,7 @@ if _MESH_ONLY:
     intel_feeds_router = APIRouter()
     analytics_router = APIRouter()
     agent_shell_router = APIRouter()
+    voice_router = APIRouter()
 else:
     cctv_router = _load_optional_router("routers.cctv")
     radio_router = _load_optional_router("routers.radio")
@@ -421,6 +422,7 @@ else:
     intel_feeds_router = _load_optional_router("routers.intel_feeds")
     analytics_router = _load_optional_router("routers.analytics")
     agent_shell_router = _load_optional_router("routers.agent_shell")
+    voice_router = _load_optional_router("routers.voice")
 
 
 # ---------------------------------------------------------------------------
@@ -2957,6 +2959,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from services.http_security import RequestBodyLimitMiddleware
+
 
 _NO_STORE_HEADERS = {
     "Cache-Control": "no-store, max-age=0",
@@ -3870,6 +3874,7 @@ app.include_router(entity_graph_router)
 app.include_router(intel_feeds_router)
 app.include_router(analytics_router)
 app.include_router(agent_shell_router)
+app.include_router(voice_router)
 
 from services.data_fetcher import update_all_data
 
@@ -12187,6 +12192,10 @@ def _dev_uvicorn_bind_host() -> str:
         return "0.0.0.0"
     return "127.0.0.1"
 
+
+# Last registration makes this the outermost user middleware, before privacy/HMAC
+# middleware can read a request body.
+app.add_middleware(RequestBodyLimitMiddleware)
 
 if __name__ == "__main__":
     _host = _dev_uvicorn_bind_host()

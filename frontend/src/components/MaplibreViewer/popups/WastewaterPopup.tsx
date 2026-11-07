@@ -89,7 +89,7 @@ export function WastewaterPopup({ plant, onClose }: WastewaterPopupProps) {
           </div>
         ) : (
           <div className="mt-2 pt-2 border-t border-gray-600/20">
-            <div className="text-[9px] text-gray-500 text-center">No recent pathogen data available</div>
+            <div className="text-[10px] text-gray-500 text-center">No recent pathogen data available</div>
           </div>
         )}
 

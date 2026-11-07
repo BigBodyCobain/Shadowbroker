@@ -61,11 +61,11 @@ describe('proxy LAN mode', () => {
     vi.restoreAllMocks();
   });
 
-  it('injects the env admin key for same-origin requests outside LAN mode', async () => {
+  it('requires sign-in even for same-origin requests outside LAN mode', async () => {
     delete process.env.SHADOWBROKER_LAN_MODE;
     const fetchMock = upstreamOk();
     await dashboardGet();
-    expect(forwardedAdminKey(fetchMock)).toBe(ADMIN_KEY);
+    expect(forwardedAdminKey(fetchMock)).toBeNull();
   });
 
   it('withholds the env admin key from browsers that have not signed in', async () => {

@@ -112,6 +112,56 @@ Shadowbroker is **self-hosted**: each install uses its own backend egress IP. Th
 
 ---
 
+## AI Voice Agent (opt-in, off by default)
+
+The operator-console voice agent (NARRATE / ACT) is **disabled by default** behind a
+two-step opt-in (`VOICE_AGENT_OUTBOUND_ENABLE=allow` **and**
+`VOICE_AGENT_OUTBOUND_ACKNOWLEDGE=true`). Both flags must be set; either alone keeps
+the feature dark.
+
+- **Destination disclosure:** when enabled, typed commands and context reach the
+  operator-selected language-model provider: OpenAI, Anthropic, Gemini, xAI,
+  OpenRouter (including Meta/Llama), or a saved local/custom API. Spoken command
+  clips reach the separately selected speech provider through `/api/voice/transcribe`
+  (OpenAI, Gemini, or an OpenAI-compatible transcription server). Native realtime
+  audio uses the configured realtime endpoint. Local addresses are resolved from
+  the backend host. Provider retention and training terms apply to hosted services.
+  See [AI provider setup](ai-provider-setup.md) for supported protocols and settings.
+- **Brokered server-side only:** every provider dial lives in the backend voice broker;
+  the browser never holds a provider key and never connects to the third-party host.
+  Keys are stored in `data/operator_api_keys.env` and disclosed as `is_set` booleans only.
+- **Payload inventory:** per turn, ≤6 KB of structured JSON context about what the
+  operator's console is showing (viewport bounds/zoom, active layer names, entity counts,
+  top correlations, freshness dispositions, verbatim health error text) plus the operator's
+  utterance or typed text. No screenshots, no raw bulk layers, no credentials in payloads.
+- **Retention:** session transcripts are **in-memory only** on the backend (10-minute
+  sliding TTL, hard-capped sessions); nothing conversational is persisted. Daily spend
+  ledgers (`data/voice_cost/<date>.json`) record cost figures, not content.
+- **Saved missions:** when the operator explicitly saves a mission, its objective,
+  bounded dashboard context, tool results, evidence, and role reports persist locally
+  in `missions.sqlite3`. Role provider/model choices persist, but provider keys do not.
+  Running a mission sends bounded context/evidence to its selected saved role provider
+  through the same backend broker, outbound opt-in, and daily budget gate. Writes
+  require operator approval. Restoring a mission does not initiate model inference;
+  saved watches resume cached-telemetry monitoring without automatic model calls.
+  Mission and watch removal are separate workspace controls. See
+  [mission workspace](mission-workspace.md) for retention bounds and recovery behavior.
+- **Attribution:** requests carry this install's per-install User-Agent handle, same as
+  all other backend egress above.
+- **Spend control:** server-authoritative warn/cap latches and a persisted daily budget
+  governor bound total exposure even while the feature is enabled.
+- **SpeechRecognition prohibition:** browser `SpeechRecognition` /
+  `webkitSpeechRecognition` are banned outright (empty allow-list, enforced by CI).
+  Chromium's implementation ships microphone audio unbrokered to Google cloud — it cannot
+  satisfy "every third-party call is brokered server-side". Degraded input is typed text
+  through the composer; microphone command input uses the server-brokered
+  `/api/voice/transcribe` endpoint behind the same operator authentication, two-step
+  gate, rate limit, and budget gate. Clips are limited to 30 seconds, validated as
+  mono PCM WAV, rebuilt from the validated samples, and processed in memory without
+  persistent recordings. Cancelling capture suppresses pending transcript submission.
+
+---
+
 ## Operator checklist
 
 1. Set `OPERATOR_HANDLE` if you want a recognizable name on upstream logs.
@@ -120,3 +170,6 @@ Shadowbroker is **self-hosted**: each install uses its own backend egress IP. Th
 4. Set `SHADOWBROKER_ENABLE_LIVEUAMAP_SCRAPER=false` to forbid LiveUAMap entirely.
 5. Set `MESHTASTIC_SEND_CALLSIGN_HEADER=true` only if you want callsign sent upstream.
 6. Self-host map tiles if basemap CDN exposure matters.
+7. Leave `VOICE_AGENT_OUTBOUND_ENABLE=block` (default) unless you accept operator
+   speech being sent to your configured voice endpoint; read the AI Voice Agent
+   section above first.

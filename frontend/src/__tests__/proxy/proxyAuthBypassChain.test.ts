@@ -6,8 +6,7 @@
  * server-side ADMIN_KEY injected into their forwarded requests. The
  * proxy enforces a CSRF guard by checking the Origin header against
  * the request's own Host header. Same-origin (the dashboard itself),
- * Tauri/native shells (no Origin), and authenticated session cookies
- * are all allowed; cross-origin browser fetches with a foreign Origin
+ * Anonymous same-origin and native-looking requests receive no key; cross-origin browser fetches with a foreign Origin
  * are rejected.
  *
  * #255 — Admin session minting must require ADMIN_KEY to be configured
@@ -90,7 +89,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
     expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('same-origin request (Origin matches Host) DOES inject X-Admin-Key', async () => {
+  it('same-origin request (Origin matches Host) does not inject an environment key without credentials', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -107,10 +106,10 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['wormhole', 'identity'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('same-origin request behind a reverse proxy uses X-Forwarded-Host for injection', async () => {
+  it('same-origin request behind a reverse proxy does not trust X-Forwarded-Host as authorization', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -128,10 +127,10 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['settings', 'api-keys'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('same-origin request behind a Docker bridge proxy can use a private Host with X-Forwarded-Host', async () => {
+  it('same-origin request behind a Docker bridge proxy does not grant authority from a private Host', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -149,10 +148,10 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['settings', 'api-keys'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('same-origin request behind a reverse proxy uses Forwarded host for injection', async () => {
+  it('same-origin request behind a reverse proxy does not trust Forwarded host as authorization', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -170,7 +169,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['tools', 'shodan', 'status'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
   it('cross-origin request cannot spoof same-origin with X-Forwarded-Host on a public Host', async () => {
@@ -215,7 +214,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
     expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('no Origin header (native shell, server-to-server, curl) DOES inject X-Admin-Key', async () => {
+  it('no Origin header (native shell, server-to-server, curl) does not inject an environment key without credentials', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -232,7 +231,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['settings', 'wormhole'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
   it('GET /api/refresh without Origin does NOT receive env ADMIN_KEY fallback', async () => {
@@ -255,7 +254,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
     expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('GET /api/refresh with same-origin Origin still receives env ADMIN_KEY fallback', async () => {
+  it('GET /api/refresh with same-origin Origin requires an authenticated session', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
@@ -272,10 +271,10 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['refresh'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
-  it('cross-origin request with a valid session cookie STILL injects (cookie auth wins)', async () => {
+  it('cross-origin request with a valid session cookie is denied even with a valid session cookie', async () => {
     // Mint a session first (against the real handler).
     const mintReq = new NextRequest('http://localhost:3000/api/admin/session', {
       method: 'POST',
@@ -310,7 +309,7 @@ describe('proxy CSRF guard on admin-key injection (#249/#254)', () => {
       params: Promise.resolve({ path: ['wormhole', 'identity'] }),
     });
 
-    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(ADMIN_KEY);
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBeNull();
   });
 
   it('malformed Origin header is treated as not-same-origin (conservative)', async () => {

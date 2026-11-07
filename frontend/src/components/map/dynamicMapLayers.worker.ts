@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 /// <reference lib="webworker" />
 
 import { classifyAircraft } from '@/utils/aircraftClassification';

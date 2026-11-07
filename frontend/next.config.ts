@@ -1,4 +1,14 @@
 import type { NextConfig } from 'next';
+import { copyFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+// Serve the dependency's raw worker; Next's development compiler otherwise
+// injects React Refresh globals into this standalone module.
+const workerSource = join(process.cwd(), 'node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs');
+if (existsSync(workerSource)) {
+  copyFileSync(workerSource, join(process.cwd(), 'public/maplibre-gl-worker.mjs'));
+}
+
 
 // /api/* requests are proxied to the backend by the catch-all route handler at
 // src/app/api/[...path]/route.ts, which reads BACKEND_URL at request time.
@@ -34,7 +44,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['react-map-gl', 'maplibre-gl'],
+  // The MapLibre worker is a standalone module; React Refresh breaks it.
+  transpilePackages: ['react-map-gl'],
   output: isDesktopExport ? 'export' : 'standalone',
   devIndicators: false,
   experimental: isDesktopExport
@@ -57,10 +68,8 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: skipTypecheck,
-    // Next 16.3+ type-checks every file tsconfig includes; keep the build on
-    // app code. Tests are type-checked by Vitest/tsc separately.
     tsconfigPath: 'tsconfig.build.json',
+    ignoreBuildErrors: skipTypecheck,
   },
   ...(!isDesktopExport
     ? {

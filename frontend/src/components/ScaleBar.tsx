@@ -136,13 +136,13 @@ function ScaleBar({
           </div>
           {/* Draggable right tick */}
           <div
-            className="w-2 h-3 bg-cyan-400/80 rounded-r cursor-ew-resize flex-shrink-0 hover:bg-cyan-300 transition-colors"
+            className="relative w-px h-2.5 bg-cyan-400 cursor-ew-resize flex-shrink-0 hover:bg-cyan-200 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']"
             onPointerDown={onPointerDown}
             title="Drag to resize scale"
             style={{ touchAction: 'none' }}
           />
         </div>
-        <span className="text-[9px] font-mono text-cyan-300 tracking-widest mt-0.5">
+        <span className="text-[10.5px] font-mono text-cyan-300 tracking-widest mt-0.5 [text-shadow:0_0_3px_#02050b,0_0_6px_#02050b,0_1px_2px_#02050b]">
           {scaleLabel}
         </span>
       </div>
@@ -159,7 +159,7 @@ function ScaleBar({
       {/* Measure mode toggle */}
       <button
         onClick={onToggleMeasure}
-        className={`flex items-center gap-1 text-[11px] font-mono tracking-widest px-2 py-0.5 rounded border transition-all ${
+        className={`flex items-center gap-1 text-[11px] font-mono tracking-widest uppercase px-2 py-0.5 rounded border transition-all ${
           measureMode
             ? 'border-cyan-500/60 text-cyan-400 bg-cyan-950/30 shadow-[0_0_8px_rgba(0,255,255,0.2)]'
             : 'border-[var(--border-primary)] text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-950/20'
@@ -187,7 +187,7 @@ function ScaleBar({
           {segmentDistances.map((d, i) => (
             <span
               key={i}
-              className={`text-[9px] font-mono tracking-wider px-1.5 py-0.5 rounded border ${
+              className={`text-[10px] font-mono tracking-wider px-1.5 py-0.5 rounded border ${
                 d.startsWith('Σ')
                   ? 'border-cyan-500/50 text-cyan-300 bg-cyan-950/30'
                   : 'border-[var(--border-primary)] text-[var(--text-secondary)]'

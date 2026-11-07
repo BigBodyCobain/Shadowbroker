@@ -46,6 +46,14 @@ describe('useAgentActions — fly_to zoom', () => {
     );
   });
 
+  it('forwards an article action to the dashboard preview handler', async () => {
+    const article = { query: 'Port traffic update', url: 'https://news.example/port' };
+    vi.stubGlobal('fetch', mockActions([{ action: 'open_article', article }]));
+    const onOpenArticle = vi.fn();
+    renderHook(() => useAgentActions(vi.fn(), vi.fn(), true, onOpenArticle));
+    await waitFor(() => expect(onOpenArticle).toHaveBeenCalledWith(article));
+  });
+
   it('leaves zoom undefined when the action omits it', async () => {
     vi.stubGlobal('fetch', mockActions([{ action: 'fly_to', lat: 51.5, lng: -0.1 }]));
     const onFlyTo = vi.fn();

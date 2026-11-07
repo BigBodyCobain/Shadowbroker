@@ -1,5 +1,7 @@
-import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
+import { isAllowedBrowserRequest } from '@/lib/requestOrigin';
+import { readRequestBody, RequestBodyTooLarge } from '@/lib/server/requestBody';
 import {
   clearAdminSessionToken,
   createAdminSessionToken,
@@ -23,23 +25,6 @@ function cookieOptions() {
   };
 }
 
-/**
- * Verify an operator-supplied admin key before minting a session cookie.
- *
- * Issue #255: the previous implementation, when ADMIN_KEY was unset on
- * the server, fell through to verifying against the backend by GET-ing
- * /api/settings/privacy-profile. That endpoint is public — it returns
- * 200 for any X-Admin-Key value (or none at all) — so the fallback
- * accepted *arbitrary* keys and minted full admin sessions for them.
- *
- * Fix: require ADMIN_KEY to be configured before any session can be
- * minted, and do the validation locally instead of round-tripping to a
- * potentially-public endpoint. If ADMIN_KEY is unset, the backend
- * already auto-trusts loopback / docker-bridge callers via
- * require_local_operator + SHADOWBROKER_TRUST_DOCKER_BRIDGE_LOCAL_OPERATOR,
- * so legitimate local users keep working — they just don't get (and
- * don't need) a privileged session cookie.
- */
 async function verifyAdminKey(
   adminKey: string,
 ): Promise<{ ok: true } | { ok: false; detail: string }> {
@@ -47,11 +32,7 @@ async function verifyAdminKey(
   if (!configuredAdmin) {
     return {
       ok: false,
-      detail:
-        'No admin key configured on the server. Local-host requests are '
-        + 'already auto-trusted by the backend — no session is needed. '
-        + 'To enable session-based admin auth, set ADMIN_KEY in the backend '
-        + 'environment and restart.',
+      detail: 'No admin key configured. Set ADMIN_KEY on the frontend and backend, then restart to enable operator login.',
     };
   }
   const presented = Buffer.from(String(adminKey || ''));
@@ -63,7 +44,13 @@ async function verifyAdminKey(
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  if (!isAllowedBrowserRequest(req)) return NextResponse.json({ detail: 'Cross-origin request denied' }, { status: 403, headers: NO_STORE_HEADERS });
+  let body;
+  try {
+    body = JSON.parse(await readRequestBody(req, 64 * 1024) || '{}');
+  } catch (error) {
+    return NextResponse.json({ detail: 'Invalid session request' }, { status: error instanceof RequestBodyTooLarge ? 413 : 400, headers: NO_STORE_HEADERS });
+  }
   const adminKey = String(body?.adminKey || '').trim();
   if (!adminKey) {
     return NextResponse.json(
@@ -89,6 +76,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!isAllowedBrowserRequest(req)) return NextResponse.json({ detail: 'Cross-origin request denied' }, { status: 403, headers: NO_STORE_HEADERS });
   const existingToken = req.cookies.get(COOKIE_NAME)?.value || '';
   if (existingToken) {
     clearAdminSessionToken(existingToken);

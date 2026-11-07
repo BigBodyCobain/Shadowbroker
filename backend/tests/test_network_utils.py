@@ -90,7 +90,7 @@ class TestCircuitBreaker:
         mock_result.stdout = '{"data": true}\n200'
         mock_result.stderr = ""
 
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        with patch("subprocess.run", return_value=mock_result) as mock_run, patch("services.network_utils.external_curl_fallback_enabled", return_value=True):
             result = fetch_with_curl("https://skip-to-curl.com/api")
             assert result.status_code == 200
             assert result.json()["data"] is True
@@ -166,3 +166,20 @@ class TestFetchWithCurl:
             headers = call_args.kwargs.get("headers", {})
             assert "Authorization" in headers
             assert headers["Authorization"] == "Bearer token123"
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 429])
+def test_client_error_does_not_disable_other_resources_on_the_same_host(status):
+    domain = "portraits.example"
+    with _cb_lock:
+        _circuit_breaker.pop(domain, None)
+        _domain_fail_cache.pop(domain, None)
+    missing = _DummyResponse(status, "unavailable")
+    found = _DummyResponse(200, '{"title":"Valid portrait"}')
+    with patch("services.network_utils._session.get", side_effect=[missing, found]) as get, patch("subprocess.run") as curl:
+        assert fetch_with_curl(f"https://{domain}/missing").status_code == status
+        assert fetch_with_curl(f"https://{domain}/valid").json()["title"] == "Valid portrait"
+        assert get.call_count == 2
+        curl.assert_not_called()
+    assert domain not in _circuit_breaker
+    assert domain not in _domain_fail_cache

@@ -297,7 +297,7 @@ function MarketModal({
           {/* ── LEADER / CONSENSUS ── */}
           {isMulti && leader ? (
             <div className="bg-emerald-950/20 border border-emerald-500/30 rounded p-4 text-center">
-              <div className="text-[9px] text-[var(--text-muted)] tracking-[0.2em] mb-1.5">CURRENT LEADER</div>
+              <div className="text-[10px] text-[var(--text-muted)] tracking-[0.2em] mb-1.5">CURRENT LEADER</div>
               <div className="text-[22px] font-bold text-emerald-400">{leader.name}</div>
               <div className="text-[28px] font-bold text-white mt-1">{leader.pct}%</div>
             </div>
@@ -318,7 +318,7 @@ function MarketModal({
             {market.sources?.map((s, i) => (
               <span
                 key={i}
-                className={`text-[9px] font-mono px-2 py-0.5 border ${
+                className={`text-[10px] font-mono px-2 py-0.5 border ${
                   s.name === 'POLY'
                     ? 'bg-purple-500/15 text-purple-400 border-purple-500/20'
                     : 'bg-blue-500/15 text-blue-400 border-blue-500/20'
@@ -328,17 +328,17 @@ function MarketModal({
               </span>
             ))}
             {market.volume > 0 && (
-              <span className="text-[9px] font-mono text-[var(--text-muted)]">
+              <span className="text-[10px] font-mono text-[var(--text-muted)]">
                 {formatVolume(market.volume)} vol
               </span>
             )}
             {market.volume_24h > 0 && (
-              <span className="text-[9px] font-mono text-cyan-400">
+              <span className="text-[10px] font-mono text-cyan-400">
                 {formatVolume(market.volume_24h)} 24h
               </span>
             )}
             {market.end_date && (
-              <span className="text-[9px] font-mono text-[var(--text-muted)]">
+              <span className="text-[10px] font-mono text-[var(--text-muted)]">
                 ends{' '}
                 {new Date(market.end_date).toLocaleDateString('en-US', {
                   month: 'short',
@@ -352,7 +352,7 @@ function MarketModal({
           {/* Resolution stipulation / Description */}
           {market.description && (
             <div className="border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 p-3 rounded">
-              <div className="text-[9px] font-mono tracking-widest text-[var(--text-muted)] mb-1.5">
+              <div className="text-[10px] font-mono tracking-widest text-[var(--text-muted)] mb-1.5">
                 RESOLUTION STIPULATION
               </div>
               <div className="text-[10px] text-[var(--text-secondary)] font-mono leading-relaxed max-h-[150px] overflow-y-auto styled-scrollbar whitespace-pre-wrap">
@@ -364,7 +364,7 @@ function MarketModal({
           {/* ── OUTCOMES LIST ── */}
           {isMulti && sortedOutcomes.length > 0 && (
             <div>
-              <div className="text-[9px] font-mono tracking-widest text-[var(--text-muted)] mb-2">
+              <div className="text-[10px] font-mono tracking-widest text-[var(--text-muted)] mb-2">
                 ALL OUTCOMES ({sortedOutcomes.length})
               </div>
               <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto styled-scrollbar">
@@ -412,13 +412,13 @@ function MarketModal({
           {/* Network Activity */}
           {sideEntries.length > 0 && (
             <div className="border border-[var(--border-primary)]/40 bg-[var(--bg-secondary)]/20 p-3 rounded">
-              <div className="text-[9px] font-mono tracking-widest text-[var(--text-muted)] mb-2">
+              <div className="text-[10px] font-mono tracking-widest text-[var(--text-muted)] mb-2">
                 NETWORK ACTIVITY
               </div>
               <div className="flex flex-col gap-1.5">
                 {sideEntries.map(([side, data]) => (
                   <div key={side} className="flex items-center gap-2">
-                    <span className="text-[9px] font-mono text-[var(--text-secondary)] w-20 truncate uppercase">
+                    <span className="text-[10px] font-mono text-[var(--text-secondary)] w-20 truncate uppercase">
                       {side}
                     </span>
                     <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-primary)]/60 overflow-hidden">
@@ -427,7 +427,7 @@ function MarketModal({
                         style={{ width: `${(data.picks / maxPicks) * 100}%` }}
                       />
                     </div>
-                    <span className="text-[8px] font-mono text-[var(--text-muted)] w-24 text-right">
+                    <span className="text-[10px] font-mono text-[var(--text-muted)] w-24 text-right">
                       {data.picks} pick{data.picks !== 1 ? 's' : ''}
                       {data.staked > 0 ? ` · ${data.staked.toFixed(1)} REP` : ''}
                     </span>
@@ -442,7 +442,7 @@ function MarketModal({
             {market.slug && (
               <button
                 onClick={() => window.open(`https://polymarket.com/event/${market.slug}`, '_blank', 'noopener,noreferrer')}
-                className="flex items-center gap-1 px-3 py-1.5 text-[9px] font-mono border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-colors cursor-pointer rounded-sm"
+                className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-mono border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:border-purple-400 transition-colors cursor-pointer rounded-sm"
               >
                 <ExternalLink size={10} /> POLYMARKET
               </button>
@@ -450,7 +450,7 @@ function MarketModal({
             {market.kalshi_ticker && (
               <button
                 onClick={() => window.open(`https://kalshi.com/markets/${market.kalshi_ticker}`, '_blank', 'noopener,noreferrer')}
-                className="flex items-center gap-1 px-3 py-1.5 text-[9px] font-mono border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:border-blue-400 transition-colors cursor-pointer rounded-sm"
+                className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-mono border border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:border-blue-400 transition-colors cursor-pointer rounded-sm"
               >
                 <ExternalLink size={10} /> KALSHI
               </button>
@@ -769,7 +769,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.8, delay: 0.2 }}
-        className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
+        className="w-full sb-panel z-10 flex flex-col font-mono pointer-events-auto flex-shrink-0"
       >
         {/* Header */}
         <div
@@ -778,7 +778,7 @@ const PredictionsPanel = React.memo(function PredictionsPanel() {
         >
           <div className="flex items-center gap-2">
             <Trophy size={16} className="text-emerald-400" />
-            <span className="text-[12px] text-emerald-400 font-mono tracking-widest font-bold">
+            <span className="sb-title text-emerald-400">
               ORACLE PREDICTIONS
             </span>
             {headerCount > 0 && (

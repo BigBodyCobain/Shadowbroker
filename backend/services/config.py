@@ -369,6 +369,40 @@ class Settings(BaseSettings):
     # Require private-tier transport before signing/broadcasting SAR anomalies
     MESH_SAR_REQUIRE_PRIVATE_TIER: bool = True
 
+    # AI Voice Agent — two-step opt-in (canonical pattern: request + acknowledge,
+    # mirroring MESH_SAR_PRODUCTS_FETCH above). Enabling voice sends operator
+    # speech to the configured OpenAI-compatible endpoint with per-install
+    # attribution — see docs/OUTBOUND_DATA.md.
+    VOICE_AGENT_OUTBOUND_ENABLE: str = "block"          # "block" | "allow"
+    VOICE_AGENT_OUTBOUND_ACKNOWLEDGE: bool = False
+    # Provider/model resolution. Resolution order matches get_settings():
+    # process env → data/operator_api_keys.env rows → pydantic default.
+    VOICE_PROVIDER: str = "auto"        # auto | openai_realtime | compatible_ws | gemini_live | anthropic_text | local_text
+    VOICE_API_PROVIDER: str = ""        # explicit setup selection; empty preserves legacy auto resolution
+    VOICE_API_STYLE: str = ""           # chat | responses | messages (provider default when empty)
+    VOICE_STT_PROVIDER: str = "off"     # off | openai | gemini | compat (local speech API)
+    VOICE_STT_MODEL: str = ""
+    VOICE_STT_BASE_URL: str = ""
+    VOICE_OPENAI_BASE_URL: str = "https://api.openai.com"
+    VOICE_COMPAT_BASE_URL: str = ""     # e.g. http://127.0.0.1:11434/v1 (Ollama)
+    VOICE_GEMINI_MODEL: str = "gemini-3.1-flash-live-preview"   # Gemini Live (U8 provider #2)
+    VOICE_GEMINI_BASE_URL: str = "wss://generativelanguage.googleapis.com/ws"
+    # Gemini-only text chat leg (chat_completion dials Google's OpenAI-compatible
+    # endpoint https://generativelanguage.googleapis.com/v1beta/openai when the
+    # resolved provider is gemini_live and VOICE_CHAT_MODEL is empty).
+    VOICE_GEMINI_CHAT_MODEL: str = "gemini-2.5-flash"
+    VOICE_ANTHROPIC_BASE_URL: str = "https://api.anthropic.com"  # Claude TEXT leg only — Anthropic has no realtime speech API
+    VOICE_MODEL_STANDARD: str = "gpt-realtime"
+    VOICE_MODEL_MINI: str = ""
+    VOICE_CHAT_MODEL: str = ""          # chat-completions model for text fallback / hud-summary on local endpoints
+    VOICE_REALTIME_VOICE: str = "alloy"
+    VOICE_COST_WARN_USD: float = 2.0    # <=0 or "off" disables
+    VOICE_COST_CAP_USD: float = 5.0     # <=0 or "off" disables
+    VOICE_DAILY_BUDGET_USD: float = 0.0 # 0 = unlimited (ledger still recorded)
+    VOICE_MAX_CONCURRENT_SESSIONS: int = 1
+    VOICE_FALLBACK_AUDIO_TOKENS_PER_SEC: int = 50   # deliberate over-estimate (metering fallback)
+    VOICE_LOCAL_TTS_ENABLE: bool = False            # local-only speechSynthesis output, off by default
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -428,6 +462,14 @@ def gate_plaintext_persist_effective(settings: Settings | None = None) -> bool:
     snapshot = settings or get_settings()
     requested = bool(getattr(snapshot, "MESH_GATE_PLAINTEXT_PERSIST", False))
     acknowledged = bool(getattr(snapshot, "MESH_GATE_PLAINTEXT_PERSIST_ACKNOWLEDGE", False))
+    return requested and acknowledged
+
+
+def voice_outbound_effective(settings=None) -> bool:
+    """Voice-agent two-step opt-in: requested ("allow") AND acknowledged."""
+    s = settings or get_settings()
+    requested = str(getattr(s, "VOICE_AGENT_OUTBOUND_ENABLE", "block")).strip().lower() == "allow"
+    acknowledged = bool(getattr(s, "VOICE_AGENT_OUTBOUND_ACKNOWLEDGE", False))
     return requested and acknowledged
 
 

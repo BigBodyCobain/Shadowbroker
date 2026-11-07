@@ -415,7 +415,7 @@ fn managed_bool_default_specs() -> Vec<ManagedBoolDefaultSpec> {
     ]
 }
 
-fn parse_env_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+pub(crate) fn parse_env_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     let trimmed = line.trim_start();
     if trimmed.is_empty() || trimmed.starts_with('#') {
         return None;

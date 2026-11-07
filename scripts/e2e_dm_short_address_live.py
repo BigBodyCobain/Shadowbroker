@@ -66,12 +66,12 @@ def _embed_json_value(value: object) -> str:
 PRIVATE_DM_TRANSPORT_LOCK = "private_strong"
 LOCAL_COMPOSE_FILES = (
     "docker-compose.yml",
-    "docker-compose.override.yml",
+    "docker-compose.fleet-dev.yml",
     "docker-compose.e2e.yml",
 )
 FULL_LOCAL_COMPOSE_FILES = (
     "docker-compose.yml",
-    "docker-compose.override.yml",
+    "docker-compose.fleet-dev.yml",
 )
 
 _EMBED_SIGNED_MAILBOX_HELPERS = textwrap.dedent(

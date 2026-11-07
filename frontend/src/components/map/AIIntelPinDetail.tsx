@@ -432,7 +432,7 @@ export const AIIntelPinDetail: React.FC<Props> = ({ pinId, onClose, onDeleted, o
             {/* New comment input */}
             <div className="mt-2 pt-2 border-t border-white/5 space-y-1.5">
               {replyTo && (
-                <div className="text-[9px] text-violet-400 flex items-center justify-between">
+                <div className="text-[10px] text-violet-400 flex items-center justify-between">
                   <span>Replying to comment…</span>
                   <button
                     type="button"
@@ -520,26 +520,26 @@ const CommentBlock: React.FC<CommentBlockProps> = ({ comment, replies, onReply, 
     <div className="text-[11px] leading-snug">
       <div className="flex items-start gap-1.5">
         <span
-          className="text-[9px] uppercase tracking-wider font-bold flex-shrink-0 mt-0.5"
+          className="text-[10px] uppercase tracking-wider font-bold flex-shrink-0 mt-0.5"
           style={{ color: authorColor }}
         >
           {comment.author}
         </span>
-        <span className="text-[9px] text-gray-600 flex-shrink-0 mt-0.5">{when}</span>
+        <span className="text-[10px] text-gray-600 flex-shrink-0 mt-0.5">{when}</span>
         <div className="flex-1 min-w-0 flex items-start justify-between gap-1">
           <div className="whitespace-pre-wrap break-words text-gray-200 flex-1">{comment.text}</div>
           <div className="flex gap-1 flex-shrink-0">
             <button
               type="button"
               onClick={() => onReply(comment.id)}
-              className="text-[9px] text-gray-500 hover:text-violet-300"
+              className="text-[10px] text-gray-500 hover:text-violet-300"
             >
               reply
             </button>
             <button
               type="button"
               onClick={() => onDelete(comment.id)}
-              className="text-[9px] text-gray-600 hover:text-red-400"
+              className="text-[10px] text-gray-600 hover:text-red-400"
             >
               ×
             </button>

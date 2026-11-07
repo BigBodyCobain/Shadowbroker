@@ -260,7 +260,7 @@ export default function AdvancedFilterModal({
                 {title}
               </span>
               {totalSelected > 0 && (
-                <span className={`text-[9px] ${c.bg} ${c.text} px-1.5 py-0.5 rounded-sm`}>
+                <span className={`text-[10px] ${c.bg} ${c.text} px-1.5 py-0.5 rounded-sm`}>
                   {totalSelected} SELECTED
                 </span>
               )}
@@ -276,7 +276,7 @@ export default function AdvancedFilterModal({
           {disabledLayers.length > 0 && (
             <div
               role="status"
-              className="px-4 py-2 flex flex-col gap-2 text-[9px] tracking-widest text-amber-400 bg-amber-500/10 border-b border-amber-500/30 flex-shrink-0"
+              className="px-4 py-2 flex flex-col gap-2 text-[10px] tracking-widest text-amber-400 bg-amber-500/10 border-b border-amber-500/30 flex-shrink-0"
             >
               <span>
                 {disabledLayers.map((l) => l.label.toUpperCase()).join(' + ')} LAYER
@@ -311,7 +311,7 @@ export default function AdvancedFilterModal({
                   <button
                     key={field.key}
                     onClick={() => setActiveTab(field.key)}
-                    className={`px-3 py-1.5 text-[9px] tracking-widest rounded-t transition-colors relative ${
+                    className={`px-3 py-1.5 text-[10px] tracking-widest rounded-t transition-colors relative ${
                       isActive
                         ? `${c.bg} ${c.text} border border-b-0 ${c.border}`
                         : 'text-gray-500 hover:text-gray-300 border border-transparent'
@@ -337,7 +337,7 @@ export default function AdvancedFilterModal({
                 return (
                   <span
                     key={val}
-                    className={`inline-flex items-center gap-1 text-[9px] ${c.bg} ${c.text} border ${c.border} rounded-full px-2 py-0.5 group`}
+                    className={`inline-flex items-center gap-1 text-[10px] ${c.bg} ${c.text} border ${c.border} rounded-full px-2 py-0.5 group`}
                   >
                     {displayVal.length > 28 ? displayVal.slice(0, 28) + '…' : displayVal}
                     <button
@@ -451,20 +451,20 @@ export default function AdvancedFilterModal({
           <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-primary)]/60 flex-shrink-0">
             <button
               onClick={clearAll}
-              className="text-[9px] text-red-400/70 hover:text-red-300 tracking-widest transition-colors"
+              className="text-[10px] text-red-400/70 hover:text-red-300 tracking-widest transition-colors"
             >
               CLEAR ALL
             </button>
             <div className="flex gap-2">
               <button
                 onClick={onClose}
-                className="text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] tracking-widest border border-[var(--border-primary)] px-4 py-1.5 hover:bg-[var(--bg-tertiary)]/50 transition-all"
+                className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] tracking-widest border border-[var(--border-primary)] px-4 py-1.5 hover:bg-[var(--bg-tertiary)]/50 transition-all"
               >
                 CANCEL
               </button>
               <button
                 onClick={handleApply}
-                className={`text-[9px] ${c.text} tracking-widest border ${c.border} px-4 py-1.5 ${c.bg} ${c.bgHover} transition-all font-semibold`}
+                className={`text-[10px] ${c.text} tracking-widest border ${c.border} px-4 py-1.5 ${c.bg} ${c.bgHover} transition-all font-semibold`}
               >
                 APPLY{totalSelected > 0 ? ` (${totalSelected})` : ''}
               </button>

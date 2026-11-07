@@ -126,6 +126,7 @@ WRITE_COMMANDS = frozenset({
     "clear_watches",
     "show_satellite",
     "show_sentinel",
+    "show_article",
     # SAR layer writes
     "sar_aoi_add",
     "sar_aoi_remove",
@@ -916,6 +917,29 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         if _wants_compact(args):
             return {"ok": True, "data": _compact_query_result(result), "format": "compressed_v1"}
         return {"ok": True, "data": result}
+
+    if cmd == "show_article":
+        from services.fetchers._store import get_latest_data_subset_refs
+        from routers.ai_intel import push_agent_action
+
+        query = str(args.get("query") or "").strip()[:200].lower()
+        url = str(args.get("url") or "").strip()[:2048]
+        if not query and not url:
+            return {"ok": False, "detail": "query or url required"}
+        rows = [row for row in (get_latest_data_subset_refs("news").get("news") or []) if isinstance(row, dict)]
+        def title(row):
+            return str(row.get("title") or "").strip().lower()
+        if url:
+            article = next((row for row in rows if str(row.get("link") or row.get("url") or "").strip() == url), None)
+        else:
+            article = next((row for row in rows if title(row) == query), None)
+            if article is None:
+                article = next((row for row in rows if all(word in title(row) + " " + str(row.get("summary") or "").lower() for word in query.split())), None)
+        if article is None:
+            return {"ok": False, "detail": "article not found in current news"}
+        reference = {"query": str(article.get("title") or ""), "url": str(article.get("link") or article.get("url") or "").strip()}
+        push_agent_action({"action": "open_article", "source": "show_article", "article": reference})
+        return {"ok": True, "data": {"queued": True, "displayed": False, "article": reference, "delivery": "best_effort_dashboard_poll"}}
 
     if cmd == "search_news":
         from services.telemetry import search_news

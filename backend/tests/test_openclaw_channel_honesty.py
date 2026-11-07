@@ -121,7 +121,9 @@ class TestConnectInfoHonesty:
             assert trust.get("remote_http_principal") == "holder_of_openclaw_hmac_secret"
             assert trust.get("agent_ed25519_identity_bound_to_http_session") is False
             assert trust.get("durability", {}).get("command_queue") == "memory_only"
-            assert bootstrap.get("auto_generates_when_missing") is True
+            assert bootstrap.get("auto_generates_when_missing") is False
+            assert trust.get("durability", {}).get("watch_registry") == "sqlite_persistent"
+            assert trust.get("durability", {}).get("mission_resume") == "operator_controlled"
             assert isinstance(bootstrap.get("notes"), list) and bootstrap.get("notes")
 
 
@@ -139,6 +141,7 @@ class TestCapabilitiesHonesty:
         assert auth.get("agent_ed25519_identity_used_for_mesh_signing") is True
         assert trust.get("remote_api_principal") == "holder_of_openclaw_hmac_secret"
         assert trust.get("durability", {}).get("task_queue") == "memory_only"
+        assert trust.get("durability", {}).get("mission_workspace") == "sqlite_persistent"
         assert trust.get("remote_route_surface", {}).get("auth_dependency") == "require_openclaw_or_local"
 
     def test_capabilities_surface_coarse_authorization_model(self, client):

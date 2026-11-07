@@ -287,8 +287,11 @@ def fetch_with_curl(url, method="GET", json_data=None, timeout=15, headers=None,
                 res = _session.post(url, json=json_data, timeout=req_timeout, headers=default_headers)
             else:
                 res = _session.get(url, timeout=req_timeout, headers=default_headers)
-            if res.status_code == 429:
-                logger.warning(f"Upstream rate limit hit for {url}; not bypassing with curl.")
+            if 400 <= res.status_code < 500:
+                # A missing article or denied resource does not mean the whole
+                # host is down. Never retry client errors through curl.
+                if res.status_code == 429:
+                    logger.warning(f"Upstream rate limit hit for {url}; not bypassing with curl.")
                 return res
             res.raise_for_status()
             # Clear failure caches on success

@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 import { useEffect, useRef } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import type { GeoJSONSource } from 'maplibre-gl';

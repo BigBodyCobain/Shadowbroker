@@ -44,7 +44,7 @@ export default function GlobalTicker() {
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 h-7 bg-[#0a0a0a]/95 border-t border-cyan-900/40 shadow-[0_-5px_15px_rgba(0,0,0,0.6)] z-[8000] flex items-center overflow-hidden pointer-events-auto backdrop-blur-xl"
+      className="sb-ticker absolute bottom-0 left-0 right-0 h-7 bg-[rgba(var(--sb-bg-rgb),0.92)] border-t border-[var(--border-primary)] shadow-[0_-5px_15px_rgba(0,0,0,0.6)] z-[8000] flex items-center overflow-hidden pointer-events-auto backdrop-blur-xl"
     >
 
       {fallback && (
@@ -60,7 +60,7 @@ export default function GlobalTicker() {
 
       {/* The scrolling container */}
       <motion.div
-        className="flex items-center whitespace-nowrap will-change-transform pl-4"
+        className="sb-ticker-track flex items-center whitespace-nowrap will-change-transform pl-4"
         animate={{ x: ["0%", "-50%"] }}
         transition={{ ease: "linear", duration: 60, repeat: Infinity }}
       >

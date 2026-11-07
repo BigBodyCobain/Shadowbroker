@@ -191,7 +191,7 @@ export default function RoadCorridorLayerControls({
         type="button"
         onClick={() => void handleAnalyze()}
         disabled={!ready || !mapCenter || running}
-        className="flex items-center gap-1.5 text-[9px] font-mono tracking-wide text-amber-400 hover:text-amber-200 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/5 hover:bg-amber-500/10 disabled:opacity-40 disabled:hover:text-amber-400 disabled:hover:border-amber-500/30 disabled:hover:bg-amber-500/5 px-2.5 py-1 rounded transition w-fit"
+        className="flex items-center gap-1.5 text-[10px] font-mono tracking-wide text-amber-400 hover:text-amber-200 border border-amber-500/30 hover:border-amber-500/50 bg-amber-500/5 hover:bg-amber-500/10 disabled:opacity-40 disabled:hover:text-amber-400 disabled:hover:border-amber-500/30 disabled:hover:bg-amber-500/5 px-2.5 py-1 rounded transition w-fit"
       >
         {running ? <Loader2 size={10} className="animate-spin" /> : <MapPin size={10} />}
         {running ? t('roadCorridor.analyzing') : t('roadCorridor.analyzeHere')}

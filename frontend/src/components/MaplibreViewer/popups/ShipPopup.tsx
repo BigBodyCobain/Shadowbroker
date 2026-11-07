@@ -102,7 +102,7 @@ export function ShipPopup({ ship, longitude, latitude, onClose }: ShipPopupProps
           </span>
         </div>
         {ship.type === 'carrier' && ship.source && (
-          <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,170,0,0.08)] border border-[rgba(255,170,0,0.3)] rounded text-[9px] tracking-wide">
+          <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,170,0,0.08)] border border-[rgba(255,170,0,0.3)] rounded text-[10px] tracking-wide">
             <div className="text-[#ffaa00] mb-0.5">
               SOURCE:{' '}
               {ship.source_url ? (
@@ -144,7 +144,7 @@ export function ShipPopup({ ship, longitude, latitude, onClose }: ShipPopupProps
           </div>
         )}
         {ship.yacht_alert && (
-          <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,105,180,0.08)] border border-[rgba(255,105,180,0.3)] rounded text-[9px] tracking-wide">
+          <div className="mt-1.5 p-[5px_7px] bg-[rgba(255,105,180,0.08)] border border-[rgba(255,105,180,0.3)] rounded text-[10px] tracking-wide">
             <div className="text-[#FF69B4] font-bold mb-0.5">TRACKED YACHT</div>
             <div>
               Owner: <span className="text-white">{ship.yacht_owner}</span>

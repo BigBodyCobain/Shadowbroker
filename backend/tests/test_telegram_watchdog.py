@@ -1,7 +1,15 @@
 """Telegram OSINT watchdog and search helpers."""
 
+import pytest
+
+
 from services import openclaw_watchdog
 from services.telegram_osint_text import keyword_matches_telegram_post, telegram_post_search_text
+
+
+@pytest.fixture(autouse=True)
+def isolated_watch_storage(tmp_path, monkeypatch):
+    monkeypatch.setenv("SB_DATA_DIR", str(tmp_path))
 
 
 def _telegram_slow_fixture() -> dict:

@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 // ─── ShadowBroker Dashboard Data Types ─────────────────────────────────────
 // Canonical type definitions for all data flowing from backend → frontend.
 // Every `any` in the codebase should eventually be replaced with these types.

@@ -68,7 +68,7 @@ export default function GtTopAlertsStrip({
         <span className="text-[10px] font-mono font-bold tracking-widest text-amber-300">
           {t('gtAlerts.title')}
         </span>
-        <span className="text-[9px] font-mono tracking-wider text-amber-600/80">
+        <span className="text-[10px] font-mono tracking-wider text-amber-600/80">
           {t('gtAlerts.counts')
             .replace('{plotted}', String(plottedRegions))
             .replace('{tracked}', String(trackedRegions))
@@ -94,7 +94,7 @@ export default function GtTopAlertsStrip({
                   {alert.regionLabel}
                 </span>
                 {alert.ignition && (
-                  <span className="shrink-0 border border-orange-700/50 px-1 text-[8px] font-mono text-orange-300">
+                  <span className="shrink-0 border border-orange-700/50 px-1 text-[10px] font-mono text-orange-300">
                     {t('gtAlerts.ignition')}
                   </span>
                 )}
@@ -103,7 +103,7 @@ export default function GtTopAlertsStrip({
                   className="ml-auto shrink-0 text-amber-600/60 group-hover:text-amber-400"
                 />
               </div>
-              <div className="text-[9px] font-mono tracking-wider text-amber-500/90">
+              <div className="text-[10px] font-mono tracking-wider text-amber-500/90">
                 {t('gtAlerts.line')
                   .replace('{risk}', pct(alert.risk))
                   .replace('{conflict}', pct(alert.conflict))}
@@ -113,7 +113,7 @@ export default function GtTopAlertsStrip({
         </div>
       )}
 
-      <div className="border-t border-amber-900/30 px-2.5 py-1 text-[9px] font-mono leading-relaxed text-amber-600/65">
+      <div className="border-t border-amber-900/30 px-2.5 py-1 text-[10px] font-mono leading-relaxed text-amber-600/65">
         {t('gtAlerts.hint')}
       </div>
     </div>

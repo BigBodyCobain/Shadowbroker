@@ -401,7 +401,25 @@ def ais_proxy_status() -> dict:
         status["last_msg_age_seconds"] = None
         status["connected"] = False
     status["proxy_spawn_count"] = spawns
+    # With every ship layer off the stream is stopped on purpose, so
+    # "not connected" isn't an upstream outage. Lets the banner and /api/health
+    # stay quiet in that case (#666). Unknown layer state keeps the old behavior.
+    try:
+        from services.fetchers._store import is_any_active
+
+        status["ship_layers_active"] = bool(is_any_active(*_SHIP_LAYER_KEYS))
+    except Exception:
+        status["ship_layers_active"] = True
     return status
+
+
+_SHIP_LAYER_KEYS = (
+    "ships_military",
+    "ships_cargo",
+    "ships_civilian",
+    "ships_passenger",
+    "ships_tracked_yachts",
+)
 
 import os
 

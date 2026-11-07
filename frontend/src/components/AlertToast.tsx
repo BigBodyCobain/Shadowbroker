@@ -92,7 +92,7 @@ function ToastCard({
           {/* Header */}
           <div className="flex items-center gap-2 mb-1.5">
             <span
-              className="text-[9px] font-bold tracking-[0.2em] px-1.5 py-0.5 rounded-sm"
+              className="text-[10px] font-bold tracking-[0.2em] px-1.5 py-0.5 rounded-sm"
               style={{
                 background: `${color}20`,
                 color: color,
@@ -101,7 +101,7 @@ function ToastCard({
             >
               ⚠ {label}
             </span>
-            <span className="text-[9px] text-[var(--text-muted)] tracking-wider uppercase">
+            <span className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">
               LVL {toast.risk_score}/10
             </span>
           </div>
@@ -115,7 +115,7 @@ function ToastCard({
           </div>
 
           {/* Source */}
-          <div className="text-[9px] text-[var(--text-muted)] tracking-wider uppercase">
+          <div className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">
             {toast.source}
           </div>
         </div>

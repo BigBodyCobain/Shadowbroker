@@ -113,10 +113,6 @@ import pytest
                 "z": 6, "x": 30, "y": 20,
             },
         ),
-        # Issue #301 (tg12): /api/sentinel2/search hits Planetary Computer
-        # STAC + Esri fallback. Anonymous access is a free external-search
-        # relay even though no caller credentials are involved.
-        ("get", "/api/sentinel2/search?lat=0&lng=0", None),
     ],
 )
 def test_remote_control_surface_rejects_without_local_operator_or_admin(

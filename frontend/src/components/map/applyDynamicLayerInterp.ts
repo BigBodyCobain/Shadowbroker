@@ -1,3 +1,4 @@
+import type * as GeoJSON from 'geojson';
 import { interpolatePosition } from '@/utils/positioning';
 import type { DynamicMapLayersResult } from '@/components/map/dynamicMapLayers.worker';
 import { MAX_INTERP_SECONDS } from '@/lib/constants';

@@ -141,7 +141,7 @@ export default function MiniMap() {
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className="absolute bottom-[6.5rem] right-[28rem] z-[200] pointer-events-auto px-2 py-1 bg-[var(--bg-panel)] border border-[var(--border-primary)] rounded-sm text-[9px] font-mono tracking-[0.15em] text-cyan-400 hover:border-cyan-600/40 transition-colors"
+        className="absolute bottom-[6.5rem] right-[28rem] z-[200] pointer-events-auto px-2 py-1 bg-[var(--bg-panel)] border border-[var(--border-primary)] rounded-sm text-[10px] font-mono tracking-[0.15em] text-cyan-400 hover:border-cyan-600/40 transition-colors"
       >
         MAP
       </button>

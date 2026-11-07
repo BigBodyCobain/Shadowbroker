@@ -62,7 +62,7 @@ function TickerRow({ ticker, info }: { ticker: string; info: StockTicker }) {
         <span className="text-[var(--text-primary)] font-bold text-xs">
           ${(info.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
-        <span className={`flex items-center gap-0.5 w-12 justify-end text-[9px] ${info.up ? 'text-cyan-400' : 'text-red-400'}`}>
+        <span className={`flex items-center gap-0.5 w-12 justify-end text-[10px] ${info.up ? 'text-cyan-400' : 'text-red-400'}`}>
           {info.up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
           {Math.abs(info.change_percent ?? 0).toFixed(2)}%
         </span>
@@ -83,7 +83,7 @@ function TickersTab({ stocks, oil }: { stocks: Record<string, StockTicker>; oil:
     <div className="flex flex-col gap-3">
       {hasCrypto && (
         <div>
-          <h3 className="text-[9px] font-bold tracking-widest text-orange-400 mb-1.5">CRYPTO</h3>
+          <h3 className="text-[10px] font-bold tracking-widest text-orange-400 mb-1.5">CRYPTO</h3>
           <div className="flex flex-col gap-1">
             {cryptoEntries.map(([ticker, info]) => (
               <TickerRow key={ticker} ticker={ticker} info={info} />
@@ -93,7 +93,7 @@ function TickersTab({ stocks, oil }: { stocks: Record<string, StockTicker>; oil:
       )}
       {hasDefense && (
         <div>
-          <h3 className="text-[9px] font-bold tracking-widest text-cyan-400 mb-1.5">DEFENSE SECTOR</h3>
+          <h3 className="text-[10px] font-bold tracking-widest text-cyan-400 mb-1.5">DEFENSE SECTOR</h3>
           <div className="flex flex-col gap-1">
             {defenseEntries.map(([ticker, info]) => (
               <TickerRow key={ticker} ticker={ticker} info={info} />
@@ -103,14 +103,14 @@ function TickersTab({ stocks, oil }: { stocks: Record<string, StockTicker>; oil:
       )}
       {hasOil && (
         <div>
-          <h3 className="text-[9px] font-bold tracking-widest text-cyan-400 mb-1.5">COMMODITIES</h3>
+          <h3 className="text-[10px] font-bold tracking-widest text-cyan-400 mb-1.5">COMMODITIES</h3>
           <div className="flex flex-col gap-1">
             {Object.entries(oil).map(([name, info]) => (
               <div key={name} className="flex flex-col border border-cyan-500/10 bg-cyan-950/10 p-1.5 rounded-sm">
-                <span className="font-bold text-cyan-500 text-[9px] uppercase mb-0.5">{name}</span>
+                <span className="font-bold text-cyan-500 text-[10px] uppercase mb-0.5">{name}</span>
                 <div className="flex items-center justify-between">
                   <span className="text-[var(--text-primary)] font-bold text-[11px]">${(info.price ?? 0).toFixed(2)}</span>
-                  <span className={`flex items-center gap-0.5 text-[9px] ${info.up ? 'text-cyan-400' : 'text-red-400'}`}>
+                  <span className={`flex items-center gap-0.5 text-[10px] ${info.up ? 'text-cyan-400' : 'text-red-400'}`}>
                     {info.up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                     {Math.abs(info.change_percent ?? 0).toFixed(2)}%
                   </span>
@@ -135,7 +135,7 @@ function CongressTab({ trades }: { trades: CongressTrade[] }) {
         <div key={i} className="border border-cyan-500/10 bg-cyan-950/10 p-1.5 rounded-sm">
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[9px] font-bold text-cyan-300 bg-cyan-900/40 px-1 rounded flex-shrink-0">
+              <span className="text-[10px] font-bold text-cyan-300 bg-cyan-900/40 px-1 rounded flex-shrink-0">
                 {chamberBadge(t.chamber)}
               </span>
               <span className="text-[10px] text-[var(--text-primary)] truncate font-medium">
@@ -147,15 +147,15 @@ function CongressTab({ trades }: { trades: CongressTrade[] }) {
             )}
           </div>
           <div className="flex items-center justify-between mt-0.5">
-            <span className={`text-[9px] ${txColor(t.transaction_type || '')}`}>
+            <span className={`text-[10px] ${txColor(t.transaction_type || '')}`}>
               {t.transaction_type || '—'}
             </span>
             <div className="flex items-center gap-2">
               {t.amount_range && (
-                <span className="text-[9px] text-[var(--text-muted)]">{t.amount_range}</span>
+                <span className="text-[10px] text-[var(--text-muted)]">{t.amount_range}</span>
               )}
               {t.filing_date && (
-                <span className="text-[9px] text-[var(--text-muted)]">{t.filing_date}</span>
+                <span className="text-[10px] text-[var(--text-muted)]">{t.filing_date}</span>
               )}
             </div>
           </div>
@@ -185,17 +185,17 @@ function InsiderTab({ transactions }: { transactions: InsiderTransaction[] }) {
               <span className="text-[10px] font-bold text-cyan-400 flex-shrink-0">{t.ticker}</span>
             </div>
             <div className="flex items-center justify-between mt-0.5">
-              <span className={`text-[9px] font-bold ${isBuy ? 'text-green-400' : isSell ? 'text-red-400' : 'text-yellow-400'}`}>
+              <span className={`text-[10px] font-bold ${isBuy ? 'text-green-400' : isSell ? 'text-red-400' : 'text-yellow-400'}`}>
                 {insiderCodeLabel(t.transaction_code || '')}
               </span>
               <div className="flex items-center gap-2">
                 {t.change !== 0 && (
-                  <span className={`text-[9px] ${t.change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-[10px] ${t.change > 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {t.change > 0 ? '+' : ''}{t.change.toLocaleString()} shares
                   </span>
                 )}
                 {t.transaction_price > 0 && (
-                  <span className="text-[9px] text-[var(--text-muted)]">${t.transaction_price.toFixed(2)}</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">${t.transaction_price.toFixed(2)}</span>
                 )}
               </div>
             </div>
@@ -264,7 +264,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
       initial={{ y: -50, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.8, delay: 0.2 }}
-      className="w-full bg-[#0a0a0a]/90 backdrop-blur-sm border border-cyan-900/40 z-10 flex flex-col font-mono text-sm pointer-events-auto flex-shrink-0"
+      className="w-full sb-panel z-10 flex flex-col font-mono text-sm pointer-events-auto flex-shrink-0"
     >
       {/* Header */}
       <div
@@ -305,7 +305,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
                     <button
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
-                      className={`flex-1 flex items-center justify-center gap-1 py-2 text-[9px] tracking-wider transition-colors ${
+                      className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] tracking-wider transition-colors ${
                         activeTab === tab.key
                           ? 'text-cyan-400 border-b border-cyan-400 bg-cyan-950/20'
                           : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -323,7 +323,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
                     <button
                       onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
                       disabled={refreshing}
-                      className="flex items-center gap-1 text-[9px] text-[var(--text-muted)] hover:text-cyan-400 transition-colors disabled:opacity-40"
+                      className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-cyan-400 transition-colors disabled:opacity-40"
                     >
                       <RefreshCw size={10} className={refreshing ? 'animate-spin' : ''} />
                       {refreshing ? 'FETCHING...' : 'REFRESH'}
@@ -355,7 +355,7 @@ const MarketsPanel = React.memo(function MarketsPanel({ data, focused, onFocusCh
                   <div className="flex flex-col items-center gap-2 px-3 pb-3 border-t border-[var(--border-primary)]/30 pt-2">
                     <div className="flex items-center gap-1.5">
                       <Settings size={10} className="text-[var(--text-muted)]" />
-                      <p className="text-[9px] text-[var(--text-muted)]">
+                      <p className="text-[10px] text-[var(--text-muted)]">
                         Add <span className="text-cyan-400">FINNHUB_API_KEY</span> for congress trades &amp; insider data
                       </p>
                     </div>
