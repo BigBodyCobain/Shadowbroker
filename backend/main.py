@@ -379,6 +379,7 @@ def _load_optional_router(module_name: str) -> APIRouter:
 
 
 health_router = _load_optional_router("routers.health")
+osm_tiles_router = _load_optional_router("routers.osm_tiles")
 mesh_peer_sync_router = _load_optional_router("routers.mesh_peer_sync")
 mesh_operator_router = _load_optional_router("routers.mesh_operator")
 mesh_oracle_router = _load_optional_router("routers.mesh_oracle")
@@ -3846,6 +3847,7 @@ async def apply_no_store_to_sensitive_paths(request: Request, call_next):
 # Register routers
 # ---------------------------------------------------------------------------
 app.include_router(health_router)
+app.include_router(osm_tiles_router)
 app.include_router(cctv_router)
 app.include_router(radio_router)
 app.include_router(sigint_router)
