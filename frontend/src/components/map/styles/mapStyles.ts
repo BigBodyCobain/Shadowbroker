@@ -44,7 +44,32 @@ export function cartoTileUrls(theme: BasemapTheme, cartoApiKey: string): string[
 export function buildBasemapStyle(
   theme: BasemapTheme,
   cartoApiKey?: string | null,
+  mapStyle?: string,
 ): string | StyleSpecification {
+  if (mapStyle === 'OSM') {
+    return {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['/api/osm-tile/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: OSM_ATTRIBUTION_HTML,
+        },
+      },
+      layers: [
+        {
+          id: 'osm-base',
+          type: 'raster',
+          source: 'osm',
+          minzoom: 0,
+          maxzoom: 22,
+        },
+      ],
+    };
+  }
+
   const key = (cartoApiKey || '').trim();
   if (!key) return OPENFREEMAP_STYLE_URLS[theme];
 

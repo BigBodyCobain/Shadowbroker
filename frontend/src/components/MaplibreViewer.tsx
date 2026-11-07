@@ -34,6 +34,8 @@ import {
   OSM_ATTRIBUTION_HTML,
 } from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
+<<<<<<< HEAD
+
 import * as maplibregl from 'maplibre-gl';
 maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
@@ -403,6 +405,7 @@ function buildPolymarketUrl(prediction: { slug?: string; title?: string } | null
 
 const MaplibreViewer = ({
   activeLayers,
+  activeStyle,
   activeFilters,
   onEntityClick,
   flyToLocation,
@@ -457,8 +460,8 @@ const MaplibreViewer = ({
   const basemapPalette = 'navy' as const;
   const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
   const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
-    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
-    [theme, cartoApiKey],
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey, activeStyle),
+    [theme, cartoApiKey, activeStyle],
   );
 
   const initialViewState = useMemo<ViewState>(

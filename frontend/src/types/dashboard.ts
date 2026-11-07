@@ -1272,6 +1272,7 @@ export interface ActiveLayers {
   gps_jamming: boolean;
   gibs_imagery: boolean;
   highres_satellite: boolean;
+  osm_basemap: boolean;
   kiwisdr: boolean;
   psk_reporter: boolean;
   satnogs: boolean;
@@ -1332,6 +1333,7 @@ export interface MapEffects {
 export interface MaplibreViewerProps {
   data: DashboardData;
   activeLayers: ActiveLayers;
+  activeStyle?: string;
   activeFilters?: Record<string, string[]>;
   effects?: MapEffects;
   onEntityClick: (entity: SelectedEntity | null) => void;
