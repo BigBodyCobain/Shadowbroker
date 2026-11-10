@@ -34,7 +34,8 @@ import {
   OSM_ATTRIBUTION_HTML,
 } from '@/components/map/styles/mapStyles';
 import { useBasemapConfig } from '@/hooks/useBasemapConfig';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 import { AlertTriangle, Radio, Activity, Play, Satellite, ExternalLink, Info } from 'lucide-react';
 import WikiImage from '@/components/WikiImage';
 import FishingDestinationRoute from '@/components/map/FishingDestinationRoute';
