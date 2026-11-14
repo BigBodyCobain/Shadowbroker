@@ -385,7 +385,7 @@ class Settings(BaseSettings):
     VOICE_STT_BASE_URL: str = ""
     VOICE_OPENAI_BASE_URL: str = "https://api.openai.com"
     VOICE_COMPAT_BASE_URL: str = ""     # e.g. http://127.0.0.1:11434/v1 (Ollama)
-    VOICE_GEMINI_MODEL: str = "gemini-3.1-flash-live-preview"   # Gemini Live (U8 provider #2)
+    VOICE_GEMINI_MODEL: str = "gemini-3.8-live"   # Gemini Live (U8 provider #2)
     VOICE_GEMINI_BASE_URL: str = "wss://generativelanguage.googleapis.com/ws"
     # Gemini-only text chat leg (chat_completion dials Google's OpenAI-compatible
     # endpoint https://generativelanguage.googleapis.com/v1beta/openai when the

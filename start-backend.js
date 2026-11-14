@@ -79,9 +79,11 @@ function canRun(command, args) {
   return !result.error && result.status === 0;
 }
 
+const pythonVersionCheck = "import sys; sys.exit(sys.version_info[:3] < (3, 11, 5))";
+
 function canRunBackendPython(pythonBin) {
   return (
-    canRun(pythonBin, ["-V"]) &&
+    canRun(pythonBin, ["-c", pythonVersionCheck]) &&
     canRun(pythonBin, ["-c", "import fastapi, uvicorn"])
   );
 }
@@ -92,11 +94,14 @@ function findBasePython() {
         [configuredBasePython, []],
         ["python", []],
         ["py", ["-3.11"]],
+        ["py", ["-3.12"]],
         ["py", ["-3"]],
       ]
     : [
         [configuredBasePython, []],
         ["python3", []],
+        ["python3.11", []],
+        ["python3.12", []],
         ["python", []],
       ];
 
@@ -104,7 +109,7 @@ function findBasePython() {
     if (!command) {
       continue;
     }
-    if (canRun(command, [...prefixArgs, "-V"])) {
+    if (canRun(command, [...prefixArgs, "-c", pythonVersionCheck])) {
       return { command, prefixArgs };
     }
   }
@@ -180,7 +185,7 @@ const venvBin = ensureBackendVenv();
 
 if (!venvBin) {
   console.error(`[!] Unable to prepare backend Python venv. Checked: ${venvCandidates.join(", ")}`);
-  console.error("[!] Install Python 3.10-3.12 and rerun start.sh/start.bat if the repair could not complete.");
+  console.error("[!] Install Python 3.11.5 or newer and rerun start.sh/start.bat if the repair could not complete.");
   process.exit(1);
 }
 

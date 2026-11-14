@@ -33,16 +33,20 @@ if %errorlevel% equ 0 (
 
 :: Check for Python and pin the exact interpreter we will use later.
 set "PYTHON_EXE="
-for /f "usebackq delims=" %%p in (`python -c "import sys; print(sys.executable)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
+set "PYTHON_CHECK=import sys; sys.exit(sys.version_info[:3] < (3, 11, 5))"
+for /f "usebackq delims=" %%p in (`python -c "import sys; print(sys.executable) if sys.version_info[:3] >= (3, 11, 5) else sys.exit(1)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
 if not defined PYTHON_EXE (
-    for /f "usebackq delims=" %%p in (`py -3.11 -c "import sys; print(sys.executable)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
+    for /f "usebackq delims=" %%p in (`py -3.11 -c "import sys; print(sys.executable) if sys.version_info[:3] >= (3, 11, 5) else sys.exit(1)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
 )
 if not defined PYTHON_EXE (
-    for /f "usebackq delims=" %%p in (`py -3 -c "import sys; print(sys.executable)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
+    for /f "usebackq delims=" %%p in (`py -3.12 -c "import sys; print(sys.executable) if sys.version_info[:3] >= (3, 11, 5) else sys.exit(1)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
 )
 if not defined PYTHON_EXE (
-    echo [!] ERROR: Python is not installed or not in PATH.
-    echo [!] Install Python 3.10-3.12 from https://python.org
+    for /f "usebackq delims=" %%p in (`py -3 -c "import sys; print(sys.executable) if sys.version_info[:3] >= (3, 11, 5) else sys.exit(1)" 2^>nul`) do if not defined PYTHON_EXE set "PYTHON_EXE=%%p"
+)
+if not defined PYTHON_EXE (
+    echo [!] ERROR: No compatible Python installation was found.
+    echo [!] Install Python 3.11.5 or newer from https://python.org
     echo [!] IMPORTANT: Check "Add to PATH" during install.
     echo.
     pause
@@ -56,7 +60,7 @@ echo [*] Found Python %PYVER%
 for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
     if %%b GEQ 13 (
         echo [!] WARNING: Python %PYVER% detected. Some packages may fail to build.
-        echo [!] Recommended: Python 3.10, 3.11, or 3.12.
+        echo [!] Recommended: Python 3.11.5+ or 3.12.
         echo.
     )
 )
@@ -129,7 +133,7 @@ set "REPAIR_VENV_DIR=venv-repair-%RANDOM%%RANDOM%"
 set "VENV_DIR=%PRIMARY_VENV_DIR%"
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 if exist "%VENV_PY%" (
-    "%VENV_PY%" -V >nul 2>&1
+    "%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
     if errorlevel 1 (
         echo [*] Existing backend Python venv is stale. Rebuilding it...
         rmdir /s /q "%PRIMARY_VENV_DIR%" >nul 2>&1
@@ -141,21 +145,21 @@ if exist "%VENV_PY%" (
 )
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 if /I not "%VENV_DIR%"=="%PRIMARY_VENV_DIR%" if exist "%VENV_PY%" (
-    "%VENV_PY%" -V >nul 2>&1
+    "%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
     if errorlevel 1 rmdir /s /q "%VENV_DIR%" >nul 2>&1
 )
 set "BACKEND_VENV_DIR=%VENV_DIR%"
 if not exist "%VENV_DIR%\" (
     echo [*] Creating Python virtual environment...
     if exist "%VENV_DIR%\" rmdir /s /q "%VENV_DIR%" >nul 2>&1
-    uv venv "%VENV_DIR%"
+    uv venv --python "%PYTHON_EXE%" "%VENV_DIR%"
     if errorlevel 1 (
         echo [!] ERROR: Failed to create virtual environment.
         pause
         exit /b 1
     )
 )
-"%VENV_PY%" -V >nul 2>&1
+"%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
 if errorlevel 1 (
     echo [!] ERROR: Backend virtual environment could not start Python after repair.
     pause
@@ -164,9 +168,9 @@ if errorlevel 1 (
 echo [*] Installing Python dependencies via UV (fast)...
 cd /d "%ROOT%"
 set "UV_PROJECT_ENVIRONMENT=%ROOT%\backend\%VENV_DIR%"
-uv sync --frozen --no-dev
+uv sync --locked --no-dev
+if errorlevel 1 goto :dep_fail
 set "UV_PROJECT_ENVIRONMENT="
-if %errorlevel% neq 0 goto :dep_fail
 cd /d "%ROOT%\backend"
 goto :deps_ok
 
@@ -178,7 +182,7 @@ set "REPAIR_VENV_DIR=venv-repair-%RANDOM%%RANDOM%"
 set "VENV_DIR=%PRIMARY_VENV_DIR%"
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 if exist "%VENV_PY%" (
-    "%VENV_PY%" -V >nul 2>&1
+    "%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
     if errorlevel 1 (
         echo [*] Existing backend Python venv is stale. Rebuilding it...
         rmdir /s /q "%PRIMARY_VENV_DIR%" >nul 2>&1
@@ -190,7 +194,7 @@ if exist "%VENV_PY%" (
 )
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 if /I not "%VENV_DIR%"=="%PRIMARY_VENV_DIR%" if exist "%VENV_PY%" (
-    "%VENV_PY%" -V >nul 2>&1
+    "%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
     if errorlevel 1 rmdir /s /q "%VENV_DIR%" >nul 2>&1
 )
 set "BACKEND_VENV_DIR=%VENV_DIR%"
@@ -204,7 +208,7 @@ if not exist "%VENV_DIR%\" (
         exit /b 1
     )
 )
-"%VENV_PY%" -V >nul 2>&1
+"%VENV_PY%" -c "%PYTHON_CHECK%" >nul 2>&1
 if errorlevel 1 (
     echo [!] ERROR: Backend virtual environment could not start Python after repair.
     pause
@@ -219,7 +223,7 @@ goto :deps_ok
 echo.
 echo [!] ERROR: Python dependency install failed. See errors above.
 echo [!] If you see Rust/cargo errors, your Python version may be too new.
-echo [!] Recommended: Python 3.10, 3.11, or 3.12.
+echo [!] Recommended: Python 3.11.5+ or 3.12.
 echo.
 cd /d "%ROOT%"
 pause

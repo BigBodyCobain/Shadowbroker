@@ -410,6 +410,7 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
     copied = 0
     skipped = 0
 
+    resolved_project_root = Path(project_root).resolve()
     for root, dirs, files in os.walk(base):
         dirs[:] = [d for d in dirs if d not in _PROTECTED_DIRS]
 
@@ -421,16 +422,19 @@ def _extract_and_copy(zip_path: str, project_root: str, temp_dir: str) -> int:
                 skipped += 1
                 continue
 
-            dst = os.path.abspath(os.path.join(project_root, rel))
-            if not dst.startswith(os.path.abspath(project_root)):
-                logger.warning(f"Safety skip (path traversal): {rel}")
-                skipped += 1
-                continue
             try:
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                dst = (resolved_project_root / rel).resolve()
+                if not dst.is_relative_to(resolved_project_root):
+                    logger.warning("Safety skip (path traversal): %s", rel)
+                    skipped += 1
+                    continue
+                if _is_protected(dst.relative_to(resolved_project_root).as_posix()):
+                    skipped += 1
+                    continue
+                dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
                 copied += 1
-            except (PermissionError, OSError) as e:
+            except (OSError, RuntimeError) as e:
                 logger.warning(f"Copy failed (skipping): {rel} — {e}")
                 skipped += 1
 

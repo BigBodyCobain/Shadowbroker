@@ -25,6 +25,18 @@ import services.api_settings as api_settings_mod
 
 
 class TestGeminiSetup:
+    def test_default_model_keeps_voice_tool_calls_blocking(self):
+        from services.config import Settings
+        from services.voice_gemini import gemini_model, gemini_setup_message
+
+        model = gemini_model()
+        assert Settings.model_fields["VOICE_GEMINI_MODEL"].default == model == "gemini-3.8-live"
+        setup = json.loads(gemini_setup_message(
+            model=model, instructions="", tool_defs=[{"name": "get_telemetry"}]
+        ))["setup"]
+        assert setup["model"] == "models/gemini-3.8-live"
+        assert setup["tools"][0]["functionDeclarations"][0]["behavior"] == "BLOCKING"
+
     def test_setup_authors_model_instructions_tools_and_voice(self):
         from services.voice_gemini import gemini_setup_message
 
