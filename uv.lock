@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11.5"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -167,7 +167,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.0" },
     { name = "orjson", specifier = ">=3.13.0" },
     { name = "osmnx", marker = "extra == 'road-corridor'", specifier = ">=2.0.0" },
-    { name = "paho-mqtt", specifier = ">=1.6.0,<2.0.0" },
+    { name = "paho-mqtt", specifier = ">=2.2.0,<3.0.0" },
     { name = "playwright", specifier = "==1.64.1" },
     { name = "playwright-stealth", specifier = "==1.0.6" },
     { name = "pydantic", specifier = "==2.13.3" },
@@ -1133,9 +1133,12 @@ wheels = [
 
 [[package]]
 name = "paho-mqtt"
-version = "1.6.1"
+version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f8/dd/4b75dcba025f8647bc9862ac17299e0d7d12d3beadbf026d8c8d74215c12/paho-mqtt-1.6.1.tar.gz", hash = "sha256:2a8291c81623aec00372b5a85558a372c747cbca8e9934dfe218638b8eefc26f", size = 99373, upload-time = "2021-10-21T10:33:59.864Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/66/bba39edaac853235385c59e1e30600cd104b8779164c181780742d8095fc/paho_mqtt-2.2.0.tar.gz", hash = "sha256:bcf706f03f1f49e0fc3ae166dc7b67ee35463496f8bdfd7c9c36181f6ba635c9", size = 133751, upload-time = "2026-11-04T20:10:51.405Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bf/af/fea4b0ee14cee6149f18d180430a14be0963b9a4fbc7875421a7de75f831/paho_mqtt-2.2.0-py3-none-any.whl", hash = "sha256:3243630f7c2b05f71d1de8c6f59865eb04d3a59ae8c866e92377faed6753db4d", size = 77202, upload-time = "2026-11-04T20:10:50.148Z" },
+]
 
 [[package]]
 name = "pandas"
