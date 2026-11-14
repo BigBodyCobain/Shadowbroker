@@ -2,7 +2,7 @@
 name = "shadowbroker"
 version = "0.9.84"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11.5"
 dependencies = []
 
 [dependency-groups]
