@@ -538,6 +538,14 @@ async def require_openclaw_or_local(request: Request):
 
     # 3. OpenClaw HMAC — agent-scoped trust
     if await _verify_openclaw_hmac(request):
+        tier = str(get_settings().OPENCLAW_ACCESS_TIER or "restricted").strip().lower()
+        channel_post = request.method == "POST" and _request_scope_path(request) in (
+            "/api/ai/channel/command",
+            "/api/ai/channel/batch",
+            "/api/ai/channel/poll",
+        )
+        if tier != "full" and request.method not in ("GET", "HEAD") and not channel_post:
+            raise HTTPException(status_code=403, detail="Write routes require full OpenClaw access tier")
         # Security: reject if agent is also sending Authorization headers.
         # This catches misconfigured proxies forwarding LLM API keys to SB.
         auth_header = str(request.headers.get("Authorization", "") or "").strip()

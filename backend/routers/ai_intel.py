@@ -2391,7 +2391,7 @@ async def api_capabilities(request: Request):
                 "family": "/api/ai/*",
                 "notes": [
                     "Remote OpenClaw access is broader than /api/ai/channel/* and includes other AI Intel routes protected by require_openclaw_or_local.",
-                    "The command allowlist still gates what the remote agent can invoke through /api/ai/channel/command and /api/ai/channel/batch.",
+                    "Outside the command channel, signed requests require full access for mutations. Channel commands follow the access tier allowlist.",
                 ],
             },
             "durability": {

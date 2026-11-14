@@ -95,10 +95,7 @@ READ_COMMANDS = frozenset({
     "run_playbook",
     "gt_risk_heatmap",
     "gt_dossier",
-    "gt_analyze",
     "gt_backtest",
-    "gt_rolling_freeze",
-    "gt_rolling_label",
     "gt_rolling_backtest",
     "gt_micro_rolling",
     "gt_top_alerts",
@@ -110,6 +107,9 @@ READ_COMMANDS = frozenset({
 })
 
 WRITE_COMMANDS = frozenset({
+    "gt_analyze",
+    "gt_rolling_freeze",
+    "gt_rolling_label",
     "place_pin",
     "inject_data",
     "take_snapshot",
@@ -355,7 +355,7 @@ class CommandChannel:
             self._stats["commands_received"] += 1
 
         # Execute with timeout protection
-        self._execute_command(entry)
+        self._execute_command(entry, access_tier)
 
         return {
             "ok": True,
@@ -422,7 +422,7 @@ class CommandChannel:
         # Execute valid commands concurrently
         if entries_with_index:
             future_to_idx: dict[concurrent.futures.Future, tuple[int, CommandEntry]] = {
-                _executor.submit(_dispatch_command, entry.cmd, entry.args): (idx, entry)
+                _executor.submit(_dispatch_command, entry.cmd, entry.args, access_tier): (idx, entry)
                 for idx, entry in entries_with_index
             }
             for future in concurrent.futures.as_completed(
@@ -461,11 +461,11 @@ class CommandChannel:
             "count": len(results),
         }
 
-    def _execute_command(self, entry: CommandEntry) -> None:
+    def _execute_command(self, entry: CommandEntry, access_tier: str) -> None:
         """Execute a command with timeout protection."""
         entry.status = "executing"
         try:
-            future = _executor.submit(_dispatch_command, entry.cmd, entry.args)
+            future = _executor.submit(_dispatch_command, entry.cmd, entry.args, access_tier)
             result = future.result(timeout=COMMAND_TIMEOUT)
             entry.result = result
             entry.status = "completed"
@@ -683,7 +683,7 @@ def _expensive_gate(cmd: str, args: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
+def _dispatch_command(cmd: str, args: dict[str, Any], access_tier: str = "full") -> dict[str, Any]:
     """Route a command to the appropriate AI Intel function.
 
     All commands execute synchronously and return a result dict.
@@ -712,11 +712,15 @@ def _dispatch_command(cmd: str, args: dict[str, Any]) -> dict[str, Any]:
         plan = plan_playbook(str(args.get("name", "") or args.get("playbook", "")), args)
         if not plan.get("ok"):
             return plan
+        allowed = allowed_commands(access_tier)
         batch_results: list[dict[str, Any]] = []
         for item in plan.get("batch", []):
             inner_cmd = str(item.get("cmd", "")).strip().lower()
             inner_args = item.get("args") or {}
-            inner_result = _dispatch_command(inner_cmd, inner_args)
+            if inner_cmd not in allowed:
+                batch_results.append({"cmd": inner_cmd, "ok": False, "detail": "Command not allowed for this access tier"})
+                continue
+            inner_result = _dispatch_command(inner_cmd, inner_args, access_tier)
             batch_results.append({"cmd": inner_cmd, **inner_result})
         return {
             "ok": True,
