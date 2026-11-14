@@ -10,7 +10,15 @@ export default function GlobalTicker() {
   const entries = Object.entries(stocks || {});
   const fallback = financial_source === 'yfinance';
 
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return (
+      <div className="sb-ticker absolute bottom-0 left-0 right-0 h-7 bg-[rgba(var(--sb-bg-rgb),0.92)] border-t border-[var(--border-primary)] z-[8000] flex items-center justify-center pointer-events-auto backdrop-blur-xl">
+        <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-amber-500/80">
+          MARKETS OFFLINE — set FINANCIAL_ENABLED=true or FINNHUB_API_KEY on the backend
+        </span>
+      </div>
+    );
+  }
 
   // Render a single ticker item
   const renderItem = ([ticker, info]: [string, any], index: number) => {
