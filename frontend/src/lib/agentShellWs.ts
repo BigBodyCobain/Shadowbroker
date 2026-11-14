@@ -20,9 +20,12 @@ export function resolveAgentShellWsUrl(cwd?: string, wsToken?: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const host = window.location.hostname || '127.0.0.1';
   const fePort = window.location.port;
+  // NEXT_PUBLIC_BACKEND_PORT wins; otherwise keep the side-by-side dev offset
+  // (frontend 3000-3999 → backend 8000+N), and dial the default 8000 when the
+  // frontend is on :3000 itself or behind a proxy with no port exposed.
   const port =
     process.env.NEXT_PUBLIC_BACKEND_PORT ||
-    (fePort && fePort !== '3000'
+    (fePort && Number(fePort) >= 3001 && Number(fePort) <= 3999
       ? String(Number(fePort) - 3000 + 8000)
       : '8000');
   const params = new URLSearchParams();
