@@ -1272,7 +1272,6 @@ export interface ActiveLayers {
   gps_jamming: boolean;
   gibs_imagery: boolean;
   highres_satellite: boolean;
-  osm_basemap: boolean;
   kiwisdr: boolean;
   psk_reporter: boolean;
   satnogs: boolean;

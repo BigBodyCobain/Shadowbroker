@@ -14,11 +14,13 @@ OSM tile usage policy
 
 import logging
 
-from cachetools import TTLCache
-from fastapi import APIRouter, Path
+import httpx
+from cachetools import TLRUCache
+from fastapi import APIRouter, Path, Request
 from fastapi.responses import Response
 
-from services.network_utils import fetch_with_curl, outbound_user_agent
+from limiter import limiter
+from services.network_utils import outbound_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ _OSM_MAX_ZOOM = 19
 
 # In-memory tile cache keyed by "z/x/y". Tiles change infrequently, so a
 # multi-day TTL keeps repeated pans/zooms from hitting the upstream.
-_TILE_CACHE: TTLCache = TTLCache(maxsize=2048, ttl=7 * 24 * 60 * 60)
+_TILE_CACHE = TLRUCache(maxsize=2048, ttu=lambda _key, value, now: now + value[2])
 
 # Per-request User-Agent identifying this install to the tile operator.
 _OSM_USER_AGENT = outbound_user_agent("osm-tiles")
@@ -45,7 +47,9 @@ def _tile_bounds_valid(z: int, x: int, y: int) -> bool:
 
 
 @router.get("/api/osm-tile/{z}/{x}/{y}.png")
+@limiter.limit("180/minute")
 async def osm_tile(
+    request: Request,
     z: int = Path(..., ge=0, le=_OSM_MAX_ZOOM),
     x: int = Path(..., ge=0),
     y: int = Path(..., ge=0),
@@ -57,30 +61,32 @@ async def osm_tile(
     cache_key = f"{z}/{x}/{y}"
     cached = _TILE_CACHE.get(cache_key)
     if cached is not None:
-        status, content, content_type = cached
-        return Response(content=content, media_type=content_type, status_code=status)
+        content, cache_control, _ = cached
+        return Response(content=content, media_type="image/png", headers={"Cache-Control": cache_control})
 
     url = f"{_OSM_TILE_BASE}/{z}/{x}/{y}.png"
     try:
-        upstream = fetch_with_curl(
-            url,
-            timeout=20,
-            headers={"User-Agent": _OSM_USER_AGENT},
-        )
-    except Exception as exc:  # pragma: no cover - network failure path
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=3)) as client:
+            upstream = await client.get(url, headers={"User-Agent": _OSM_USER_AGENT})
+    except httpx.RequestError as exc:
         logger.warning("OSM tile proxy request failed for %s: %s", url, exc)
         return Response(status_code=502)
 
-    status = upstream.status_code or 502
-    content = getattr(upstream, "content", b"") or b""
-    content_type = (
-        upstream.headers.get("Content-Type", "image/png")
-        if hasattr(upstream, "headers")
-        else "image/png"
+    if upstream.status_code != 200:
+        retry_after = upstream.headers.get("Retry-After")
+        return Response(
+            status_code=upstream.status_code if upstream.status_code in (403, 404, 429) else 502,
+            headers={"Retry-After": retry_after} if retry_after else None,
+        )
+    if not upstream.content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return Response(status_code=502)
+
+    cache_control = upstream.headers.get("Cache-Control", "public, max-age=604800")
+    directives = dict(
+        (key.strip(), value.strip(' "'))
+        for key, _, value in (part.strip().lower().partition("=") for part in cache_control.split(","))
     )
-
-    # Only cache successful responses — rate limits and errors must propagate.
-    if status == 200 and content:
-        _TILE_CACHE[cache_key] = (status, content, content_type)
-
-    return Response(content=content, media_type=content_type, status_code=status)
+    max_age = directives.get("s-maxage", directives.get("max-age", "0"))
+    if max_age.isdecimal() and not {"no-store", "no-cache", "private"}.intersection(directives):
+        _TILE_CACHE[cache_key] = (upstream.content, cache_control, min(int(max_age), 604800))
+    return Response(content=upstream.content, media_type="image/png", headers={"Cache-Control": cache_control})

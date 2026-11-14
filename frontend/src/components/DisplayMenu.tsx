@@ -156,6 +156,7 @@ export default function DisplayMenu({
           options={[
             { id: 'DEFAULT' as MapStyle, label: 'MAP' },
             { id: 'SATELLITE' as MapStyle, label: 'SATELLITE' },
+            { id: 'OSM' as MapStyle, label: 'OSM' },
           ]}
           onChange={onMapStyleChange}
         />

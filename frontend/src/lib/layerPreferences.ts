@@ -50,7 +50,6 @@ export function getDefaultActiveLayers(): ActiveLayers {
     satellites: true,
     gibs_imagery: false,
     highres_satellite: false,
-    osm_basemap: false,
     sentinel_hub: false,
     viirs_nightlights: false,
     road_corridor_trends: false,

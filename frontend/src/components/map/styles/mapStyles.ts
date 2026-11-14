@@ -49,6 +49,7 @@ export function buildBasemapStyle(
   if (mapStyle === 'OSM') {
     return {
       version: 8,
+      glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
       sources: {
         osm: {
           type: 'raster',
