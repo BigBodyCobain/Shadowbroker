@@ -41,7 +41,7 @@ from typing import Any
 #: Gemini Live input rate (16 kHz) — differs from our 24 kHz wire format.
 GEMINI_INPUT_RATE = 16000
 GEMINI_OUTPUT_RATE = 24000
-GEMINI_DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
+GEMINI_DEFAULT_MODEL = "gemini-3.8-live"
 GEMINI_DEFAULT_BASE = "wss://generativelanguage.googleapis.com/ws"
 _GEMINI_SETUP_PATH = "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
@@ -154,6 +154,10 @@ def gemini_setup_message(
         if t.get("name")
     ]
     if declarations:
+        # Keep tool calls synchronous for the voice relay on Gemini 3.8 Live.
+        if str(model).removeprefix("models/") == GEMINI_DEFAULT_MODEL:
+            for declaration in declarations:
+                declaration["behavior"] = "BLOCKING"
         setup["setup"]["tools"] = [{"functionDeclarations": declarations}]
     if voice:
         setup["setup"]["generationConfig"]["speechConfig"] = {

@@ -59,6 +59,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const OPERATOR_OSINT_LOOKUPS = new Set([
+  'ip', 'dns', 'whois', 'certs', 'threats', 'bgp', 'sanctions', 'cve', 'mac', 'github', 'leaks',
+]);
+
 function isSensitiveProxyPath(pathSegments: string[]): boolean {
   const joined = pathSegments.join('/');
   if (!joined) return false;
@@ -82,6 +86,7 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   // need X-Admin-Key injected on the server-side proxy leg.
   if (pathSegments[0] === 'mesh' && pathSegments[1] === 'peers') return true;
   if (pathSegments[0] === 'tools') return true;
+  if (pathSegments[0] === 'osint' && pathSegments.length === 2 && OPERATOR_OSINT_LOOKUPS.has(pathSegments[1])) return true;
   return false;
 }
 

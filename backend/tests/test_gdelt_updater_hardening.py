@@ -66,6 +66,19 @@ class TestUpdaterHardening:
         with pytest.raises(RuntimeError, match="path traversal entry"):
             updater._extract_and_copy(str(zip_path), str(tmp_path / "project"), str(tmp_path / "work"))
 
+    def test_extract_and_copy_keeps_protected_files(self, tmp_path):
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / ".env").write_text("local settings", encoding="utf-8")
+        archive = tmp_path / "update.zip"
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr(".env", "release settings")
+            zf.writestr("frontend/app.txt", "updated")
+
+        assert updater._extract_and_copy(str(archive), str(project), str(tmp_path / "work")) == 1
+        assert (project / ".env").read_text(encoding="utf-8") == "local settings"
+        assert (project / "frontend/app.txt").read_text(encoding="utf-8") == "updated"
+
     def test_perform_update_returns_manual_url_on_failure(self, monkeypatch, tmp_path):
         def _boom(_temp_dir):
             raise RuntimeError("update exploded")

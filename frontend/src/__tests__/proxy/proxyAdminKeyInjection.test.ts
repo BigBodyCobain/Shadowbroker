@@ -81,6 +81,20 @@ describe('proxy admin-key injection coverage', () => {
   // Sprint 1C: mesh/peers
   // -------------------------------------------------------------------------
 
+  it.each([true, false])('forwards a key to sanctions lookups only with an operator session (%s)', async (authenticated) => {
+    const cookie = authenticated ? await mintSession(ADMIN_KEY) : '';
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await proxyGet(
+      new NextRequest('http://localhost/api/osint/sanctions?q=test', { headers: { cookie } }),
+      { params: Promise.resolve({ path: ['osint', 'sanctions'] }) },
+    );
+
+    expect(capturedHeaders(fetchMock).get('X-Admin-Key')).toBe(authenticated ? ADMIN_KEY : null);
+    expect(res.headers.get('cache-control')).toContain('no-store');
+  });
+
   it('GET /api/mesh/peers with valid session injects X-Admin-Key', async () => {
     const cookie = await mintSession(ADMIN_KEY);
 
