@@ -113,6 +113,7 @@ jobs:
             tests/test_release_helper.py \
             tests/test_liveuamap_scraper_opt_in.py \
             tests/test_liveuamap_parser.py \
+            tests/test_osm_tiles.py \
             tests/test_liveuamap_provider.py \
             tests/test_liveuamap_docker_contract.py \
             tests/test_xquik_news.py \

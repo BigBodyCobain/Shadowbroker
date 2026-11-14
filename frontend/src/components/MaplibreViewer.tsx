@@ -403,6 +403,7 @@ function buildPolymarketUrl(prediction: { slug?: string; title?: string } | null
 
 const MaplibreViewer = ({
   activeLayers,
+  activeStyle,
   activeFilters,
   onEntityClick,
   flyToLocation,
@@ -457,8 +458,8 @@ const MaplibreViewer = ({
   const basemapPalette = 'navy' as const;
   const { cartoApiKey, loaded: basemapConfigLoaded } = useBasemapConfig();
   const mapThemeStyle = useMemo<maplibregl.StyleSpecification | string>(
-    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey),
-    [theme, cartoApiKey],
+    () => buildBasemapStyle(theme === 'light' ? 'light' : 'dark', cartoApiKey, activeStyle),
+    [theme, cartoApiKey, activeStyle],
   );
 
   const initialViewState = useMemo<ViewState>(

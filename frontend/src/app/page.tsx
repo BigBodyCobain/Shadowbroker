@@ -231,7 +231,7 @@ export default function Dashboard() {
 
   // exposes the basemap to CSS so sensor filters can tame bright satellite imagery
   useEffect(() => {
-    document.documentElement.setAttribute('data-basemap', activeStyle === 'SATELLITE' ? 'satellite' : 'map');
+    document.documentElement.setAttribute('data-basemap', activeStyle === 'DEFAULT' ? 'map' : activeStyle.toLowerCase());
   }, [activeStyle]);
 
   // The bottom fade on the HUD columns is a "more below" cue, so it only shows while a
@@ -544,14 +544,15 @@ export default function Dashboard() {
     [],
   );
 
-  const stylesList = ['DEFAULT', 'SATELLITE'];
-
   const cycleStyle = () => {
     setActiveStyle((prev) => {
-      const idx = stylesList.indexOf(prev);
-      const next = stylesList[(idx + 1) % stylesList.length] as MapStyle;
-      // Auto-toggle High-Res Satellite layer with SATELLITE style
-      setActiveLayers((l) => ({ ...l, highres_satellite: next === 'SATELLITE' }));
+      const order: MapStyle[] = ['DEFAULT', 'SATELLITE', 'OSM'];
+      const idx = order.indexOf(prev);
+      const next = order[(idx + 1) % order.length];
+      setActiveLayers((l) => ({
+        ...l,
+        highres_satellite: next === 'SATELLITE',
+      }));
       return next;
     });
   };
@@ -635,6 +636,7 @@ export default function Dashboard() {
         <ErrorBoundary name="Map">
           <MaplibreViewer
             activeLayers={firstPaintActiveLayers}
+            activeStyle={activeStyle}
             activeFilters={activeFilters}
             effects={memoizedEffects}
             onEntityClick={setSelectedEntity}
@@ -989,15 +991,15 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={cycleStyle}
-                    title={`Switch basemap to ${activeStyle === 'SATELLITE' ? 'MAP' : 'SATELLITE'} (also under VIEW)`}
-                    aria-label={`Basemap: ${activeStyle === 'SATELLITE' ? 'satellite' : 'map'}. Click to switch.`}
+                    title={`Switch basemap to ${activeStyle === 'DEFAULT' ? 'SATELLITE' : activeStyle === 'SATELLITE' ? 'OSM' : 'MAP'} (also under VIEW)`}
+                    aria-label={`Basemap: ${activeStyle === 'DEFAULT' ? 'map' : activeStyle.toLowerCase()}. Click to switch.`}
                     className="sb-style-cell group flex flex-col items-center w-[104px] -my-1 py-1 rounded-lg border border-transparent hover:border-cyan-500/40 hover:bg-cyan-500/10 transition-colors cursor-pointer"
                   >
                     <span className="text-[11px] text-[var(--text-muted)] font-mono tracking-[0.14em] group-hover:text-cyan-300">
                       {t('controls.style')} ⇄
                     </span>
                     <span className="text-[14px] text-cyan-400 font-mono font-bold">
-                      {activeStyle === 'SATELLITE' ? 'SATELLITE' : 'MAP'}
+                      {activeStyle === 'DEFAULT' ? 'MAP' : activeStyle}
                     </span>
                   </button>
 

@@ -1332,6 +1332,7 @@ export interface MapEffects {
 export interface MaplibreViewerProps {
   data: DashboardData;
   activeLayers: ActiveLayers;
+  activeStyle?: string;
   activeFilters?: Record<string, string[]>;
   effects?: MapEffects;
   onEntityClick: (entity: SelectedEntity | null) => void;
