@@ -211,6 +211,7 @@ docs/*
 !docs/HOMEPAGE_WIDGET.md
 !docs/production-hardening.md
 !docs/contributor-map.md
+!docs/images/
 !docs/mesh/
 docs/mesh/*
 !docs/mesh/threat-model.md

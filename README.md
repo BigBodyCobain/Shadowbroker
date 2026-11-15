@@ -1,21 +1,13 @@
 <p align="center">
-  <h1 align="center">🛰️ S H A D O W B R O K E R</h1>
+  <img src="frontend/public/brand/sb-mark.webp" alt="ShadowBroker logo" width="120" />
+  <h1 align="center">S H A D O W B R O K E R</h1>
   <p align="center"><strong>Global Threat Intercept — Real-Time Geospatial Intelligence Platform</strong></p>
   <p align="center"><a href="https://shadowbroker.dev"><strong>🌐 shadowbroker.dev</strong></a></p>
-  <p align="center">
-
-  </p>
 </p>
 
 ---
 
-
-
-
-[![ShadowBroker](/uploads/46f99d19fa141a2efba37feee9de8aab/Title.jpg)](https://github.com/user-attachments/assets/248208ec-62f7-49d1-831d-4bd0a1fa6852)
-
-
-
+[![ShadowBroker dashboard](docs/images/dashboard.jpg)](https://shadowbroker.dev)
 
 
 **ShadowBroker** is a decentralized intelligence platform that aggregates real-time, multi-domain OSINT telemetry from 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen, as well as an obfuscated communications protocol and information exchange infrastructure.
@@ -426,7 +418,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 * **Measurement Tool** — Point-to-point distance & bearing measurement on the map
 * **LOCATE Bar** — Search by coordinates (31.8, 34.8) or place name (Tehran, Strait of Hormuz) to fly directly to any location — geocoded via OpenStreetMap Nominatim
 
-![Gaza](https://gitlab.com/bigbodycobain/Shadowbroker/uploads/c55a0c8d49e5e05c6cd094279e6e089b/gaza-screenshot.jpg)
+![ShadowBroker dashboard in FLIR mode](docs/images/dashboard-flir.jpg)
 
 ### 🤖 Agentic AI Command Channel — OpenClaw + Compatible Agents (expanded in v0.9.7)
 
