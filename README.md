@@ -9,6 +9,8 @@
 
 [![ShadowBroker dashboard](docs/images/dashboard.jpg)](https://shadowbroker.dev)
 
+https://github.com/user-attachments/assets/248208ec-62f7-49d1-831d-4bd0a1fa6852
+
 
 **ShadowBroker** is a decentralized intelligence platform that aggregates real-time, multi-domain OSINT telemetry from 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen, as well as an obfuscated communications protocol and information exchange infrastructure.
 
