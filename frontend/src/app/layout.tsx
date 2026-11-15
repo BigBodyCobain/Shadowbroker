@@ -33,8 +33,8 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'WORLDVIEW // ORBITAL TRACKING',
-  description: 'Advanced Geopolitical Risk Dashboard',
+  title: 'ShadowBroker',
+  description: 'Global Threat Intercept — Real-Time Geospatial Intelligence Platform',
 };
 
 // The dashboard is a live local runtime, not a static landing page. If Next
