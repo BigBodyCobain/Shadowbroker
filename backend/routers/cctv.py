@@ -66,7 +66,71 @@ _CCTV_PROXY_ALLOWED_HOSTS = {
     "www.livetraffic.com",
     "livetraffic.com",
     "opendata.ndw.nu",
+    "stream.inmoves.nl",
 }
+
+# Extra 511 sites on the IBI stack (see cctv_pipeline.IBI511_SITES). Snapshots
+# are served from the site itself at /map/Cctv/<id>.
+_IBI511_MEDIA_HOSTS = {
+    "511.alaska.gov",
+    "az511.gov",
+    "511.idaho.gov",
+    "511la.org",
+    "www.nvroads.com",
+    "prod-ut.ibi511.com",
+    "511pa.com",
+    "511wi.gov",
+    "www.manitoba511.ca",
+    "511.gnb.ca",
+    "511.novascotia.ca",
+    "511nl.ca",
+    "511yukon.ca",
+    "drivenc.gov",
+    "www.drivenc.gov",
+}
+_CCTV_PROXY_ALLOWED_HOSTS |= _IBI511_MEDIA_HOSTS
+# Live HLS servers (Maryland CHART strmrN.sha.maryland.gov, DelDOT).
+_DOT_HLS_MEDIA_HOSTS = {"sha.maryland.gov", "video.deldot.gov", "winkcdn.com"}
+# Snapshot hosts for the second batch of state DOT and international feeds.
+_DOT_IMAGE_MEDIA_HOSTS = {
+    "vdotcameras.com",               # Virginia VDOT snapshots
+    "skyvdn.com",                    # South Carolina SCDOT snapshots
+    "its.txdot.gov",                 # TxDOT (base64 JPEG in JSON, decoded below)
+    "public.carsprogram.org",        # Indiana, Nebraska (CARS 511)
+    "kscam.carsprogram.org",         # Kansas
+    "www.kcscout.net",               # Kansas City Scout (via KanDrive)
+    "atmsqf.iowadot.gov",            # Iowa
+    "dot511.nebraska.gov",           # Nebraska
+    "weathercam.digitraffic.fi",     # Finland
+    "tdcctv.data.one.gov.hk",        # Hong Kong
+    "cameras.qldtraffic.qld.gov.au", # Queensland
+    "trafficnz.info",                # New Zealand
+}
+_CCTV_PROXY_ALLOWED_HOSTS |= _DOT_HLS_MEDIA_HOSTS | _DOT_IMAGE_MEDIA_HOSTS
+# Third batch: European, Taiwanese and remaining North American feeds.
+_INTL_IMAGE_MEDIA_HOSTS = {
+    "vegagerdin.is",                  # Iceland
+    "thb.gov.tw",                     # Taiwan Highway Bureau (cctv-ssNN)
+    "bizkaimove.eus",                 # Bizkaia
+    "webcam.dir-est.fr",              # DIR Est
+    "download.data.grandlyon.com",    # Lyon Criter
+    "www.inforoutes06.fr",            # Alpes-Maritimes
+    "inforoute.alsace.eu",            # Alsace
+    "www.inforoute11.fr",             # Aude
+    "if57cam.logipro.com",            # Moselle MJPEG encoders
+}
+# Short MP4 clips. Requested uncompressed: Autostrade gzips its MP4s, which
+# would leave the streamed body longer than the upstream Content-Length.
+_DOT_VIDEO_MEDIA_HOSTS = {
+    "webcams-dir.centre-est.developpement-durable.gouv.fr",  # DIR Centre-Est
+    "www.inforoute21.fr",                                     # Côte-d'Or
+    "viewsurf.com",                                           # APRR (redirects to the newest clip)
+    "video.autostrade.it",                                    # Autostrade per l'Italia
+}
+# eismoinfo.lt answers 403 to a foreign Referer.
+_EISMOINFO_HOST = "eismoinfo.lt"
+_CCTV_PROXY_ALLOWED_HOSTS |= _INTL_IMAGE_MEDIA_HOSTS | _DOT_VIDEO_MEDIA_HOSTS | {_EISMOINFO_HOST}
+_TXDOT_SNAPSHOT_PATH = "/its/districtits/getcctvsnapshotbyicdid"
 
 
 @dataclass(frozen=True)
@@ -195,6 +259,31 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
         return _CCTVProxyProfile(name="ndw-netherlands", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=120,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                      "Referer": "https://www.ndw.nu/"})
+    if host == "stream.inmoves.nl":
+        # Answers 401 with an empty PNG unless a Referer is sent.
+        return _CCTVProxyProfile(name="rws-inmoves", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=60,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://stream.inmoves.nl/"})
+    if host in _IBI511_MEDIA_HOSTS:
+        return _CCTVProxyProfile(name="ibi-511", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": f"https://{host}/"})
+    if host == "its.txdot.gov" and path == _TXDOT_SNAPSHOT_PATH:
+        return _CCTVProxyProfile(name="txdot-snapshot", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=30,
+            headers={"Accept": "application/json"})
+    if any(host == h or host.endswith(f".{h}") for h in _DOT_HLS_MEDIA_HOSTS):
+        return _CCTVProxyProfile(name="dot-hls", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 20.0), cache_seconds=5,
+            headers={"Accept": "application/vnd.apple.mpegurl,application/x-mpegURL,video/*,*/*;q=0.8"})
+    if host == _EISMOINFO_HOST:
+        return _CCTVProxyProfile(name="eismoinfo", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=60,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                     "Referer": "https://eismoinfo.lt/"})
+    if any(host == h or host.endswith(f".{h}") for h in _DOT_VIDEO_MEDIA_HOSTS):
+        return _CCTVProxyProfile(name="dot-video", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 20.0), cache_seconds=60,
+            headers={"Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8", "Accept-Encoding": "identity"})
+    if any(host == h or host.endswith(f".{h}") for h in _DOT_IMAGE_MEDIA_HOSTS | _INTL_IMAGE_MEDIA_HOSTS):
+        return _CCTVProxyProfile(name="dot-image", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
+            headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"})
     return _CCTVProxyProfile(name="generic-cctv", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 8.0), cache_seconds=30,
         headers={"Accept": "*/*"})
 
@@ -361,12 +450,45 @@ def _infer_cctv_media_type_from_url(target_url: str, content_type: str) -> str:
     return content_type or "application/octet-stream"
 
 
+_TXDOT_SNIPPET_MAX_CHARS = 8_000_000
+
+
+def _decode_txdot_snapshot(resp, profile: _CCTVProxyProfile):
+    """TxDOT answers {"snippet": "<base64 JPEG>"}; serve the JPEG itself, or 404."""
+    import base64
+    import binascii
+    from fastapi.responses import Response
+
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+    finally:
+        resp.close()
+    snippet = data.get("snippet") if isinstance(data, dict) else None
+    image = b""
+    if isinstance(snippet, str) and len(snippet) <= _TXDOT_SNIPPET_MAX_CHARS:
+        try:
+            image = base64.b64decode(snippet, validate=True)
+        except (binascii.Error, ValueError):
+            image = b""
+    if image[:3] != b"\xff\xd8\xff":
+        raise HTTPException(status_code=404, detail="Snapshot unavailable")
+    return Response(content=image, media_type="image/jpeg", headers={
+        "Cache-Control": f"public, max-age={profile.cache_seconds}",
+        "Access-Control-Allow-Origin": "*",
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
 def _proxy_cctv_media_response(request: Request, target_url: str):
     from urllib.parse import urlparse
     from fastapi.responses import Response
     parsed = urlparse(target_url)
     profile = _cctv_proxy_profile_for_url(target_url)
     resp = _fetch_cctv_upstream_response(request, target_url, profile)
+    if profile.name == "txdot-snapshot":
+        return _decode_txdot_snapshot(resp, profile)
     content_type = _infer_cctv_media_type_from_url(
         target_url,
         resp.headers.get("Content-Type", "application/octet-stream"),
