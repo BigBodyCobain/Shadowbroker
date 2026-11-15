@@ -439,6 +439,8 @@ def test_caltrans_ingestor_prefers_static_image_over_flaky_hls(monkeypatch):
 def test_dgt_ingestor_skips_dead_seed_urls(monkeypatch):
     from services import cctv_pipeline
 
+    # Catalog down -> the ingestor falls back to probing its seed list.
+    monkeypatch.setattr(cctv_pipeline, "fetch_with_curl", lambda *a, **k: None)
     monkeypatch.setattr(
         cctv_pipeline,
         "_media_url_reachable",
