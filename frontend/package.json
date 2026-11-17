@@ -37,7 +37,7 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-map-gl": "^8.1.3",
-    "satellite.js": "^6.0.2",
+    "satellite.js": "^7.2.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
