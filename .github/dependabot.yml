@@ -24,6 +24,14 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # vitest and its plugins (coverage-v8 etc.) pin each other's exact
+      # version as a peer, so a bump of one alone fails npm ci. Keep them in
+      # one PR, majors included.
+      vitest:
+        applies-to: version-updates
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       # Everything else that's a minor or patch bump lands as one weekly PR.
       # Majors still get their own PR so each can be reviewed on its own, and
       # security updates stay individual so they aren't held up by the batch.
