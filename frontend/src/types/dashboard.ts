@@ -945,6 +945,8 @@ export interface DashboardData {
     total?: number;
     timestamp?: string | null;
     source?: string;
+    /** Most recent last_online among the listed C2 servers. */
+    newest_seen?: string | null;
   };
   cyber_threats?: {
     threats?: Array<{

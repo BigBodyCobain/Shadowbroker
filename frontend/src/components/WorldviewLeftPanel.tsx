@@ -59,6 +59,7 @@ import { useTranslation } from '@/i18n';
 import SarModeChooserModal from './SarModeChooserModal';
 import KiwiSdrConsentDialog from './ui/KiwiSdrConsentDialog';
 import { extractGtAlerts } from '@/lib/gtAlerts';
+import { malwareSourceLabel } from '@/lib/malwareFeedLabel';
 import {
   getDefaultLayerSectionExpanded,
   loadLayerSectionExpanded,
@@ -1397,7 +1398,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
         {
           id: 'malware_c2',
           name: t('layers.malwareC2'),
-          source: 'abuse.ch',
+          source: malwareSourceLabel(data?.malware_threats),
           count: data?.malware_threats?.total || 0,
           icon: Shield,
         },
