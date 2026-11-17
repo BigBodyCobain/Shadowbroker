@@ -4055,7 +4055,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        {/* Malware C2 — abuse.ch Feodo + URLhaus */}
+        {/* Malware C2 — abuse.ch Feodo Tracker */}
         <Source id="malware-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={6} clusterRadius={35}>
           <Layer
             id="malware-clusters"

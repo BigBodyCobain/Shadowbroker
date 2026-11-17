@@ -236,7 +236,7 @@ Every layer returns maximum telemetry. Key enriched fields:
 | **Earthquakes** | `lat`, `lng`, `magnitude`, `depth`, `place`, `time` |
 | **Correlations** | `type`, `severity`, `score`, `lat`, `lng`, `drivers` (triggering layers) |
 | **Telegram OSINT** | `title`, `description`, `channel`, `source`, `link`, `published`, `risk_score`, `coords` `[lat, lng]` |
-| **Malware Threats** | `ip`, `malware`, `threat_type`, `status`, `country`, `lat`, `lng` (Feodo + URLhaus) |
+| **Malware Threats** | `ip`, `malware`, `threat_type`, `status`, `country`, `lat`, `lng` (Feodo Tracker) |
 | **Cyber Threats** | `id` (CVE), `name`, `vendor`, `product`, `severity`, `date` (CISA KEV) |
 | **SCM Suppliers** | `name`, `city`, `country`, `category`, `risk_level`, `active_threats`, `lat`, `lng` |
 
