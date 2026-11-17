@@ -30,7 +30,7 @@
     "@xterm/xterm": "^6.0.0",
     "framer-motion": "^14.14.0",
     "hls.js": "^1.7.4",
-    "lucide-react": "^1.72.0",
+    "lucide-react": "^1.73.0",
     "maplibre-gl": "^6.18.0",
     "next": "16.4.6",
     "qrcode": "^1.5.4",
