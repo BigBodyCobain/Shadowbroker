@@ -64,6 +64,9 @@ dev = ["pytest>=9.0.3", "pytest-asyncio>=1.4.1.post1", "ruff>=0.9.0", "black>=24
 [tool.ruff.lint]
 # The current backend carries historical style debt in large legacy modules.
 # Keep CI focused on actionable correctness checks for the v0.9.84 release.
+# Rule set is spelled out (ruff's long-standing defaults) so a ruff upgrade
+# that widens the default selection doesn't suddenly fail CI.
+select = ["E4", "E7", "E9", "F"]
 ignore = ["E401", "E402", "E701", "E731", "E741", "F401", "F402", "F541", "F811", "F841"]
 
 [tool.black]
