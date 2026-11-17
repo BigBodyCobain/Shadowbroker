@@ -52,7 +52,7 @@
     "concurrently": "^10.0.7",
     "eslint": "^10",
     "eslint-config-next": "16.4.6",
-    "jsdom": "^28.1.0",
+    "jsdom": "^31.0.1",
     "prettier": "^3.10.1",
     "tailwindcss": "^4",
     "typescript": "^5",
