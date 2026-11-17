@@ -1,20 +1,26 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from '@/lib/motion';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ChevronUp } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
 import { useDataKeys } from '@/hooks/useDataStore';
 
 export default function GlobalTicker() {
   const { stocks, financial_source } = useDataKeys(['stocks', 'financial_source'] as const);
-  const entries = Object.entries(stocks || {});
+
+  // Not loaded yet — keep the bar hidden so users with finance enabled
+  // never see a flash of the offline state while the first response is in
+  // flight. The backend always sends `stocks` and uses {} when the feed is
+  // off, so undefined strictly means "loading".
+  if (stocks === undefined) return null;
+
+  const entries = Object.entries(stocks);
   const fallback = financial_source === 'yfinance';
 
   if (entries.length === 0) {
     return (
       <div className="sb-ticker absolute bottom-0 left-0 right-0 h-7 bg-[rgba(var(--sb-bg-rgb),0.92)] border-t border-[var(--border-primary)] z-[8000] flex items-center justify-center pointer-events-auto backdrop-blur-xl">
-        <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-amber-500/80">
-          MARKETS OFFLINE — set FINANCIAL_ENABLED=true or FINNHUB_API_KEY on the backend
+        <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-[var(--text-muted)]">
+          MARKETS OFFLINE · see FINANCIAL_ENABLED in backend/.env
         </span>
       </div>
     );
