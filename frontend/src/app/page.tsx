@@ -115,6 +115,18 @@ export default function Dashboard() {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [tickerOpen, setTickerOpen] = useState(true);
+  // True once the user has explicitly toggled the ticker (button or
+  // shortcut) or carried a "closed" preference from a previous session.
+  // Until then the open state follows whether the backend has market data,
+  // so fresh installs (FINANCIAL_ENABLED=false) keep the empty bottom edge
+  // and the offline hint only appears after a deliberate MARKETS click.
+  const tickerUserSetRef = useRef(false);
+  const { stocks: marketStocks } = useDataKeys(['stocks'] as const);
+
+  const toggleTickerByUser = () => {
+    tickerUserSetRef.current = true;
+    setTickerOpen((p) => !p);
+  };
 
   // Persist UI panel states
   useEffect(() => {
@@ -123,8 +135,22 @@ export default function Dashboard() {
     const tk = localStorage.getItem('sb_ticker_open');
     if (l !== null) setLeftOpen(l === 'true');
     if (r !== null) setRightOpen(r === 'true');
-    if (tk !== null) setTickerOpen(tk === 'true');
+    // Only a stored "false" is an unambiguous past user choice (older
+    // builds auto-wrote "true" on every load); treat that as explicit and
+    // let "true"/absent follow the data-driven default below.
+    if (tk !== null) {
+      tickerUserSetRef.current = tk === 'false';
+      setTickerOpen(tk === 'true');
+    }
   }, []);
+
+  // Data-driven default: open only when market data exists, and only while
+  // the user hasn't expressed a preference. stocks === undefined means the
+  // first /api/live-data/slow response hasn't arrived yet — wait for it.
+  useEffect(() => {
+    if (tickerUserSetRef.current || marketStocks === undefined) return;
+    setTickerOpen(Object.keys(marketStocks).length > 0);
+  }, [marketStocks]);
 
   useEffect(() => {
     localStorage.setItem('sb_left_open', leftOpen.toString());
@@ -135,6 +161,9 @@ export default function Dashboard() {
   }, [rightOpen]);
 
   useEffect(() => {
+    // Only persist explicit user choices — auto-open/close driven by
+    // market data must not overwrite (or masquerade as) a preference.
+    if (!tickerUserSetRef.current) return;
     localStorage.setItem('sb_ticker_open', tickerOpen.toString());
   }, [tickerOpen]);
 
@@ -329,7 +358,7 @@ export default function Dashboard() {
   useKeyboardShortcuts({
     toggleLeft: () => setLeftOpen((p) => !p),
     toggleRight: () => setRightOpen((p) => !p),
-    toggleMarkets: () => setTickerOpen((p) => !p),
+    toggleMarkets: toggleTickerByUser,
     openSettings: () => setSettingsOpen(true),
     openLegend: () => setLegendOpen((p) => !p),
     openShortcuts: () => setShortcutsOpen((p) => !p),
@@ -1274,7 +1303,7 @@ export default function Dashboard() {
            transition={{ type: 'spring', damping: 30, stiffness: 250 }}
         >
           <button
-            onClick={() => setTickerOpen(!tickerOpen)}
+            onClick={toggleTickerByUser}
             className="flex items-center gap-2 px-3 py-1 sb-edge-tab border border-b-0 rounded-t-lg text-cyan-400/80 hover:text-cyan-400 hover:bg-cyan-950/60 hover:border-cyan-500/40 transition-colors"
           >
             <div className="text-[10px] font-mono tracking-[0.25em] font-bold uppercase">
