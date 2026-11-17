@@ -58,3 +58,14 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "python"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  # Workflow actions are pinned to commit SHAs (a moved or hijacked tag can't
+  # change what CI runs). Dependabot keeps those pins current, one weekly PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
