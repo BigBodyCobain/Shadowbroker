@@ -12,3 +12,5 @@ Additional data attribution:
   https://www.opensanctions.org/
 - **TeleGeography** submarine cable map data (static GeoJSON)
 - **abuse.ch** Feodo Tracker / URLhaus (malware feeds)
+- **ViriBack C2 Tracker** (tracker.viriback.com) — C2 panel listings
+- **RIPEstat** (stat.ripe.net) — IP geolocation, serving GeoLite data created by MaxMind

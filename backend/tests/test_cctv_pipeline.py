@@ -99,7 +99,10 @@ def test_scheduled_cctv_ingestors_include_asfinag_and_alpr():
                  "InforouteIngestor", "APRRIngestor", "AutostradeIngestor", "EdmontonTrafficIngestor",
                  "OregonTripCheckIngestor"):
         assert name in names
-    assert len(names) == 43
+    for name in ("Minnesota511xIngestor", "DriveBCIngestor", "TorontoRescuIngestor", "OttawaTrafficIngestor",
+                 "Quebec511Ingestor", "CalgaryTrafficIngestor", "EstoniaTarkTeeIngestor"):
+        assert name in names
+    assert len(names) == 50
 
 
 def test_scheduled_cctv_ingestors_register_every_ibi511_site_once():
@@ -109,15 +112,17 @@ def test_scheduled_cctv_ingestors_register_every_ibi511_site_once():
     # 21 original, the IBI, CARS and Inforoute site lists, 9 batch-two ingestors
     # (MD, VA, SC, DE, TX, Finland, Hong Kong, Queensland, New Zealand) and 12
     # batch-three ones (NC, Iceland, Taiwan, Lithuania, Bizkaia, DIR Centre-Est,
-    # DIR Est, Lyon, APRR, Autostrade, Edmonton, Oregon).
+    # DIR Est, Lyon, APRR, Autostrade, Edmonton, Oregon) and 7 batch-four ones
+    # (Minnesota, DriveBC, Toronto, Ottawa, Québec, Calgary, Estonia).
     assert len(scheduled) == (21 + len(cctv_pipeline.IBI511_SITES) + len(cctv_pipeline.CARS511_SITES)
-                              + len(cctv_pipeline.INFOROUTE_SITES) + 9 + 12)
+                              + len(cctv_pipeline.INFOROUTE_SITES) + 9 + 12 + 7)
     prefixes = [prefix for _, _, prefix, _ in cctv_pipeline.IBI511_SITES]
     prefixes += [prefix for _, _, prefix, _, _ in cctv_pipeline.CARS511_SITES]
     prefixes += ["MDCHART", "VDOT", "SCDOT", "DELDOT", "TXDOT", "FINTRAFFIC", "HKTD", "QLD", "NZTA"]
     prefixes += [prefix for _, _, prefix, _, _ in cctv_pipeline.INFOROUTE_SITES]
     prefixes += ["NCDOT", "ISVEG", "TWTHB", "LTVIA", "BIZKAIA", "DIRCE", "DIREST", "LYON", "APRR", "ASPI",
                  "YEG", "TRIPCHECK"]
+    prefixes += ["MN511", "DRIVEBC", "TORONTO", "OTTAWA", "QC511", "YYC", "EETARK"]
     existing = {"GDOT", "FL511", "ON511", "AB511", "ALPR", "ASFINAG", "ATX", "AUS", "CAL", "CODOT", "DGT",
                 "IDOT", "MAD", "MDOT", "NLRWS", "NYC", "OSM", "SGP", "TFL", "WINDY", "WSDOT"}
     # ingest() clears old rows by id prefix (SQLite LIKE ignores case), so
@@ -761,3 +766,122 @@ def test_cctv_proxy_allows_batch_three_hosts_and_profiles():
         "https://cityed1-winkcdn1.winkcdn.com/2/public/hls/x.m3u8").name == "dot-hls"
     assert cctv_router._cctv_proxy_profile_for_url(
         "https://cctv-ss01.thb.gov.tw/T1/snapshot").name == "dot-image"
+
+
+def test_minnesota_prefers_hls_and_falls_back_to_stills(monkeypatch):
+    def feat(cam_id, views, lon=-93.5, lat=44.9, **extra):
+        return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {"id": cam_id, "name": f"Cam {cam_id}", "public": True, "views": views, **extra}}
+
+    hls = "https://video.dot.state.mn.us/public/C795.stream/playlist.m3u8"
+    still = "https://public.carsprogram.org/cameras/MN/C30374-v1"
+    _serve(monkeypatch, {"features": [
+        feat(1, [{"type": "WMP", "url": hls, "broken": False}]),
+        feat(2, [{"type": "STILL_IMAGE", "url": still, "broken": False}]),
+        feat(3, [{"type": "WMP", "url": "https://evil.example.com/x.m3u8"}]),
+        feat(4, [{"type": "WMP", "url": hls, "broken": True}]),
+        feat(5, [{"type": "WMP", "url": hls}], lat=10.0),
+        feat(6, [{"type": "WMP", "url": hls}], public=False),
+        feat(1, [{"type": "WMP", "url": hls}]),
+    ]})
+    cameras = cctv_pipeline.Minnesota511xIngestor().fetch_data()
+    assert [(c["id"], c["media_type"]) for c in cameras] == [("MN511-1", "hls"), ("MN511-2", "image")]
+    assert cameras[0]["media_url"] == hls and cameras[1]["media_url"] == still
+
+
+def test_drivebc_skips_off_and_stale_cameras(monkeypatch):
+    def row(cam_id, **extra):
+        return {"id": cam_id, "caption": "Highway 7 at Highway 11", "is_on": True, "should_appear": True,
+                "marked_stale": False, "location": {"type": "Point", "coordinates": [-122.3, 49.1]}, **extra}
+
+    _serve(monkeypatch, [row(504), row(5, is_on=False), row(6, marked_stale=True), row("7"),
+                         row(8, location={"coordinates": [10.0, 10.0]})])
+    cameras = cctv_pipeline.DriveBCIngestor().fetch_data()
+    assert [c["id"] for c in cameras] == ["DRIVEBC-504"]
+    assert cameras[0]["media_url"] == "https://www.drivebc.ca/images/504.jpg"
+
+
+def test_toronto_reads_multipoints_and_checks_image_host(monkeypatch):
+    def feat(rec_id, url, coords=([[-79.38, 43.64]])):
+        return {"geometry": {"type": "MultiPoint", "coordinates": coords},
+                "properties": {"REC_ID": rec_id, "IMAGEURL": url, "MAINROAD": "YORK ST", "CROSSROAD": "BREMNER BLVD"}}
+
+    good = "https://opendata.toronto.ca/transportation/tmc/rescucameraimages/CameraImages/loc8001.jpg"
+    _serve(monkeypatch, {"features": [feat(8001, good), feat(8002, "https://evil.example.com/loc1.jpg"),
+                                      feat(8003, good.replace("8001", "8003"), [[0.0, 0.0]])]})
+    cameras = cctv_pipeline.TorontoRescuIngestor().fetch_data()
+    assert [c["id"] for c in cameras] == ["TORONTO-8001"]
+    assert cameras[0]["direction_facing"] == "YORK ST / BREMNER BLVD"
+    assert cameras[0]["media_url"] == good
+
+
+def test_ottawa_takes_city_cameras_only(monkeypatch):
+    _serve(monkeypatch, [
+        {"number": 176, "type": "CITY", "latitude": 45.33, "longitude": -75.67, "description": "Airport & Lester"},
+        {"number": 2019, "type": "MTO", "latitude": 45.41, "longitude": -75.64, "description": "(MTO) Hwy 417"},
+        {"number": "x", "type": "CITY", "latitude": 45.3, "longitude": -75.6},
+    ])
+    cameras = cctv_pipeline.OttawaTrafficIngestor().fetch_data()
+    assert [c["id"] for c in cameras] == ["OTTAWA-176"]
+    assert cameras[0]["media_url"] == "https://traffic.ottawa.ca/map/camera?id=176"
+
+
+def test_quebec_builds_mp4_clip_urls(monkeypatch):
+    def feat(cam_id, lon=-71.35, lat=46.79):
+        return {"geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {"IDEcamera": cam_id, "DescriptionLocalisationEn": "Aut. 540 at boul. Wilfrid-Hamel"}}
+
+    _serve(monkeypatch, {"features": [feat("3998"), feat("39&x=1"), feat("4000", lat=30.0)]})
+    cameras = cctv_pipeline.Quebec511Ingestor().fetch_data()
+    assert [c["id"] for c in cameras] == ["QC511-3998"]
+    assert cameras[0]["media_type"] == "video"
+    assert cameras[0]["media_url"] == "https://www.quebec511.info/Carte/Fenetres/camera.ashx?id=3998&format=mp4"
+
+
+def test_calgary_takes_ids_from_trafficcam_urls(monkeypatch):
+    def row(url, coords=(-114.07, 50.99)):
+        return {"camera_url": {"url": url}, "camera_location": "Glenmore Trail / Macleod Trail S",
+                "point": {"type": "Point", "coordinates": list(coords)}}
+
+    _serve(monkeypatch, [row("https://trafficcam.calgary.ca/loc0.jpg"), row("https://evil.example.com/loc1.jpg"),
+                         row("https://trafficcam.calgary.ca/loc0.jpg"), row("https://trafficcam.calgary.ca/loc2.jpg", (0, 0))])
+    cameras = cctv_pipeline.CalgaryTrafficIngestor().fetch_data()
+    assert [c["id"] for c in cameras] == ["YYC-0"]
+    assert cameras[0]["media_url"] == "https://trafficcam.calgary.ca/loc0.jpg"
+
+
+def test_estonia_keeps_current_pictures_with_the_layer_path_shape(monkeypatch):
+    now = 1_795_062_000.0
+
+    def feat(path, age_s=600, x=27.4, y=59.36):
+        return {"attributes": {"site_name": "Jõhvi", "image_path": path, "image_time": (now - age_s) * 1000},
+                "geometry": {"x": x, "y": y}}
+
+    _serve(monkeypatch, {"features": [
+        feat("94/94_202611190616.jpg"),
+        feat("95/95_202611190100.jpg", age_s=4 * 3600),
+        feat("../etc/94_202611190616.jpg"),
+        feat("96/97_202611190616.jpg"),
+        feat("98/98_202611190616.jpg", x=0.0),
+    ]})
+    cameras = cctv_pipeline.EstoniaTarkTeeIngestor().fetch_data(now=now)
+    assert [c["id"] for c in cameras] == ["EETARK-94"]
+    assert cameras[0]["media_url"] == "https://www.tarktee.ee/images/94/94_202611190616.jpg"
+    assert cameras[0]["direction_facing"] == "Jõhvi road camera"
+
+
+def test_cctv_proxy_allows_batch_four_hosts_and_profiles():
+    from routers import cctv as cctv_router
+
+    for host in ["newengland511.org", "hotline.gov.sk.ca", "511.gov.pe.ca", "video.dot.state.mn.us",
+                 "www.drivebc.ca", "opendata.toronto.ca", "traffic.ottawa.ca", "www.quebec511.info",
+                 "trafficcam.calgary.ca", "www.tarktee.ee"]:
+        assert cctv_router._cctv_host_allowed(host), host
+    assert not cctv_router._cctv_host_allowed("quebec511.info.evil.example.com")
+    profile = cctv_router._cctv_proxy_profile_for_url(
+        "https://www.quebec511.info/Carte/Fenetres/camera.ashx?id=3998&format=mp4")
+    assert profile.name == "quebec-511" and profile.headers["Referer"] == "https://www.quebec511.info/"
+    assert cctv_router._cctv_proxy_profile_for_url(
+        "https://video.dot.state.mn.us/public/C795.stream/playlist.m3u8").name == "dot-hls"
+    assert cctv_router._cctv_proxy_profile_for_url("https://newengland511.org/map/Cctv/950").name == "ibi-511"
+    assert cctv_router._cctv_proxy_profile_for_url("https://www.drivebc.ca/images/504.jpg").name == "dot-image"
