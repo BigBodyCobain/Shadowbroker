@@ -1718,7 +1718,7 @@ export function buildTelegramOsintGeoJSON(
   };
 }
 
-// ─── Malware C2 (Feodo Tracker, ViriBack) ───────────────────────────────────────────
+// ─── Malware C2 (Feodo Tracker, ViriBack, C2IntelFeeds) ───────────────────────────────────────────
 
 export function buildMalwareGeoJSON(
   payload?: { threats?: Array<{ id: string; lat: number; lng: number; ip: string; malware: string; threat_type?: string; country?: string }> },
