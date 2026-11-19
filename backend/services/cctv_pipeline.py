@@ -3,6 +3,7 @@ import os
 import sqlite3
 import requests
 import re
+import time
 from pathlib import Path
 from urllib.parse import urljoin, urlparse, urlunparse, quote
 from services.network_utils import fetch_with_curl
@@ -1389,6 +1390,9 @@ IBI511_SITES: List[tuple[str, str, str, str]] = [
     ("cctv_ns511", "https://511.novascotia.ca", "NS511", "Nova Scotia 511"),
     ("cctv_nl511", "https://511nl.ca", "NL511", "Newfoundland and Labrador 511"),
     ("cctv_yt511", "https://511yukon.ca", "YT511", "Yukon 511"),
+    ("cctv_neng511", "https://newengland511.org", "NENG511", "New England 511 (VT, NH, ME)"),
+    ("cctv_sk511", "https://hotline.gov.sk.ca", "SK511", "Saskatchewan Highway Hotline"),
+    ("cctv_pe511", "https://511.gov.pe.ca", "PE511", "PEI 511"),
 ]
 
 
@@ -2804,6 +2808,335 @@ class OregonTripCheckIngestor(BaseCCTVIngestor):
         return cameras
 
 
+# Batch four (2026-11-18): more open feeds found in OSIRIS
+# (github.com/simplifaisoul/osiris, MIT). All keyless.
+
+
+class Minnesota511xIngestor(BaseCCTVIngestor):
+    """Minnesota MnDOT cameras from the 511 map's camera API (~1,500).
+
+    About 1,250 carry a live HLS stream on video.dot.state.mn.us; the rest are
+    stills on public.carsprogram.org. A camera with several views uses its
+    first working one.
+    """
+
+    API_URL = "https://api-511x-mn.carsprogram.org/cameras/map-features"
+    BOUNDS = (43.3, 49.5, -97.4, -89.3)
+    _HLS = re.compile(r"https://video\.dot\.state\.mn\.us/public/[\w.-]+/playlist\.m3u8")
+    _STILL = re.compile(r"https://public\.carsprogram\.org/cameras/MN/[\w.-]+")
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        data = _get_feed_json(self.API_URL, timeout=40, headers={"Accept": "application/json"})
+        features = data.get("features") if isinstance(data, dict) else None
+        cameras: List[Dict[str, Any]] = []
+        seen: set[int] = set()
+        for feat in features if isinstance(features, list) else []:
+            props = (feat.get("properties") if isinstance(feat, dict) else None) or {}
+            cam_id = props.get("id")
+            if not isinstance(cam_id, int) or isinstance(cam_id, bool) or cam_id in seen:
+                continue
+            if props.get("public") is False:
+                continue
+            coords_raw = (feat.get("geometry") or {}).get("coordinates")
+            if not isinstance(coords_raw, list) or len(coords_raw) < 2:
+                continue
+            coords = _lat_lon_in(coords_raw[1], coords_raw[0], self.BOUNDS)
+            if not coords:
+                continue
+            media = None
+            for view in props.get("views") or []:
+                if not isinstance(view, dict) or view.get("broken"):
+                    continue
+                url = str(view.get("url") or "")
+                if view.get("type") == "WMP" and self._HLS.fullmatch(url):
+                    media = (url, "hls")
+                    break
+                if view.get("type") == "STILL_IMAGE" and self._STILL.fullmatch(url):
+                    media = (url, "image")
+                    break
+            if not media:
+                continue
+            seen.add(cam_id)
+            cameras.append({
+                "id": f"MN511-{cam_id}",
+                "source_agency": "Minnesota MnDOT",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (str(props.get("name") or "").strip() or f"MnDOT camera {cam_id}")[:120],
+                "media_url": media[0],
+                "media_type": media[1],
+                "refresh_rate_seconds": 60,
+            })
+        logger.info("Minnesota511xIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class DriveBCIngestor(BaseCCTVIngestor):
+    """British Columbia highway cameras from DriveBC (~1,050 stills).
+
+    Cameras DriveBC marks as off or stale are skipped. The www host and the
+    trailing slash both matter: the bare host redirects and then answers 404.
+    """
+
+    API_URL = "https://www.drivebc.ca/api/webcams/"
+    IMAGE_URL = "https://www.drivebc.ca/images/{id}.jpg"
+    BOUNDS = (48.2, 60.1, -139.2, -114.0)
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        rows = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/json"})
+        cameras: List[Dict[str, Any]] = []
+        seen: set[int] = set()
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            cam_id = row.get("id")
+            if not isinstance(cam_id, int) or isinstance(cam_id, bool) or cam_id in seen:
+                continue
+            if row.get("is_on") is False or row.get("should_appear") is False or row.get("marked_stale"):
+                continue
+            coords_raw = (row.get("location") or {}).get("coordinates")
+            if not isinstance(coords_raw, list) or len(coords_raw) < 2:
+                continue
+            coords = _lat_lon_in(coords_raw[1], coords_raw[0], self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(cam_id)
+            title = str(row.get("caption") or row.get("name") or "").strip()
+            cameras.append({
+                "id": f"DRIVEBC-{cam_id}",
+                "source_agency": "DriveBC",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (title or f"DriveBC camera {cam_id}")[:120],
+                "media_url": self.IMAGE_URL.format(id=cam_id),
+                "media_type": "image",
+                "refresh_rate_seconds": 120,
+            })
+        logger.info("DriveBCIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class TorontoRescuIngestor(BaseCCTVIngestor):
+    """City of Toronto traffic cameras from the open-data portal (~340 stills)."""
+
+    API_URL = ("https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/a3309088-5fd4-4d34-8297-77c8301840ac"
+               "/resource/4a568300-c7f8-496d-b150-dff6f5dc6d4f/download/traffic-camera-list-4326.geojson")
+    BOUNDS = (43.5, 43.9, -79.7, -79.0)
+    _IMAGE = re.compile(r"https://opendata\.toronto\.ca/transportation/tmc/rescucameraimages/CameraImages/loc\d+\.jpg")
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        data = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/geo+json,application/json"})
+        features = data.get("features") if isinstance(data, dict) else None
+        cameras: List[Dict[str, Any]] = []
+        seen: set[int] = set()
+        for feat in features if isinstance(features, list) else []:
+            props = (feat.get("properties") if isinstance(feat, dict) else None) or {}
+            rec_id = props.get("REC_ID")
+            image = str(props.get("IMAGEURL") or "")
+            if not isinstance(rec_id, int) or isinstance(rec_id, bool) or rec_id in seen:
+                continue
+            if not self._IMAGE.fullmatch(image):
+                continue
+            coords_raw = (feat.get("geometry") or {}).get("coordinates")
+            if isinstance(coords_raw, list) and coords_raw and isinstance(coords_raw[0], list):
+                coords_raw = coords_raw[0]  # MultiPoint with one point
+            if not isinstance(coords_raw, list) or len(coords_raw) < 2:
+                continue
+            coords = _lat_lon_in(coords_raw[1], coords_raw[0], self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(rec_id)
+            roads = " / ".join(r for r in (str(props.get("MAINROAD") or "").strip(),
+                                           str(props.get("CROSSROAD") or "").strip()) if r)
+            cameras.append({
+                "id": f"TORONTO-{rec_id}",
+                "source_agency": "City of Toronto",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (roads or f"Toronto camera {rec_id}")[:120],
+                "media_url": image,
+                "media_type": "image",
+                "refresh_rate_seconds": 120,
+            })
+        logger.info("TorontoRescuIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class OttawaTrafficIngestor(BaseCCTVIngestor):
+    """City of Ottawa traffic cameras (~400 stills).
+
+    The list also carries about 30 MTO highway cameras; 511 Ontario already
+    supplies those, so only the city's own are taken.
+    """
+
+    API_URL = "https://traffic.ottawa.ca/beta/camera_list"
+    IMAGE_URL = "https://traffic.ottawa.ca/map/camera?id={number}"
+    BOUNDS = (44.9, 45.6, -76.4, -75.2)
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        rows = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/json"})
+        cameras: List[Dict[str, Any]] = []
+        seen: set[int] = set()
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict) or str(row.get("type") or "").upper() != "CITY":
+                continue
+            number = row.get("number")
+            if not isinstance(number, int) or isinstance(number, bool) or number in seen:
+                continue
+            coords = _lat_lon_in(row.get("latitude"), row.get("longitude"), self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(number)
+            cameras.append({
+                "id": f"OTTAWA-{number}",
+                "source_agency": "City of Ottawa",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (str(row.get("description") or "").strip() or f"Ottawa camera {number}")[:120],
+                "media_url": self.IMAGE_URL.format(number=number),
+                "media_type": "image",
+                "refresh_rate_seconds": 60,
+            })
+        logger.info("OttawaTrafficIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class Quebec511Ingestor(BaseCCTVIngestor):
+    """Québec 511 cameras from the Transports Québec WFS layer (~680).
+
+    Each camera serves a short MP4 clip. The clip host answers 403 without a
+    Québec 511 Referer, which the media proxy adds.
+    """
+
+    API_URL = ("https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature"
+               "&typename=ms:infos_cameras&outfile=Camera&srsname=EPSG:4326&outputformat=geojson")
+    CLIP_URL = "https://www.quebec511.info/Carte/Fenetres/camera.ashx?id={id}&format=mp4"
+    BOUNDS = (44.9, 63.0, -80.0, -57.0)
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        data = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/geo+json,application/json"})
+        features = data.get("features") if isinstance(data, dict) else None
+        cameras: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for feat in features if isinstance(features, list) else []:
+            props = (feat.get("properties") if isinstance(feat, dict) else None) or {}
+            cam_id = str(props.get("IDEcamera") or "").strip()
+            if not re.fullmatch(r"\d{1,7}", cam_id) or cam_id in seen:
+                continue
+            coords_raw = (feat.get("geometry") or {}).get("coordinates")
+            if not isinstance(coords_raw, list) or len(coords_raw) < 2:
+                continue
+            coords = _lat_lon_in(coords_raw[1], coords_raw[0], self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(cam_id)
+            title = str(props.get("DescriptionLocalisationEn") or props.get("DescriptionLocalisationFr") or "").strip()
+            cameras.append({
+                "id": f"QC511-{cam_id}",
+                "source_agency": "Québec 511",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (title or f"Québec 511 camera {cam_id}")[:120],
+                "media_url": self.CLIP_URL.format(id=cam_id),
+                "media_type": "video",
+                "refresh_rate_seconds": 120,
+            })
+        logger.info("Quebec511Ingestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class CalgaryTrafficIngestor(BaseCCTVIngestor):
+    """City of Calgary traffic cameras from the open-data portal (~220 stills)."""
+
+    API_URL = "https://data.calgary.ca/resource/k7p9-kppz.json?$limit=2000"
+    BOUNDS = (50.8, 51.3, -114.4, -113.8)
+    _IMAGE = re.compile(r"https://trafficcam\.calgary\.ca/loc(\d+)\.jpg")
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        rows = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/json"})
+        cameras: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            image = str((row.get("camera_url") or {}).get("url") or "").strip()
+            match = self._IMAGE.fullmatch(image)
+            if not match or match.group(1) in seen:
+                continue
+            coords_raw = (row.get("point") or {}).get("coordinates")
+            if not isinstance(coords_raw, list) or len(coords_raw) < 2:
+                continue
+            coords = _lat_lon_in(coords_raw[1], coords_raw[0], self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(match.group(1))
+            cameras.append({
+                "id": f"YYC-{match.group(1)}",
+                "source_agency": "City of Calgary",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (str(row.get("camera_location") or "").strip()
+                                     or f"Calgary camera {match.group(1)}")[:120],
+                "media_url": image,
+                "media_type": "image",
+                "refresh_rate_seconds": 60,
+            })
+        logger.info("CalgaryTrafficIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
+class EstoniaTarkTeeIngestor(BaseCCTVIngestor):
+    """Estonia's road-weather-station cameras (Transpordiamet, Tark Tee map, ~180).
+
+    Each new picture gets a new file name (``94/94_202611190616.jpg``) about
+    every ten minutes, so the link stored here is the newest picture at ingest
+    time and is replaced on the next ingest cycle. A camera whose newest
+    picture is over three hours old has stopped and is skipped.
+    """
+
+    API_URL = ("https://www.tarktee.ee/tarktee/rest/services/tram/road_cameras/MapServer/0/query"
+               "?where=1%3D1&outFields=site_name,image_path,image_time&outSR=4326&f=json")
+    IMAGE_BASE = "https://www.tarktee.ee/images/"
+    BOUNDS = (57.4, 59.9, 21.6, 28.3)
+    STALE_SECONDS = 3 * 3600
+    _PATH = re.compile(r"([1-9]\d{0,5})/\1_\d{12}\.jpg")
+
+    def fetch_data(self, now: float | None = None) -> List[Dict[str, Any]]:
+        now_ms = (time.time() if now is None else now) * 1000
+        data = _get_feed_json(self.API_URL, timeout=30, headers={"Accept": "application/json"})
+        features = data.get("features") if isinstance(data, dict) else None
+        cameras: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for feat in features if isinstance(features, list) else []:
+            if not isinstance(feat, dict):
+                continue
+            attrs = feat.get("attributes") or {}
+            match = self._PATH.fullmatch(str(attrs.get("image_path") or ""))
+            if not match or match.group(1) in seen:
+                continue
+            taken = attrs.get("image_time")
+            if not isinstance(taken, (int, float)) or now_ms - taken > self.STALE_SECONDS * 1000:
+                continue
+            geometry = feat.get("geometry") or {}
+            coords = _lat_lon_in(geometry.get("y"), geometry.get("x"), self.BOUNDS)
+            if not coords:
+                continue
+            seen.add(match.group(1))
+            site = str(attrs.get("site_name") or "").strip()
+            cameras.append({
+                "id": f"EETARK-{match.group(1)}",
+                "source_agency": "Estonia Transpordiamet",
+                "lat": coords[0],
+                "lon": coords[1],
+                "direction_facing": (f"{site} road camera" if site else f"Estonia camera {match.group(1)}")[:120],
+                "media_url": self.IMAGE_BASE + match.group(0),
+                "media_type": "image",
+                "refresh_rate_seconds": 600,
+            })
+        logger.info("EstoniaTarkTeeIngestor: parsed %s cameras", len(cameras))
+        return cameras
+
+
 def _detect_media_type(url: str) -> str:
     """Detect the media type from a camera URL for proper frontend rendering."""
     if not url:
@@ -2885,6 +3218,13 @@ def scheduled_cctv_ingestors() -> List[tuple["BaseCCTVIngestor", str]]:
         (AutostradeIngestor(), "cctv_it_aspi"),
         (EdmontonTrafficIngestor(), "cctv_yeg"),
         (OregonTripCheckIngestor(), "cctv_or_tripcheck"),
+        (Minnesota511xIngestor(), "cctv_mn511"),
+        (DriveBCIngestor(), "cctv_drivebc"),
+        (TorontoRescuIngestor(), "cctv_toronto"),
+        (OttawaTrafficIngestor(), "cctv_ottawa"),
+        (Quebec511Ingestor(), "cctv_qc511"),
+        (CalgaryTrafficIngestor(), "cctv_yyc"),
+        (EstoniaTarkTeeIngestor(), "cctv_ee_tarktee"),
     ]
 
 

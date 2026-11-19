@@ -85,12 +85,15 @@ _IBI511_MEDIA_HOSTS = {
     "511.novascotia.ca",
     "511nl.ca",
     "511yukon.ca",
+    "newengland511.org",
+    "hotline.gov.sk.ca",
+    "511.gov.pe.ca",
     "drivenc.gov",
     "www.drivenc.gov",
 }
 _CCTV_PROXY_ALLOWED_HOSTS |= _IBI511_MEDIA_HOSTS
 # Live HLS servers (Maryland CHART strmrN.sha.maryland.gov, DelDOT).
-_DOT_HLS_MEDIA_HOSTS = {"sha.maryland.gov", "video.deldot.gov", "winkcdn.com"}
+_DOT_HLS_MEDIA_HOSTS = {"sha.maryland.gov", "video.deldot.gov", "winkcdn.com", "video.dot.state.mn.us"}
 # Snapshot hosts for the second batch of state DOT and international feeds.
 _DOT_IMAGE_MEDIA_HOSTS = {
     "vdotcameras.com",               # Virginia VDOT snapshots
@@ -130,6 +133,17 @@ _DOT_VIDEO_MEDIA_HOSTS = {
 # eismoinfo.lt answers 403 to a foreign Referer.
 _EISMOINFO_HOST = "eismoinfo.lt"
 _CCTV_PROXY_ALLOWED_HOSTS |= _INTL_IMAGE_MEDIA_HOSTS | _DOT_VIDEO_MEDIA_HOSTS | {_EISMOINFO_HOST}
+# Fourth batch: Canadian city and provincial feeds, Estonia.
+_BATCH4_IMAGE_MEDIA_HOSTS = {
+    "www.drivebc.ca",                 # British Columbia
+    "opendata.toronto.ca",            # Toronto
+    "traffic.ottawa.ca",              # Ottawa
+    "trafficcam.calgary.ca",          # Calgary
+    "www.tarktee.ee",                 # Estonia
+}
+# Québec 511 serves MP4 clips and answers 403 without its own Referer.
+_QUEBEC511_HOST = "www.quebec511.info"
+_CCTV_PROXY_ALLOWED_HOSTS |= _BATCH4_IMAGE_MEDIA_HOSTS | {_QUEBEC511_HOST}
 _TXDOT_SNAPSHOT_PATH = "/its/districtits/getcctvsnapshotbyicdid"
 
 
@@ -278,10 +292,14 @@ def _cctv_proxy_profile_for_url(target_url: str) -> _CCTVProxyProfile:
         return _CCTVProxyProfile(name="eismoinfo", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 12.0), cache_seconds=60,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                      "Referer": "https://eismoinfo.lt/"})
+    if host == _QUEBEC511_HOST:
+        return _CCTVProxyProfile(name="quebec-511", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 20.0), cache_seconds=60,
+            headers={"Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8", "Accept-Encoding": "identity",
+                     "Referer": "https://www.quebec511.info/"})
     if any(host == h or host.endswith(f".{h}") for h in _DOT_VIDEO_MEDIA_HOSTS):
         return _CCTVProxyProfile(name="dot-video", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 20.0), cache_seconds=60,
             headers={"Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8", "Accept-Encoding": "identity"})
-    if any(host == h or host.endswith(f".{h}") for h in _DOT_IMAGE_MEDIA_HOSTS | _INTL_IMAGE_MEDIA_HOSTS):
+    if any(host == h or host.endswith(f".{h}") for h in _DOT_IMAGE_MEDIA_HOSTS | _INTL_IMAGE_MEDIA_HOSTS | _BATCH4_IMAGE_MEDIA_HOSTS):
         return _CCTVProxyProfile(name="dot-image", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 15.0), cache_seconds=30,
             headers={"Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"})
     return _CCTVProxyProfile(name="generic-cctv", timeout=(_CCTV_PROXY_CONNECT_TIMEOUT_S, 8.0), cache_seconds=30,

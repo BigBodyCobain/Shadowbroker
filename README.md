@@ -70,7 +70,7 @@ ShadowBroker includes an optional **Shodan connector** for operator-supplied API
 * **Run a full recon toolkit** from the left sidebar — IP geolocation, DNS, RDAP/WHOIS, certificate transparency, BGP/ASN, OFAC sanctions search, CVE lookup, Tor/OTX threat checks, and subnet sweeps (InternetDB proxied server-side)
 * **Expand an entity graph** when you select an aircraft, vessel, company, or IP — Wikidata + OFAC + live store cross-links rendered in the Entity Graph panel
 * **Monitor supply-chain risk** — Tier 1/2 semiconductor and battery fabs scored against nearby earthquakes, wildfires, and conflict events (SCM panel)
-* **Toggle malware C2 hotspots** — abuse.ch Feodo Tracker botnet C2 servers mapped by country (opt-in layer)
+* **Toggle malware C2 hotspots** — abuse.ch Feodo Tracker botnet C2 servers, ViriBack C2 Tracker panels and C2IntelFeeds Cobalt Strike servers (opt-in layer)
 * **Monitor Telegram OSINT channels** — public `t.me/s` war/conflict feeds (OSINTdefender, NEXTA, etc.) scraped hourly, risk-scored, geoparsed to metro anchors, and plotted as clickable map pins with inline media
 * **Overlay global submarine cables** — static TeleGeography-derived cable routes (opt-in layer)
 
@@ -407,7 +407,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 * **Military Bases** — Global military installation and missile facility database (NEW)
 * **Power Plants** — 35,000+ global power plants from the WRI database (NEW)
 * **Submarine Cables** — Global undersea cable routes from static TeleGeography-derived GeoJSON (`frontend/public/data/submarine-cables.json`). Opt-in line overlay.
-* **Malware C2 Layer** — Botnet C2 servers from abuse.ch's Feodo Tracker, refreshed on the slow tier when the layer is enabled. When Feodo hasn't listed a new server in two weeks, the layer panel says since when.
+* **Malware C2 Layer** — Botnet C2 servers from abuse.ch's Feodo Tracker (placed by country) C2 panels reported to the ViriBack C2 Tracker in the last 180 days, and likely Cobalt Strike servers from C2IntelFeeds' last-30-days list (both placed by RIPEstat's GeoLite lookup), refreshed on the slow tier when the layer is enabled. When neither feed has listed a new server in two weeks, the layer panel says since when.
 * **SCM Supplier Risk** — Tier 1/2 fabs and battery plants (TSMC, Samsung, CATL, etc.) cross-referenced against earthquakes, FIRMS fires, and GDELT conflict proximity. Alerts in the SCM panel; optional map layer.
 * **Cyber Threats Feed** — Recent CISA Known Exploited Vulnerabilities (KEV) entries exposed via `/api/cyber-threats` and the layer toggle.
 * **Country Risk Index** — Static geopolitical risk scores with USGS earthquake enrichment via `/api/country-risk`.
@@ -619,6 +619,8 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [Shodan](https://www.shodan.io) | Internet-connected device search | On-demand | **Yes** |
 | [OpenSanctions](https://www.opensanctions.org) | OFAC SDN sanctions index (recon + entity graph) | 24h cache | No |
 | [abuse.ch Feodo Tracker](https://feodotracker.abuse.ch) | Botnet C2 servers | ~5min (opt-in layer) | No |
+| [ViriBack C2 Tracker](https://tracker.viriback.com) + [RIPEstat](https://stat.ripe.net) | C2 panels, IP location | ~30min (opt-in layer) | No |
+| [C2IntelFeeds](https://github.com/drb-ra/C2IntelFeeds) (CC BY-NC-SA 4.0) | Cobalt Strike C2 servers | ~30min (opt-in layer) | No |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Known exploited CVEs | ~5min (opt-in layer) | No |
 | [ip-api.com](https://ip-api.com) | IP geolocation (recon, entity graph) | On-demand | No |
 | [Google Public DNS](https://dns.google) | DNS-over-HTTPS lookups (recon) | On-demand | No |
@@ -981,7 +983,7 @@ All 41 layers are independently toggleable from the left panel:
 | Shodan Overlay | ❌ OFF | Internet device search results |
 | Road Freight Trends | ❌ OFF | Sentinel-2 truck-motion trends on major highways (Analyze Here) |
 | Submarine Cables | ❌ OFF | Global undersea cable routes (static GeoJSON) |
-| Malware C2 | ❌ OFF | abuse.ch Feodo Tracker C2 points |
+| Malware C2 | ❌ OFF | abuse.ch Feodo Tracker, ViriBack and C2IntelFeeds C2 points |
 | SCM Suppliers | ❌ OFF | Tier 1/2 supply-chain risk markers + panel alerts |
 | Cyber Threats | ❌ OFF | Recent CISA KEV entries (stats in slow-tier payload) |
 | Telegram OSINT | ✅ ON | Public war/OSINT Telegram channels — hourly scrape, geoparsed pins |
@@ -1046,7 +1048,7 @@ Shadowbroker/
 │   │   ├── osint_intel/resolve.py  # Entity graph resolver (Wikidata + OFAC)
 │   │   ├── scm/suppliers.py        # Supply-chain risk overlay
 │   │   ├── intel_feeds/            # Country risk index helpers
-│   │   ├── fetchers/malware.py     # abuse.ch Feodo Tracker
+│   │   ├── fetchers/malware.py     # Feodo + ViriBack + C2Intel
 │   │   ├── fetchers/cyber_status.py # CISA KEV feed
 │   │   ├── fetchers/telegram_osint.py # Public Telegram channel scrape + geoparse
 │   │   ├── third_party/osiris/     # MIT attribution for Osiris-derived code
