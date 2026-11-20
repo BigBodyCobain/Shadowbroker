@@ -1,4 +1,11 @@
-"""OFAC SDN index via OpenSanctions (adapted from Osiris sanctions.ts)."""
+"""US sanctions index via OpenSanctions (adapted from Osiris sanctions.ts).
+
+The SDN alone is not the US list. ``us_sanctions`` adds the trade.gov Consolidated Screening List (BIS Entity List,
+Military End User and Unverified lists), the OFAC non-SDN lists, the DoD 1260H Chinese military companies and the
+UFLPA Entity List. The FCC Covered List is a separate OpenSanctions dataset, outside ``us_sanctions``; seven of its
+13 entities (China Mobile International USA, China Telecom (Americas), Kaspersky Lab, Inc. among them) are on no
+other US list there, so it is loaded next to it.
+"""
 from __future__ import annotations
 
 import csv
@@ -14,7 +21,11 @@ from services.network_utils import fetch_with_curl
 
 logger = logging.getLogger(__name__)
 
-SDN_CSV_URL = "https://data.opensanctions.org/datasets/latest/us_ofac_sdn/targets.simple.csv"
+SANCTIONS_CSV_URLS = (
+    "https://data.opensanctions.org/datasets/latest/us_sanctions/targets.simple.csv",
+    "https://data.opensanctions.org/datasets/latest/us_fcc_covered_list/targets.simple.csv",
+)
+SOURCE_LABEL = "OpenSanctions us_sanctions + us_fcc_covered_list"
 TTL_S = 24 * 60 * 60
 
 _lock = threading.Lock()
@@ -32,6 +43,7 @@ class SanctionEntry:
     countries: list[str] = field(default_factory=list)
     programs: list[str] = field(default_factory=list)
     sanctions: str = ""
+    datasets: list[str] = field(default_factory=list)
     first_seen: str | None = None
     last_seen: str | None = None
 
@@ -44,6 +56,7 @@ class SanctionEntry:
             "countries": self.countries,
             "programs": self.programs,
             "sanctions": self.sanctions,
+            "datasets": self.datasets,
             "first_seen": self.first_seen,
             "last_seen": self.last_seen,
         }
@@ -58,6 +71,44 @@ def _split_semi(val: str) -> list[str]:
     return [x.strip() for x in (val or "").split(";") if x.strip()]
 
 
+def build_index(texts: list[str]) -> dict[str, Any]:
+    """Index OpenSanctions simple CSVs. An entity in several files (same id) is kept once."""
+    entries: list[SanctionEntry] = []
+    by_id: dict[str, SanctionEntry] = {}
+    by_norm: dict[str, list[SanctionEntry]] = {}
+    for text in texts:
+        for row in csv.DictReader(io.StringIO(text)):
+            name = (row.get("name") or "").strip()
+            if not name:
+                continue
+            entity_id = row.get("id") or ""
+            datasets = _split_semi(row.get("dataset") or "")
+            known = by_id.get(entity_id) if entity_id else None
+            if known is not None:
+                known.datasets.extend(d for d in datasets if d not in known.datasets)
+                continue
+            entry = SanctionEntry(
+                id=entity_id,
+                schema=row.get("schema") or "LegalEntity",
+                name=name,
+                aliases=_split_semi(row.get("aliases") or ""),
+                countries=_split_semi(row.get("countries") or ""),
+                programs=_split_semi(row.get("program_ids") or ""),
+                sanctions=row.get("sanctions") or "",
+                datasets=datasets,
+                first_seen=row.get("first_seen") or None,
+                last_seen=row.get("last_seen") or None,
+            )
+            entries.append(entry)
+            if entity_id:
+                by_id[entity_id] = entry
+            for key in {norm_name(name), *(norm_name(a) for a in entry.aliases)}:
+                if not key:
+                    continue
+                by_norm.setdefault(key, []).append(entry)
+    return {"entries": entries, "by_norm": by_norm, "fetched_at": time.time()}
+
+
 def _load_list() -> dict[str, Any]:
     global _cache, _cache_at
     with _lock:
@@ -65,41 +116,20 @@ def _load_list() -> dict[str, Any]:
             return _cache
 
     try:
-        resp = fetch_with_curl(SDN_CSV_URL, timeout=45, headers={"Accept": "text/csv"})
-        if resp.status_code != 200:
-            raise RuntimeError(f"OpenSanctions HTTP {resp.status_code}")
-        text = resp.text
-        reader = csv.DictReader(io.StringIO(text))
-        entries: list[SanctionEntry] = []
-        by_norm: dict[str, list[SanctionEntry]] = {}
-        for row in reader:
-            name = (row.get("name") or "").strip()
-            if not name:
-                continue
-            entry = SanctionEntry(
-                id=row.get("id") or "",
-                schema=row.get("schema") or "LegalEntity",
-                name=name,
-                aliases=_split_semi(row.get("aliases") or ""),
-                countries=_split_semi(row.get("countries") or ""),
-                programs=_split_semi(row.get("program_ids") or ""),
-                sanctions=row.get("sanctions") or "",
-                first_seen=row.get("first_seen") or None,
-                last_seen=row.get("last_seen") or None,
-            )
-            entries.append(entry)
-            for key in {norm_name(name), *(norm_name(a) for a in entry.aliases)}:
-                if not key:
-                    continue
-                by_norm.setdefault(key, []).append(entry)
-        loaded = {"entries": entries, "by_norm": by_norm, "fetched_at": time.time()}
+        texts = []
+        for url in SANCTIONS_CSV_URLS:
+            resp = fetch_with_curl(url, timeout=45, headers={"Accept": "text/csv"})
+            if resp.status_code != 200:
+                raise RuntimeError(f"OpenSanctions HTTP {resp.status_code} for {url}")
+            texts.append(resp.text)
+        loaded = build_index(texts)
         with _lock:
             _cache = loaded
             _cache_at = time.time()
-        logger.info("OFAC SDN index loaded: %s entries", len(entries))
+        logger.info("US sanctions index loaded: %s entries", len(loaded["entries"]))
         return loaded
     except Exception as exc:
-        logger.error("OFAC SDN load failed: %s", exc)
+        logger.error("US sanctions load failed: %s", exc)
         with _lock:
             if _cache:
                 return _cache
