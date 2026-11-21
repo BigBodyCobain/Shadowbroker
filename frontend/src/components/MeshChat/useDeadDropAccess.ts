@@ -1,6 +1,8 @@
 'use client';
 
-export function useDeadDropAccess(ctx: Record<string, any>) {
+export interface DeadDropAccessCtx { [k: string]: any; expanded?: any; activeTab?: any; hasId?: any; identity?: any; contacts?: any; accessRequests?: any; pendingSent?: any; dmConsentScopeId?: any; selectedContact?: any; dmView?: any; setContacts?: any; setDmMessages?: any; setAccessRequestsState?: any; setPendingSentState?: any; setDmView?: any; setSendError?: any; setDmUnread?: any; privacyProfile?: any; wormholeEnabled?: any; wormholeReadyState?: any; anonymousDmBlocked?: any; dmRequestTarget?: any; setDmRequestTarget?: any; dmRequestStatus?: any; setDmRequestStatus?: any; setSelectedContact?: any; setShowSas?: any; setSasPhrase?: any; setSasConfirmInput?: any; sendDecoy?: any; isWormholeSecureRequired?: any; getContacts?: any; addContact?: any; updateContact?: any; blockContact?: any; severContact?: any; setAccessRequests?: any; setPendingSent?: any; getPendingSent?: any; getAccessRequests?: any; }
+
+export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
   const {
     expanded, activeTab, hasId, identity, contacts, accessRequests, pendingSent, dmConsentScopeId, selectedContact, dmView,
     setContacts, setDmMessages, setAccessRequestsState, setPendingSentState, setDmView, setSendError, setDmUnread, privacyProfile,
