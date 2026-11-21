@@ -9,6 +9,30 @@ import { SarSettingsTab } from './SettingsPanelSarTab';
 import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
+import { useTranslation } from '@/i18n';
+import {
+  getPrivacyProfilePreference,
+  getPrivacyStrictPreference,
+  getSessionModePreference,
+} from '@/lib/privacyBrowserStorage';
+import {
+  companionDisable,
+  companionEnable,
+  companionOpenBrowser,
+  fetchCompanionStatus,
+  isNativeDesktop,
+  type CompanionStatus,
+} from '@/lib/desktopCompanion';
+import {
+  getGateCompatTelemetryEventName,
+  getGateCompatTelemetrySnapshot,
+  type GateCompatTelemetrySnapshot,
+} from '@/mesh/gateCompatTelemetry';
+import {
+  getBrowserGateLocalRuntimeEventName,
+  getBrowserGateLocalRuntimeStatus,
+  type BrowserGateLocalRuntimeStatus,
+} from '@/mesh/meshGateWorkerClient';
 import {
   fetchPrivacyProfileSnapshot,
   fetchRnsStatusSnapshot,
@@ -42,7 +66,6 @@ import {
   hasLegacyCompatibilityActivity,
   summarizeLegacyCompatibility,
 } from '@/mesh/wormholeCompatibility';
-import {
 import type {
   ApiEntry,
   FeedEntry,
