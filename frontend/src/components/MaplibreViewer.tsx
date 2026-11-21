@@ -2421,20 +2421,7 @@ const MaplibreViewer = ({
           />
         </Source>
 
-        <Source id="carriers" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="carriers-layer"
-            type="symbol"
-            layout={{
-              'icon-image': 'svgCarrier',
-              'icon-size': 0.8,
-              'icon-allow-overlap': true,
-              'icon-rotate': ['get', 'rotation'],
-              'icon-rotation-alignment': 'map',
-            }}
-            paint={{ 'icon-opacity': opacityFilter }}
-          />
-        </Source>
+        <CarriersLayers opacityFilter={opacityFilter} />
 
         {/* Meshtastic — green triangle clusters that break apart on zoom */}
         <Source
@@ -2975,17 +2962,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Train positions */}
-        <Source id="trains" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="trains-layer"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': ['interpolate', ['linear'], ['zoom'], 0, 0.3, 4, 0.5, 8, 0.8, 12, 1.0],
-              'icon-allow-overlap': true,
-            }}
-          />
-        </Source>
+        <TrainsLayers />
 
         {/* Satellite click popup (with ISS live feed + maneuver alerts) */}
         {selectedEntity?.type === 'satellite' &&
