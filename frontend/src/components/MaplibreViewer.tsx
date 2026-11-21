@@ -1096,14 +1096,7 @@ const MaplibreViewer = ({
 
   // Label subjects follow the worker output (pre-interp, stable between
   // rebuilds) so labels track the same data filters as the icons.
-  const trackedFlightsForLabels = useMemo(
-    () => trackedFlightsWithIcons(data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON),
-    [data?.tracked_flights, dynamicMapLayers.trackedFlightsGeoJSON],
-  );
-  const shipsForYachtLabels = useMemo(
-    () => shipsWithIcons(data?.ships, dynamicMapLayers.shipsGeoJSON),
-    [data?.ships, dynamicMapLayers.shipsGeoJSON],
-  );
+  const { trackedFlightsForLabels, shipsForYachtLabels } = useMapLabelData({ data, dynamicMapLayers });
 
   const staticMapLayers = useStaticMapLayersWorker(
     {
@@ -1243,15 +1236,7 @@ const MaplibreViewer = ({
   const shipClusters = useClusterLabels(mapRef, 'ships-clusters-layer', shipsGeoJSON);
   const eqClusters = useClusterLabels(mapRef, 'eq-clusters-layer', earthquakesGeoJSON);
 
-  // Carriers bypass the worker, so apply the operator's vessel filters here.
-  const carrierShips = useMemo(
-    () => (activeLayers.ships_military ? filterShipsByActiveFilters(data?.ships, activeFilters) : []),
-    [activeLayers.ships_military, data?.ships, activeFilters],
-  );
-  const carriersGeoJSON = useMemo(
-    () => (activeLayers.ships_military ? buildCarriersGeoJSON(carrierShips) : null),
-    [activeLayers.ships_military, carrierShips],
-  );
+  const { carrierShips, carriersGeoJSON } = useMapCarrierData({ activeLayers, data, activeFilters });
 
   // SAR anomaly pins (Mode B) + AOI watchbox circles.  AOIs render whenever
   // the SAR layer is on; anomalies only appear when Mode B has produced
