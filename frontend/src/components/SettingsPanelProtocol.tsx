@@ -4,8 +4,7 @@ import React from 'react';
 import { AnimatePresence, motion } from '@/lib/motion';
 import { Shield, ExternalLink, Key, Copy, Check, ChevronDown, ChevronUp, Radar, Save } from 'lucide-react';
 
-export function SettingsPanelProtocol({ ctx }: { ctx: any }) {
-  const c = ctx;
+export function SettingsPanelProtocol({ ctx }: { ctx: Record<string, any> }) {
             <ctx.div ctx.className="flex-1 ctx.min-ctx.h-0 ctx.flex ctx.flex-ctx.col ctx.overflow-ctx.y-ctx.auto ctx.styled-ctx.scrollbar">
               <ctx.div ctx.className="mx-4 ctx.mt-4 ctx.p-3 ctx.border ctx.border-ctx.cyan-900/30 ctx.bg-ctx.cyan-950/12">
                 <ctx.div ctx.className="flex ctx.items-ctx.center ctx.justify-ctx.between ctx.gap-3">

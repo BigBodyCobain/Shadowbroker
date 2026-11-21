@@ -3,9 +3,28 @@
 import React from 'react';
 import { AnimatePresence, motion } from '@/lib/motion';
 import { ChevronDown, ChevronUp, Copy, ExternalLink, Key, Save, Shield } from 'lucide-react';
-import { CATEGORY_COLORS } from './SettingsPanel.shared';
+import { CATEGORY_COLORS, type ApiEntry, type EnvMeta } from './SettingsPanel.shared';
 
-export function SettingsPanelApiKeys({ ctx }: { ctx: any }) {
+interface SettingsPanelApiKeysCtx {
+  envMeta: EnvMeta | null;
+  apis: ApiEntry[];
+  grouped: Record<string, ApiEntry[]>;
+  expandedCategories: Set<string>;
+  toggleCategory: (cat: string) => void;
+  fetchKeys: () => Promise<any>;
+  adminSessionReady: boolean;
+  showOperatorTools: boolean;
+  apiKeyInputs: Record<string, string>;
+  apiKeyEditing: Record<string, boolean>;
+  apiKeySaving: string | null;
+  apiKeyMsg: { type: 'ok' | 'err'; text: string } | null;
+  setApiKeyInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setApiKeyEditing: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  saveApiKey: (envKey: string | null) => Promise<void>;
+  CATEGORY_COLORS?: Record<string, string>;
+}
+
+export function SettingsPanelApiKeys({ ctx }: { ctx: SettingsPanelApiKeysCtx }) {
   const {
     envMeta, apis, grouped, expandedCategories, toggleCategory,
     fetchKeys, adminSessionReady, showOperatorTools,
