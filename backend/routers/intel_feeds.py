@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -85,11 +85,8 @@ def _infer_telegram_media_type(target_url: str, content_type: str) -> str:
 @limiter.limit("60/minute")
 async def telegram_media_proxy(request: Request, url: str = Query(...)) -> StreamingResponse:
     """Stream Telegram CDN media for in-app playback (host allowlist only)."""
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Invalid scheme")
-    if not telegram_media_host_allowed(parsed.hostname):
-        raise HTTPException(status_code=403, detail="Host not allowed")
+    current = url
+    max_redirects = 3
 
     headers = {
         "User-Agent": (
@@ -101,30 +98,54 @@ async def telegram_media_proxy(request: Request, url: str = Query(...)) -> Strea
     if range_header := request.headers.get("range"):
         headers["Range"] = range_header
 
-    try:
-        resp = requests.get(url, stream=True, timeout=(3, 45), headers=headers)
-    except requests.RequestException as exc:
-        logger.warning("Telegram media upstream failure %s: %s", url, exc)
-        raise HTTPException(status_code=502, detail="Upstream fetch failed") from exc
+    resp = None
+    for _ in range(max_redirects + 1):
+        parsed = urlparse(current)
+        if parsed.scheme not in ("http", "https"):
+            logger.warning("ssrf_deny event=telegram_media_bad_scheme scheme=%s host=%s", parsed.scheme, parsed.hostname)
+            raise HTTPException(status_code=400, detail="Invalid scheme")
+        if not telegram_media_host_allowed(parsed.hostname):
+            logger.warning("ssrf_deny event=telegram_media_host_not_allowed host=%s", parsed.hostname)
+            raise HTTPException(status_code=403, detail="Host not allowed")
 
-    if resp.status_code >= 400:
+        try:
+            resp = requests.get(current, stream=True, timeout=(3, 45), headers=headers, allow_redirects=False)
+        except requests.RequestException as exc:
+            logger.warning("Telegram media upstream failure %s: %s", current, exc)
+            raise HTTPException(status_code=502, detail="Upstream fetch failed") from exc
+
+        if 300 <= resp.status_code < 400:
+            loc = resp.headers.get("Location") or resp.headers.get("location")
+            resp.close()
+            if not loc:
+                raise HTTPException(status_code=502, detail="Upstream redirect missing location")
+            current = urljoin(current, loc)
+            continue
+
+        if resp.status_code >= 400:
+            status = int(resp.status_code)
+            resp.close()
+            raise HTTPException(status_code=status, detail=f"Upstream returned {status}")
+
+        media_type = _infer_telegram_media_type(current, resp.headers.get("Content-Type", "application/octet-stream"))
+        response_headers = {
+            "Cache-Control": "private, max-age=300",
+            "Accept-Ranges": resp.headers.get("Accept-Ranges", "bytes"),
+        }
+        if content_length := resp.headers.get("Content-Length"):
+            response_headers["Content-Length"] = content_length
+        if content_range := resp.headers.get("Content-Range"):
+            response_headers["Content-Range"] = content_range
+
+        return StreamingResponse(
+            resp.iter_content(chunk_size=65536),
+            status_code=resp.status_code,
+            media_type=media_type,
+            headers=response_headers,
+            background=BackgroundTask(resp.close),
+        )
+
+    if resp is not None:
         resp.close()
-        raise HTTPException(status_code=int(resp.status_code), detail=f"Upstream returned {resp.status_code}")
-
-    media_type = _infer_telegram_media_type(url, resp.headers.get("Content-Type", "application/octet-stream"))
-    response_headers = {
-        "Cache-Control": "private, max-age=300",
-        "Accept-Ranges": resp.headers.get("Accept-Ranges", "bytes"),
-    }
-    if content_length := resp.headers.get("Content-Length"):
-        response_headers["Content-Length"] = content_length
-    if content_range := resp.headers.get("Content-Range"):
-        response_headers["Content-Range"] = content_range
-
-    return StreamingResponse(
-        resp.iter_content(chunk_size=65536),
-        status_code=resp.status_code,
-        media_type=media_type,
-        headers=response_headers,
-        background=BackgroundTask(resp.close),
-    )
+    logger.warning("ssrf_deny event=telegram_media_too_many_redirects")
+    raise HTTPException(status_code=502, detail="Too many redirects")
