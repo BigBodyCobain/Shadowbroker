@@ -942,24 +942,7 @@ const MaplibreViewer = ({
   }, [initializeMap, theme]);
 
   // Build a set of tracked icao24s to exclude from other flight layers
-  const trackedIcaoSet = useMemo(() => {
-    const s = new Set<string>();
-    if (data?.tracked_flights) {
-      for (const t of data.tracked_flights) {
-        if (t.icao24) s.add(t.icao24.toLowerCase());
-      }
-    }
-    return s;
-  }, [data?.tracked_flights]);
-
-  // Satellite GeoJSON with interpolated positions
-  const satellitesGeoJSON = useMemo(
-    () => {
-      void interpTick;
-      return activeLayers.satellites ? buildSatellitesGeoJSON(data?.satellites, inView, interpSat) : null;
-    },
-    [activeLayers.satellites, data?.satellites, inView, interpSat, interpTick],
-  );
+  const { trackedIcaoSet, satellitesGeoJSON } = useMapTrackedSatGeoJson({ data, activeLayers, inView, interpSat, interpTick });
 
   const commConfig = COMM_FLIGHT_CONFIG;
   const privConfig = PRIV_FLIGHT_CONFIG;
