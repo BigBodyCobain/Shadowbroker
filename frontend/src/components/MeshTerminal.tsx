@@ -2611,6 +2611,183 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     }
   };
 
+  const handleInteractivePromptInput = async (trimmed: string): Promise<boolean> => {
+    // ─── Interactive send flow ─────────────────────────────
+    if (sendStep === 'dest') {
+      addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
+      setSendDest(trimmed);
+      setSendStep('msg');
+      addLines([{ text: `  Destination: ${trimmed}`, type: 'system' }]);
+      addLines([{ text: '  Now type your message:', type: 'dim' }]);
+      addSystem('');
+      return true;
+    }
+    if (sendStep === 'msg') {
+      addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
+      if (terminalWriteLockReason) {
+        addError(terminalWriteLockReason);
+        setSendStep(null);
+        setSendDest('');
+        return true;
+      }
+      setSendStep(null);
+      setBusy(true);
+      await doSend(sendDest, trimmed);
+      setSendDest('');
+      setBusy(false);
+      return true;
+    }
+
+    // ─── Interactive DM flow ───────────────────────────────
+    if (dmStep === 'dest') {
+      addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
+      setDmDest(trimmed);
+      setDmStep('msg');
+      addLines([{ text: `  To: ${trimmed}`, type: 'system' }]);
+      addLines([{ text: '  Type your private message:', type: 'dim' }]);
+      addSystem('');
+      return true;
+    }
+    if (dmStep === 'msg') {
+      addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
+      if (terminalWriteLockReason) {
+        addError(terminalWriteLockReason);
+        setDmStep(null);
+        setDmDest('');
+        return true;
+      }
+      setDmStep(null);
+      setBusy(true);
+      await doDMSend(dmDest, trimmed);
+      setDmDest('');
+      setBusy(false);
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleGateChatModeInput = async (trimmed: string): Promise<boolean> => {
+      if (gateChatMode && activeGateComposeId) {
+      addLines([
+        {
+          text: `  > ${gateReplyTarget ? `@${gateReplyTarget} ` : ''}${trimmed}`,
+          type: 'input',
+        },
+      ]);
+      if (terminalWriteLockReason) {
+        addError(terminalWriteLockReason);
+        return true;
+      }
+      if (!wormholeSecureRequired || !wormholeReadyState) {
+        addSystem('  Preparing Wormhole in the background for gate posting...');
+        try {
+          const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+          setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
+          setWormholeReadyState(Boolean(prepared.ready));
+        } catch (err) {
+          addError(describeNativeControlError(err) || (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'));
+          return true;
+        }
+      }
+      setBusy(true);
+      await (async () => {
+        try {
+          const messageToSend = gateReplyTarget ? `@${gateReplyTarget} ${trimmed}` : trimmed;
+          await postGateMessage(activeGateComposeId, messageToSend);
+          invalidateGateCatalogSnapshot();
+          invalidateGateDetailSnapshot(activeGateComposeId);
+          invalidateGateThreadPreviewSnapshot(activeGateComposeId);
+          addSystem(`  Posted to g/${activeGateComposeId}`);
+          setGateReplyTarget(null);
+          await openGateCard(activeGateComposeId, { force: true });
+        } catch (err) {
+          const detail = err instanceof Error && err.message ? err.message : '';
+          if (!addGateResyncAction(err, activeGateComposeId)) {
+            addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
+          }
+        } finally {
+          setBusy(false);
+        }
+      })();
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleSovereigntyPromptInput = async (trimmed: string): Promise<boolean> => {
+      // ─── Sovereignty declaration flow ───────────────────────
+    if (sovereigntyPending) {
+      addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
+      const lower = trimmed.toLowerCase();
+      if (lower === 'accept') {
+        if (terminalWriteLockReason) {
+          addError(terminalWriteLockReason);
+          addLines([
+            {
+              text: '  Mesh Terminal is read-only for sensitive actions until it is routed through Wormhole.',
+              type: 'dim',
+            },
+          ]);
+          return true;
+        }
+        setBusy(true);
+        setSovereigntyPending(false);
+        try {
+          addSystem('  Generating Ed25519 keypair...');
+          const identity = await generateNodeKeys();
+          setNodeIdentity(identity);
+          addSystem('');
+          addSystem('  AGENT ACTIVATED');
+          addOutput(`    Agent ID:   ${identity.nodeId}`);
+          addOutput(`    Public Key: ${identity.publicKey.slice(0, 24)}...`);
+          addSystem('    Private key stored locally — never leaves this device.');
+          addSystem('');
+          // Register DH public key for encrypted DMs
+          const dhPub = getDHPubKey();
+          if (dhPub) {
+            try {
+              await ensureRegisteredDmKey(API, identity, { force: true });
+              addOutput('    Encrypted DM keys registered.');
+            } catch {
+              /* non-critical */
+            }
+          }
+          addSystem('');
+          addSystem('  You are now an agent on the Infonet.');
+          addSystem("  Type 'help' for commands, 'send' to transmit, 'dm' for private messages.");
+          addSystem('');
+        } catch (err) {
+          const msg =
+            typeof err === 'object' && err !== null && 'message' in err
+              ? String((err as { message?: string }).message)
+              : 'unknown error';
+          addError(
+            msg === 'browser_identity_blocked_secure_mode'
+              ? 'Browser identity generation is disabled in Wormhole secure mode'
+              : `Key generation failed: ${msg}`,
+          );
+        }
+        setBusy(false);
+        return true;
+      } else if (lower === 'decline') {
+        setSovereigntyPending(false);
+        declineSovereignty();
+        addSystem('');
+        addSystem('  Read-only mode active. You can view signals and status.');
+        addLines([{ text: "  To activate later, type 'accept' when prompted.", type: 'dim' }]);
+        addSystem('');
+        return true;
+      } else {
+        addLines([{ text: "  Type 'accept' or 'decline'.", type: 'dim' }]);
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const exec = useCallback(
     async (raw: string) => {
       const trimmed = raw.trim();
@@ -2626,170 +2803,10 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
         !dmStep &&
         !sovereigntyPending;
 
-      if (gateChatMode && activeGateComposeId) {
-        addLines([
-          {
-            text: `  > ${gateReplyTarget ? `@${gateReplyTarget} ` : ''}${trimmed}`,
-            type: 'input',
-          },
-        ]);
-        if (terminalWriteLockReason) {
-          addError(terminalWriteLockReason);
-          return;
-        }
-        if (!wormholeSecureRequired || !wormholeReadyState) {
-          addSystem('  Preparing Wormhole in the background for gate posting...');
-          try {
-            const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
-            setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
-            setWormholeReadyState(Boolean(prepared.ready));
-          } catch (err) {
-            addError(describeNativeControlError(err) || (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'));
-            return;
-          }
-        }
-        setBusy(true);
-        await (async () => {
-          try {
-            const messageToSend = gateReplyTarget ? `@${gateReplyTarget} ${trimmed}` : trimmed;
-            await postGateMessage(activeGateComposeId, messageToSend);
-            invalidateGateCatalogSnapshot();
-            invalidateGateDetailSnapshot(activeGateComposeId);
-            invalidateGateThreadPreviewSnapshot(activeGateComposeId);
-            addSystem(`  Posted to g/${activeGateComposeId}`);
-            setGateReplyTarget(null);
-            await openGateCard(activeGateComposeId, { force: true });
-          } catch (err) {
-            const detail = err instanceof Error && err.message ? err.message : '';
-            if (!addGateResyncAction(err, activeGateComposeId)) {
-              addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
-            }
-          } finally {
-            setBusy(false);
-          }
-        })();
-        return;
-      }
+      if (await handleGateChatModeInput(trimmed)) return;
 
-      // ─── Sovereignty declaration flow ───────────────────────
-      if (sovereigntyPending) {
-        addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
-        const lower = trimmed.toLowerCase();
-        if (lower === 'accept') {
-          if (terminalWriteLockReason) {
-            addError(terminalWriteLockReason);
-            addLines([
-              {
-                text: '  Mesh Terminal is read-only for sensitive actions until it is routed through Wormhole.',
-                type: 'dim',
-              },
-            ]);
-            return;
-          }
-          setBusy(true);
-          setSovereigntyPending(false);
-          try {
-            addSystem('  Generating Ed25519 keypair...');
-            const identity = await generateNodeKeys();
-            setNodeIdentity(identity);
-            addSystem('');
-            addSystem('  AGENT ACTIVATED');
-            addOutput(`    Agent ID:   ${identity.nodeId}`);
-            addOutput(`    Public Key: ${identity.publicKey.slice(0, 24)}...`);
-            addSystem('    Private key stored locally — never leaves this device.');
-            addSystem('');
-            // Register DH public key for encrypted DMs
-            const dhPub = getDHPubKey();
-            if (dhPub) {
-              try {
-                await ensureRegisteredDmKey(API, identity, { force: true });
-                addOutput('    Encrypted DM keys registered.');
-              } catch {
-                /* non-critical */
-              }
-            }
-            addSystem('');
-            addSystem('  You are now an agent on the Infonet.');
-            addSystem("  Type 'help' for commands, 'send' to transmit, 'dm' for private messages.");
-            addSystem('');
-          } catch (err) {
-            const msg =
-              typeof err === 'object' && err !== null && 'message' in err
-                ? String((err as { message?: string }).message)
-                : 'unknown error';
-            addError(
-              msg === 'browser_identity_blocked_secure_mode'
-                ? 'Browser identity generation is disabled in Wormhole secure mode'
-                : `Key generation failed: ${msg}`,
-            );
-          }
-          setBusy(false);
-          return;
-        } else if (lower === 'decline') {
-          setSovereigntyPending(false);
-          declineSovereignty();
-          addSystem('');
-          addSystem('  Read-only mode active. You can view signals and status.');
-          addLines([{ text: "  To activate later, type 'accept' when prompted.", type: 'dim' }]);
-          addSystem('');
-          return;
-        } else {
-          addLines([{ text: "  Type 'accept' or 'decline'.", type: 'dim' }]);
-          return;
-        }
-      }
-
-      // ─── Interactive send flow ─────────────────────────────
-      if (sendStep === 'dest') {
-        addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
-        setSendDest(trimmed);
-        setSendStep('msg');
-        addLines([{ text: `  Destination: ${trimmed}`, type: 'system' }]);
-        addLines([{ text: '  Now type your message:', type: 'dim' }]);
-        addSystem('');
-        return;
-      }
-      if (sendStep === 'msg') {
-        addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
-        if (terminalWriteLockReason) {
-          addError(terminalWriteLockReason);
-          setSendStep(null);
-          setSendDest('');
-          return;
-        }
-        setSendStep(null);
-        setBusy(true);
-        await doSend(sendDest, trimmed);
-        setSendDest('');
-        setBusy(false);
-        return;
-      }
-
-      // ─── Interactive DM flow ───────────────────────────────
-      if (dmStep === 'dest') {
-        addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
-        setDmDest(trimmed);
-        setDmStep('msg');
-        addLines([{ text: `  To: ${trimmed}`, type: 'system' }]);
-        addLines([{ text: '  Type your private message:', type: 'dim' }]);
-        addSystem('');
-        return;
-      }
-      if (dmStep === 'msg') {
-        addLines([{ text: `  > ${trimmed}`, type: 'input' }]);
-        if (terminalWriteLockReason) {
-          addError(terminalWriteLockReason);
-          setDmStep(null);
-          setDmDest('');
-          return;
-        }
-        setDmStep(null);
-        setBusy(true);
-        await doDMSend(dmDest, trimmed);
-        setDmDest('');
-        setBusy(false);
-        return;
-      }
+      if (await handleSovereigntyPromptInput(trimmed)) return;
+      if (await handleInteractivePromptInput(trimmed)) return;
 
       // ─── Normal command flow ───────────────────────────────
       addLines([{ text: `  > ${slashMode ? normalized : trimmed}`, type: 'input' }]);
