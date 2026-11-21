@@ -1244,46 +1244,7 @@ const MaplibreViewer = ({
   //
   // AOIs come from their own endpoint (/api/sar/aois) rather than the
   // dashboard payload because they're operator-managed metadata, not a
-  // polled feed — the list rarely changes and we don't want to bloat
-  // dashboard responses with it.
-  const [sarAoisList, setSarAoisList] = useState<
-    import('@/types/dashboard').SarAoi[]
-  >([]);
-  useEffect(() => {
-    if (!activeLayers.sar) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/sar/aois`, {
-          credentials: 'include',
-        });
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled && Array.isArray(body?.aois)) {
-          setSarAoisList(body.aois);
-        }
-      } catch {
-        // ignore — AOIs are a nice-to-have
-      }
-    };
-    run();
-    // Refresh every 2 minutes while the layer is on so operator edits
-    // propagate without a full page reload.
-    const iv = setInterval(run, 120_000);
-    return () => {
-      cancelled = true;
-      clearInterval(iv);
-    };
-  }, [activeLayers.sar, sarAoiListVersion]);
-
-  const sarAnomaliesGeoJSON = useMemo(
-    () => (activeLayers.sar ? buildSarAnomaliesGeoJSON(data?.sar_anomalies) : null),
-    [activeLayers.sar, data?.sar_anomalies],
-  );
-  const sarAoisGeoJSON = useMemo(
-    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),
-    [activeLayers.sar, sarAoisList],
-  );
+  const { sarAoisList, sarAnomaliesGeoJSON, sarAoisGeoJSON } = useMapSarData({ activeLayers, data, sarAoiListVersion });
 
   const getSelectedEntityLiveCoords = useCallback(
     (entity: ReturnType<typeof findSelectedEntity>): [number, number] | null => {
