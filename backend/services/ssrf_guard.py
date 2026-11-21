@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import ipaddress
+import logging
 import re
 import socket
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 _IPV4_BLOCKS = [
     ipaddress.ip_network("0.0.0.0/8"),
@@ -116,10 +119,21 @@ def safe_get(
     current = url
     for _ in range(max_redirects + 1):
         parsed = urlparse(current)
+        host = parsed.hostname or ""
         if parsed.scheme not in ("http", "https"):
+            logger.warning(
+                "ssrf_deny event=blocked_protocol scheme=%s host=%s",
+                parsed.scheme,
+                host,
+            )
             raise ValueError(f"blocked protocol {parsed.scheme}")
-        check = validate_host(parsed.hostname or "")
+        check = validate_host(host)
         if not check.get("ok"):
+            logger.warning(
+                "ssrf_deny event=blocked_target host=%s reason=%s",
+                host,
+                check.get("reason"),
+            )
             raise ValueError(f"blocked target — {check.get('reason')}")
         res = requests.get(
             current,
@@ -134,6 +148,7 @@ def safe_get(
             current = urljoin(current, loc)
             continue
         return res
+    logger.warning("ssrf_deny event=too_many_redirects host=%s", urlparse(current).hostname or "")
     raise ValueError("too many redirects")
 
 

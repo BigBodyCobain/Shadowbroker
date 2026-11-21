@@ -1,3 +1,7 @@
+# Root uv workspace / metadata file.
+# Canonical Python runtime dependencies and backend package metadata live in backend/pyproject.toml.
+# The uv lockfile at uv.lock is the canonical resolved dependency set for the workspace.
+
 [project]
 name = "shadowbroker"
 version = "0.9.84"

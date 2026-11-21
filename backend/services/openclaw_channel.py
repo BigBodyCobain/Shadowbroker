@@ -329,15 +329,22 @@ class CommandChannel:
         """
         cmd = str(cmd or "").strip().lower()
         if not cmd:
+            logger.warning("agent_command_deny event=empty_command tier=%s", access_tier)
             return {"ok": False, "detail": "empty command"}
 
         allowed = allowed_commands(access_tier)
         if cmd not in allowed:
             if cmd in WRITE_COMMANDS and access_tier != "full":
+                logger.warning(
+                    "agent_command_deny event=tier_denied cmd=%s tier=%s required=full",
+                    cmd,
+                    access_tier,
+                )
                 return {
                     "ok": False,
                     "detail": f"command '{cmd}' requires full access tier",
                 }
+            logger.warning("agent_command_deny event=unknown_command cmd=%s tier=%s", cmd, access_tier)
             return {"ok": False, "detail": f"unknown command: {cmd}"}
 
         tier_info = detect_tier()
@@ -348,6 +355,12 @@ class CommandChannel:
                 1 for e in self._commands.values() if e.status == "pending"
             )
             if pending >= MAX_PENDING_COMMANDS:
+                logger.warning(
+                    "agent_command_deny event=queue_full cmd=%s tier=%s pending=%s",
+                    cmd,
+                    access_tier,
+                    pending,
+                )
                 return {"ok": False, "detail": "command queue full"}
 
             entry = CommandEntry(cmd, args, tier=tier_info["tier"])
@@ -381,8 +394,15 @@ class CommandChannel:
         """
         MAX_BATCH = 20
         if not commands:
+            logger.warning("agent_command_deny event=empty_batch tier=%s", access_tier)
             return {"ok": False, "detail": "empty batch"}
         if len(commands) > MAX_BATCH:
+            logger.warning(
+                "agent_command_deny event=batch_too_large tier=%s count=%s max=%s",
+                access_tier,
+                len(commands),
+                MAX_BATCH,
+            )
             return {"ok": False, "detail": f"batch too large (max {MAX_BATCH})"}
 
         tier_info = detect_tier()
@@ -398,6 +418,12 @@ class CommandChannel:
                 1 for e in self._commands.values() if e.status == "pending"
             )
             if pending + len(commands) > MAX_PENDING_COMMANDS:
+                logger.warning(
+                    "agent_command_deny event=queue_full tier=%s pending=%s requested=%s",
+                    access_tier,
+                    pending,
+                    len(commands),
+                )
                 return {"ok": False, "detail": "command queue full"}
 
         # Validate all commands, recording their original index
@@ -405,12 +431,21 @@ class CommandChannel:
             cmd = str(item.get("cmd", "")).strip().lower()
             args = item.get("args") or {}
             if not cmd:
+                logger.warning("agent_command_deny event=empty_command tier=%s batch_index=%s", access_tier, idx)
                 results[idx] = {"cmd": cmd, "ok": False, "detail": "empty command"}
                 continue
             if cmd not in allowed:
                 detail = (f"command '{cmd}' requires full access tier"
                           if cmd in WRITE_COMMANDS and access_tier != "full"
                           else f"unknown command: {cmd}")
+                event = "tier_denied" if cmd in WRITE_COMMANDS and access_tier != "full" else "unknown_command"
+                logger.warning(
+                    "agent_command_deny event=%s cmd=%s tier=%s batch_index=%s",
+                    event,
+                    cmd,
+                    access_tier,
+                    idx,
+                )
                 results[idx] = {"cmd": cmd, "ok": False, "detail": detail}
                 continue
             entry = CommandEntry(cmd, args, tier=tier_info["tier"])
