@@ -119,7 +119,7 @@ def _scoped_admin_tokens() -> dict[str, list[str]]:
         return {}
     try:
         parsed = json_mod.loads(raw)
-    except Exception as exc:
+    except (json_mod.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("failed to parse MESH_SCOPED_TOKENS: %s", type(exc).__name__)
         return {}
     if not isinstance(parsed, dict):
@@ -424,6 +424,7 @@ def operator_origin_allowed(request: Request) -> bool:
 def require_local_operator(request: Request):
     """Require an explicit operator credential, including on loopback and Docker."""
     if not operator_origin_allowed(request):
+        _log_auth_deny("local_operator_origin_denied", "untrusted_browser_origin", request)
         raise HTTPException(status_code=403, detail="Forbidden — untrusted browser origin")
     if _is_debug_test_request(request):
         return
@@ -431,6 +432,7 @@ def require_local_operator(request: Request):
     presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
     if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
         return
+    _log_auth_deny("local_operator_denied", "missing_or_invalid_admin_key", request)
     raise HTTPException(status_code=403, detail="Forbidden — operator authentication required")
 
 
