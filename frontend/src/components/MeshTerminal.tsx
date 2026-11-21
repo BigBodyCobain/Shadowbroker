@@ -3687,6 +3687,61 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             return;
   };
 
+  const handleSayCommand = async (args: string[]) => {
+          if (!gateAccessGranted) {
+            requestGateAccess(`say ${args.join(' ')}`.trim());
+            return;
+          }
+          // say <gate_id> <message>
+          if (!wormholeSecureRequired || !wormholeReadyState) {
+            addSystem('  Preparing Wormhole in the background for gate posting...');
+            try {
+              const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
+              setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
+              setWormholeReadyState(Boolean(prepared.ready));
+            } catch (err) {
+              addError(
+                describeNativeControlError(err) ||
+                  (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'),
+              );
+              return;
+            }
+          }
+            const gateId = args[0];
+            const gateMsg = args.slice(1).join(' ');
+            if (!gateId || !gateMsg) {
+              addError('Usage: say <gate_id> <message>');
+              return;
+          }
+            try {
+              const data = await postGateMessage(gateId, gateMsg);
+              invalidateGateCatalogSnapshot();
+              invalidateGateDetailSnapshot(gateId);
+              invalidateGateThreadPreviewSnapshot(gateId);
+              addSystem(`  ${data.detail || `Posted to g/${gateId}`}`);
+            } catch (err) {
+              const detail = err instanceof Error && err.message ? err.message : '';
+              if (!addGateResyncAction(err, gateId)) {
+                addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
+              }
+            }
+          return;
+  };
+
+  const handleSimpleCommand = async (cmd: string, args: string[]) => {
+    switch (cmd) {
+      case 'apps': cmdApps(); return;
+      case 'news': await cmdNews(args.join(' ')); return;
+      case 'jet': case 'jets': await cmdJets(args.join(' ')); return;
+      case 'place': case 'places': await cmdPlaces(args.join(' ')); return;
+      case 'dossier': case 'intel': await cmdDossier(args.join(' ')); return;
+      case 'shodan': await cmdShodan(args); return;
+      case 'log': await cmdLog(parseInt(args[0]) || 5); return;
+      case 'nearest': case 'sdr': await cmdNearest(args[0], args[1]); return;
+      default: return;
+    }
+  };
+
   const exec = useCallback(
     async (raw: string) => {
       const trimmed = raw.trim();
@@ -3985,81 +4040,13 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           }
           case 'say': {
-            if (!gateAccessGranted) {
-              requestGateAccess(`say ${args.join(' ')}`.trim());
-              break;
-            }
-            // say <gate_id> <message>
-            if (!wormholeSecureRequired || !wormholeReadyState) {
-              addSystem('  Preparing Wormhole in the background for gate posting...');
-              try {
-                const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
-                setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
-                setWormholeReadyState(Boolean(prepared.ready));
-              } catch (err) {
-                addError(
-                  describeNativeControlError(err) ||
-                    (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'),
-                );
-                break;
-              }
-            }
-              const gateId = args[0];
-              const gateMsg = args.slice(1).join(' ');
-              if (!gateId || !gateMsg) {
-                addError('Usage: say <gate_id> <message>');
-                break;
-            }
-              try {
-                const data = await postGateMessage(gateId, gateMsg);
-                invalidateGateCatalogSnapshot();
-                invalidateGateDetailSnapshot(gateId);
-                invalidateGateThreadPreviewSnapshot(gateId);
-                addSystem(`  ${data.detail || `Posted to g/${gateId}`}`);
-              } catch (err) {
-                const detail = err instanceof Error && err.message ? err.message : '';
-                if (!addGateResyncAction(err, gateId)) {
-                  addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
-                }
-              }
+            await handleSayCommand(args);
             break;
           }
-          case 'apps':
-            cmdApps();
-            break;
-          case 'news':
-            await cmdNews(args.join(' '));
-            break;
-          case 'jet':
-          case 'jets':
-            await cmdJets(args.join(' '));
-            break;
-          case 'place':
-          case 'places':
-            await cmdPlaces(args.join(' '));
-            break;
-          case 'dossier':
-          case 'intel':
-            await cmdDossier(args.join(' '));
-            break;
-          case 'shodan':
-            await cmdShodan(args);
-            break;
-          case 'markets':
-          case 'predict':
-          case 'oracle':
-          case 'stake':
-          case 'stakes': {
-            await handleMarketsCommand(cmd.toLowerCase(), args, {});
+          case 'apps': case 'news': case 'jet': case 'jets': case 'place': case 'places': case 'dossier': case 'intel': case 'shodan': case 'log': case 'nearest': case 'sdr': {
+            await handleSimpleCommand(cmd.toLowerCase(), args);
             break;
           }
-          case 'log':
-            await cmdLog(parseInt(args[0]) || 5);
-            break;
-          case 'nearest':
-          case 'sdr':
-            await cmdNearest(args[0], args[1]);
-            break;
           case 'infonet': {
             await handleInfonetCommand(cmd.toLowerCase(), args, {});
             break;
