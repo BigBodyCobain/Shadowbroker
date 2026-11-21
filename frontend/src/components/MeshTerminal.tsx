@@ -3532,6 +3532,47 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     }
   };
 
+  const handleSendCommand = async (args: string[]) => {
+            if (!nodeIdentity || !hasSovereignty()) {
+              if (isDeclined()) {
+                addError("Read-only mode. Type 'connect' to activate your Agent identity.");
+              } else {
+                addLines([...SOVEREIGNTY_DECLARATION]);
+                setSovereigntyPending(true);
+              }
+              setBusy(false);
+              return;
+            }
+            if (args.length >= 2) {
+              await doSend(args[0], args.slice(1).join(' '));
+            } else {
+              startInteractiveSend();
+            }
+  };
+
+  const handleWhoamiCommand = async () => {
+            addSystem('');
+            addSystem('  IDENTITY LANES');
+            if (nodeIdentity && hasSovereignty()) {
+              addOutput(`    Public Agent: ${nodeIdentity.nodeId}`);
+              addOutput(`    Public Key: ${nodeIdentity.publicKey.slice(0, 24)}...`);
+              addSystem('    Status: ACTIVE — public mesh and perimeter sends sign with this key');
+            } else if (isDeclined()) {
+              addSystem('    Public Agent: READ-ONLY (declined)');
+              addLines([{ text: "    Type 'connect' to create a public Agent.", type: 'dim' }]);
+            } else {
+              addLines([
+                {
+                  text: "    Public Agent: not connected — type 'connect' to create one.",
+                  type: 'dim',
+                },
+              ]);
+            }
+            addOutput(`    Wormhole Lane: ${privateLaneLabel}`);
+            addLines([{ text: `    ${privateLaneDetail}`, type: 'dim' }]);
+            addSystem('');
+  };
+
   const exec = useCallback(
     async (raw: string) => {
       const trimmed = raw.trim();
@@ -3787,146 +3828,14 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           case 'mesh':
           case 'radio': {
-            const availableMeshRoots = meshRoots.length ? meshRoots : [...DEFAULT_MESH_ROOTS];
-            const sub = args[0]?.toLowerCase();
-            if (!sub) {
-              // mesh — show current root + list
-              addSystem('');
-              addSystem(`  MESHTASTIC RADIO`);
-              addSystem(`  Active root: ${meshRegion}`);
-              addSystem(`  Channel: LongFast (default PSK)`);
-              addSystem('');
-              addSystem('  Available roots:');
-              addOutput('    ' + availableMeshRoots.join('  '));
-              addSystem('');
-              addSystem('  Commands:');
-              addOutput('    mesh region <root>    Switch root (e.g. mesh region EU_868)');
-              addOutput('    mesh listen [n]       Recent signals from active root');
-              addOutput("    mesh send <message>   Send to active root's LongFast");
-              addOutput('    mesh channels         All roots with signal counts');
-              addSystem('');
-            } else if (sub === 'region' || sub === 'r') {
-              const code = args[1]?.trim();
-              if (!code) {
-                addError(`  Unknown root. Valid: ${availableMeshRoots.join(', ')}`);
-              } else {
-                const normalized =
-                  availableMeshRoots.find((root) => root.toUpperCase() === code.toUpperCase()) ||
-                  code;
-                setMeshRegion(normalized);
-                addSystem(`  Root set to ${normalized}`);
-              }
-            } else if (sub === 'listen' || sub === 'l') {
-              const n = parseInt(args[1]) || 20;
-              try {
-                const res = await fetch(
-                  `${API}/api/mesh/signals?source=meshtastic&region=${meshRegion}&limit=${n}`,
-                );
-                const data = await res.json();
-                const sigs = data.signals || [];
-                if (!sigs.length) {
-                  addSystem(`  No Meshtastic signals from ${meshRegion}`);
-                } else {
-                  addSystem('');
-                  addSystem(`  MESHTASTIC ${meshRegion} (${sigs.length}/${data.total} signals)`);
-                  for (const s of sigs) {
-                    const call = (s.callsign || '???').padEnd(14);
-                    const pos = `${s.lat?.toFixed(2)},${s.lng?.toFixed(2)}`.padEnd(14);
-                    const ch = s.channel || 'LongFast';
-                    const extra = s.status ? ` ${s.status.slice(0, 25)}` : '';
-                    addOutput(`    ${call} ${pos} ${ch}${extra}`);
-                  }
-                  addSystem('');
-                }
-              } catch {
-                addError('Failed to fetch signals');
-              }
-            } else if (sub === 'send' || sub === 's') {
-              const msg = args.slice(1).join(' ');
-              if (!msg) {
-                addError('  Usage: mesh send <message>');
-              } else if (!nodeIdentity || !hasSovereignty()) {
-                addError("  Not connected. Type 'connect' first.");
-              } else {
-                await doMeshSend(msg, meshRegion);
-              }
-            } else if (sub === 'channels' || sub === 'ch') {
-              try {
-                const res = await fetch(`${API}/api/mesh/channels`);
-                const data = await res.json();
-                const counts: Record<string, number> = {};
-                const knownRoots = Array.isArray(data.known_roots) ? data.known_roots : [];
-                Object.entries((data.roots || {}) as Record<string, { nodes?: number }>).forEach(
-                  ([root, entry]) => {
-                    counts[root] = Number(entry?.nodes || 0);
-                  },
-                );
-                const roots = sortMeshRoots(
-                  [...DEFAULT_MESH_ROOTS, ...knownRoots, ...Object.keys(counts), meshRegion],
-                  counts,
-                  meshRegion,
-                );
-                setMeshRoots(roots);
-                addSystem('');
-                addSystem(
-                  `  MESHTASTIC ROOTS (${Number(data.total_live || 0)} live nodes / ${Number(data.total_nodes || 0)} total)`,
-                );
-                for (const r of roots) {
-                  const bar =
-                    counts[r] > 0 ? '█'.repeat(Math.min(20, Math.ceil(counts[r] / 10))) : '·';
-                  const active = r === meshRegion ? ' ◄' : '';
-                  addOutput(`    ${r.padEnd(14)} ${String(counts[r]).padStart(4)} ${bar}${active}`);
-                }
-                addSystem('');
-                addSystem("  Use 'mesh region <root>' to switch");
-                addSystem('');
-              } catch {
-                addError('Failed to fetch signals');
-              }
-            } else {
-              addError(`  Unknown: mesh ${sub}. Try 'mesh' for help.`);
-            }
+            await handleMeshCommand(cmd.toLowerCase(), args, {});
             break;
           }
           case 'send':
-            // Check sovereignty before allowing send
-            if (!nodeIdentity || !hasSovereignty()) {
-              if (isDeclined()) {
-                addError("Read-only mode. Type 'connect' to activate your Agent identity.");
-              } else {
-                addLines([...SOVEREIGNTY_DECLARATION]);
-                setSovereigntyPending(true);
-              }
-              setBusy(false);
-              return;
-            }
-            if (args.length >= 2) {
-              await doSend(args[0], args.slice(1).join(' '));
-            } else {
-              startInteractiveSend();
-            }
+            await handleSendCommand(args);
             break;
           case 'whoami': {
-            addSystem('');
-            addSystem('  IDENTITY LANES');
-            if (nodeIdentity && hasSovereignty()) {
-              addOutput(`    Public Agent: ${nodeIdentity.nodeId}`);
-              addOutput(`    Public Key: ${nodeIdentity.publicKey.slice(0, 24)}...`);
-              addSystem('    Status: ACTIVE — public mesh and perimeter sends sign with this key');
-            } else if (isDeclined()) {
-              addSystem('    Public Agent: READ-ONLY (declined)');
-              addLines([{ text: "    Type 'connect' to create a public Agent.", type: 'dim' }]);
-            } else {
-              addLines([
-                {
-                  text: "    Public Agent: not connected — type 'connect' to create one.",
-                  type: 'dim',
-                },
-              ]);
-            }
-            addOutput(`    Wormhole Lane: ${privateLaneLabel}`);
-            addLines([{ text: `    ${privateLaneDetail}`, type: 'dim' }]);
-            addSystem('');
+            await handleWhoamiCommand();
             break;
           }
           case 'connect':
