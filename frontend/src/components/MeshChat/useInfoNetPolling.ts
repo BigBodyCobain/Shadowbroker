@@ -26,7 +26,7 @@ import { nextGateMessagesPollDelayMs, nextGateMessagesWaitRearmDelayMs, nextGate
 import { gateCatalogEntryToGate } from './useMeshChatController.helpers';
 import type { Gate, InfoNetMessage, WormholeGateKeyStatus } from './types';
 
-export function useInfoNetPolling(ctx: any) {
+export function useInfoNetPolling(ctx: Record<string, any>) {
   const {
     expanded, wormholeEnabled, wormholeReadyState, selectedGate, anonymousDmBlocked, privacyProfile,
     setGates, setSelectedGate, setInfoMessages, setGatePersonas, setActiveGatePersonaId,

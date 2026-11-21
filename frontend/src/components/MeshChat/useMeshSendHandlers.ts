@@ -2,7 +2,7 @@
 
 import { API_BASE } from '@/lib/api';
 
-export function useMeshSendHandlers(ctx: any) {
+export function useMeshSendHandlers(ctx: Record<string, any>) {
   const {
 
     activeTab, hasId, busy, inputValue, selectedGate, selectedGateAccessReady, anonymousPublicBlocked, privateInfonetReady,

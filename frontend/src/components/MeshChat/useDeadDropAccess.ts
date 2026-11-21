@@ -1,6 +1,6 @@
 'use client';
 
-export function useDeadDropAccess(ctx: any) {
+export function useDeadDropAccess(ctx: Record<string, any>) {
   const {
     expanded, activeTab, hasId, identity, contacts, accessRequests, pendingSent, dmConsentScopeId, selectedContact, dmView,
     setContacts, setDmMessages, setAccessRequestsState, setPendingSentState, setDmView, setSendError, setDmUnread, privacyProfile,
