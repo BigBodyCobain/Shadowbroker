@@ -94,7 +94,8 @@ def main():
         f.write('| Method | Path | Handler | Auth classification | File |\n')
         f.write('|---|---|---|---|---|\n')
         for m, path, name, cls, file in rows:
-            f.write(f'| {m} | `{path}` | `{name}` | {cls} | `{file}` |\n')
+            priority = 'HIGH' if cls=='UNCLASSIFIED' and any(x in path.lower() for x in ['/admin','/identity','/rotate','/revoke','/send','/vote','/report','/transmit','/delete','/create','/update','/settings','/token','/key','/command','/exec','/shell']) else ('MED' if cls=='UNCLASSIFIED' else '')
+            f.write(f'| {m} | `{path}` | `{name}` | {cls} | {priority} | `{file}` |\n')
     print(f'wrote {OUT} routes={len(rows)} unclassified={len(unclassified)}')
 
 if __name__ == '__main__':
