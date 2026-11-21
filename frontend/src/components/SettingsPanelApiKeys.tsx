@@ -7,10 +7,10 @@ import { CATEGORY_COLORS } from './SettingsPanel.shared';
 
 export function SettingsPanelApiKeys({ ctx }: { ctx: any }) {
   const {
-    envMeta, apis, categories, saved, editedKeys, revealedKeys, saving, t,
-    handleKeyChange, handleSave, handleClear, copyEnvLine, fetchKeys,
-    adminSessionReady, showOperatorTools, apiKeyInputs, apiKeyEditing, apiKeySaving, apiKeyMsg,
-    setApiKeyInputs, setApiKeyEditing, setApiKeySaving, setApiKeyMsg,
+    envMeta, apis, grouped, expandedCategories, toggleCategory,
+    fetchKeys, adminSessionReady, showOperatorTools,
+    apiKeyInputs, apiKeyEditing, apiKeySaving, apiKeyMsg,
+    setApiKeyInputs, setApiKeyEditing, saveApiKey,
     CATEGORY_COLORS: catColors,
   } = ctx;
   const CC = catColors || CATEGORY_COLORS;
