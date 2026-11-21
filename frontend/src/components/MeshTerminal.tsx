@@ -5,6 +5,7 @@ import { useMeshTerminalIntelCommands } from './MeshTerminalIntelCommands';
 import { useMeshTerminalStatusCommands } from './MeshTerminalStatusCommands';
 import { useMeshTerminalCmdStatus } from './MeshTerminalCmdStatus';
 import { useMeshTerminalInfonetCommands } from './MeshTerminalInfonetCommands';
+import { useMeshTerminalSendFlow } from './MeshTerminalSendFlow';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Terminal, X, GripHorizontal, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from '@/lib/motion';
@@ -2395,6 +2396,10 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
       default: return;
     }
   };
+
+  const { doSend, doMeshSend, startInteractiveSend, doDMSend } = useMeshTerminalSendFlow({
+    addError, addLines, addSystem, nodeIdentity, setSendStep,
+  } as any);
 
   const handleSendCommand = async (args: string[]) => {
             if (!nodeIdentity || !hasSovereignty()) {
