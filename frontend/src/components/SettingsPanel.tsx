@@ -11,6 +11,8 @@ import { useSettingsPanelApiKeys } from './useSettingsPanelApiKeys';
 import { useSettingsPanelAdminSession } from './useSettingsPanelAdminSession';
 import { useTimeMachineSetting } from './useTimeMachineSetting';
 import { useCompanionSetting } from './useCompanionSetting';
+import { useSettingsPanelGateStatus } from './useSettingsPanelGateStatus';
+import { useSettingsPanelBrowserWipe } from './useSettingsPanelBrowserWipe';
 import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
@@ -115,11 +117,8 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const [, setStrictPrivacy] = useState(() => getPrivacyStrictPreference());
   const [privacyProfile, setPrivacyProfile] = useState(() => getPrivacyProfilePreference());
   const [sessionMode, setSessionMode] = useState(() => getSessionModePreference());
-  const [browserWipeBusy, setBrowserWipeBusy] = useState(false);
-  const [browserWipeMsg, setBrowserWipeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(
-    null,
-  );
   const [wormholeEnabled, setWormholeEnabled] = useState(false);
+  const { browserWipeBusy, browserWipeMsg, wipeLocalMeshTraces, clearSessionIdentity } = useSettingsPanelBrowserWipe({ wormholeEnabled, setSessionMode });
   const [wormholeSaving, setWormholeSaving] = useState(false);
   const [wormholeMsg, setWormholeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(
     null,
@@ -135,12 +134,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const [wormholeQuickState, setWormholeQuickState] = useState<'idle' | 'ready' | 'connecting' | 'active'>('idle');
   const [wormholeNodeId, setWormholeNodeId] = useState<string | null>(null);
   const [wormholeKeyCopied, setWormholeKeyCopied] = useState(false);
-  const [gateCompatTelemetry, setGateCompatTelemetry] = useState<GateCompatTelemetrySnapshot>(
-    () => getGateCompatTelemetrySnapshot(),
-  );
-  const [gateLocalRuntimeStatus, setGateLocalRuntimeStatus] = useState<BrowserGateLocalRuntimeStatus>(
-    () => getBrowserGateLocalRuntimeStatus(),
-  );
+  const { gateCompatTelemetry, gateLocalRuntimeStatus } = useSettingsPanelGateStatus();
   const [dmRootHealth, setDmRootHealth] = useState<WormholeDmRootHealth | null>(null);
   const [dmRootHealthBusy, setDmRootHealthBusy] = useState(false);
   const [dmRootHealthMsg, setDmRootHealthMsg] = useState<string | null>(null);
@@ -149,86 +143,12 @@ const SettingsPanel = React.memo(function SettingsPanel({
 
   const { companionAvailable, companion, companionBusy, companionError, companionLoadFailed, toggleCompanion, openCompanionBrowser } = useCompanionSetting(isOpen, activeTab);
 
-  useEffect(() => {
-    const refreshTelemetry = () => setGateCompatTelemetry(getGateCompatTelemetrySnapshot());
-    refreshTelemetry();
-    if (typeof window === 'undefined') return;
-    const eventName = getGateCompatTelemetryEventName();
-    window.addEventListener(eventName, refreshTelemetry as EventListener);
-    return () => { window.removeEventListener(eventName, refreshTelemetry as EventListener); };
-  }, []);
-
-  useEffect(() => {
-    const refreshRuntimeStatus = () => setGateLocalRuntimeStatus(getBrowserGateLocalRuntimeStatus());
-    refreshRuntimeStatus();
-    if (typeof window === 'undefined') return;
-    const eventName = getBrowserGateLocalRuntimeEventName();
-    window.addEventListener(eventName, refreshRuntimeStatus as EventListener);
-    return () => { window.removeEventListener(eventName, refreshRuntimeStatus as EventListener); };
-  }, []);
-
-  const clearSessionIdentity = () => {
-    if (typeof window === 'undefined') return;
-    const keys = [
-      'sb_mesh_pubkey',
-      'sb_mesh_privkey',
-      'sb_mesh_node_id',
-      'sb_mesh_sovereignty_accepted',
-      'sb_mesh_dh_pubkey',
-      'sb_mesh_dh_privkey',
-      'sb_mesh_dh_algo',
-      'sb_mesh_dh_last_ts',
-      'sb_mesh_contacts',
-      'sb_mesh_dm_notify',
-      'sb_mesh_sequence',
-      'sb_mesh_algo',
-    ];
-    for (const key of keys) {
-      try {
-        sessionStorage.removeItem(key);
-      } catch {
-        /* ignore */
-      }
-    }
-  };
   const [rnsStatus, setRnsStatus] = useState<{
     enabled: boolean;
     ready: boolean;
     configured_peers: number;
     active_peers: number;
   } | null>(null);
-  const wipeLocalMeshTraces = useCallback(async () => {
-    setBrowserWipeBusy(true);
-    setBrowserWipeMsg(null);
-    try {
-      await clearBrowserIdentityState();
-      await purgeBrowserDmState();
-      for (const key of PRIVACY_SENSITIVE_BROWSER_KEYS) {
-        try {
-          localStorage.removeItem(key);
-          sessionStorage.removeItem(key);
-        } catch {
-          /* ignore */
-        }
-      }
-      setSessionModePreference(true);
-      setSessionMode(true);
-      setBrowserWipeMsg({
-        type: 'ok',
-        text: wormholeEnabled
-          ? 'Browser-held mesh traces cleared. The local Wormhole agent stays running, but this tab will need to reconnect to it.'
-          : 'Browser-held mesh traces cleared from this browser.',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'unknown error';
-      setBrowserWipeMsg({
-        type: 'err',
-        text: `Could not clear browser-held mesh traces: ${message}`,
-      });
-    } finally {
-      setBrowserWipeBusy(false);
-    }
-  }, [wormholeEnabled]);
 
   const clearApisRef = React.useRef<() => void>(() => {});
 
