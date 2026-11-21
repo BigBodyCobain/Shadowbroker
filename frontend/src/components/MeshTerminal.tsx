@@ -4031,7 +4031,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             handleThresholdCommand(args);
             break;
           }
-          case 'gates': {          case 'gates': {
+          case 'gates': {
             await handleGatesCommand({});
             break;
           }
@@ -4060,19 +4060,14 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           }
           case 'contacts': {
-            const contacts = getContacts();
-            const ids = Object.keys(contacts);
-            if (ids.length === 0) {
-              addSystem("  No contacts. Use 'dm add <agent_id>' to add one.");
-              break;
-            }
+            const contactMap = getContacts();
+            const ids = Object.keys(contactMap);
+            if (ids.length === 0) { addSystem("  No contacts. Use 'dm add <agent_id>' to add one."); break; }
             addSystem('');
             addSystem(`  CONTACTS (${ids.length})`);
             for (const id of ids) {
-              const c = contacts[id];
-              const status = c.blocked ? 'BLOCKED' : 'active';
-              const alias = c.alias ? ` (${c.alias})` : '';
-              addOutput(`    ${id}${alias} — ${status}`);
+              const c = contactMap[id];
+              addOutput(`    ${id}${c.alias ? ` (${c.alias})` : ''} — ${c.blocked ? 'BLOCKED' : 'active'}`);
             }
             addSystem('');
             break;
