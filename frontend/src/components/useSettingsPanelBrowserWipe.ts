@@ -4,8 +4,8 @@ import { clearBrowserIdentityState, purgeBrowserDmState } from '@/mesh/meshIdent
 import { PRIVACY_SENSITIVE_BROWSER_KEYS } from './SettingsPanel.shared';
 import { setSessionModePreference } from '@/lib/privacyBrowserStorage';
 
-export function useSettingsPanelBrowserWipe(opts: { wormholeEnabled: boolean; setSessionMode: (v: boolean) => void }) {
-  const { wormholeEnabled, setSessionMode } = opts;
+export function useSettingsPanelBrowserWipe(opts: { wormholeEnabledRef: React.MutableRefObject<boolean>; setSessionMode: (v: boolean) => void }) {
+  const { wormholeEnabledRef, setSessionMode } = opts;
   const [browserWipeBusy, setBrowserWipeBusy] = useState(false);
   const [browserWipeMsg, setBrowserWipeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -21,12 +21,12 @@ export function useSettingsPanelBrowserWipe(opts: { wormholeEnabled: boolean; se
       await clearBrowserIdentityState(); await purgeBrowserDmState();
       for (const key of PRIVACY_SENSITIVE_BROWSER_KEYS) { try { localStorage.removeItem(key); sessionStorage.removeItem(key); } catch {} }
       setSessionModePreference(true); setSessionMode(true);
-      setBrowserWipeMsg({ type: 'ok', text: wormholeEnabled ? 'Browser-held mesh traces cleared. The local Wormhole agent stays running, but this tab will need to reconnect to it.' : 'Browser-held mesh traces cleared from this browser.' });
+      setBrowserWipeMsg({ type: 'ok', text: wormholeEnabledRef.current ? 'Browser-held mesh traces cleared. The local Wormhole agent stays running, but this tab will need to reconnect to it.' : 'Browser-held mesh traces cleared from this browser.' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       setBrowserWipeMsg({ type: 'err', text: `Could not clear browser-held mesh traces: ${message}` });
     } finally { setBrowserWipeBusy(false); }
-  }, [wormholeEnabled, setSessionMode]);
+  }, [wormholeEnabledRef, setSessionMode]);
 
   return { browserWipeBusy, browserWipeMsg, wipeLocalMeshTraces, clearSessionIdentity };
 }
