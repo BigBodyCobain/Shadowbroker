@@ -2349,71 +2349,13 @@ const MaplibreViewer = ({
         <CrowdThreatLayers />
 
         {/* Telegram OSINT — one pin per geocoded city; scroll posts in popup */}
-        <Source id="telegram-osint-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="telegram-osint-layer"
-            type="circle"
-            minzoom={2}
-            paint={{
-              'circle-radius': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                4,
-                ['case', ['>', ['get', 'post_count'], 1], 14, 11],
-                8,
-                ['case', ['>', ['get', 'post_count'], 1], 20, 16],
-                12,
-                ['case', ['>', ['get', 'post_count'], 1], 26, 22],
-              ],
-              'circle-color': '#ef4444',
-              'circle-stroke-width': 1,
-              'circle-stroke-color': '#fca5a5',
-              // Keep a visible MapLibre fallback while the HTML pins are
-              // temporarily suppressed during map interaction.
-              'circle-opacity': 0.65,
-            }}
-          />
-        </Source>
+        <TelegramOsintLayers />
 
         {/* Malware C2 — abuse.ch Feodo Tracker, ViriBack C2 Tracker, C2IntelFeeds */}
-        <Source id="malware-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={6} clusterRadius={35}>
-          <Layer
-            id="malware-clusters"
-            type="circle"
-            filter={['has', 'point_count']}
-            paint={{
-              'circle-radius': ['step', ['get', 'point_count'], 12, 8, 16, 30, 22],
-              'circle-color': 'rgba(255, 61, 61, 0.75)',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#ff3d3d',
-            }}
-          />
-          <Layer
-            id="malware-layer"
-            type="circle"
-            filter={['!', ['has', 'point_count']]}
-            paint={{
-              'circle-radius': 5,
-              'circle-color': '#ff1744',
-              'circle-stroke-width': 1,
-              'circle-stroke-color': '#ff8a80',
-            }}
-          />
-        </Source>
+        <MalwareLayers />
 
         {/* Submarine cables — static TeleGeography GeoJSON */}
-        <Source id="submarine-cables-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="submarine-cables-layer"
-            type="line"
-            paint={{
-              'line-color': '#eab308',
-              'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 6, 1.2, 10, 2],
-              'line-opacity': 0.75,
-            }}
-          />
-        </Source>
+        <SubmarineCablesLayers />
 
         {/* Ships — rendered below flights (water surface level) */}
         <Source
