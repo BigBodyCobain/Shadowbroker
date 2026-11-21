@@ -3091,148 +3091,18 @@ const MaplibreViewer = ({
         </Source>
 
         {/* Ukraine Air Raid Alerts — red/orange oblast polygons */}
-        <Source id="ukraine-alerts-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="ukraine-alerts-fill"
-            type="fill"
-            paint={{
-              'fill-color': ['get', 'color'],
-              'fill-opacity': 0.18,
-            }}
-          />
-          <Layer
-            id="ukraine-alerts-outline"
-            type="line"
-            paint={{
-              'line-color': ['get', 'color'],
-              'line-width': 2.5,
-              'line-opacity': 0.8,
-              'line-dasharray': [6, 3],
-            }}
-          />
-        </Source>
-        <Source id="ukraine-alert-labels-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="ukraine-alert-labels"
-            type="symbol"
-            layout={{
-              'text-field': ['concat', ['get', 'alert_label'], '\n', ['get', 'name_en']],
-              'text-font': ['Noto Sans Bold'],
-              'text-size': 11,
-              'text-allow-overlap': false,
-              'text-max-width': 12,
-            }}
-            paint={{
-              'text-color': ['get', 'color'],
-              'text-halo-color': '#000000',
-              'text-halo-width': 1.5,
-            }}
-          />
-        </Source>
+        <UkraineAlertsLayers />
 
-        {/* Weather Alerts — severity-colored polygons with icon + label overlay */}
-        <Source id="weather-alerts-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="weather-alerts-fill"
-            type="fill"
-            paint={{
-              'fill-color': ['get', 'color'],
-              'fill-opacity': 0.12,
-            }}
-          />
-          <Layer
-            id="weather-alerts-outline"
-            type="line"
-            paint={{
-              'line-color': ['get', 'color'],
-              'line-width': 2,
-              'line-opacity': 0.7,
-              'line-dasharray': [4, 3],
-            }}
-          />
-        </Source>
-        <Source id="weather-alert-labels-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="weather-alert-icons"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': 1.1,
-              'icon-allow-overlap': true,
-              'icon-anchor': 'bottom',
-              'text-field': ['get', 'event'],
-              'text-font': ['Noto Sans Bold'],
-              'text-size': 11,
-              'text-offset': [0, 0.4],
-              'text-anchor': 'top',
-              'text-allow-overlap': false,
-              'text-max-width': 14,
-            }}
-            paint={{
-              'text-color': ['get', 'color'],
-              'text-halo-color': '#000000',
-              'text-halo-width': 1.5,
-            }}
-          />
-        </Source>
+        {/* Weather Alerts — severity-colored polygons with icon + label overlay */}        {/* Weather Alerts — severity-colored polygons with icon + label overlay */}
+        <WeatherAlertsLayers />
 
-        {/* Air Quality — AQI-colored circles */}
-        <Source id="air-quality-source" type="geojson" data={EMPTY_FC} cluster={true} clusterMaxZoom={8} clusterRadius={40}>
-          <Layer
-            id="air-quality-clusters"
-            type="circle"
-            filter={['has', 'point_count']}
-            paint={{
-              'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
-              'circle-color': '#94a3b8',
-              'circle-opacity': 0.6,
-            }}
-          />
-          <Layer
-            id="air-quality-layer"
-            type="circle"
-            filter={['!', ['has', 'point_count']]}
-            paint={{
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 5, 10, 8],
-              'circle-color': ['get', 'color'],
-              'circle-opacity': 0.75,
-              'circle-stroke-width': 1,
-              'circle-stroke-color': '#000',
-            }}
-          />
-        </Source>
+        {/* Air Quality — AQI-colored circles */}        {/* Air Quality — AQI-colored circles */}
+        <AirQualityLayers />
 
-        {/* Volcanoes — activity-colored triangle icons */}
-        <Source id="volcanoes-source" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="volcanoes-layer"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.4, 6, 0.7, 10, 1.0],
-              'icon-allow-overlap': true,
-            }}
-          />
-          <Layer
-            id="volcanoes-label"
-            type="symbol"
-            layout={{
-              'text-field': ['step', ['zoom'], '', 6, ['get', 'name']],
-              'text-font': ['Noto Sans Bold'],
-              'text-size': 10,
-              'text-offset': [0, 1.2],
-              'text-anchor': 'top',
-              'text-allow-overlap': false,
-            }}
-            paint={{
-              'text-color': '#f97316',
-              'text-halo-color': 'rgba(0,0,0,0.9)',
-              'text-halo-width': 1,
-            }}
-          />
-        </Source>
+        {/* Volcanoes — activity-colored triangle icons */}        {/* Volcanoes — activity-colored triangle icons */}
+        <VolcanoLayers />
 
-        {/* Fishing Activity — AIS-style ship clusters and icons */}
+        {/* Fishing Activity — AIS-style ship clusters and icons */}        {/* Fishing Activity — AIS-style ship clusters and icons */}
         <Source
           id="fishing-source"
           type="geojson"
