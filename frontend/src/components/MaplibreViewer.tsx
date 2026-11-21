@@ -200,6 +200,9 @@ import {
 import { useViewportBounds } from '@/components/map/hooks/useViewportBounds';
 import { getLiveDataBounds } from '@/lib/liveDataViewport';
 import { MeasurementLayers } from '@/components/map/layers/MeasurementLayers';
+import { FirmsFireLayers } from '@/components/map/layers/FirmsFireLayers';
+import { DayNightLayers } from '@/components/map/layers/DayNightLayers';
+import { GpsJammingLayers } from '@/components/map/layers/GpsJammingLayers';
 import { sameEntityId } from '@/components/map/featureIds';
 import { buildCctvProxyUrl } from '@/lib/cctvProxy';
 import { sanitizeSubmarineCables } from '@/lib/submarineCables';
@@ -2142,91 +2145,9 @@ const MaplibreViewer = ({
         )}
 
         {/* NASA FIRMS VIIRS — fire hotspot icons from FIRMS CSV feed */}
-        {/* firms-fires: data pushed imperatively via useImperativeSource */}
-        <Source
-          id="firms-fires"
-          type="geojson"
-          data={EMPTY_FC}
-          cluster={true}
-          clusterRadius={40}
-          clusterMaxZoom={10}
-        >
-          {/* Cluster fire icons — flame shape to differentiate from Global Incidents circles */}
-          <Layer
-            id="firms-clusters"
-            type="symbol"
-            filter={['has', 'point_count']}
-            layout={{
-              'icon-image': [
-                'step',
-                ['get', 'point_count'],
-                'fire-cluster-sm',
-                10,
-                'fire-cluster-md',
-                50,
-                'fire-cluster-lg',
-                200,
-                'fire-cluster-xl',
-              ],
-              'icon-size': ['step', ['get', 'point_count'], 1.0, 10, 1.1, 50, 1.2, 200, 1.3],
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-              'text-field': '{point_count_abbreviated}',
-              'text-font': ['Noto Sans Bold'],
-              'text-size': ['step', ['get', 'point_count'], 9, 10, 10, 50, 11, 200, 12],
-              'text-offset': [0, 0.15],
-              'text-allow-overlap': true,
-            }}
-            paint={{
-              'text-color': '#ffffff',
-              'text-halo-color': 'rgba(0,0,0,0.8)',
-              'text-halo-width': 1.2,
-            }}
-          />
-          {/* Individual fire icons — flame shape sized by FRP */}
-          <Layer
-            id="firms-viirs-layer"
-            type="symbol"
-            filter={['!', ['has', 'point_count']]}
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.4, 5, 0.6, 8, 0.8, 12, 1.0],
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true,
-            }}
-          />
-        </Source>
+        <FirmsFireLayers />
 
-        {/* SOLAR TERMINATOR — night overlay */}
-        {activeLayers.day_night && (
-          <Source id="night-overlay" type="geojson" data={EMPTY_FC}>
-            <Layer
-              id="night-overlay-layer"
-              type="fill"
-              paint={{
-                // light tone: a faint blue dusk instead of a grey lens
-                'fill-color': theme === 'light' ? '#1d3a66' : '#0a0e1a',
-                // softer on the light basemap so the terminator isn't a hard grey slab
-                'fill-opacity': theme === 'light' ? 0.08 : 0.35,
-                'fill-antialias': true,
-              }}
-            />
-          </Source>
-        )}
-        {activeLayers.day_night && (
-          <Source id="night-twilight" type="geojson" data={EMPTY_FC}>
-            <Layer
-              id="night-twilight-layer"
-              type="line"
-              paint={{
-                'line-color': theme === 'light' ? '#1d3a66' : '#0a0e1a',
-                'line-width': ['interpolate', ['linear'], ['zoom'], 1, 180, 4, 320, 7, 460],
-                'line-blur': ['interpolate', ['linear'], ['zoom'], 1, 180, 4, 320, 7, 460],
-                'line-opacity': theme === 'light' ? 0.08 : 0.34,
-              }}
-            />
-          </Source>
-        )}
+        {activeLayers.day_night && <DayNightLayers theme={theme} />}
 
         {/* ═══ GROUND OVERLAYS — rendered below ships, mesh, and flights ═══ */}
 
@@ -2277,46 +2198,7 @@ const MaplibreViewer = ({
         </Source>
 
         {/* GPS Jamming Zones — red translucent grid squares */}
-        <Source id="gps-jamming" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="gps-jamming-fill"
-            type="fill"
-            paint={{
-              'fill-color': '#ff0040',
-              'fill-opacity': ['get', 'opacity'],
-            }}
-          />
-          <Layer
-            id="gps-jamming-outline"
-            type="line"
-            paint={{
-              'line-color': '#ff0040',
-              'line-width': 1.5,
-              'line-opacity': 0.6,
-            }}
-          />
-          <Layer
-            id="gps-jamming-label"
-            type="symbol"
-            layout={{
-              'text-font': ['Noto Sans Bold'],
-              'text-field': [
-                'concat',
-                'GPS JAM ',
-                ['to-string', ['round', ['*', 100, ['get', 'ratio']]]],
-                '%',
-              ],
-              'text-size': ['interpolate', ['linear'], ['zoom'], 2, 8, 5, 10, 8, 12],
-              'text-allow-overlap': false,
-              'text-ignore-placement': false,
-            }}
-            paint={{
-              'text-color': '#ff4060',
-              'text-halo-color': '#000000',
-              'text-halo-width': 1.5,
-            }}
-          />
-        </Source>
+        <GpsJammingLayers />
 
         {/* Strategic Risk Heatmap — Bayesian posterior scores */}
         <Source id="gt-risk-source" type="geojson" data={EMPTY_FC}>
