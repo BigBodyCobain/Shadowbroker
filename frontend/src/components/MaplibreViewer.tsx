@@ -1833,6 +1833,105 @@ const MaplibreViewer = ({
     ]
     : 1.0;
 
+
+  const handleMoveStart = useCallback(() => {
+    setIsMapInteracting((prev) => (prev ? prev : true));
+  }, []);
+  const handleMove = useCallback((evt: any) => {
+    viewStateRef.current = evt.viewState;
+  }, []);
+  const handleMoveEnd = useCallback(() => {
+    setIsMapInteracting(false);
+    const currentViewState = viewStateRef.current;
+    setMapZoom((prevZoom) =>
+      Math.abs(prevZoom - currentViewState.zoom) > 0.01 ? currentViewState.zoom : prevZoom,
+    );
+    onViewStateChange?.({
+      zoom: currentViewState.zoom,
+      latitude: currentViewState.latitude,
+    });
+    updateBounds();
+  }, [onViewStateChange, updateBounds]);
+  const handleContextMenu = useCallback((evt: any) => {
+    evt.preventDefault();
+    onRightClick?.({ lat: evt.lngLat.lat, lng: evt.lngLat.lng });
+  }, [onRightClick]);
+  const handleIdle = useCallback(() => {
+    setIsMapInteracting(false);
+    updateBounds();
+  }, [updateBounds]);
+  const handleMapClick = useCallback((e: any) => {
+        // Measurement mode: place waypoints instead of selecting entities
+        if (measureMode && onMeasureClick) {
+          onMeasureClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          return;
+        }
+        // SAR AOI drop mode
+        if (sarAoiDropMode) {
+          onSarAoiDropped?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          return;
+        }
+        // Pin placement mode
+        if (pinPlacementMode) {
+          const clickedFeature = e.features?.[0];
+          const clickedProps = clickedFeature?.properties || {};
+          const isEntity = clickedFeature && clickedProps.type && clickedProps.id && !clickedProps.cluster;
+          setPendingPin({
+            lat: e.lngLat.lat,
+            lng: e.lngLat.lng,
+            entity: isEntity ? {
+              entity_type: String(clickedProps.type || ''),
+              entity_id: String(clickedProps.id || ''),
+              entity_label: String(clickedProps.name || clickedProps.callsign || clickedProps.label || ''),
+            } : null,
+          });
+          return;
+        }
+        // AI Intel pin click → open detail popup (takes precedence over entity selection)
+        if (e.features && e.features.length > 0) {
+          const aiPin = e.features.find(
+            (f) => f.layer?.id === 'ai-intel-pin-layer' && !(f.properties as Record<string, unknown> | null)?.cluster,
+          );
+          if (aiPin && aiPin.properties?.id) {
+            setOpenPinDetailId(String(aiPin.properties.id));
+            return;
+          }
+        }
+        if (selectedEntity) {
+          onEntityClick?.(null);
+        } else if (e.features && e.features.length > 0) {
+          // SAR AOI fill spans large polygons (often hundreds of km wide)
+          // and renders above entity layers. If an entity (flight, ship,
+          // SDR receiver, etc.) is also under the cursor, prefer it — the
+          // AOI should only win when the user clicks empty space inside it.
+          const nonAoiFeature = e.features.find(
+            (f) => f.layer?.id !== 'sar-aois-fill',
+          );
+          const feature = nonAoiFeature ?? e.features[0];
+          const props = feature.properties || {};
+
+          // If the clicked feature is a cluster, zoom into it instead of selecting an entity
+          if (props.cluster) {
+            const targetZoom = (mapRef.current?.getMap().getZoom() ?? mapZoom) + 2;
+            mapRef.current?.flyTo({
+              center: [e.lngLat.lng, e.lngLat.lat],
+              zoom: targetZoom,
+              duration: 500,
+            });
+            return;
+          }
+          onEntityClick?.({
+            id: props.id,
+            type: props.type,
+            name: props.name,
+            media_url: props.media_url,
+            extra: props,
+          });
+        } else {
+          onEntityClick?.(null);
+        }
+  }, [measureMode, onMeasureClick, sarAoiDropMode, onSarAoiDropped, pinPlacementMode, setPendingPin, setOpenPinDetailId, selectedEntity, onEntityClick, mapRef, mapZoom]);
+
   return (
     <div
       className={`relative h-full w-full z-0 isolate ${selectedEntity && ['region_dossier', 'gdelt', 'liveuamap', 'news', 'telegram_osint', 'gt_risk'].includes(selectedEntity.type) ? 'map-focus-active' : ''}`}
@@ -1848,110 +1947,19 @@ const MaplibreViewer = ({
         fadeDuration={0}
         style={{ width: '100%', height: '100%' }}
         initialViewState={initialViewState}
-        onMoveStart={() => {
-          setIsMapInteracting((prev) => (prev ? prev : true));
-        }}
-        onMove={(evt) => {
-          viewStateRef.current = evt.viewState;
-        }}
-        onMoveEnd={() => {
-          setIsMapInteracting(false);
-          const currentViewState = viewStateRef.current;
-          setMapZoom((prevZoom) =>
-            Math.abs(prevZoom - currentViewState.zoom) > 0.01 ? currentViewState.zoom : prevZoom,
-          );
-          onViewStateChange?.({
-            zoom: currentViewState.zoom,
-            latitude: currentViewState.latitude,
-          });
-          updateBounds();
-        }}
+        onMoveStart={handleMoveStart}
+        onMove={handleMove}
+        onMoveEnd={handleMoveEnd}
         onMouseMove={handleMouseMove}
-        onContextMenu={(evt) => {
-          evt.preventDefault();
-          onRightClick?.({ lat: evt.lngLat.lat, lng: evt.lngLat.lng });
-        }}
+        onContextMenu={handleContextMenu}
         mapStyle={mapThemeStyle}
         mapLib={maplibregl}
         attributionControl={false}
         onLoad={onMapLoad}
         onStyleData={onMapStyleData}
-        onIdle={() => {
-          setIsMapInteracting(false);
-          updateBounds();
-        }}
+        onIdle={handleIdle}
         interactiveLayerIds={activeInteractiveLayerIds}
-        onClick={(e) => {
-          // Measurement mode: place waypoints instead of selecting entities
-          if (measureMode && onMeasureClick) {
-            onMeasureClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
-            return;
-          }
-          // SAR AOI drop mode
-          if (sarAoiDropMode) {
-            onSarAoiDropped?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
-            return;
-          }
-          // Pin placement mode
-          if (pinPlacementMode) {
-            const clickedFeature = e.features?.[0];
-            const clickedProps = clickedFeature?.properties || {};
-            const isEntity = clickedFeature && clickedProps.type && clickedProps.id && !clickedProps.cluster;
-            setPendingPin({
-              lat: e.lngLat.lat,
-              lng: e.lngLat.lng,
-              entity: isEntity ? {
-                entity_type: String(clickedProps.type || ''),
-                entity_id: String(clickedProps.id || ''),
-                entity_label: String(clickedProps.name || clickedProps.callsign || clickedProps.label || ''),
-              } : null,
-            });
-            return;
-          }
-          // AI Intel pin click → open detail popup (takes precedence over entity selection)
-          if (e.features && e.features.length > 0) {
-            const aiPin = e.features.find(
-              (f) => f.layer?.id === 'ai-intel-pin-layer' && !(f.properties as Record<string, unknown> | null)?.cluster,
-            );
-            if (aiPin && aiPin.properties?.id) {
-              setOpenPinDetailId(String(aiPin.properties.id));
-              return;
-            }
-          }
-          if (selectedEntity) {
-            onEntityClick?.(null);
-          } else if (e.features && e.features.length > 0) {
-            // SAR AOI fill spans large polygons (often hundreds of km wide)
-            // and renders above entity layers. If an entity (flight, ship,
-            // SDR receiver, etc.) is also under the cursor, prefer it — the
-            // AOI should only win when the user clicks empty space inside it.
-            const nonAoiFeature = e.features.find(
-              (f) => f.layer?.id !== 'sar-aois-fill',
-            );
-            const feature = nonAoiFeature ?? e.features[0];
-            const props = feature.properties || {};
-
-            // If the clicked feature is a cluster, zoom into it instead of selecting an entity
-            if (props.cluster) {
-              const targetZoom = (mapRef.current?.getMap().getZoom() ?? mapZoom) + 2;
-              mapRef.current?.flyTo({
-                center: [e.lngLat.lng, e.lngLat.lat],
-                zoom: targetZoom,
-                duration: 500,
-              });
-              return;
-            }
-            onEntityClick?.({
-              id: props.id,
-              type: props.type,
-              name: props.name,
-              media_url: props.media_url,
-              extra: props,
-            });
-          } else {
-            onEntityClick?.(null);
-          }
-        }}
+        onClick={handleMapClick}
       >
         <AttributionControl
           compact
