@@ -8,9 +8,23 @@ import { fetchWormholeDmRootHealth, fetchWormholeIdentity, type WormholeDmRootHe
 import { hasLegacyCompatibilityActivity, summarizeLegacyCompatibility } from '@/mesh/wormholeCompatibility';
 import { summarizeGateCompatTelemetry } from '@/mesh/gateCompatTelemetry';
 import { applySecureModeBoundary, migratePrivacySensitiveBrowserState, SETTINGS_FOCUS_KEY, WORMHOLE_READY_EVENT, WORMHOLE_RETURN_KEY, dmRootMonitorTone } from './SettingsPanel.shared';
-import { getPrivacyProfilePreference, getPrivacyStrictPreference, getSessionModePreference, setPrivacyProfilePreference, setPrivacyStrictPreference, setSessionModePreference } from '@/lib/privacyBrowserStorage';
+import { getSessionModePreference, setPrivacyProfilePreference, setPrivacyStrictPreference, setSessionModePreference } from '@/lib/privacyBrowserStorage';
 
-export function useSettingsPanelWormhole(opts: any) {
+export interface SettingsPanelWormholeOpts {
+  isOpen: boolean; activeTab: string; onClose: () => void; nativeProtected: boolean;
+  adminSessionReady: boolean; showOperatorTools: boolean;
+  refreshAdminSession: () => Promise<boolean>;
+  fetchKeys: () => Promise<any>; fetchFeeds: () => Promise<any>; fetchEnvMeta: () => Promise<any>;
+  handleProtectedSettingsError: (e: unknown) => Promise<string>;
+  ensureAdminSession: () => Promise<void>;
+  setActiveTab: (t: any) => void; setFeeds: (v: any) => void; setFeedsDirty: (v: boolean) => void;
+  clearSessionIdentity: () => void;
+  privacyProfile: string; setPrivacyProfile: (v: string) => void;
+  sessionMode: boolean; setSessionMode: (v: boolean) => void; setStrictPrivacy: (v: boolean) => void;
+  gateCompatTelemetry: any;
+}
+
+export function useSettingsPanelWormhole(opts: SettingsPanelWormholeOpts) {
   const {
     isOpen, activeTab, onClose, nativeProtected, adminSessionReady, showOperatorTools,
     refreshAdminSession, fetchKeys, fetchFeeds, fetchEnvMeta, handleProtectedSettingsError, ensureAdminSession,

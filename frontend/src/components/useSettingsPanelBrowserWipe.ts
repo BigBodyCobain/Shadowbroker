@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { clearBrowserIdentityState, purgeBrowserDmState } from '@/mesh/meshIdentity';
 import { PRIVACY_SENSITIVE_BROWSER_KEYS } from './SettingsPanel.shared';
 import { setSessionModePreference } from '@/lib/privacyBrowserStorage';

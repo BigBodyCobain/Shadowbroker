@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
 import { formatFeedSettingsError, MAX_FEEDS, validateFeedEntries, type FeedEntry } from './SettingsPanel.shared';
 
-export function useSettingsPanelFeeds(handleProtectedSettingsError: (error: unknown) => Promise<void>) {
+export function useSettingsPanelFeeds(handleProtectedSettingsError: (error: unknown) => Promise<string | void>) {
   const [feeds, setFeeds] = useState<FeedEntry[]>([]);
   const [feedsDirty, setFeedsDirty] = useState(false);
   const [feedSaving, setFeedSaving] = useState(false);

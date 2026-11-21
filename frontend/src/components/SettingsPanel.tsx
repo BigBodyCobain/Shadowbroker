@@ -1,6 +1,5 @@
 'use client';
 
-import { API_BASE } from '@/lib/api';
 import { SettingsPanelNewsFeeds } from './SettingsPanelNewsFeeds';
 import { SettingsPanelApiKeys } from './SettingsPanelApiKeys';
 import { SettingsPanelProtocol } from './SettingsPanelProtocol';
@@ -14,8 +13,7 @@ import { useCompanionSetting } from './useCompanionSetting';
 import { useSettingsPanelGateStatus } from './useSettingsPanelGateStatus';
 import { useSettingsPanelBrowserWipe } from './useSettingsPanelBrowserWipe';
 import { useSettingsPanelWormhole } from './useSettingsPanelWormhole';
-import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
-import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
+import { clearAdminSession } from '@/lib/adminSession';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
 import { useTranslation } from '@/i18n';
 import {

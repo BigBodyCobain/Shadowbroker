@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { controlPlaneJson } from '@/lib/controlPlane';
 import type { ApiEntry, EnvMeta } from './SettingsPanel.shared';
 
-export function useSettingsPanelApiKeys(handleProtectedSettingsError: (error: unknown) => Promise<void>) {
+export function useSettingsPanelApiKeys(handleProtectedSettingsError: (error: unknown) => Promise<string | void>) {
   const [apis, setApis] = useState<ApiEntry[]>([]);
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({});
   const [apiKeyEditing, setApiKeyEditing] = useState<Record<string, boolean>>({});
