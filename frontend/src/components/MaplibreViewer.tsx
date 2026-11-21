@@ -2613,70 +2613,9 @@ const MaplibreViewer = ({
         <LiveuamapLayers />
 
         {/* tracked-flights & UAVs: rendered above ground layers (airborne) */}
-        <Source id="tracked-flights" type="geojson" data={EMPTY_FC}>
-          {/* Gold halo ring — POTUS aircraft only (Air Force One/Two, Marine One) */}
-          <Layer
-            id="tracked-flights-halo"
-            type="circle"
-            filter={[
-              'any',
-              ['==', ['get', 'iconId'], 'svgPotusPlane'],
-              ['==', ['get', 'iconId'], 'svgPotusHeli'],
-            ]}
-            paint={{
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 18, 8, 22, 12, 40],
-              'circle-color': 'transparent',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': 'gold',
-              'circle-stroke-opacity': opacityFilter,
-              'circle-opacity': 0,
-            }}
-          />
-          <Layer
-            id="tracked-flights-layer"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': [
-                'interpolate', ['linear'], ['zoom'],
-                5, ['case',
-                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 1.3,
-                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 1.3,
-                  0.8,
-                ],
-                8, ['case',
-                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 1.6,
-                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 1.6,
-                  1.0,
-                ],
-                12, ['case',
-                  ['==', ['get', 'iconId'], 'svgPotusPlane'], 2.6,
-                  ['==', ['get', 'iconId'], 'svgPotusHeli'], 2.6,
-                  2.0,
-                ],
-              ],
-              'icon-allow-overlap': true,
-              'icon-rotate': ['get', 'rotation'],
-              'icon-rotation-alignment': 'map',
-            }}
-            paint={{ 'icon-opacity': opacityFilter }}
-          />
-        </Source>
+        <TrackedFlightsLayers opacityFilter={opacityFilter} />
 
-        <Source id="uavs" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="uav-layer"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 8, 1.0, 12, 2.0],
-              'icon-allow-overlap': true,
-              'icon-rotate': ['get', 'rotation'],
-              'icon-rotation-alignment': 'map',
-            }}
-            paint={{ 'icon-opacity': opacityFilter }}
-          />
-        </Source>
+        <UavsLayers opacityFilter={opacityFilter} />
 
         {/* HTML labels for ship cluster counts (hidden when any entity popup is active) */}
         {shipsGeoJSON && !selectedEntity && !isMapInteracting && (
@@ -2744,31 +2683,7 @@ const MaplibreViewer = ({
 
         {/* Satellite positions — mission-type icons */}
         {/* satellites: data pushed imperatively */}
-        <Source id="satellites" type="geojson" data={EMPTY_FC}>
-          {/* Golden halo ring — ISS only */}
-          <Layer
-            id="satellites-iss-halo"
-            type="circle"
-            filter={['==', ['get', 'isISS'], true]}
-            paint={{
-              'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 10, 3, 14, 6, 18, 10, 24],
-              'circle-color': 'transparent',
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#ffdd00',
-              'circle-stroke-opacity': 0.8,
-              'circle-opacity': 0,
-            }}
-          />
-          <Layer
-            id="satellites-layer"
-            type="symbol"
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 3, 0.5, 6, 0.7, 10, 1.0],
-              'icon-allow-overlap': true,
-            }}
-          />
-        </Source>
+        <SatellitesLayers />
 
         {/* Train positions */}
         <TrainsLayers />
