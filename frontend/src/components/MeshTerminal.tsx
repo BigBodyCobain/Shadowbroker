@@ -3458,6 +3458,79 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     }
   };
 
+  const handleInboxCommand = async (cmd: string, args: string[], d: any) => {
+    switch (cmd) {
+            case 'inbox': {
+              if (!nodeIdentity || !hasSovereignty()) {
+                addError("Not connected. Type 'connect' to activate your Agent identity.");
+                return;
+              }
+              addSystem('  Checking dead drop...');
+              try {
+                const claims = await buildMailboxClaims(getContacts());
+                const data = await pollDmMailboxes(API, nodeIdentity, claims);
+                const msgs = data.messages || [];
+                if (msgs.length === 0) {
+                  addSystem('  No pending messages.');
+                  addSystem('');
+                  return;
+                }
+                addSystem(`  ${msgs.length} message${msgs.length > 1 ? 's' : ''} retrieved:`);
+                addSystem('');
+                for (const m of msgs) {
+                  const age = Math.floor((Date.now() / 1000 - m.timestamp) / 60);
+                  const ageStr = age < 60 ? `${age}m ago` : `${Math.floor(age / 60)}h ago`;
+                  try {
+                    // Get sender's DH key
+                    const contacts = getContacts();
+                    let senderDH = contacts[m.sender_id]?.dhPubKey;
+                    if (!senderDH) {
+                      const contact = contacts[m.sender_id];
+                      const keyData = await fetchDmPublicKey(
+                        API,
+                        m.sender_id,
+                        contact?.invitePinnedPrekeyLookupHandle,
+                      );
+                      if (keyData?.dh_pub_key) {
+                        senderDH = keyData.dh_pub_key as string;
+                        addContact(m.sender_id, senderDH!, undefined, keyData.dh_algo);
+                        updateContact(m.sender_id, {
+                          dhAlgo: keyData.dh_algo || contact?.dhAlgo,
+                          remotePrekeyLookupMode:
+                            String(keyData.lookup_mode || '').trim().toLowerCase() ||
+                            contact?.remotePrekeyLookupMode,
+                        });
+                      }
+                    }
+                    if (!senderDH) {
+                      addOutput(`  [${m.sender_id}] ${ageStr} — (cannot decrypt: no key)`);
+                      continue;
+                    }
+                    let plaintext = '';
+                    try {
+                      plaintext = await ratchetDecryptDM(m.sender_id, m.ciphertext);
+                    } catch {
+                      const sharedKey = await deriveSharedKey(senderDH);
+                      plaintext = await decryptDM(m.ciphertext, sharedKey);
+                    }
+                    addOutput(`  [${m.sender_id}] ${ageStr}`);
+                    addLines([{ text: `    ${plaintext}`, type: 'output' }]);
+                  } catch {
+                    addOutput(`  [${m.sender_id}] ${ageStr} — (decryption failed)`);
+                  }
+                  addSystem('');
+                }
+                // Clear badge
+                if (onDmCount) onDmCount(0);
+              } catch {
+                addError('Failed to check inbox');
+              }
+              return;
+            }
+      default: return;
+    }
+  };
+
   const exec = useCallback(
     async (raw: string) => {
       const trimmed = raw.trim();
@@ -4114,73 +4187,9 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           }
           case 'inbox': {
-            if (!nodeIdentity || !hasSovereignty()) {
-              addError("Not connected. Type 'connect' to activate your Agent identity.");
-              break;
-            }
-            addSystem('  Checking dead drop...');
-            try {
-              const claims = await buildMailboxClaims(getContacts());
-              const data = await pollDmMailboxes(API, nodeIdentity, claims);
-              const msgs = data.messages || [];
-              if (msgs.length === 0) {
-                addSystem('  No pending messages.');
-                addSystem('');
-                break;
-              }
-              addSystem(`  ${msgs.length} message${msgs.length > 1 ? 's' : ''} retrieved:`);
-              addSystem('');
-              for (const m of msgs) {
-                const age = Math.floor((Date.now() / 1000 - m.timestamp) / 60);
-                const ageStr = age < 60 ? `${age}m ago` : `${Math.floor(age / 60)}h ago`;
-                try {
-                  // Get sender's DH key
-                  const contacts = getContacts();
-                  let senderDH = contacts[m.sender_id]?.dhPubKey;
-                  if (!senderDH) {
-                    const contact = contacts[m.sender_id];
-                    const keyData = await fetchDmPublicKey(
-                      API,
-                      m.sender_id,
-                      contact?.invitePinnedPrekeyLookupHandle,
-                    );
-                    if (keyData?.dh_pub_key) {
-                      senderDH = keyData.dh_pub_key as string;
-                      addContact(m.sender_id, senderDH!, undefined, keyData.dh_algo);
-                      updateContact(m.sender_id, {
-                        dhAlgo: keyData.dh_algo || contact?.dhAlgo,
-                        remotePrekeyLookupMode:
-                          String(keyData.lookup_mode || '').trim().toLowerCase() ||
-                          contact?.remotePrekeyLookupMode,
-                      });
-                    }
-                  }
-                  if (!senderDH) {
-                    addOutput(`  [${m.sender_id}] ${ageStr} — (cannot decrypt: no key)`);
-                    continue;
-                  }
-                  let plaintext = '';
-                  try {
-                    plaintext = await ratchetDecryptDM(m.sender_id, m.ciphertext);
-                  } catch {
-                    const sharedKey = await deriveSharedKey(senderDH);
-                    plaintext = await decryptDM(m.ciphertext, sharedKey);
-                  }
-                  addOutput(`  [${m.sender_id}] ${ageStr}`);
-                  addLines([{ text: `    ${plaintext}`, type: 'output' }]);
-                } catch {
-                  addOutput(`  [${m.sender_id}] ${ageStr} — (decryption failed)`);
-                }
-                addSystem('');
-              }
-              // Clear badge
-              if (onDmCount) onDmCount(0);
-            } catch {
-              addError('Failed to check inbox');
-            }
+            await handleInboxCommand(cmd.toLowerCase(), args, {});
             break;
           }
-
           case 'contacts': {
             const contacts = getContacts();
             const ids = Object.keys(contacts);
