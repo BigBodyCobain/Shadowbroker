@@ -8,7 +8,7 @@ type PendingPin = {
   entity: { entity_type: string; entity_id: string; entity_label: string } | null;
 } | null;
 
-export function useMapPins({ onPinPlaced }: { onPinPlaced?: () => void }) {
+export function useMapPins({ onPinPlaced, aiIntelEnabled }: { onPinPlaced?: () => void; aiIntelEnabled?: boolean }) {
   const [pendingPin, setPendingPin] = useState<PendingPin>(null);
   const [pinLabel, setPinLabel] = useState('');
   const [pinNotes, setPinNotes] = useState('');
@@ -24,6 +24,27 @@ export function useMapPins({ onPinPlaced }: { onPinPlaced?: () => void }) {
     const t = setTimeout(() => pinLabelInputRef.current?.focus(), 50);
     return () => clearTimeout(t);
   }, [pendingPin]);
+
+  useEffect(() => {
+    if (!aiIntelEnabled) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/ai/pins/geojson`);
+        if (!resp.ok || cancelled) return;
+        const gj = await resp.json();
+        const pins = (gj.features || []).map((f: any) => ({
+          ...f.properties,
+          lat: f.geometry?.coordinates?.[1],
+          lng: f.geometry?.coordinates?.[0],
+        }));
+        if (!cancelled) setAiIntelPins(pins);
+      } catch {}
+    };
+    poll();
+    const tid = setInterval(poll, 15_000);
+    return () => { cancelled = true; clearInterval(tid); };
+  }, [aiIntelEnabled, aiIntelRefreshTick]);
 
   const handleSavePin = useCallback(async () => {
     if (!pendingPin || !pinLabel.trim()) return;

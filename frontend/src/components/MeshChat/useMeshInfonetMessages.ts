@@ -8,7 +8,24 @@ import { describeGateLocalRuntimeRequired } from './useMeshChatController.helper
 const GATE_DECRYPT_CACHE_MAX = 200;
 const ACTIVE_GATE_ROOM_MESSAGE_LIMIT = 120;
 
-export function useMeshInfonetMessages(ctx: any) {
+export interface MeshInfonetMessagesCtx {
+  wormholeEnabled: boolean;
+  wormholeReadyState: boolean;
+  gateDecryptCacheRef: React.MutableRefObject<Map<string, any>>;
+  infoCursorRef: React.MutableRefObject<number>;
+  infoPollSignatureRef: React.MutableRefObject<string>;
+  selectedGateRef: React.MutableRefObject<string>;
+  repsRef: React.MutableRefObject<Record<string, number>>;
+  setGateError: (v: string) => void;
+  markGateResyncRequired: (err: unknown, gateIdHint?: string) => boolean;
+  setInfoMessages: (v: any[]) => void;
+  setReps: (v: any) => void;
+  fetchGateMessageSnapshotState: (gateId: string, limit: number, opts?: any) => Promise<any>;
+  selectedGate: string | null;
+  [k: string]: any;
+}
+
+export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
   const {
     wormholeEnabled, wormholeReadyState, gateDecryptCacheRef, infoCursorRef, infoPollSignatureRef,
     selectedGateRef, repsRef, setGateError, markGateResyncRequired, setInfoMessages, setReps,

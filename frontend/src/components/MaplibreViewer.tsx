@@ -354,7 +354,7 @@ const MaplibreViewer = ({
     pinCategory, setPinCategory, pinSaving, aiIntelPins, setAiIntelPins,
     aiIntelRefreshTick, setAiIntelRefreshTick, openPinDetailId, setOpenPinDetailId,
     pinLabelInputRef, handleSavePin,
-  } = useMapPins({ onPinPlaced });
+  } = useMapPins({ onPinPlaced, aiIntelEnabled: activeLayers.ai_intel });
 
   const showImageryReferenceOverlay =
     activeLayers.highres_satellite ||
@@ -746,27 +746,7 @@ const MaplibreViewer = ({
     [activeLayers.shodan_overlay, shodanResults],
   );
 
-  // AI Intel layer — pins from connected AI agents and the AI co-pilot
-  useEffect(() => {
-    if (!activeLayers.ai_intel) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const resp = await fetch(`${API_BASE}/api/ai/pins/geojson`);
-        if (!resp.ok || cancelled) return;
-        const gj = await resp.json();
-        const pins = (gj.features || []).map((f: any) => ({
-          ...f.properties,
-          lat: f.geometry?.coordinates?.[1],
-          lng: f.geometry?.coordinates?.[0],
-        }));
-        if (!cancelled) setAiIntelPins(pins);
-      } catch {}
-    };
-    poll();
-    const tid = setInterval(poll, 15_000); // poll every 15s
-    return () => { cancelled = true; clearInterval(tid); };
-  }, [activeLayers.ai_intel, aiIntelRefreshTick]);
+  // AI Intel pins polling is handled by useMapPins.
   const aiIntelGeoJSON = useMemo(
     () => (activeLayers.ai_intel ? buildAIIntelGeoJSON(aiIntelPins, data) : null),
     [activeLayers.ai_intel, aiIntelPins, data],
