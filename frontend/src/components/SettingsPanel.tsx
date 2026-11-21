@@ -8,6 +8,7 @@ import { SentinelTab } from './SettingsPanelSentinelTab';
 import { SarSettingsTab } from './SettingsPanelSarTab';
 import { useSettingsPanelFeeds } from './useSettingsPanelFeeds';
 import { useSettingsPanelApiKeys } from './useSettingsPanelApiKeys';
+import { useSettingsPanelAdminSession } from './useSettingsPanelAdminSession';
 import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
@@ -109,10 +110,6 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const { t, locale, setLocale } = useTranslation();
 
   // --- Admin Key (for protected endpoints) ---
-  const [adminKey, setAdminKey] = useState('');
-  const [adminSessionReady, setAdminSessionReady] = useState(false);
-  const [adminSessionBusy, setAdminSessionBusy] = useState(false);
-  const [adminSessionMsg, setAdminSessionMsg] = useState<string | null>(null);
   const [, setStrictPrivacy] = useState(() => getPrivacyStrictPreference());
   const [privacyProfile, setPrivacyProfile] = useState(() => getPrivacyProfilePreference());
   const [sessionMode, setSessionMode] = useState(() => getSessionModePreference());
@@ -134,7 +131,6 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const [wormholeGuideNotice, setWormholeGuideNotice] = useState<string | null>(null);
   const [showAdvancedWormhole, setShowAdvancedWormhole] = useState(false);
   const [wormholeQuickState, setWormholeQuickState] = useState<'idle' | 'ready' | 'connecting' | 'active'>('idle');
-  const [showOperatorTools, setShowOperatorTools] = useState(false);
   const [wormholeNodeId, setWormholeNodeId] = useState<string | null>(null);
   const [wormholeKeyCopied, setWormholeKeyCopied] = useState(false);
   const [gateCompatTelemetry, setGateCompatTelemetry] = useState<GateCompatTelemetrySnapshot>(
@@ -306,56 +302,6 @@ const SettingsPanel = React.memo(function SettingsPanel({
       setBrowserWipeBusy(false);
     }
   }, [wormholeEnabled]);
-  const refreshAdminSession = useCallback(async () => {
-    // In native desktop mode, protected settings are handled through Rust IPC
-    // with native admin-key ownership — no browser admin-session needed.
-    if (isNativeProtectedSettingsReady()) {
-      setAdminSessionReady(true);
-      setAdminSessionMsg(null);
-      return true;
-    }
-    const ready = await hasAdminSession();
-    setAdminSessionReady(ready);
-    if (!ready) {
-      setAdminSessionMsg((prev) => (prev === 'LOCAL SESSION PRIMED' ? null : prev));
-    }
-    return ready;
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== 'protocol') {
-      setShowOperatorTools(true);
-    }
-  }, [activeTab]);
-  const ensureAdminSession = useCallback(async () => {
-    // Native desktop: already authenticated via Rust IPC admin-key ownership.
-    if (isNativeProtectedSettingsReady()) {
-      setAdminSessionReady(true);
-      setAdminSessionMsg(null);
-      return;
-    }
-    try {
-      await primeAdminSession(adminKey.trim() || undefined);
-      setAdminSessionReady(true);
-      if (adminKey.trim()) {
-        setAdminKey('');
-        setAdminSessionMsg('LOCAL SESSION PRIMED');
-      } else {
-        setAdminSessionMsg(null);
-      }
-    } catch (e) {
-      const ready = await refreshAdminSession();
-      setAdminSessionReady(ready);
-      const message =
-        e instanceof Error && e.message === 'admin_session_required'
-          ? 'ADMIN SESSION REQUIRED'
-          : e instanceof Error
-            ? e.message
-            : 'ADMIN SESSION FAILED';
-      setAdminSessionMsg(message);
-      throw e;
-    }
-  }, [adminKey, refreshAdminSession]);
 
   const clearApisRef = React.useRef<() => void>(() => {});
 
@@ -368,8 +314,8 @@ const SettingsPanel = React.memo(function SettingsPanel({
         message === 'Forbidden — invalid or missing admin key'
       ) {
         await clearAdminSession();
-        setAdminSessionReady(false);
-        setAdminSessionMsg(
+        setAdminSessionReadyRef.current(false);
+        setAdminSessionMsgRef.current(
           message === 'Forbidden — admin key not configured'
             ? 'BACKEND ADMIN KEY NOT CONFIGURED'
             : 'ADMIN KEY INVALID OR EXPIRED',
@@ -397,6 +343,14 @@ const SettingsPanel = React.memo(function SettingsPanel({
     setApiKeyInputs, setApiKeyEditing, setApiKeyMsg, clearApiKeys,
   } = useSettingsPanelApiKeys(handleProtectedSettingsError);
   clearApisRef.current = clearApiKeys;
+
+  const {
+    adminKey, setAdminKey, adminSessionReady, setAdminSessionReady, adminSessionBusy, adminSessionMsg, setAdminSessionMsg,
+    showOperatorTools, setShowOperatorTools,
+    refreshAdminSession, ensureAdminSession, unlockAdminSession, lockAdminSession,
+  } = useSettingsPanelAdminSession({ activeTab, fetchKeys, fetchFeeds, setDmRootHealth, setDmRootHealthMsg });
+  setAdminSessionReadyRef.current = setAdminSessionReady;
+  setAdminSessionMsgRef.current = setAdminSessionMsg;
 
 
   const fetchWormhole = useCallback(async () => {
@@ -735,40 +689,6 @@ const SettingsPanel = React.memo(function SettingsPanel({
     }
   };
 
-  const unlockAdminSession = async () => {
-    setAdminSessionBusy(true);
-    setAdminSessionMsg(null);
-    try {
-      await ensureAdminSession();
-      await Promise.all([fetchKeys(), fetchFeeds()]);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'ADMIN SESSION FAILED';
-      if (message === 'Forbidden — admin key not configured') {
-        await clearAdminSession();
-        setAdminSessionReady(false);
-        setAdminSessionMsg('BACKEND ADMIN KEY NOT CONFIGURED');
-        return;
-      }
-      setAdminSessionMsg(message.toUpperCase());
-    } finally {
-      setAdminSessionBusy(false);
-    }
-  };
-
-  const lockAdminSession = async () => {
-    setAdminSessionBusy(true);
-    setAdminSessionMsg(null);
-    try {
-      await clearAdminSession();
-      setAdminKey('');
-      setAdminSessionReady(false);
-      setDmRootHealth(null);
-      setDmRootHealthMsg(null);
-      setAdminSessionMsg('LOCAL SESSION CLEARED');
-    } finally {
-      setAdminSessionBusy(false);
-    }
-  };
 
   const configuredTransport = (wormholeStatus?.transport || wormholeTransport || '').toLowerCase();
   const activeTransport = (wormholeStatus?.transport_active || '').toLowerCase();
