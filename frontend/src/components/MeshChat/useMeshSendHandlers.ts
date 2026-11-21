@@ -3,13 +3,8 @@
 import { API_BASE } from '@/lib/api';
 
 export function useMeshSendHandlers(ctx: any) {
-  const c: any = ctx;
-  // Bind controller scope vars from ctx - pragmatic extraction.
-  for (const [k,v] of Object.entries(c)) {
-    try { (globalThis as any)[k]; } catch {}
-  }
-  // Commonly used names
   const {
+
     activeTab, hasId, busy, inputValue, selectedGate, selectedGateAccessReady, anonymousPublicBlocked, privateInfonetReady,
     wormholeEnabled, wormholeReadyState, anonymousDmBlocked, privacyProfile, expanded, identity, contacts, selectedContact,
     dmView, accessRequests, pendingSent, dmConsentScopeId, lastSendTime, meshRegion, meshChannel, meshDirectTarget,
@@ -23,1002 +18,1001 @@ export function useMeshSendHandlers(ctx: any) {
     setSasPhrase, setDmMaintenanceBusy, setGates, setSelectedGate, setGateCompatActive, setNewGateId,
     isWormholeSecureRequired, isGateSendBlocked, getContacts, updateContact, addContact, getAccessRequests, setAccessRequests,
     setPendingSent, getPendingSent, gateReplyContext, meshView,
-  } = c;
+    } = ctx as any;
 
 
-  ctx.const handleSend = ctx.async () => {
-    ctx.const msg = ctx.inputValue.trim();
-    ctx.if (!msg || ctx.busy) ctx.return;
-    ctx.if (ctx.activeTab !== 'meshtastic' && !ctx.hasId) ctx.return;
+  const handleSend = async () => {
+    const msg = inputValue.trim();
+    if (!msg || busy) return;
+    if (activeTab !== 'meshtastic' && !hasId) return;
 
-    ctx.const cooldownMs = ctx.activeTab === 'dms' ? 0 : ctx.activeTab === 'meshtastic' ? 6_000 : 30_000;
-    ctx.const now = Date.now();
-    ctx.const elapsed = now - ctx.lastSendTime;
-    ctx.if (cooldownMs > 0 && elapsed < cooldownMs) {
-      ctx.const wait = Math.ceil((cooldownMs - elapsed) / 1000);
-      ctx.setSendError(`ctx.cooldown: ${wait}ctx.s`);
-      setTimeout(() => ctx.setSendError(''), 3000);
-      ctx.return;
+    const cooldownMs = activeTab === 'dms' ? 0 : activeTab === 'meshtastic' ? 6_000 : 30_000;
+    const now = Date.now();
+    const elapsed = now - lastSendTime;
+    if (cooldownMs > 0 && elapsed < cooldownMs) {
+      const wait = Math.ceil((cooldownMs - elapsed) / 1000);
+      setSendError(`cooldown: ${wait}s`);
+      setTimeout(() => setSendError(''), 3000);
+      return;
     }
 
-    ctx.if (ctx.anonymousPublicBlocked && ctx.activeTab === 'infonet') {
-      ctx.setSendError('hidden ctx.transport ctx.required ctx.for ctx.infonet ctx.posting');
-      setTimeout(() => ctx.setSendError(''), 4000);
-      ctx.return;
+    if (anonymousPublicBlocked && activeTab === 'infonet') {
+      setSendError('hidden transport required for infonet posting');
+      setTimeout(() => setSendError(''), 4000);
+      return;
     }
 
-    ctx.if (ctx.activeTab === 'infonet' && !ctx.privateInfonetReady) {
-      ctx.setSendError('wormhole ctx.required ctx.for ctx.infonet');
-      setTimeout(() => ctx.setSendError(''), 4000);
-      ctx.return;
+    if (activeTab === 'infonet' && !privateInfonetReady) {
+      setSendError('wormhole required for infonet');
+      setTimeout(() => setSendError(''), 4000);
+      return;
     }
 
-    ctx.if (ctx.isGateSendBlocked(ctx.activeTab, Boolean(ctx.selectedGate), ctx.selectedGateAccessReady)) {
-      ctx.setSendError('gate ctx.access ctx.still ctx.syncing');
-      setTimeout(() => ctx.setSendError(''), 4000);
-      ctx.return;
+    if (isGateSendBlocked(activeTab, Boolean(selectedGate), selectedGateAccessReady)) {
+      setSendError('gate access still syncing');
+      setTimeout(() => setSendError(''), 4000);
+      return;
     }
 
-    ctx.setInputValue('');
-    ctx.setSendError('');
-    ctx.setBusy(true);
-    ctx.setLastSendTime(now);
+    setInputValue('');
+    setSendError('');
+    setBusy(true);
+    setLastSendTime(now);
 
-    ctx.try {
-        ctx.if (ctx.activeTab === 'infonet' && ctx.selectedGate) {
-          ctx.const gateReplyPrefix =
-            ctx.gateReplyContext && ctx.gateReplyContext.gateId === String(ctx.selectedGate).trim().toLowerCase()
-              ? `>>${ctx.gateReplyContext.eventId.slice(0, 8)} @${ctx.gateReplyContext.nodeId.slice(0, 12)} `
+    try {
+        if (activeTab === 'infonet' && selectedGate) {
+          const gateReplyPrefix =
+            gateReplyContext && gateReplyContext.gateId === String(selectedGate).trim().toLowerCase()
+              ? `>>${gateReplyContext.eventId.slice(0, 8)} @${gateReplyContext.nodeId.slice(0, 12)} `
               : '';
-          ctx.const gateData = ctx.await ctx.postWormholeGateMessage(
-            ctx.selectedGate,
+          const gateData = await postWormholeGateMessage(
+            selectedGate,
             `${gateReplyPrefix}${msg}`,
-            ctx.gateReplyContext?.gateId === String(ctx.selectedGate).trim().toLowerCase()
-              ? ctx.gateReplyContext?.eventId || ''
+            gateReplyContext?.gateId === String(selectedGate).trim().toLowerCase()
+              ? gateReplyContext?.eventId || ''
               : '',
           ).catch((error) => ({
-            ctx.ok: false,
-            detail: error ctx.instanceof Error ? error.message : 'gate ctx.post ctx.failed',
+            ok: false,
+            detail: error instanceof Error ? error.message : 'gate post failed',
           }));
-          ctx.if (gateData?.ok === false) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.const detail = gateData?.detail || 'gate ctx.post ctx.failed';
-            ctx.setSendError(
+          if (gateData?.ok === false) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            const detail = gateData?.detail || 'gate post failed';
+            setSendError(
               detail === 'gate_backend_plaintext_compat_required'
-                ? 'Service-ctx.side ctx.gate ctx.send ctx.is ctx.disabled ctx.on ctx.this ctx.runtime. ctx.Use ctx.native ctx.desktop ctx.or ctx.an ctx.explicit ctx.compatibility ctx.override.'
+                ? 'Service-side gate send is disabled on this runtime. Use native desktop or an explicit compatibility override.'
                 : detail === 'gate_compat_fallback_consent_required' || detail.startsWith('gate_local_runtime_required:')
-                  ? ctx.describeGateLocalRuntimeRequired(detail, ctx.selectedGate)
+                  ? describeGateLocalRuntimeRequired(detail, selectedGate)
                   : detail,
             );
-            ctx.if (ctx.markGateResyncRequired(detail, ctx.selectedGate)) {
-              ctx.setGateError(
-                ctx.describeNativeControlError(detail) ||
-                  'Gate ctx.state ctx.changed ctx.on ctx.another ctx.path. ctx.Resync ctx.before ctx.retrying.',
+            if (markGateResyncRequired(detail, selectedGate)) {
+              setGateError(
+                describeNativeControlError(detail) ||
+                  'Gate state changed on another path. Resync before retrying.',
               );
             }
-            setTimeout(() => ctx.setSendError(''), 4000);
-            ctx.return;
+            setTimeout(() => setSendError(''), 4000);
+            return;
         }
-        ctx.clearGateResyncRequired(ctx.selectedGate);
-        ctx.setInfoMessages((prev) => [
+        clearGateResyncRequired(selectedGate);
+        setInfoMessages((prev) => [
           ...prev,
           {
-            ctx.event_id: `ctx._pending_${Date.now()}`,
-            ctx.event_type: 'gate_message',
-            ctx.gate: String(ctx.selectedGate || '').trim().toLowerCase(),
-            ctx.node_id: String(ctx.identity?.nodeId || ''),
-            ctx.message: `${gateReplyPrefix}${msg}`,
-            ctx.decrypted_message: `${gateReplyPrefix}${msg}`,
+            event_id: `_pending_${Date.now()}`,
+            event_type: 'gate_message',
+            gate: String(selectedGate || '').trim().toLowerCase(),
+            node_id: String(identity?.nodeId || ''),
+            message: `${gateReplyPrefix}${msg}`,
+            decrypted_message: `${gateReplyPrefix}${msg}`,
             timestamp: Math.floor(Date.now() / 1000),
-            ctx.ephemeral: true,
+            ephemeral: true,
           },
         ]);
-        ctx.setGateReplyContext(null);
-        } ctx.else ctx.if (ctx.activeTab === 'meshtastic') {
-          ctx.const meshSenderAddress = ctx.activePublicMeshAddress;
-          ctx.if (!meshSenderAddress) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setSendError('public ctx.mesh ctx.identity ctx.needed');
-            ctx.openIdentityWizard({
-              ctx.type: 'err',
-              ctx.text: ctx.hasStoredPublicLaneIdentity
-                ? 'Quick ctx.fix: ctx.turn ctx.Meshtastic ctx.Chat ctx.on ctx.below, ctx.then ctx.retry ctx.your ctx.send.'
-                : 'Quick ctx.fix: ctx.create ctx.a ctx.public ctx.mesh ctx.identity ctx.below, ctx.then ctx.retry ctx.your ctx.send.',
+        setGateReplyContext(null);
+        } else if (activeTab === 'meshtastic') {
+          const meshSenderAddress = activePublicMeshAddress;
+          if (!meshSenderAddress) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setSendError('public mesh identity needed');
+            openIdentityWizard({
+              type: 'err',
+              text: hasStoredPublicLaneIdentity
+                ? 'Quick fix: turn Meshtastic Chat on below, then retry your send.'
+                : 'Quick fix: create a public mesh identity below, then retry your send.',
             });
-            setTimeout(() => ctx.setSendError(''), 4000);
-            ctx.setBusy(false);
-            ctx.return;
+            setTimeout(() => setSendError(''), 4000);
+            setBusy(false);
+            return;
           }
-          ctx.if (!ctx.meshSessionActive) {
-            ctx.setPublicMeshAddress(meshSenderAddress);
-            ctx.setMeshSessionActive(true);
+          if (!meshSessionActive) {
+            setPublicMeshAddress(meshSenderAddress);
+            setMeshSessionActive(true);
           }
-          ctx.if (!ctx.meshMqttEnabled) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setSendError('mqtt ctx.is ctx.off');
-            ctx.setMeshQuickStatus({
-              ctx.type: 'err',
-              ctx.text: 'Public ctx.Mesh ctx.key ctx.is ctx.ready, ctx.but MQTT ctx.is ctx.off. ctx.Open ctx.Settings ctx.and ctx.enable ctx.the ctx.public ctx.broker.',
+          if (!meshMqttEnabled) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setSendError('mqtt is off');
+            setMeshQuickStatus({
+              type: 'err',
+              text: 'Public Mesh key is ready, but MQTT is off. Open Settings and enable the public broker.',
             });
-            ctx.setMeshView('settings');
-            setTimeout(() => ctx.setSendError(''), 4000);
-            ctx.setBusy(false);
-            ctx.return;
+            setMeshView('settings');
+            setTimeout(() => setSendError(''), 4000);
+            setBusy(false);
+            return;
           }
-          ctx.const meshDestination = ctx.meshDirectTarget.trim() || 'broadcast';
-          ctx.const payload = {
-            ctx.message: msg,
-            ctx.destination: meshDestination,
-            ctx.channel: ctx.meshChannel,
-            ctx.priority: 'normal',
-            ctx.ephemeral: false,
-            ctx.transport_lock: 'meshtastic',
+          const meshDestination = meshDirectTarget.trim() || 'broadcast';
+          const payload = {
+            message: msg,
+            destination: meshDestination,
+            channel: meshChannel,
+            priority: 'normal',
+            ephemeral: false,
+            transport_lock: 'meshtastic',
           };
-          ctx.const v = ctx.validateEventPayload('message', payload);
-          ctx.if (!v.ok) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setSendError(`ctx.invalid payload: ${v.reason}`);
-            setTimeout(() => ctx.setSendError(''), 4000);
-            ctx.setBusy(false);
-            ctx.return;
+          const v = validateEventPayload('message', payload);
+          if (!v.ok) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setSendError(`invalid payload: ${v.reason}`);
+            setTimeout(() => setSendError(''), 4000);
+            setBusy(false);
+            return;
           }
-          ctx.const sendRes = ctx.await fetch(`${API_BASE}/ctx.api/ctx.mesh/ctx.meshtastic/ctx.send`, {
-            ctx.method: 'POST',
-            ctx.headers: { 'Content-ctx.Type': 'application/ctx.json' },
-            ctx.body: JSON.stringify({
-              ctx.destination: meshDestination,
-              ctx.message: msg,
-              ctx.channel: ctx.meshChannel,
-              ctx.priority: 'normal',
-              ctx.ephemeral: false,
-              ctx.transport_lock: 'meshtastic',
-              ctx.sender_id: meshSenderAddress,
-              ctx.mesh_region: ctx.meshRegion,
+          const sendRes = await fetch(`${API_BASE}/api/mesh/meshtastic/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              destination: meshDestination,
+              message: msg,
+              channel: meshChannel,
+              priority: 'normal',
+              ephemeral: false,
+              transport_lock: 'meshtastic',
+              sender_id: meshSenderAddress,
+              mesh_region: meshRegion,
             }),
           });
-        ctx.if (!sendRes.ok) {
-          ctx.setInputValue(msg);
-          ctx.setLastSendTime(0); // ctx.Don't ctx.burn ctx.cooldown ctx.on ctx.failure
-          ctx.setSendError(sendRes.status === 429 ? 'rate ctx.limited' : 'send ctx.failed');
-          setTimeout(() => ctx.setSendError(''), 4000);
-          ctx.return;
+        if (!sendRes.ok) {
+          setInputValue(msg);
+          setLastSendTime(0); // Don't burn cooldown on failure
+          setSendError(sendRes.status === 429 ? 'rate limited' : 'send failed');
+          setTimeout(() => setSendError(''), 4000);
+          return;
         }
-        ctx.const sendData = ctx.await sendRes.json();
-        ctx.if (!sendData.ok) {
-          ctx.setInputValue(msg);
-          ctx.setLastSendTime(0);
-          ctx.setSendError(sendData.detail || 'send ctx.failed');
-          setTimeout(() => ctx.setSendError(''), 4000);
-          ctx.return;
+        const sendData = await sendRes.json();
+        if (!sendData.ok) {
+          setInputValue(msg);
+          setLastSendTime(0);
+          setSendError(sendData.detail || 'send failed');
+          setTimeout(() => setSendError(''), 4000);
+          return;
         }
-        // ctx.Re-fetch — ctx.backend ctx.injects ctx.our msg ctx.into ctx.the ctx.bridge ctx.feed ctx.after ctx.publish
-        ctx.const directTarget = meshDestination !== 'broadcast'
+        // Re-fetch — backend injects our msg into the bridge feed after publish
+        const directTarget = meshDestination !== 'broadcast'
           ? meshDestination.startsWith('!')
             ? meshDestination.toUpperCase()
             : `!${meshDestination}`.toUpperCase()
           : '';
-        ctx.const routeDetail = Array.isArray(sendData.results) && sendData.results[0]?.reason
+        const routeDetail = Array.isArray(sendData.results) && sendData.results[0]?.reason
           ? String(sendData.results[0].reason)
-          : String(sendData.route_reason || 'MQTT ctx.broker ctx.accepted ctx.publish');
-        ctx.setMeshQuickStatus({
-          ctx.type: 'ok',
-          ctx.text: directTarget
-            ? `ctx.Direct ctx.message ctx.queued ctx.for ${directTarget}. ${routeDetail}`
-            : `ctx.Channel ctx.message ctx.published ctx.to ${ctx.meshRegion}/${ctx.meshChannel}. ${routeDetail}`,
+          : String(sendData.route_reason || 'MQTT broker accepted publish');
+        setMeshQuickStatus({
+          type: 'ok',
+          text: directTarget
+            ? `Direct message queued for ${directTarget}. ${routeDetail}`
+            : `Channel message published to ${meshRegion}/${meshChannel}. ${routeDetail}`,
         });
-        window.setTimeout(() => ctx.setMeshQuickStatus(null), 6000);
-        ctx.await ctx.new Promise((r) => setTimeout(r, 500));
-        ctx.const params = ctx.new URLSearchParams({
-          ctx.limit: '30',
-          ctx.region: ctx.meshRegion,
-          ctx.channel: ctx.meshChannel,
+        window.setTimeout(() => setMeshQuickStatus(null), 6000);
+        await new Promise((r) => setTimeout(r, 500));
+        const params = new URLSearchParams({
+          limit: '30',
+          region: meshRegion,
+          channel: meshChannel,
         });
-        ctx.if (directTarget) params.set('include_direct', '1');
-        ctx.const mRes = ctx.await fetch(`${API_BASE}/ctx.api/ctx.mesh/ctx.messages?${params}`);
-        ctx.if (mRes.ok) {
-          ctx.const data = ctx.await mRes.json();
-          ctx.setMeshMessages(Array.isArray(data) ? [...data].reverse() : []);
+        if (directTarget) params.set('include_direct', '1');
+        const mRes = await fetch(`${API_BASE}/api/mesh/messages?${params}`);
+        if (mRes.ok) {
+          const data = await mRes.json();
+          setMeshMessages(Array.isArray(data) ? [...data].reverse() : []);
         }
-        } ctx.else ctx.if (ctx.activeTab === 'dms' && ctx.selectedContact && ctx.dmView === 'chat') {
-          ctx.if (ctx.anonymousDmBlocked) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setSendError('hidden ctx.transport ctx.required ctx.for ctx.anonymous ctx.dm');
-            setTimeout(() => ctx.setSendError(''), 4000);
-            ctx.setBusy(false);
-            ctx.return;
+        } else if (activeTab === 'dms' && selectedContact && dmView === 'chat') {
+          if (anonymousDmBlocked) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setSendError('hidden transport required for anonymous dm');
+            setTimeout(() => setSendError(''), 4000);
+            setBusy(false);
+            return;
           }
-          ctx.const contactInfo = ctx.contacts[ctx.selectedContact];
-          ctx.if (contactInfo?.remotePrekeyMismatch) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setShowSas(true);
-            ctx.setSendError('remote ctx.prekey ctx.changed — ctx.verify ctx.before ctx.sending');
-            setTimeout(() => ctx.setSendError(''), 5000);
-            ctx.setBusy(false);
-            ctx.return;
+          const contactInfo = contacts[selectedContact];
+          if (contactInfo?.remotePrekeyMismatch) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setShowSas(true);
+            setSendError('remote prekey changed — verify before sending');
+            setTimeout(() => setSendError(''), 5000);
+            setBusy(false);
+            return;
           }
-          ctx.if (contactInfo?.verify_mismatch) {
-            ctx.setInputValue(msg);
-            ctx.setLastSendTime(0);
-            ctx.setShowSas(true);
-            ctx.setSendError('contact ctx.key ctx.mismatch — ctx.verify ctx.before ctx.sending');
-            setTimeout(() => ctx.setSendError(''), 5000);
-            ctx.setBusy(false);
-            ctx.return;
+          if (contactInfo?.verify_mismatch) {
+            setInputValue(msg);
+            setLastSendTime(0);
+            setShowSas(true);
+            setSendError('contact key mismatch — verify before sending');
+            setTimeout(() => setSendError(''), 5000);
+            setBusy(false);
+            return;
           }
-          ctx.if (contactInfo?.dhPubKey) {
-            ctx.const localDhAlgo = ctx.getDHAlgo();
-            ctx.if (contactInfo.dhAlgo && localDhAlgo && contactInfo.dhAlgo !== localDhAlgo) {
-              ctx.setSendError('dm ctx.key ctx.mismatch');
-              setTimeout(() => ctx.setSendError(''), 4000);
-              ctx.return;
+          if (contactInfo?.dhPubKey) {
+            const localDhAlgo = getDHAlgo();
+            if (contactInfo.dhAlgo && localDhAlgo && contactInfo.dhAlgo !== localDhAlgo) {
+              setSendError('dm key mismatch');
+              setTimeout(() => setSendError(''), 4000);
+              return;
             }
-            ctx.try {
-              ctx.await ctx.ensureRegisteredDmKey(API_BASE, ctx.identity!, { ctx.force: false });
-              ctx.const rotatedContact = ctx.await maybeRotateSharedAlias(ctx.selectedContact, contactInfo);
-              ctx.const promotion = ctx.promotePendingAlias(ctx.selectedContact, rotatedContact);
-              ctx.if (promotion) ctx.updateContact(ctx.selectedContact, promotion.delta.updates);
-              ctx.const effectiveContact = promotion?.promoted || rotatedContact;
-              ctx.const sharedPeerId = ctx.preferredDmPeerId(ctx.selectedContact, effectiveContact);
-              ctx.const ciphertext = ctx.await ctx.ratchetEncryptDM(ctx.selectedContact, effectiveContact.dhPubKey!, msg);
-              ctx.const recipientToken = ctx.await ctx.sharedMailboxToken(sharedPeerId, effectiveContact.dhPubKey!);
-              ctx.const msgId = `ctx.dm_${Date.now()}ctx._${ctx.identity!.nodeId.slice(-4)}`;
-              ctx.const timestamp = Math.floor(Date.now() / 1000);
-              ctx.await ctx.enqueueDmSend(ctx.async () => {
-                ctx.const sent = ctx.await ctx.sendDmMessage({
-                  ctx.apiBase: API_BASE,
-                  ctx.identity: ctx.identity!,
+            try {
+              await ensureRegisteredDmKey(API_BASE, identity!, { force: false });
+              const rotatedContact = await maybeRotateSharedAlias(selectedContact, contactInfo);
+              const promotion = promotePendingAlias(selectedContact, rotatedContact);
+              if (promotion) updateContact(selectedContact, promotion.delta.updates);
+              const effectiveContact = promotion?.promoted || rotatedContact;
+              const sharedPeerId = preferredDmPeerId(selectedContact, effectiveContact);
+              const ciphertext = await ratchetEncryptDM(selectedContact, effectiveContact.dhPubKey!, msg);
+              const recipientToken = await sharedMailboxToken(sharedPeerId, effectiveContact.dhPubKey!);
+              const msgId = `dm_${Date.now()}_${identity!.nodeId.slice(-4)}`;
+              const timestamp = Math.floor(Date.now() / 1000);
+              await enqueueDmSend(async () => {
+                const sent = await sendDmMessage({
+                  apiBase: API_BASE,
+                  identity: identity!,
                   recipientId: sharedPeerId,
-                  ctx.recipientDhPub: effectiveContact.dhPubKey,
+                  recipientDhPub: effectiveContact.dhPubKey,
                   ciphertext,
                   msgId,
                   timestamp,
-                  ctx.deliveryClass: 'shared',
+                  deliveryClass: 'shared',
                   recipientToken,
-                  ctx.useSealedSender: true,
+                  useSealedSender: true,
                 });
-                ctx.if (!sent.ok) {
-                  ctx.throw ctx.new Error(sent.detail || 'secure_dm_send_failed');
+                if (!sent.ok) {
+                  throw new Error(sent.detail || 'secure_dm_send_failed');
                 }
-                ctx.if (sent.transport === 'reticulum' || sent.transport === 'relay') {
-                  ctx.setLastDmTransport(sent.transport);
+                if (sent.transport === 'reticulum' || sent.transport === 'relay') {
+                  setLastDmTransport(sent.transport);
                 }
               });
-            } ctx.catch (error) {
-              ctx.setInputValue(msg);
-              ctx.setLastSendTime(0);
-              ctx.const detail = error ctx.instanceof Error ? error.message : '';
-              ctx.if (detail.toLowerCase().includes('prekey') || detail.toLowerCase().includes('verify')) {
-                ctx.setShowSas(true);
+            } catch (error) {
+              setInputValue(msg);
+              setLastSendTime(0);
+              const detail = error instanceof Error ? error.message : '';
+              if (detail.toLowerCase().includes('prekey') || detail.toLowerCase().includes('verify')) {
+                setShowSas(true);
               }
-              ctx.setSendError(detail || 'secure ctx.dm ctx.send ctx.failed');
-              setTimeout(() => ctx.setSendError(''), 4000);
-              ctx.setBusy(false);
-              ctx.return;
+              setSendError(detail || 'secure dm send failed');
+              setTimeout(() => setSendError(''), 4000);
+              setBusy(false);
+              return;
             }
           }
         }
-    } ctx.catch (err) {
-      ctx.setInputValue(msg);
-      ctx.setLastSendTime(0);
-      ctx.const detail = err ctx.instanceof Error && err.message ? err.message : '';
-      ctx.const nativeDetail = ctx.describeNativeControlError(err);
-      ctx.if (ctx.activeTab === 'infonet') {
-        ctx.refreshNativeAuditReport();
+    } catch (err) {
+      setInputValue(msg);
+      setLastSendTime(0);
+      const detail = err instanceof Error && err.message ? err.message : '';
+      const nativeDetail = describeNativeControlError(err);
+      if (activeTab === 'infonet') {
+        refreshNativeAuditReport();
       }
-      ctx.if (ctx.activeTab === 'infonet') {
-        ctx.if (ctx.markGateResyncRequired(err, ctx.selectedGate)) {
-          ctx.setGateError(
-            nativeDetail || detail || 'Gate ctx.state ctx.changed ctx.on ctx.another ctx.path. ctx.Resync ctx.before ctx.retrying.',
+      if (activeTab === 'infonet') {
+        if (markGateResyncRequired(err, selectedGate)) {
+          setGateError(
+            nativeDetail || detail || 'Gate state changed on another path. Resync before retrying.',
           );
         }
-        ctx.setSendError(
-          nativeDetail || detail || 'encrypted ctx.gate ctx.send ctx.failed',
+        setSendError(
+          nativeDetail || detail || 'encrypted gate send failed',
         );
-      } ctx.else {
-        ctx.setSendError(nativeDetail || detail || 'send ctx.failed');
+      } else {
+        setSendError(nativeDetail || detail || 'send failed');
       }
-      setTimeout(() => ctx.setSendError(''), 4000);
+      setTimeout(() => setSendError(''), 4000);
     }
-    ctx.setBusy(false);
+    setBusy(false);
   };
 
-  ctx.const sendDecoy = ctx.useCallback(ctx.async () => {
-    ctx.if (!ctx.hasId || !ctx.identity) ctx.return;
-    ctx.if (ctx.anonymousDmBlocked) ctx.return;
-    ctx.try {
-      ctx.if (!(ctx.await ctx.canUseWormholeBootstrap())) ctx.return;
-      ctx.await ctx.ensureRegisteredDmKey(API_BASE, ctx.identity, { ctx.force: false });
-      ctx.const msgId = `ctx.dm_${Date.now()}ctx._${ctx.identity.nodeId.slice(-4)}`;
-      ctx.const timestamp = Math.floor(Date.now() / 1000);
-      ctx.const padLen = 72 + Math.floor(Math.random() * 88);
-      ctx.const ciphertext = ctx.randomBase64(padLen);
-      ctx.const recipientId = `ctx.decoy_${ctx.randomHex(6)}`;
-      ctx.const recipientToken = ctx.randomHex(24);
-      ctx.const sent = ctx.await ctx.sendDmMessage({
-        ctx.apiBase: API_BASE,
-        ctx.identity,
+  const sendDecoy = useCallback(async () => {
+    if (!hasId || !identity) return;
+    if (anonymousDmBlocked) return;
+    try {
+      if (!(await canUseWormholeBootstrap())) return;
+      await ensureRegisteredDmKey(API_BASE, identity, { force: false });
+      const msgId = `dm_${Date.now()}_${identity.nodeId.slice(-4)}`;
+      const timestamp = Math.floor(Date.now() / 1000);
+      const padLen = 72 + Math.floor(Math.random() * 88);
+      const ciphertext = randomBase64(padLen);
+      const recipientId = `decoy_${randomHex(6)}`;
+      const recipientToken = randomHex(24);
+      const sent = await sendDmMessage({
+        apiBase: API_BASE,
+        identity,
         recipientId,
         ciphertext,
         msgId,
         timestamp,
-        ctx.deliveryClass: 'shared',
+        deliveryClass: 'shared',
         recipientToken,
-        ctx.useSealedSender: false,
+        useSealedSender: false,
       });
-      ctx.if (sent.transport === 'reticulum' || sent.transport === 'relay') {
-        ctx.setLastDmTransport(sent.transport);
+      if (sent.transport === 'reticulum' || sent.transport === 'relay') {
+        setLastDmTransport(sent.transport);
       }
-    } ctx.catch {
-      /* ctx.ignore */
+    } catch {
+      /* ignore */
     }
-  }, [ctx.hasId, ctx.identity, ctx.anonymousDmBlocked]);
+  }, [hasId, identity, anonymousDmBlocked]);
 
-  // ctx.Decoy ctx.traffic (ctx.optional)
-  ctx.useEffect(() => {
-    ctx.if (!ctx.decoyEnabled || !ctx.hasId) ctx.return;
-    ctx.let cancelled = false;
-    ctx.let timer: ctx.ReturnType<ctx.typeof setTimeout> | null = null;
-    ctx.const schedule = () => {
-      ctx.const delay = ctx.jitterDelay(DM_DECOY_POLL_MS, DM_DECOY_POLL_JITTER_MS);
-      timer = setTimeout(ctx.async () => {
-        ctx.await sendDecoy();
-        ctx.if (!cancelled) schedule();
+  // Decoy traffic (optional)
+  useEffect(() => {
+    if (!decoyEnabled || !hasId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      const delay = jitterDelay(DM_DECOY_POLL_MS, DM_DECOY_POLL_JITTER_MS);
+      timer = setTimeout(async () => {
+        await sendDecoy();
+        if (!cancelled) schedule();
       }, delay);
     };
     schedule();
-    ctx.return () => {
+    return () => {
       cancelled = true;
-      ctx.if (timer) clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [ctx.decoyEnabled, ctx.hasId, sendDecoy]);
+  }, [decoyEnabled, hasId, sendDecoy]);
 
-  ctx.const handleVote = ctx.async (targetId: string, vote: 1 | -1, gateIdOverride?: string) => {
-    ctx.if (!ctx.hasId) ctx.return;
-    ctx.if (ctx.anonymousPublicBlocked) ctx.return;
-    ctx.if (!ctx.privateInfonetReady) ctx.return;
-    ctx.const voteGate = String(gateIdOverride || ctx.selectedGate || '').trim().toLowerCase();
-    ctx.const scopeKey = ctx.voteScopeKey(targetId, voteGate);
-    // ctx.If ctx.already ctx.voted ctx.same ctx.direction, ctx.ignore
-    ctx.if (ctx.votedOn[scopeKey] === vote) ctx.return;
-    ctx.setVotedOn((prev) => ({ ...prev, [scopeKey]: vote }));
-    ctx.try {
-      ctx.const sequence = ctx.nextSequence();
-      ctx.const votePayload = { ctx.target_id: targetId, vote, ctx.gate: voteGate };
-      ctx.const v = ctx.validateEventPayload('vote', votePayload);
-      ctx.if (!v.ok) ctx.return;
-      ctx.const signed = ctx.await ctx.signMeshEvent('vote', votePayload, sequence, {
+  const handleVote = async (targetId: string, vote: 1 | -1, gateIdOverride?: string) => {
+    if (!hasId) return;
+    if (anonymousPublicBlocked) return;
+    if (!privateInfonetReady) return;
+    const voteGate = String(gateIdOverride || selectedGate || '').trim().toLowerCase();
+    const scopeKey = voteScopeKey(targetId, voteGate);
+    // If already voted same direction, ignore
+    if (votedOn[scopeKey] === vote) return;
+    setVotedOn((prev) => ({ ...prev, [scopeKey]: vote }));
+    try {
+      const sequence = nextSequence();
+      const votePayload = { target_id: targetId, vote, gate: voteGate };
+      const v = validateEventPayload('vote', votePayload);
+      if (!v.ok) return;
+      const signed = await signMeshEvent('vote', votePayload, sequence, {
         gateId: voteGate || undefined,
       });
-      ctx.await fetch(`${API_BASE}/ctx.api/ctx.mesh/vote`, {
-        ctx.method: 'POST',
-        ctx.headers: { 'Content-ctx.Type': 'application/ctx.json' },
-        ctx.body: JSON.stringify({
-          ctx.voter_id: signed.context.nodeId,
-          ctx.target_id: targetId,
+      await fetch(`${API_BASE}/api/mesh/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          voter_id: signed.context.nodeId,
+          target_id: targetId,
           vote,
-          ctx.gate: voteGate || undefined,
-          ctx.voter_pubkey: signed.context.publicKey,
-          ctx.public_key_algo: signed.context.publicKeyAlgo,
-          ctx.voter_sig: signed.signature,
+          gate: voteGate || undefined,
+          voter_pubkey: signed.context.publicKey,
+          public_key_algo: signed.context.publicKeyAlgo,
+          voter_sig: signed.signature,
           sequence: signed.sequence,
-          ctx.protocol_version: signed.protocolVersion,
+          protocol_version: signed.protocolVersion,
         }),
       });
-      ctx.const res = ctx.await fetch(
-        `${API_BASE}/ctx.api/ctx.mesh/ctx.reputation?ctx.node_id=${encodeURIComponent(targetId)}`,
+      const res = await fetch(
+        `${API_BASE}/api/mesh/reputation?node_id=${encodeURIComponent(targetId)}`,
       );
-      ctx.if (res.ok) {
-        ctx.const data = ctx.await res.json();
-        ctx.setReps((prev) => ({ ...prev, [targetId]: data.overall || 0 }));
+      if (res.ok) {
+        const data = await res.json();
+        setReps((prev) => ({ ...prev, [targetId]: data.overall || 0 }));
       }
-    } ctx.catch {
-      /* ctx.ignore */
+    } catch {
+      /* ignore */
     }
   };
 
-  ctx.const handleCreateGate = ctx.async () => {
-    ctx.if (!ctx.hasId || !ctx.newGateId.trim()) ctx.return;
-    ctx.if (!ctx.privateInfonetReady) {
-      ctx.setGateError('wormhole ctx.required ctx.for ctx.private ctx.infonet');
-      ctx.return;
+  const handleCreateGate = async () => {
+    if (!hasId || !newGateId.trim()) return;
+    if (!privateInfonetReady) {
+      setGateError('wormhole required for private infonet');
+      return;
     }
-    ctx.if (ctx.anonymousPublicBlocked) {
-      ctx.setGateError('hidden ctx.transport ctx.required ctx.for ctx.gate ctx.creation');
-      ctx.return;
+    if (anonymousPublicBlocked) {
+      setGateError('hidden transport required for gate creation');
+      return;
     }
-    ctx.setGateError('');
-    ctx.try {
-      ctx.const gatePayload = {
-        ctx.gate_id: ctx.newGateId.trim(),
-        ctx.display_name: ctx.newGateName.trim() || ctx.newGateId.trim(),
-        ctx.rules: { ctx.min_overall_rep: ctx.newGateMinRep },
+    setGateError('');
+    try {
+      const gatePayload = {
+        gate_id: newGateId.trim(),
+        display_name: newGateName.trim() || newGateId.trim(),
+        rules: { min_overall_rep: newGateMinRep },
       };
-      ctx.const v = ctx.validateEventPayload('gate_create', gatePayload);
-      ctx.if (!v.ok) {
-        ctx.setGateError(`ctx.invalid payload: ${v.reason}`);
-        ctx.return;
+      const v = validateEventPayload('gate_create', gatePayload);
+      if (!v.ok) {
+        setGateError(`invalid payload: ${v.reason}`);
+        return;
       }
-      ctx.const sequence = ctx.nextSequence();
-      ctx.const signed = ctx.await ctx.signMeshEvent('gate_create', gatePayload, sequence);
-      ctx.const createRes = ctx.await fetch(`${API_BASE}/ctx.api/ctx.mesh/ctx.gate/ctx.create`, {
-        ctx.method: 'POST',
-        ctx.headers: { 'Content-ctx.Type': 'application/ctx.json' },
-        ctx.body: JSON.stringify({
-          ctx.creator_id: signed.context.nodeId,
-          ctx.gate_id: gatePayload.gate_id,
-          ctx.display_name: gatePayload.display_name,
-          ctx.rules: gatePayload.rules,
-          ctx.creator_pubkey: signed.context.publicKey,
-          ctx.public_key_algo: signed.context.publicKeyAlgo,
-          ctx.creator_sig: signed.signature,
+      const sequence = nextSequence();
+      const signed = await signMeshEvent('gate_create', gatePayload, sequence);
+      const createRes = await fetch(`${API_BASE}/api/mesh/gate/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creator_id: signed.context.nodeId,
+          gate_id: gatePayload.gate_id,
+          display_name: gatePayload.display_name,
+          rules: gatePayload.rules,
+          creator_pubkey: signed.context.publicKey,
+          public_key_algo: signed.context.publicKeyAlgo,
+          creator_sig: signed.signature,
           sequence: signed.sequence,
-          ctx.protocol_version: signed.protocolVersion,
+          protocol_version: signed.protocolVersion,
         }),
       });
-      ctx.const createData = ctx.await createRes.json();
-      ctx.if (!createData.ok) {
-        ctx.setGateError(createData.detail || 'Failed ctx.to ctx.create ctx.gate');
-        ctx.return;
+      const createData = await createRes.json();
+      if (!createData.ok) {
+        setGateError(createData.detail || 'Failed to create gate');
+        return;
       }
-      ctx.invalidateGateCatalogSnapshot();
-      ctx.const nextGates = (ctx.await ctx.fetchGateCatalogSnapshot({ ctx.force: true }).catch(() => [])).map(
-        ctx.gateCatalogEntryToGate,
+      invalidateGateCatalogSnapshot();
+      const nextGates = (await fetchGateCatalogSnapshot({ force: true }).catch(() => [])).map(
+        gateCatalogEntryToGate,
       );
-      ctx.if (nextGates.length > 0) {
-        ctx.setGates(nextGates);
+      if (nextGates.length > 0) {
+        setGates(nextGates);
       }
-      ctx.setSelectedGate(ctx.newGateId.trim().toLowerCase());
-      ctx.setShowCreateGate(false);
-      ctx.setNewGateId('');
-      ctx.setNewGateName('');
-      ctx.setNewGateMinRep(0);
-    } ctx.catch {
-      ctx.setGateError('Network error — ctx.try ctx.again');
+      setSelectedGate(newGateId.trim().toLowerCase());
+      setShowCreateGate(false);
+      setNewGateId('');
+      setNewGateName('');
+      setNewGateMinRep(0);
+    } catch {
+      setGateError('Network error — try again');
     }
   };
 
-  ctx.const refreshSelectedGatePersonas = ctx.useCallback(ctx.async (gateId: string) => {
-    ctx.const gateKey = gateId.trim().toLowerCase();
-    ctx.if (!gateKey || !ctx.wormholeEnabled || !ctx.wormholeReadyState) ctx.return;
-    ctx.const data = ctx.await ctx.listWormholeGatePersonas(gateKey);
-    ctx.if (!data.ok) ctx.return;
-    ctx.setGatePersonas((prev) => ({ ...prev, [gateKey]: Array.isArray(data.personas) ? data.personas : [] }));
-    ctx.setActiveGatePersonaId((prev) => ({
+  const refreshSelectedGatePersonas = useCallback(async (gateId: string) => {
+    const gateKey = gateId.trim().toLowerCase();
+    if (!gateKey || !wormholeEnabled || !wormholeReadyState) return;
+    const data = await listWormholeGatePersonas(gateKey);
+    if (!data.ok) return;
+    setGatePersonas((prev) => ({ ...prev, [gateKey]: Array.isArray(data.personas) ? data.personas : [] }));
+    setActiveGatePersonaId((prev) => ({
       ...prev,
       [gateKey]: String(data.active_persona_id || ''),
     }));
-  }, [ctx.wormholeEnabled, ctx.wormholeReadyState]);
+  }, [wormholeEnabled, wormholeReadyState]);
 
-  ctx.const refreshSelectedGateKeyStatus = ctx.useCallback(ctx.async (gateId: string) => {
-    ctx.const gateKey = gateId.trim().toLowerCase();
-    ctx.if (!gateKey || !ctx.wormholeEnabled || !ctx.wormholeReadyState) ctx.return;
-    ctx.const data = ctx.await ctx.fetchWormholeGateKeyStatus(gateKey);
-    ctx.setGateKeyStatus((prev) => ({ ...prev, [gateKey]: data }));
-  }, [ctx.wormholeEnabled, ctx.wormholeReadyState]);
+  const refreshSelectedGateKeyStatus = useCallback(async (gateId: string) => {
+    const gateKey = gateId.trim().toLowerCase();
+    if (!gateKey || !wormholeEnabled || !wormholeReadyState) return;
+    const data = await fetchWormholeGateKeyStatus(gateKey);
+    setGateKeyStatus((prev) => ({ ...prev, [gateKey]: data }));
+  }, [wormholeEnabled, wormholeReadyState]);
 
-  ctx.const handleResyncGateState = ctx.useCallback(
-    ctx.async (gateIdOverride?: string): Promise<ctx.boolean> => {
-      ctx.const gateId = String(gateIdOverride || ctx.selectedGate || '').trim().toLowerCase();
-      ctx.if (!gateId || !ctx.wormholeEnabled || !ctx.wormholeReadyState || ctx.gateResyncBusy) ctx.return false;
-      ctx.setGateResyncBusy(true);
-      ctx.setGateError('');
-      ctx.try {
-        ctx.const resynced = ctx.await ctx.resyncWormholeGateState(gateId);
-        ctx.if (!resynced.ok) {
-          ctx.throw ctx.new Error(resynced.detail || 'gate_state_resync_failed');
+  const handleResyncGateState = useCallback(
+    async (gateIdOverride?: string): Promise<boolean> => {
+      const gateId = String(gateIdOverride || selectedGate || '').trim().toLowerCase();
+      if (!gateId || !wormholeEnabled || !wormholeReadyState || gateResyncBusy) return false;
+      setGateResyncBusy(true);
+      setGateError('');
+      try {
+        const resynced = await resyncWormholeGateState(gateId);
+        if (!resynced.ok) {
+          throw new Error(resynced.detail || 'gate_state_resync_failed');
         }
-        ctx.clearGateResyncRequired(gateId);
-        ctx.await refreshSelectedGateKeyStatus(gateId).catch(() => null);
-        ctx.await refreshSelectedGatePersonas(gateId).catch(() => null);
-        ctx.if (ctx.selectedGate === gateId) {
-          ctx.await ctx.refreshInfonetMessages({ gateId, ctx.force: true });
+        clearGateResyncRequired(gateId);
+        await refreshSelectedGateKeyStatus(gateId).catch(() => null);
+        await refreshSelectedGatePersonas(gateId).catch(() => null);
+        if (selectedGate === gateId) {
+          await refreshInfonetMessages({ gateId, force: true });
         }
-        ctx.setSendError('gate ctx.state resynced — ctx.retry ctx.the ctx.room action');
-        window.setTimeout(() => ctx.setSendError(''), 4000);
-        ctx.refreshNativeAuditReport();
-        ctx.return true;
-      } ctx.catch (err) {
-        ctx.const detail =
-          ctx.describeNativeControlError(err) ||
-          (err ctx.instanceof Error && err.message) ||
-          'Failed ctx.to ctx.resync ctx.gate ctx.state';
-        ctx.setGateError(detail);
-        ctx.markGateResyncRequired(err, gateId);
-        ctx.return false;
-      } ctx.finally {
-        ctx.setGateResyncBusy(false);
+        setSendError('gate state resynced — retry the room action');
+        window.setTimeout(() => setSendError(''), 4000);
+        refreshNativeAuditReport();
+        return true;
+      } catch (err) {
+        const detail =
+          describeNativeControlError(err) ||
+          (err instanceof Error && err.message) ||
+          'Failed to resync gate state';
+        setGateError(detail);
+        markGateResyncRequired(err, gateId);
+        return false;
+      } finally {
+        setGateResyncBusy(false);
       }
     },
     [
-      ctx.clearGateResyncRequired,
-      ctx.gateResyncBusy,
-      ctx.markGateResyncRequired,
-      ctx.refreshNativeAuditReport,
-      ctx.refreshInfonetMessages,
+      clearGateResyncRequired,
+      gateResyncBusy,
+      markGateResyncRequired,
+      refreshNativeAuditReport,
+      refreshInfonetMessages,
       refreshSelectedGateKeyStatus,
       refreshSelectedGatePersonas,
-      ctx.selectedGate,
-      ctx.wormholeEnabled,
-      ctx.wormholeReadyState,
+      selectedGate,
+      wormholeEnabled,
+      wormholeReadyState,
     ],
   );
 
-  ctx.const closeGatePersonaPrompt = ctx.useCallback(() => {
-    ctx.setGatePersonaPromptOpen(false);
-    ctx.setGatePersonaPromptGateId('');
-    ctx.setGatePersonaDraftLabel('');
-    ctx.setGatePersonaPromptError('');
+  const closeGatePersonaPrompt = useCallback(() => {
+    setGatePersonaPromptOpen(false);
+    setGatePersonaPromptGateId('');
+    setGatePersonaDraftLabel('');
+    setGatePersonaPromptError('');
   }, []);
 
-  ctx.const openGatePersonaPrompt = ctx.useCallback(
+  const openGatePersonaPrompt = useCallback(
     (gateIdOverride?: string) => {
-      ctx.const gateId = String(gateIdOverride || ctx.selectedGate || '').trim().toLowerCase();
-      ctx.if (!gateId) ctx.return;
-      ctx.gatePersonaPromptSeenRef.current.add(gateId);
-      ctx.setGatePersonaPromptGateId(gateId);
-      ctx.setGatePersonaDraftLabel('');
-      ctx.setGatePersonaPromptError('');
-      ctx.setGatePersonaPromptOpen(true);
+      const gateId = String(gateIdOverride || selectedGate || '').trim().toLowerCase();
+      if (!gateId) return;
+      gatePersonaPromptSeenRef.current.add(gateId);
+      setGatePersonaPromptGateId(gateId);
+      setGatePersonaDraftLabel('');
+      setGatePersonaPromptError('');
+      setGatePersonaPromptOpen(true);
     },
-    [ctx.selectedGate],
+    [selectedGate],
   );
 
-  ctx.const handleCreateGatePersona = ctx.async (ctx.labelOverride?: string): Promise<ctx.boolean> => {
-    ctx.const gateId = ctx.selectedGate.trim().toLowerCase();
-    ctx.if (!gateId || !ctx.wormholeEnabled || !ctx.wormholeReadyState || ctx.gatePersonaBusy) ctx.return false;
-    ctx.if (ctx.anonymousPublicBlocked) {
-      ctx.setGateError('hidden ctx.transport ctx.required ctx.for ctx.anonymous ctx.gate ctx.personas');
-      ctx.return false;
+  const handleCreateGatePersona = async (labelOverride?: string): Promise<boolean> => {
+    const gateId = selectedGate.trim().toLowerCase();
+    if (!gateId || !wormholeEnabled || !wormholeReadyState || gatePersonaBusy) return false;
+    if (anonymousPublicBlocked) {
+      setGateError('hidden transport required for anonymous gate personas');
+      return false;
     }
-    ctx.setGatePersonaBusy(true);
-    ctx.setGateError('');
-    ctx.setGatePersonaPromptError('');
-    ctx.try {
-      ctx.const existing = ctx.gatePersonas[gateId] || [];
-      ctx.const nextLabel =
-        String(ctx.labelOverride || '').trim() || `ctx.anon_${String(existing.length + 1).padStart(2, '0')}`;
-      ctx.const created = ctx.await ctx.createWormholeGatePersona(gateId, nextLabel);
-      ctx.if (!created.ok) {
-        ctx.throw ctx.new Error(created.detail || 'persona_create_failed');
+    setGatePersonaBusy(true);
+    setGateError('');
+    setGatePersonaPromptError('');
+    try {
+      const existing = gatePersonas[gateId] || [];
+      const nextLabel =
+        String(labelOverride || '').trim() || `anon_${String(existing.length + 1).padStart(2, '0')}`;
+      const created = await createWormholeGatePersona(gateId, nextLabel);
+      if (!created.ok) {
+        throw new Error(created.detail || 'persona_create_failed');
       }
-      ctx.clearGateResyncRequired(gateId);
-      ctx.await refreshSelectedGatePersonas(gateId);
-      ctx.await refreshSelectedGateKeyStatus(gateId);
-      ctx.return true;
-    } ctx.catch (err) {
-      ctx.const detail = ctx.describeNativeControlError(err) || 'Failed ctx.to ctx.create ctx.persona';
-      ctx.setGateError(detail);
-      ctx.setGatePersonaPromptError(detail);
-      ctx.markGateResyncRequired(err, gateId);
-      ctx.return false;
-    } ctx.finally {
-      ctx.refreshNativeAuditReport();
-      ctx.setGatePersonaBusy(false);
+      clearGateResyncRequired(gateId);
+      await refreshSelectedGatePersonas(gateId);
+      await refreshSelectedGateKeyStatus(gateId);
+      return true;
+    } catch (err) {
+      const detail = describeNativeControlError(err) || 'Failed to create persona';
+      setGateError(detail);
+      setGatePersonaPromptError(detail);
+      markGateResyncRequired(err, gateId);
+      return false;
+    } finally {
+      refreshNativeAuditReport();
+      setGatePersonaBusy(false);
     }
   };
 
-  ctx.const handleSelectGatePersona = ctx.async (personaId: string): Promise<ctx.boolean> => {
-    ctx.const gateId = ctx.selectedGate.trim().toLowerCase();
-    ctx.if (!gateId || !ctx.wormholeEnabled || !ctx.wormholeReadyState || ctx.gatePersonaBusy) ctx.return false;
-    ctx.if (ctx.anonymousPublicBlocked) {
-      ctx.setGateError('hidden ctx.transport ctx.required ctx.for ctx.anonymous ctx.gate ctx.personas');
-      ctx.return false;
+  const handleSelectGatePersona = async (personaId: string): Promise<boolean> => {
+    const gateId = selectedGate.trim().toLowerCase();
+    if (!gateId || !wormholeEnabled || !wormholeReadyState || gatePersonaBusy) return false;
+    if (anonymousPublicBlocked) {
+      setGateError('hidden transport required for anonymous gate personas');
+      return false;
     }
-    ctx.setGatePersonaBusy(true);
-    ctx.setGateError('');
-    ctx.setGatePersonaPromptError('');
-    ctx.try {
-      ctx.const response =
+    setGatePersonaBusy(true);
+    setGateError('');
+    setGatePersonaPromptError('');
+    try {
+      const response =
         personaId === '__anon__'
-          ? ctx.await ctx.clearWormholeGatePersona(gateId)
-          : ctx.await ctx.activateWormholeGatePersona(gateId, personaId);
-      ctx.if (!response.ok) {
-        ctx.throw ctx.new Error(response.detail || 'persona_activate_failed');
+          ? await clearWormholeGatePersona(gateId)
+          : await activateWormholeGatePersona(gateId, personaId);
+      if (!response.ok) {
+        throw new Error(response.detail || 'persona_activate_failed');
       }
-      ctx.clearGateResyncRequired(gateId);
-      ctx.await refreshSelectedGatePersonas(gateId);
-      ctx.await refreshSelectedGateKeyStatus(gateId);
-      ctx.refreshNativeAuditReport();
-      ctx.return true;
-    } ctx.catch (err) {
-      ctx.const detail = ctx.describeNativeControlError(err) || 'Failed ctx.to ctx.switch ctx.gate ctx.persona';
-      ctx.setGateError(detail);
-      ctx.setGatePersonaPromptError(detail);
-      ctx.markGateResyncRequired(err, gateId);
-      ctx.return false;
-    } ctx.finally {
-      ctx.refreshNativeAuditReport();
-      ctx.setGatePersonaBusy(false);
+      clearGateResyncRequired(gateId);
+      await refreshSelectedGatePersonas(gateId);
+      await refreshSelectedGateKeyStatus(gateId);
+      refreshNativeAuditReport();
+      return true;
+    } catch (err) {
+      const detail = describeNativeControlError(err) || 'Failed to switch gate persona';
+      setGateError(detail);
+      setGatePersonaPromptError(detail);
+      markGateResyncRequired(err, gateId);
+      return false;
+    } finally {
+      refreshNativeAuditReport();
+      setGatePersonaBusy(false);
     }
   };
 
-  ctx.const handleRetireGatePersona = ctx.async () => {
-    ctx.const gateId = ctx.selectedGate.trim().toLowerCase();
-    ctx.const personaId = gateId ? ctx.activeGatePersonaId[gateId] || '' : '';
-    ctx.if (!gateId || !personaId || !ctx.wormholeEnabled || !ctx.wormholeReadyState || ctx.gatePersonaBusy) ctx.return;
-    ctx.if (ctx.anonymousPublicBlocked) {
-      ctx.setGateError('hidden ctx.transport ctx.required ctx.for ctx.anonymous ctx.gate ctx.personas');
-      ctx.return;
+  const handleRetireGatePersona = async () => {
+    const gateId = selectedGate.trim().toLowerCase();
+    const personaId = gateId ? activeGatePersonaId[gateId] || '' : '';
+    if (!gateId || !personaId || !wormholeEnabled || !wormholeReadyState || gatePersonaBusy) return;
+    if (anonymousPublicBlocked) {
+      setGateError('hidden transport required for anonymous gate personas');
+      return;
     }
-    ctx.setGatePersonaBusy(true);
-    ctx.setGateError('');
-    ctx.try {
-      ctx.const retired = ctx.await ctx.retireWormholeGatePersona(gateId, personaId);
-      ctx.if (!retired.ok) {
-        ctx.throw ctx.new Error(retired.detail || 'persona_retire_failed');
+    setGatePersonaBusy(true);
+    setGateError('');
+    try {
+      const retired = await retireWormholeGatePersona(gateId, personaId);
+      if (!retired.ok) {
+        throw new Error(retired.detail || 'persona_retire_failed');
       }
-      ctx.clearGateResyncRequired(gateId);
-      ctx.await refreshSelectedGatePersonas(gateId);
-      ctx.await refreshSelectedGateKeyStatus(gateId);
-      ctx.refreshNativeAuditReport();
-    } ctx.catch (err) {
-      ctx.setGateError(ctx.describeNativeControlError(err) || 'Failed ctx.to ctx.retire ctx.persona');
-      ctx.markGateResyncRequired(err, gateId);
-    } ctx.finally {
-      ctx.refreshNativeAuditReport();
-      ctx.setGatePersonaBusy(false);
+      clearGateResyncRequired(gateId);
+      await refreshSelectedGatePersonas(gateId);
+      await refreshSelectedGateKeyStatus(gateId);
+      refreshNativeAuditReport();
+    } catch (err) {
+      setGateError(describeNativeControlError(err) || 'Failed to retire persona');
+      markGateResyncRequired(err, gateId);
+    } finally {
+      refreshNativeAuditReport();
+      setGatePersonaBusy(false);
     }
   };
 
-  ctx.const handleRotateGateKey = ctx.async () => {
-    ctx.const gateId = ctx.selectedGate.trim().toLowerCase();
-    ctx.if (!gateId || !ctx.wormholeEnabled || !ctx.wormholeReadyState || ctx.gateKeyBusy) ctx.return;
-    ctx.setGateKeyBusy(true);
-    ctx.setGateError('');
-    ctx.try {
-      ctx.const rotated = ctx.await ctx.rotateWormholeGateKey(gateId, 'operator_reset');
-      ctx.if (!rotated.ok) {
-        ctx.throw ctx.new Error(rotated.detail || 'gate_key_rotate_failed');
+  const handleRotateGateKey = async () => {
+    const gateId = selectedGate.trim().toLowerCase();
+    if (!gateId || !wormholeEnabled || !wormholeReadyState || gateKeyBusy) return;
+    setGateKeyBusy(true);
+    setGateError('');
+    try {
+      const rotated = await rotateWormholeGateKey(gateId, 'operator_reset');
+      if (!rotated.ok) {
+        throw new Error(rotated.detail || 'gate_key_rotate_failed');
       }
-      ctx.clearGateResyncRequired(gateId);
-      ctx.setGateKeyStatus((prev) => ({ ...prev, [gateId]: rotated }));
-      ctx.await refreshSelectedGatePersonas(gateId);
-      ctx.refreshNativeAuditReport();
-    } ctx.catch (err) {
-      ctx.setGateError(ctx.describeNativeControlError(err) || 'Failed ctx.to ctx.rotate ctx.gate ctx.key');
-      ctx.markGateResyncRequired(err, gateId);
-    } ctx.finally {
-      ctx.refreshNativeAuditReport();
-      ctx.setGateKeyBusy(false);
+      clearGateResyncRequired(gateId);
+      setGateKeyStatus((prev) => ({ ...prev, [gateId]: rotated }));
+      await refreshSelectedGatePersonas(gateId);
+      refreshNativeAuditReport();
+    } catch (err) {
+      setGateError(describeNativeControlError(err) || 'Failed to rotate gate key');
+      markGateResyncRequired(err, gateId);
+    } finally {
+      refreshNativeAuditReport();
+      setGateKeyBusy(false);
     }
   };
 
-  ctx.const handleUnlockEncryptedGate = ctx.useCallback(() => {
+  const handleUnlockEncryptedGate = useCallback(() => {
     openGatePersonaPrompt();
   }, [openGatePersonaPrompt]);
 
-  ctx.const maybeRotateSharedAlias = ctx.async (
-    ctx.contactId: string,
-    ctx.contact: ctx.Contact,
-    ctx.options?: { ctx.force?: ctx.boolean },
-  ): Promise<ctx.Contact> => {
-    ctx.const promotion = ctx.promotePendingAlias(ctx.contactId, ctx.contact);
-    ctx.if (promotion) ctx.updateContact(ctx.contactId, promotion.delta.updates);
-    ctx.const refreshed = promotion?.promoted || ctx.contact;
-    ctx.const currentAlias = String(refreshed.sharedAlias || '').trim();
-    ctx.if (!currentAlias || !refreshed.dhPubKey) {
-      ctx.return refreshed;
+  const maybeRotateSharedAlias = async (
+    contactId: string,
+    contact: Contact,
+    options?: { force?: boolean },
+  ): Promise<Contact> => {
+    const promotion = promotePendingAlias(contactId, contact);
+    if (promotion) updateContact(contactId, promotion.delta.updates);
+    const refreshed = promotion?.promoted || contact;
+    const currentAlias = String(refreshed.sharedAlias || '').trim();
+    if (!currentAlias || !refreshed.dhPubKey) {
+      return refreshed;
     }
-    ctx.if (String(refreshed.pendingSharedAlias || '').trim()) {
-      ctx.return refreshed;
+    if (String(refreshed.pendingSharedAlias || '').trim()) {
+      return refreshed;
     }
-    ctx.const lastRotatedAt = Number(refreshed.sharedAliasRotatedAt || 0);
-    ctx.if (!ctx.options?.force && lastRotatedAt > 0 && Date.now() - lastRotatedAt < SHARED_ALIAS_ROTATE_MS) {
-      ctx.return refreshed;
+    const lastRotatedAt = Number(refreshed.sharedAliasRotatedAt || 0);
+    if (!options?.force && lastRotatedAt > 0 && Date.now() - lastRotatedAt < SHARED_ALIAS_ROTATE_MS) {
+      return refreshed;
     }
-    ctx.let nextAlias = '';
-    ctx.try {
-      ctx.const rotated = ctx.await ctx.rotateWormholePairwiseAlias(
-        ctx.contactId,
+    let nextAlias = '';
+    try {
+      const rotated = await rotateWormholePairwiseAlias(
+        contactId,
         refreshed.dhPubKey,
         SHARED_ALIAS_GRACE_MS,
       );
       nextAlias = String(rotated.pending_alias || '').trim();
-    } ctx.catch {
+    } catch {
       nextAlias = '';
     }
-    ctx.if (!nextAlias) {
-      nextAlias = ctx.generateSharedAlias();
+    if (!nextAlias) {
+      nextAlias = generateSharedAlias();
     }
-    ctx.const controlPlaintext = ctx.buildAliasRotateMessage(nextAlias);
-    ctx.const controlCiphertext = ctx.await ctx.ratchetEncryptDM(ctx.contactId, refreshed.dhPubKey, controlPlaintext);
-    ctx.const recipientToken = ctx.await ctx.sharedMailboxToken(currentAlias, refreshed.dhPubKey);
-    ctx.const msgId = `ctx.dm_${Date.now()}ctx._${ctx.identity!.nodeId.slice(-4)}`;
-    ctx.const timestamp = Math.floor(Date.now() / 1000);
-    ctx.await ctx.enqueueDmSend(ctx.async () => {
-      ctx.const sent = ctx.await ctx.sendDmMessage({
-        ctx.apiBase: API_BASE,
-        ctx.identity: ctx.identity!,
+    const controlPlaintext = buildAliasRotateMessage(nextAlias);
+    const controlCiphertext = await ratchetEncryptDM(contactId, refreshed.dhPubKey, controlPlaintext);
+    const recipientToken = await sharedMailboxToken(currentAlias, refreshed.dhPubKey);
+    const msgId = `dm_${Date.now()}_${identity!.nodeId.slice(-4)}`;
+    const timestamp = Math.floor(Date.now() / 1000);
+    await enqueueDmSend(async () => {
+      const sent = await sendDmMessage({
+        apiBase: API_BASE,
+        identity: identity!,
         recipientId: currentAlias,
-        ctx.recipientDhPub: refreshed.dhPubKey,
+        recipientDhPub: refreshed.dhPubKey,
         ciphertext: controlCiphertext,
         msgId,
         timestamp,
-        ctx.deliveryClass: 'shared',
+        deliveryClass: 'shared',
         recipientToken,
-        ctx.useSealedSender: true,
+        useSealedSender: true,
       });
-      ctx.if (!sent.ok) {
-        ctx.throw ctx.new Error(sent.detail || 'alias_rotate_send_failed');
+      if (!sent.ok) {
+        throw new Error(sent.detail || 'alias_rotate_send_failed');
       }
-      ctx.if (sent.transport === 'reticulum' || sent.transport === 'relay') {
-        ctx.setLastDmTransport(sent.transport);
+      if (sent.transport === 'reticulum' || sent.transport === 'relay') {
+        setLastDmTransport(sent.transport);
       }
     });
-    ctx.updateContact(ctx.contactId, {
-      ctx.pendingSharedAlias: nextAlias,
-      ctx.sharedAliasGraceUntil: Date.now() + SHARED_ALIAS_GRACE_MS,
-      ctx.sharedAliasRotatedAt: Date.now(),
-      ctx.previousSharedAliases: ctx.mergeAliasHistory([
+    updateContact(contactId, {
+      pendingSharedAlias: nextAlias,
+      sharedAliasGraceUntil: Date.now() + SHARED_ALIAS_GRACE_MS,
+      sharedAliasRotatedAt: Date.now(),
+      previousSharedAliases: mergeAliasHistory([
         refreshed.sharedAlias,
         ...(refreshed.previousSharedAliases || []),
       ]),
     });
-    ctx.setContacts(ctx.getContacts());
-    ctx.return ctx.getContacts()[ctx.contactId] || refreshed;
+    setContacts(getContacts());
+    return getContacts()[contactId] || refreshed;
   };
 
-  ctx.const refreshDmContactState = ctx.async (
-    ctx.contactId: string,
-    ctx.options?: { ctx.rotateAlias?: ctx.boolean; ctx.resetRatchet?: ctx.boolean },
-  ): Promise<ctx.void> => {
-    ctx.const targetId = String(ctx.contactId || '').trim();
-    ctx.if (!targetId || !ctx.identity) ctx.return;
-    ctx.const existing = ctx.getContacts()[targetId];
-    ctx.const lookupHandle = String(existing?.invitePinnedPrekeyLookupHandle || '').trim();
-    ctx.if (!lookupHandle) {
-      ctx.throw ctx.new Error(
-        'import ctx.or ctx.re-ctx.import ctx.a signed ctx.invite ctx.before ctx.refreshing ctx.this ctx.contact; ctx.legacy ctx.direct ctx.lookup ctx.is ctx.disabled',
+  const refreshDmContactState = async (
+    contactId: string,
+    options?: { rotateAlias?: boolean; resetRatchet?: boolean },
+  ): Promise<void> => {
+    const targetId = String(contactId || '').trim();
+    if (!targetId || !identity) return;
+    const existing = getContacts()[targetId];
+    const lookupHandle = String(existing?.invitePinnedPrekeyLookupHandle || '').trim();
+    if (!lookupHandle) {
+      throw new Error(
+        'import or re-import a signed invite before refreshing this contact; legacy direct lookup is disabled',
       );
     }
-    ctx.const registry = ctx.await ctx.fetchDmPublicKey(API_BASE, targetId, lookupHandle, {
-      ctx.lookupPeerUrl: existing?.invitePinnedLookupPeerUrl,
+    const registry = await fetchDmPublicKey(API_BASE, targetId, lookupHandle, {
+      lookupPeerUrl: existing?.invitePinnedLookupPeerUrl,
     }).catch(() => null);
-    ctx.if (!registry?.dh_pub_key) {
-      ctx.throw ctx.new Error(
-        'invite-ctx.scoped ctx.lookup ctx.failed ctx.for ctx.this ctx.contact; ctx.re-ctx.import ctx.a signed ctx.invite ctx.and ctx.try ctx.again',
+    if (!registry?.dh_pub_key) {
+      throw new Error(
+        'invite-scoped lookup failed for this contact; re-import a signed invite and try again',
       );
     }
-    ctx.if (registry?.dh_pub_key) {
-      ctx.addContact(targetId, String(registry.dh_pub_key), undefined, registry.dh_algo);
-      ctx.let registryOk = true;
-      ctx.if (registry.signature && registry.public_key && registry.public_key_algo) {
-        ctx.try {
-          ctx.const keyPayload = {
-            ctx.dh_pub_key: registry.dh_pub_key,
-            ctx.dh_algo: registry.dh_algo,
+    if (registry?.dh_pub_key) {
+      addContact(targetId, String(registry.dh_pub_key), undefined, registry.dh_algo);
+      let registryOk = true;
+      if (registry.signature && registry.public_key && registry.public_key_algo) {
+        try {
+          const keyPayload = {
+            dh_pub_key: registry.dh_pub_key,
+            dh_algo: registry.dh_algo,
             timestamp: registry.timestamp,
           };
-          registryOk = ctx.await ctx.verifyEventSignature({
-            ctx.eventType: 'dm_key',
-            ctx.nodeId: targetId,
+          registryOk = await verifyEventSignature({
+            eventType: 'dm_key',
+            nodeId: targetId,
             sequence: Number(registry.sequence || 0),
             payload: keyPayload,
-            ctx.signature: registry.signature,
-            ctx.publicKey: registry.public_key,
-            ctx.publicKeyAlgo: registry.public_key_algo,
+            signature: registry.signature,
+            publicKey: registry.public_key,
+            publicKeyAlgo: registry.public_key_algo,
           });
-        } ctx.catch {
+        } catch {
           registryOk = false;
         }
       }
-      ctx.const prior = ctx.getContacts()[targetId] || existing;
-      ctx.const inbandOk = Boolean(prior?.verify_inband);
-      ctx.const registryKey = String(registry.dh_pub_key || '');
-      ctx.const inbandKey = String(prior?.dhPubKey || '');
-      ctx.const verified = inbandOk && registryOk && inbandKey === registryKey;
-      ctx.updateContact(targetId, {
-        ctx.dhAlgo: registry.dh_algo || prior?.dhAlgo,
-        ctx.verify_registry: registryOk,
+      const prior = getContacts()[targetId] || existing;
+      const inbandOk = Boolean(prior?.verify_inband);
+      const registryKey = String(registry.dh_pub_key || '');
+      const inbandKey = String(prior?.dhPubKey || '');
+      const verified = inbandOk && registryOk && inbandKey === registryKey;
+      updateContact(targetId, {
+        dhAlgo: registry.dh_algo || prior?.dhAlgo,
+        verify_registry: registryOk,
         verified,
-        ctx.verify_mismatch: inbandOk && registryOk && inbandKey !== registryKey,
-        ctx.verified_at: verified ? Date.now() : prior?.verified_at,
-        ctx.remotePrekeyTransparencyHead:
+        verify_mismatch: inbandOk && registryOk && inbandKey !== registryKey,
+        verified_at: verified ? Date.now() : prior?.verified_at,
+        remotePrekeyTransparencyHead:
           String(registry.prekey_transparency_head || '') ||
           prior?.remotePrekeyTransparencyHead,
-        ctx.remotePrekeyTransparencySize:
+        remotePrekeyTransparencySize:
           Number(registry.prekey_transparency_size || 0) || prior?.remotePrekeyTransparencySize,
-        ctx.remotePrekeyTransparencySeenAt: registry.prekey_transparency_head
+        remotePrekeyTransparencySeenAt: registry.prekey_transparency_head
           ? Date.now()
           : prior?.remotePrekeyTransparencySeenAt,
-        ctx.remotePrekeyLookupMode:
+        remotePrekeyLookupMode:
           String(registry.lookup_mode || '').trim().toLowerCase() ||
           prior?.remotePrekeyLookupMode,
-        ctx.witness_count:
+        witness_count:
           Number(registry.witness_count || 0) || prior?.witness_count,
-        ctx.witness_checked_at:
+        witness_checked_at:
           Number(registry.witness_latest_at || 0) || prior?.witness_checked_at,
       });
     }
-    ctx.const latest = ctx.getContacts()[targetId] || existing;
-    ctx.if (latest?.dhPubKey) {
-      ctx.try {
-        ctx.const witnessRes = ctx.await fetch(
-          `${API_BASE}/ctx.api/ctx.mesh/ctx.dm/ctx.witness?ctx.target_id=${encodeURIComponent(
+    const latest = getContacts()[targetId] || existing;
+    if (latest?.dhPubKey) {
+      try {
+        const witnessRes = await fetch(
+          `${API_BASE}/api/mesh/dm/witness?target_id=${encodeURIComponent(
             targetId,
-          )}&ctx.dh_pub_key=${encodeURIComponent(latest.dhPubKey)}`,
+          )}&dh_pub_key=${encodeURIComponent(latest.dhPubKey)}`,
         );
-        ctx.if (witnessRes.ok) {
-          ctx.const witnessData = ctx.await witnessRes.json();
-          ctx.updateContact(targetId, {
-            ctx.witness_count: witnessData.count || 0,
-            ctx.witness_checked_at: Date.now(),
+        if (witnessRes.ok) {
+          const witnessData = await witnessRes.json();
+          updateContact(targetId, {
+            witness_count: witnessData.count || 0,
+            witness_checked_at: Date.now(),
           });
         }
-      } ctx.catch {
-        /* ctx.ignore */
+      } catch {
+        /* ignore */
       }
     }
-    ctx.try {
-      ctx.const vouchRes = ctx.await fetch(
-        `${API_BASE}/ctx.api/ctx.mesh/ctx.trust/ctx.vouches?ctx.node_id=${encodeURIComponent(targetId)}`,
+    try {
+      const vouchRes = await fetch(
+        `${API_BASE}/api/mesh/trust/vouches?node_id=${encodeURIComponent(targetId)}`,
       );
-      ctx.if (vouchRes.ok) {
-        ctx.const vouchData = ctx.await vouchRes.json();
-        ctx.updateContact(targetId, {
-          ctx.vouch_count: vouchData.count || 0,
-          ctx.vouch_checked_at: Date.now(),
+      if (vouchRes.ok) {
+        const vouchData = await vouchRes.json();
+        updateContact(targetId, {
+          vouch_count: vouchData.count || 0,
+          vouch_checked_at: Date.now(),
         });
       }
-    } ctx.catch {
-      /* ctx.ignore */
+    } catch {
+      /* ignore */
     }
-    ctx.if (ctx.options?.resetRatchet) {
-      ctx.await ctx.ratchetReset(targetId);
+    if (options?.resetRatchet) {
+      await ratchetReset(targetId);
     }
-    ctx.const refreshed = ctx.getContacts()[targetId];
-    ctx.if (ctx.options?.rotateAlias && refreshed?.dhPubKey) {
-      ctx.await maybeRotateSharedAlias(targetId, refreshed, { ctx.force: true });
+    const refreshed = getContacts()[targetId];
+    if (options?.rotateAlias && refreshed?.dhPubKey) {
+      await maybeRotateSharedAlias(targetId, refreshed, { force: true });
     }
-    ctx.const hydratedContacts = ctx.await ctx.hydrateWormholeContacts(true).catch(() => ctx.getContacts());
-    ctx.setContacts(hydratedContacts);
+    const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+    setContacts(hydratedContacts);
   };
 
-  ctx.const handleRefreshSelectedContact = ctx.async (): Promise<ctx.void> => {
-    ctx.if (!ctx.selectedContact || ctx.dmMaintenanceBusy) ctx.return;
-    ctx.setDmMaintenanceBusy(true);
-    ctx.try {
-      ctx.await refreshDmContactState(ctx.selectedContact, { ctx.rotateAlias: true });
-    } ctx.catch (err) {
-      ctx.const detail = err ctx.instanceof Error ? err.message : 'dm ctx.refresh ctx.failed';
-      ctx.setSendError(detail);
-      setTimeout(() => ctx.setSendError(''), 3000);
-    } ctx.finally {
-      ctx.setDmMaintenanceBusy(false);
-    }
-  };
-
-  ctx.const handleResetSelectedContact = ctx.async (): Promise<ctx.void> => {
-    ctx.if (!ctx.selectedContact || ctx.dmMaintenanceBusy) ctx.return;
-    ctx.setDmMaintenanceBusy(true);
-    ctx.try {
-      ctx.await refreshDmContactState(ctx.selectedContact, { ctx.rotateAlias: true, ctx.resetRatchet: true });
-    } ctx.catch (err) {
-      ctx.const detail = err ctx.instanceof Error ? err.message : 'dm ctx.reset ctx.failed';
-      ctx.setSendError(detail);
-      setTimeout(() => ctx.setSendError(''), 3000);
-    } ctx.finally {
-      ctx.setDmMaintenanceBusy(false);
+  const handleRefreshSelectedContact = async (): Promise<void> => {
+    if (!selectedContact || dmMaintenanceBusy) return;
+    setDmMaintenanceBusy(true);
+    try {
+      await refreshDmContactState(selectedContact, { rotateAlias: true });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'dm refresh failed';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 3000);
+    } finally {
+      setDmMaintenanceBusy(false);
     }
   };
 
-  ctx.const handleTrustSelectedRemotePrekey = ctx.async (): Promise<ctx.void> => {
-    ctx.if (!ctx.selectedContact || ctx.dmMaintenanceBusy) ctx.return;
-    ctx.const contactInfo = ctx.getContacts()[ctx.selectedContact] || ctx.contacts[ctx.selectedContact];
-    ctx.if (contactInfo?.remotePrekeyRootMismatch) {
-      ctx.setSendError(
-        'stable ctx.root ctx.changed; ctx.use RECOVER ROOT ctx.or ctx.replace ctx.the signed ctx.invite ctx.before ctx.trusting ctx.this ctx.contact ctx.again',
+  const handleResetSelectedContact = async (): Promise<void> => {
+    if (!selectedContact || dmMaintenanceBusy) return;
+    setDmMaintenanceBusy(true);
+    try {
+      await refreshDmContactState(selectedContact, { rotateAlias: true, resetRatchet: true });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'dm reset failed';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 3000);
+    } finally {
+      setDmMaintenanceBusy(false);
+    }
+  };
+
+  const handleTrustSelectedRemotePrekey = async (): Promise<void> => {
+    if (!selectedContact || dmMaintenanceBusy) return;
+    const contactInfo = getContacts()[selectedContact] || contacts[selectedContact];
+    if (contactInfo?.remotePrekeyRootMismatch) {
+      setSendError(
+        'stable root changed; use RECOVER ROOT or replace the signed invite before trusting this contact again',
       );
-      setTimeout(() => ctx.setSendError(''), 3000);
-      ctx.return;
+      setTimeout(() => setSendError(''), 3000);
+      return;
     }
-    ctx.setDmMaintenanceBusy(true);
-    ctx.try {
-      ctx.const result = ctx.await ctx.acknowledgeWormholeSasFingerprint(ctx.selectedContact);
-      ctx.if (!result?.ok) {
-        ctx.throw ctx.new Error(String(result?.detail || 'failed ctx.to ctx.acknowledge ctx.changed ctx.fingerprint'));
+    setDmMaintenanceBusy(true);
+    try {
+      const result = await acknowledgeWormholeSasFingerprint(selectedContact);
+      if (!result?.ok) {
+        throw new Error(String(result?.detail || 'failed to acknowledge changed fingerprint'));
       }
-      ctx.const hydratedContacts = ctx.await ctx.hydrateWormholeContacts(true).catch(() => ctx.getContacts());
-      ctx.setContacts(hydratedContacts);
-      ctx.setShowSas(true);
-      ctx.setSasConfirmInput('');
-    } ctx.catch (err) {
-      ctx.const detail = err ctx.instanceof Error ? err.message : 'failed ctx.to ctx.acknowledge ctx.changed ctx.fingerprint';
-      ctx.setSendError(detail);
-      setTimeout(() => ctx.setSendError(''), 3000);
-    } ctx.finally {
-      ctx.setDmMaintenanceBusy(false);
+      const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+      setContacts(hydratedContacts);
+      setShowSas(true);
+      setSasConfirmInput('');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'failed to acknowledge changed fingerprint';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 3000);
+    } finally {
+      setDmMaintenanceBusy(false);
     }
   };
 
-  ctx.const handleApproveGateCompatFallback = ctx.useCallback(ctx.async () => {
-    ctx.if (!ctx.gateCompatConsentPrompt?.gateId) ctx.return;
-    ctx.const approvedGateId = ctx.gateCompatConsentPrompt.gateId;
-    ctx.const action = ctx.gateCompatConsentPrompt.action;
-    ctx.approveGateCompatFallback(approvedGateId);
-    ctx.setGateCompatActive((prev) => (prev[approvedGateId] ? prev : { ...prev, [approvedGateId]: true }));
-    ctx.setGateCompatConsentPrompt(null);
-    ctx.setGateError('');
-    ctx.setSendError('');
-    ctx.if (action === 'decrypt') {
-      ctx.await ctx.refreshInfonetMessages({ gateId: approvedGateId, ctx.force: true });
-      ctx.return;
+  const handleApproveGateCompatFallback = useCallback(async () => {
+    if (!gateCompatConsentPrompt?.gateId) return;
+    const approvedGateId = gateCompatConsentPrompt.gateId;
+    const action = gateCompatConsentPrompt.action;
+    approveGateCompatFallback(approvedGateId);
+    setGateCompatActive((prev) => (prev[approvedGateId] ? prev : { ...prev, [approvedGateId]: true }));
+    setGateCompatConsentPrompt(null);
+    setGateError('');
+    setSendError('');
+    if (action === 'decrypt') {
+      await refreshInfonetMessages({ gateId: approvedGateId, force: true });
+      return;
     }
-    ctx.await handleSend();
-  }, [ctx.gateCompatConsentPrompt, handleSend, ctx.refreshInfonetMessages]);
+    await handleSend();
+  }, [gateCompatConsentPrompt, handleSend, refreshInfonetMessages]);
 
-  ctx.const handleConfirmSelectedContactSas = ctx.async (): Promise<ctx.void> => {
-    ctx.if (!ctx.selectedContact || ctx.dmMaintenanceBusy) ctx.return;
-    ctx.const contactInfo = ctx.getContacts()[ctx.selectedContact] || ctx.contacts[ctx.selectedContact];
-    ctx.const proof = String(ctx.sasConfirmInput || '').trim();
-    ctx.if (!proof) {
-      ctx.setSendError('type ctx.the SAS ctx.phrase ctx.to ctx.confirm ctx.verification');
-      setTimeout(() => ctx.setSendError(''), 3000);
-      ctx.return;
+  const handleConfirmSelectedContactSas = async (): Promise<void> => {
+    if (!selectedContact || dmMaintenanceBusy) return;
+    const contactInfo = getContacts()[selectedContact] || contacts[selectedContact];
+    const proof = String(sasConfirmInput || '').trim();
+    if (!proof) {
+      setSendError('type the SAS phrase to confirm verification');
+      setTimeout(() => setSendError(''), 3000);
+      return;
     }
-    ctx.setDmMaintenanceBusy(true);
-    ctx.try {
-      ctx.const result = ctx.await ctx.confirmWormholeSasVerification(
-        ctx.selectedContact,
+    setDmMaintenanceBusy(true);
+    try {
+      const result = await confirmWormholeSasVerification(
+        selectedContact,
         proof,
-        ctx.preferredDmPeerId(ctx.selectedContact, contactInfo),
+        preferredDmPeerId(selectedContact, contactInfo),
         8,
       );
-      ctx.if (!result?.ok) {
-        ctx.throw ctx.new Error(String(result?.detail || 'sas ctx.verification ctx.failed'));
+      if (!result?.ok) {
+        throw new Error(String(result?.detail || 'sas verification failed'));
       }
-      ctx.const hydratedContacts = ctx.await ctx.hydrateWormholeContacts(true).catch(() => ctx.getContacts());
-      ctx.setContacts(hydratedContacts);
-      ctx.setSasConfirmInput('');
-      ctx.setShowSas(true);
-    } ctx.catch (err) {
-      ctx.const detail = err ctx.instanceof Error ? err.message : 'sas ctx.verification ctx.failed';
-      ctx.setSendError(detail);
-      setTimeout(() => ctx.setSendError(''), 3000);
-    } ctx.finally {
-      ctx.setDmMaintenanceBusy(false);
+      const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+      setContacts(hydratedContacts);
+      setSasConfirmInput('');
+      setShowSas(true);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'sas verification failed';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 3000);
+    } finally {
+      setDmMaintenanceBusy(false);
     }
   };
 
-  ctx.const handleRecoverSelectedContactRootContinuity = ctx.async (): Promise<ctx.void> => {
-    ctx.if (!ctx.selectedContact || ctx.dmMaintenanceBusy) ctx.return;
-    ctx.const contactInfo = ctx.getContacts()[ctx.selectedContact] || ctx.contacts[ctx.selectedContact];
-    ctx.const proof = String(ctx.sasConfirmInput || '').trim();
-    ctx.if (!proof) {
-      ctx.setSendError('type ctx.the SAS ctx.phrase ctx.to ctx.recover ctx.the ctx.changed ctx.stable ctx.root');
-      setTimeout(() => ctx.setSendError(''), 3000);
-      ctx.return;
+  const handleRecoverSelectedContactRootContinuity = async (): Promise<void> => {
+    if (!selectedContact || dmMaintenanceBusy) return;
+    const contactInfo = getContacts()[selectedContact] || contacts[selectedContact];
+    const proof = String(sasConfirmInput || '').trim();
+    if (!proof) {
+      setSendError('type the SAS phrase to recover the changed stable root');
+      setTimeout(() => setSendError(''), 3000);
+      return;
     }
-    ctx.setDmMaintenanceBusy(true);
-    ctx.try {
-      ctx.const result = ctx.await ctx.recoverWormholeSasRootContinuity(
-        ctx.selectedContact,
+    setDmMaintenanceBusy(true);
+    try {
+      const result = await recoverWormholeSasRootContinuity(
+        selectedContact,
         proof,
-        ctx.preferredDmPeerId(ctx.selectedContact, contactInfo),
+        preferredDmPeerId(selectedContact, contactInfo),
         8,
       );
-      ctx.if (!result?.ok) {
-        ctx.throw ctx.new Error(String(result?.detail || 'stable ctx.root ctx.recovery ctx.failed'));
+      if (!result?.ok) {
+        throw new Error(String(result?.detail || 'stable root recovery failed'));
       }
-      ctx.const hydratedContacts = ctx.await ctx.hydrateWormholeContacts(true).catch(() => ctx.getContacts());
-      ctx.setContacts(hydratedContacts);
-      ctx.setSasConfirmInput('');
-      ctx.setShowSas(true);
-    } ctx.catch (err) {
-      ctx.const detail = err ctx.instanceof Error ? err.message : 'stable ctx.root ctx.recovery ctx.failed';
-      ctx.setSendError(detail);
-      setTimeout(() => ctx.setSendError(''), 3000);
-    } ctx.finally {
-      ctx.setDmMaintenanceBusy(false);
+      const hydratedContacts = await hydrateWormholeContacts(true).catch(() => getContacts());
+      setContacts(hydratedContacts);
+      setSasConfirmInput('');
+      setShowSas(true);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'stable root recovery failed';
+      setSendError(detail);
+      setTimeout(() => setSendError(''), 3000);
+    } finally {
+      setDmMaintenanceBusy(false);
     }
   };
-
 
   return {
     handleSend,
