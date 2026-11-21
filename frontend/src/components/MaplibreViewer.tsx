@@ -2434,187 +2434,22 @@ const MaplibreViewer = ({
 
         {/* Power Plant positions */}
         {powerPlantsGeoJSON && (
-            <Source id="power-plants" type="geojson" data={EMPTY_FC} cluster={true} clusterRadius={30} clusterMaxZoom={8}>
-                {/* Cluster circles */}
-                <Layer
-                    id="power-plants-clusters"
-                    type="circle"
-                    minzoom={4}
-                    filter={['has', 'point_count']}
-                    paint={{
-                        'circle-color': '#92400e',
-                        'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
-                        'circle-opacity': 0.7,
-                        'circle-stroke-width': 1,
-                        'circle-stroke-color': '#f59e0b',
-                    }}
-                />
-                <Layer
-                    id="power-plants-cluster-count"
-                    type="symbol"
-                    minzoom={4}
-                    filter={['has', 'point_count']}
-                    layout={{
-                        'text-field': '{point_count_abbreviated}',
-                        'text-font': ['Noto Sans Bold'],
-                        'text-size': 10,
-                        'text-allow-overlap': true,
-                    }}
-                    paint={{
-                        'text-color': '#fde68a',
-                    }}
-                />
-                {/* Individual power plant icons */}
-                <Layer
-                    id="power-plants-layer"
-                    type="symbol"
-                    minzoom={4}
-                    filter={['!', ['has', 'point_count']]}
-                    layout={{
-                        'icon-image': 'power-plant',
-                        'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 6, 0.7, 10, 1.0],
-                        'icon-allow-overlap': true,
-                        'text-field': ['step', ['zoom'], '', 6, ['get', 'name']],
-                        'text-font': ['Noto Sans Regular'],
-                        'text-size': 9,
-                        'text-offset': [0, 1.2],
-                        'text-anchor': 'top',
-                        'text-allow-overlap': false,
-                    }}
-                    paint={{
-                        'text-color': '#fbbf24',
-                        'text-halo-color': 'rgba(0,0,0,0.9)',
-                        'text-halo-width': 1,
-                    }}
-                />
-            </Source>
+        <PowerPlantsLayers />
         )}
 
         {/* VIIRS Change Detection Nodes */}
         {viirsChangeNodesGeoJSON && (
-            <Source id="viirs-change-nodes" type="geojson" data={EMPTY_FC}>
-                <Layer
-                    id="viirs-change-nodes-layer"
-                    type="circle"
-                    paint={{
-                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 4, 6, 8, 10, 12],
-                        'circle-color': ['get', 'color'],
-                        'circle-opacity': 0.85,
-                        'circle-stroke-width': 1,
-                        'circle-stroke-color': 'rgba(255,255,255,0.4)',
-                    }}
-                />
-            </Source>
+        <ViirsChangeNodesLayers />
         )}
 
         {/* SAR AOIs — operator watchbox circles, drawn beneath anomaly pins */}
         {sarAoisGeoJSON && (
-          <Source id="sar-aois" type="geojson" data={EMPTY_FC}>
-            <Layer
-              id="sar-aois-fill"
-              type="fill"
-              paint={{
-                'fill-color': [
-                  'match',
-                  ['get', 'category'],
-                  'conflict', '#ef4444',
-                  'geohazard', '#f97316',
-                  'infrastructure', '#06b6d4',
-                  'geopolitical', '#a855f7',
-                  '#eab308',
-                ],
-                'fill-opacity': 0.08,
-              }}
-            />
-            <Layer
-              id="sar-aois-outline"
-              type="line"
-              paint={{
-                'line-color': [
-                  'match',
-                  ['get', 'category'],
-                  'conflict', '#ef4444',
-                  'geohazard', '#f97316',
-                  'infrastructure', '#06b6d4',
-                  'geopolitical', '#a855f7',
-                  '#eab308',
-                ],
-                'line-width': 1.2,
-                'line-opacity': 0.55,
-                'line-dasharray': [2, 2],
-              }}
-            />
-            <Layer
-              id="sar-aois-label"
-              type="symbol"
-              minzoom={4}
-              layout={{
-                'text-field': ['get', 'name'],
-                'text-font': ['Noto Sans Regular'],
-                'text-size': 10,
-                'text-offset': [0, 0.5],
-                'text-anchor': 'top',
-                'text-allow-overlap': false,
-              }}
-              paint={{
-                'text-color': '#fde68a',
-                'text-halo-color': 'rgba(0,0,0,0.9)',
-                'text-halo-width': 1,
-              }}
-            />
-          </Source>
+        <SarAoisLayers />
         )}
 
         {/* SAR Anomalies — Mode B pre-processed findings (OPERA/EGMS/GFM/EMS/UNOSAT) */}
         {sarAnomaliesGeoJSON && (
-          <Source id="sar-anomalies" type="geojson" data={EMPTY_FC}>
-            <Layer
-              id="sar-anomalies-halo"
-              type="circle"
-              paint={{
-                'circle-radius': [
-                  'interpolate', ['linear'], ['zoom'],
-                  2, 6, 6, 10, 10, 16,
-                ],
-                'circle-color': ['get', 'color'],
-                'circle-opacity': 0.2,
-                'circle-blur': 0.6,
-              }}
-            />
-            <Layer
-              id="sar-anomalies-layer"
-              type="circle"
-              paint={{
-                'circle-radius': [
-                  'interpolate', ['linear'], ['zoom'],
-                  2, 3, 6, 5, 10, 8,
-                ],
-                'circle-color': ['get', 'color'],
-                'circle-opacity': 0.9,
-                'circle-stroke-width': 1.5,
-                'circle-stroke-color': '#000',
-              }}
-            />
-            <Layer
-              id="sar-anomalies-label"
-              type="symbol"
-              minzoom={7}
-              layout={{
-                'text-field': ['get', 'title'],
-                'text-font': ['Noto Sans Regular'],
-                'text-size': 10,
-                'text-offset': [0, 1.2],
-                'text-anchor': 'top',
-                'text-allow-overlap': false,
-                'text-max-width': 12,
-              }}
-              paint={{
-                'text-color': '#fef3c7',
-                'text-halo-color': 'rgba(0,0,0,0.9)',
-                'text-halo-width': 1,
-              }}
-            />
-          </Source>
+        <SarAnomaliesLayers />
         )}
 
         {/* Shodan — operator-triggered local overlay, clustered and clearly distinct */}
