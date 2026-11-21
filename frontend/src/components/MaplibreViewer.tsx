@@ -2812,33 +2812,9 @@ const MaplibreViewer = ({
         </Source>
 
         {/* GDELT & LiveUA — ground-level incidents, rendered below flights */}
-        <Source id="gdelt" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="gdelt-layer"
-            type="circle"
-            minzoom={4}
-            paint={{
-              'circle-radius': 5,
-              'circle-color': '#ff8c00',
-              'circle-stroke-color': '#ff0000',
-              'circle-stroke-width': 1,
-              'circle-opacity': 0.7,
-            }}
-          />
-        </Source>
+        <GdeltLayers />
 
-        <Source id="liveuamap" type="geojson" data={EMPTY_FC}>
-          <Layer
-            id="liveuamap-layer"
-            type="symbol"
-            minzoom={4}
-            layout={{
-              'icon-image': ['get', 'iconId'],
-              'icon-size': 0.8,
-              'icon-allow-overlap': true,
-            }}
-          />
-        </Source>
+        <LiveuamapLayers />
 
         {/* tracked-flights & UAVs: rendered above ground layers (airborne) */}
         <Source id="tracked-flights" type="geojson" data={EMPTY_FC}>
