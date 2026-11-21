@@ -3573,6 +3573,58 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             addSystem('');
   };
 
+  const handleConnectCommand = async () => {
+            if (nodeIdentity && hasSovereignty()) {
+              addSystem(`  Public Agent already active as ${nodeIdentity.nodeId}. Type 'whoami' for lane status.`);
+            } else {
+              addLines([...SOVEREIGNTY_DECLARATION]);
+              setSovereigntyPending(true);
+            }
+  };
+  const handleRepCommand = async (args: string[]) => {
+            const targetId = args[0];
+            if (!targetId) { addError('Usage: rep <node_id>  (e.g. rep !sb_a3f2c891)'); return; }
+            try {
+              const res = await fetch(`${API}/api/mesh/reputation?node_id=${encodeURIComponent(targetId)}`);
+              const data = await res.json();
+              if (data.ok === false) { addError(data.detail); return; }
+              addSystem('');
+              addSystem(`  REPUTATION: ${data.node_id}`);
+              addOutput(`    Overall: ${data.overall}`);
+              addOutput('    Sources:');
+              for (const [src, val] of Object.entries(data.breakdown || {})) {
+                addOutput(`      ${String(src).padEnd(20)} ${Number(val).toFixed(1)}`);
+              }
+              addSystem('');
+            } catch { addError('Failed to fetch reputation'); }
+  };
+  const handleMyrepCommand = async () => {
+            if (!nodeIdentity) { addError('No identity. Run /whoami or connect first.'); return; }
+            try {
+              const res = await fetch(`${API}/api/mesh/reputation?node_id=${encodeURIComponent(nodeIdentity.nodeId)}`);
+              const data = await res.json();
+              if (data.ok === false) { addError(data.detail); return; }
+              addSystem('');
+              addSystem(`  YOUR REPUTATION: ${data.node_id}`);
+              addOutput(`    Overall: ${data.overall}`);
+              for (const [src, val] of Object.entries(data.breakdown || {})) {
+                addOutput(`      ${String(src).padEnd(20)} ${Number(val).toFixed(1)}`);
+              }
+              addSystem('');
+            } catch { addError('Failed to fetch reputation'); }
+  };
+  const handleThresholdCommand = (args: string[]) => {
+            const n = parseInt(args[0]);
+            if (isNaN(n) || n < 0) {
+              const current = typeof window !== 'undefined' ? localStorage.getItem('sb_mesh_rep_threshold') || '0' : '0';
+              addSystem(`  Current DM threshold: ${current} (min rep to receive messages)`);
+              addLines([{ text: '  Usage: threshold <n>  (e.g. threshold 5)', type: 'dim' }]);
+              return;
+            }
+            localStorage.setItem('sb_mesh_rep_threshold', String(n));
+            addSystem(`  DM threshold set to ${n}. Only nodes with rep >= ${n} can message you.`);
+  };
+
   const exec = useCallback(
     async (raw: string) => {
       const trimmed = raw.trim();
@@ -3843,92 +3895,18 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           case 'sovereign':
           case 'activate':
           case 'join': {
-            if (nodeIdentity && hasSovereignty()) {
-              addSystem(
-                `  Public Agent already active as ${nodeIdentity.nodeId}. Type 'whoami' for lane status.`,
-              );
-            } else {
-              addLines([...SOVEREIGNTY_DECLARATION]);
-              setSovereigntyPending(true);
-            }
+            await handleConnectCommand();
             break;
           }
           case 'rep': {
-            // rep <node_id> — full public reputation breakdown
-            const targetId = args[0];
-            if (!targetId) {
-              addError('Usage: rep <node_id>  (e.g. rep !sb_a3f2c891)');
-              break;
-            }
-            try {
-              const res = await fetch(
-                `${API}/api/mesh/reputation?node_id=${encodeURIComponent(targetId)}`,
-              );
-              const data = await res.json();
-              if (data.ok === false) {
-                addError(data.detail);
-                break;
-              }
-              addSystem('');
-              addSystem(`  NODE: ${data.node_id || targetId}`);
-              addOutput(
-                `    Overall Rep: ${data.overall ?? 0}  (${data.upvotes ?? 0} up / ${data.downvotes ?? 0} down)`,
-              );
-              addOutput(
-                `    Node Age:    ${data.node_age_days ?? 0} days${data.is_agent ? '  [AGENT]' : ''}`,
-              );
-              const gates = data.gates || {};
-              if (Object.keys(gates).length > 0) {
-                addSystem('    Gate Rep:');
-                for (const [gid, score] of Object.entries(gates)) {
-                  addOutput(`      ${gid}: ${score}`);
-                }
-              }
-              const votes = data.recent_votes || [];
-              if (votes.length > 0) {
-                addSystem('    Recent Votes:');
-                for (const v of votes.slice(0, 10)) {
-                  const dir = v.vote > 0 ? '+1' : '-1';
-                  const gStr = v.gate ? ` in ${v.gate}` : '';
-                  const agentStr = v.agent_verify ? ' [AGENT]' : '';
-                  addOutput(`      ${dir} from ${v.voter}${gStr} (${v.age})${agentStr}`);
-                }
-              }
-              addSystem('');
-            } catch {
-              addError('Failed to fetch reputation');
-            }
+            await handleRepCommand(args);
             break;
           }
           case 'myrep': {
-            if (!nodeIdentity) {
-              addError("Not connected. Type 'connect' to activate.");
-              break;
-            }
-            try {
-              const res = await fetch(
-                `${API}/api/mesh/reputation?node_id=${encodeURIComponent(nodeIdentity.nodeId)}`,
-              );
-              const data = await res.json();
-              addSystem('');
-              addSystem(`  YOUR REPUTATION: ${nodeIdentity.nodeId}`);
-              addOutput(
-                `    Overall: ${data.overall ?? 0}  (${data.upvotes ?? 0} up / ${data.downvotes ?? 0} down)`,
-              );
-              const gates = data.gates || {};
-              if (Object.keys(gates).length > 0) {
-                addSystem('    Gate Rep:');
-                for (const [gid, score] of Object.entries(gates)) {
-                  addOutput(`      ${gid}: ${score}`);
-                }
-              }
-              addSystem('');
-            } catch {
-              addError('Failed to fetch reputation');
-            }
+            await handleMyrepCommand();
             break;
           }
-          case 'vote': {
+          case 'vote': {          case 'vote': {
             // vote <agent_id> up|down [gate]
             if (!nodeIdentity || !hasSovereignty()) {
               addError("Not connected. Type 'connect' to activate your Agent identity.");
@@ -3990,21 +3968,10 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           }
           case 'threshold': {
-            const n = parseInt(args[0]);
-            if (isNaN(n) || n < 0) {
-              const current =
-                typeof window !== 'undefined'
-                  ? localStorage.getItem('sb_mesh_rep_threshold') || '0'
-                  : '0';
-              addSystem(`  Current DM threshold: ${current} (min rep to receive messages)`);
-              addLines([{ text: '  Usage: threshold <n>  (e.g. threshold 5)', type: 'dim' }]);
-              break;
-            }
-            localStorage.setItem('sb_mesh_rep_threshold', String(n));
-            addSystem(`  DM threshold set to ${n}. Only nodes with rep >= ${n} can message you.`);
+            handleThresholdCommand(args);
             break;
           }
-          case 'gates': {
+          case 'gates': {          case 'gates': {
             await handleGatesCommand({});
             break;
           }
