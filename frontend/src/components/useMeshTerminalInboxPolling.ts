@@ -7,7 +7,15 @@ import type { InboxPreviewRecord } from './MeshTerminal.shared';
 
 const API = '';
 
-export function useMeshTerminalInboxPolling(ctx: any) {
+export interface MeshTerminalInboxPollingCtx {
+  isOpen: boolean;
+  surfacePanel: string;
+  nodeIdentity: any;
+  onDmCount?: (n: number) => void;
+  setSurfaceInbox: (v: any[]) => void;
+  setSurfaceInboxLoading: (v: boolean) => void;
+}
+export function useMeshTerminalInboxPolling(ctx: MeshTerminalInboxPollingCtx) {
   const { isOpen, surfacePanel, nodeIdentity, onDmCount, setSurfaceInbox, setSurfaceInboxLoading } = ctx;
 
   useEffect(() => {

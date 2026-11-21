@@ -2,7 +2,18 @@ import { useCallback } from 'react';
 
 const API = '';
 
-export function useMeshTerminalStatusCommands(ctx: any) {
+export interface MeshTerminalStatusCommandsCtx {
+  addError: (t: string) => void;
+  addLines: (lines: any[]) => void;
+  addOutput: (t: string) => void;
+  addSystem: (t: string) => void;
+  setInfonetNodeStatus: (v: any) => void;
+  setInfonetNodeStatusError: (v: string) => void;
+  fetchInfonetNodeStatusSnapshot: (force?: boolean) => Promise<any>;
+  shortNodeHash: (v: any, n?: number) => string;
+  buildNodeRuntimeLines: (data: any) => any[];
+}
+export function useMeshTerminalStatusCommands(ctx: MeshTerminalStatusCommandsCtx) {
   const { addError, addLines, addOutput, addSystem, setInfonetNodeStatus, setInfonetNodeStatusError, fetchInfonetNodeStatusSnapshot, shortNodeHash, buildNodeRuntimeLines } = ctx;
 
   const cmdNode = useCallback(async () => {

@@ -13,7 +13,20 @@ import {
 
 const API = '';
 
-export function useMeshTerminalCmdStatus(ctx: any) {
+export interface MeshTerminalCmdStatusCtx {
+  addOutput: (t: string) => void;
+  addError: (t: string) => void;
+  addSystem: (t: string) => void;
+  addLines: (lines: any[]) => void;
+  nodeIdentity: any;
+  privateLaneDetail: string;
+  privateLaneLabel: string;
+  fetchInfonetNodeStatusSnapshot: (force?: boolean) => Promise<any>;
+  setInfonetNodeStatus: (v: any) => void;
+  setInfonetNodeStatusError: (v: string) => void;
+  buildNodeRuntimeLines: (data: any) => any[];
+}
+export function useMeshTerminalCmdStatus(ctx: MeshTerminalCmdStatusCtx) {
   const {
     addOutput, addError, addSystem, addLines,
     nodeIdentity, privateLaneDetail, privateLaneLabel,

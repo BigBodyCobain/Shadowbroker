@@ -6,7 +6,16 @@ import { SOVEREIGNTY_DECLARATION } from './MeshTerminal.shared';
 
 const API = '';
 
-export function useMeshTerminalBoot(ctx: any) {
+export interface MeshTerminalBootCtx {
+  isOpen: boolean;
+  hasBooted: boolean;
+  setHasBooted: (v: boolean) => void;
+  setLines: (v: any) => void;
+  setInfonetNodeStatus: (v: any) => void;
+  setInfonetNodeStatusError: (v: string) => void;
+  setSovereigntyPending: (v: boolean) => void;
+}
+export function useMeshTerminalBoot(ctx: MeshTerminalBootCtx) {
   const { isOpen, hasBooted, setHasBooted, setLines, setInfonetNodeStatus, setInfonetNodeStatusError, setSovereigntyPending } = ctx;
 
   // Auto-run status on first open

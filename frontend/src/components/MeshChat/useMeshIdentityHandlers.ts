@@ -19,7 +19,43 @@ import {
   createPublicMeshAddress,
 } from './useMeshChatController.helpers';
 
-export function useMeshIdentityHandlers(ctx: any) {
+export interface MeshIdentityHandlersCtx {
+  wormholeEnabled: boolean;
+  wormholeReadyState: boolean;
+  meshSessionActive: boolean;
+  activePublicMeshAddress: string | null;
+  meshMqttEnabled: boolean;
+  publicMeshPrivacyEnforcedRef: React.MutableRefObject<boolean>;
+  setMeshQuickStatus: (v: any) => void;
+  setWormholeEnabled: (v: boolean) => void;
+  setWormholeReadyState: (v: boolean) => void;
+  setWormholeRnsReady: (v: boolean) => void;
+  setWormholeRnsDirectReady: (v: boolean) => void;
+  setWormholeRnsPeers: (v: any) => void;
+  setIdentityWizardBusy: (v: boolean) => void;
+  setIdentityWizardStatus: (v: any) => void;
+  setIdentityWizardOpen: (v: boolean) => void;
+  setPublicMeshAddress: (v: string) => void;
+  setMeshSessionActive: (v: boolean) => void;
+  setMeshMessages: (v: any[]) => void;
+  setSendError: (v: string) => void;
+  setIdentity: (v: any) => void;
+  setContacts: (v: any) => void;
+  setActiveTab: (v: any) => void;
+  hasStoredPublicLaneIdentity: boolean;
+  wormholeDescriptor: any;
+  setMeshDirectTarget: (v: string) => void;
+  setMeshAddressDraft: (v: string) => void;
+  setMeshView: (v: any) => void;
+  setSenderPopup: (v: any) => void;
+  inputRef: React.RefObject<any>;
+  enableMeshMqttBridge: () => Promise<void>;
+  errorMessage: (err: any, fallback?: string) => string;
+  describeMeshChatControlError: (msg: string) => string;
+  [k: string]: any;
+}
+
+export function useMeshIdentityHandlers(ctx: MeshIdentityHandlersCtx) {
   const {
     wormholeEnabled, wormholeReadyState, meshSessionActive, activePublicMeshAddress, meshMqttEnabled,
     publicMeshPrivacyEnforcedRef, setMeshQuickStatus, setWormholeEnabled, setWormholeReadyState,

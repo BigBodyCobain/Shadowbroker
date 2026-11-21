@@ -2,7 +2,13 @@ import { useCallback } from 'react';
 
 const API = '';
 
-export function useMeshTerminalIntelCommands(ctx: any) {
+export interface MeshTerminalIntelCommandsCtx {
+  addError: (t: string) => void;
+  addLines: (lines: any[]) => void;
+  addOutput: (t: string) => void;
+  addSystem: (t: string) => void;
+}
+export function useMeshTerminalIntelCommands(ctx: MeshTerminalIntelCommandsCtx) {
   const { addError, addLines, addOutput, addSystem } = ctx;
 
   const cmdApps = useCallback(() => {
