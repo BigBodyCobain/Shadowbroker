@@ -711,43 +711,9 @@ const MaplibreViewer = ({
     tinygsGeoJSON, shodanGeoJSON, aiIntelGeoJSON,
   } = useMapCoreGeoJson({ activeLayers, data, inView, interpSat, interpTick, shodanResults, aiIntelPins });
 
-  const ukraineAlertsGeoJSON = useMemo(
-    () => (activeLayers.ukraine_alerts ? buildUkraineAlertsGeoJSON(data?.ukraine_alerts) : null),
-    [activeLayers.ukraine_alerts, data?.ukraine_alerts],
-  );
-
-  const ukraineAlertLabelsGeoJSON = useMemo(
-    () => (activeLayers.ukraine_alerts ? buildUkraineAlertLabelsGeoJSON(data?.ukraine_alerts) : null),
-    [activeLayers.ukraine_alerts, data?.ukraine_alerts],
-  );
-
-  const weatherAlertsGeoJSON = useMemo(
-    () => (activeLayers.weather_alerts ? buildWeatherAlertsGeoJSON(data?.weather_alerts) : null),
-    [activeLayers.weather_alerts, data?.weather_alerts],
-  );
-
-  const weatherAlertLabelsGeoJSON = useMemo(
-    () => (activeLayers.weather_alerts ? buildWeatherAlertLabelsGeoJSON(data?.weather_alerts) : null),
-    [activeLayers.weather_alerts, data?.weather_alerts],
-  );
-
-  // Sentinel Hub — tile URL (only built when layer is active + credentials are set)
-  const sentinelTileUrl = useMemo(() => {
-    if (!activeLayers.sentinel_hub) return null;
-    if (!hasSentinelCredentials()) return null;
-    return buildSentinelTileUrl(sentinelPreset || 'TRUE-COLOR', sentinelDate || '');
-  }, [activeLayers.sentinel_hub, sentinelPreset, sentinelDate]);
-
-  // Register sentinel:// custom protocol for Process API tile fetching
-  useEffect(() => {
-    registerSentinelProtocol(maplibregl);
-  }, []);
-
-  // Pre-fetch Sentinel Hub token when layer is toggled on
-  useEffect(() => {
-    if (!activeLayers.sentinel_hub) return;
-    getSentinelToken().catch((err) => console.warn('Sentinel Hub token error:', err));
-  }, [activeLayers.sentinel_hub, sentinelPreset, sentinelDate]);
+  const {
+    ukraineAlertsGeoJSON, ukraineAlertLabelsGeoJSON, weatherAlertsGeoJSON, weatherAlertLabelsGeoJSON, sentinelTileUrl,
+  } = useMapAlertGeoJson({ activeLayers, data, sentinelPreset, sentinelDate });
 
   // Initialize images/sources as soon as the local style is available.
   // Do not wait for remote basemap tiles to load, because blocked tile hosts
