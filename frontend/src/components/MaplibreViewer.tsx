@@ -961,44 +961,10 @@ const MaplibreViewer = ({
     [activeLayers.satellites, data?.satellites, inView, interpSat, interpTick],
   );
 
-  const commConfig = useMemo<FlightLayerConfig>(
-    () => ({
-      colorMap: COLOR_MAP_COMMERCIAL,
-      groundedMap: GROUNDED_ICON_MAP,
-      typeLabel: 'flight',
-      idPrefix: 'flight-',
-      useTrackHeading: true,
-    }),
-    [],
-  );
-  const privConfig = useMemo<FlightLayerConfig>(
-    () => ({
-      colorMap: COLOR_MAP_PRIVATE,
-      groundedMap: GROUNDED_ICON_MAP,
-      typeLabel: 'private_flight',
-      idPrefix: 'pflight-',
-    }),
-    [],
-  );
-  const jetsConfig = useMemo<FlightLayerConfig>(
-    () => ({
-      colorMap: COLOR_MAP_JETS,
-      groundedMap: GROUNDED_ICON_MAP,
-      typeLabel: 'private_jet',
-      idPrefix: 'pjet-',
-    }),
-    [],
-  );
-  const milConfig = useMemo<FlightLayerConfig>(
-    () => ({
-      colorMap: COLOR_MAP_MILITARY,
-      groundedMap: GROUNDED_ICON_MAP,
-      typeLabel: 'military_flight',
-      idPrefix: 'mflight-',
-      milSpecialMap: MIL_SPECIAL_MAP,
-    }),
-    [],
-  );
+  const commConfig = COMM_FLIGHT_CONFIG;
+  const privConfig = PRIV_FLIGHT_CONFIG;
+  const jetsConfig = JETS_FLIGHT_CONFIG;
+  const milConfig = MIL_FLIGHT_CONFIG;
 
   const shipsLayerEnabled = backendViewportSyncEnabled;
   const sigintLayerEnabled = activeLayers.sigint_meshtastic || activeLayers.sigint_aprs;
