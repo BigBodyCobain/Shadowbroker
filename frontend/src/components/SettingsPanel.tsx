@@ -9,6 +9,8 @@ import { SarSettingsTab } from './SettingsPanelSarTab';
 import { useSettingsPanelFeeds } from './useSettingsPanelFeeds';
 import { useSettingsPanelApiKeys } from './useSettingsPanelApiKeys';
 import { useSettingsPanelAdminSession } from './useSettingsPanelAdminSession';
+import { useTimeMachineSetting } from './useTimeMachineSetting';
+import { useCompanionSetting } from './useCompanionSetting';
 import { clearAdminSession, hasAdminSession, primeAdminSession } from '@/lib/adminSession';
 import { controlPlaneFetch, controlPlaneJson } from '@/lib/controlPlane';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
@@ -143,54 +145,9 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const [dmRootHealthBusy, setDmRootHealthBusy] = useState(false);
   const [dmRootHealthMsg, setDmRootHealthMsg] = useState<string | null>(null);
 
-  // --- Time Machine ---
-  const [tmEnabled, setTmEnabled] = useState(false);
-  const [tmSaving, setTmSaving] = useState(false);
+  const { tmEnabled, tmSaving, toggleTimeMachine } = useTimeMachineSetting(isOpen, activeTab);
 
-  // Fetch Time Machine status when protocol tab opens
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'protocol') return;
-    fetch(`${API_BASE}/api/settings/timemachine`)
-      .then((r) => r.json())
-      .then((d) => setTmEnabled(!!d.enabled))
-      .catch(() => {});
-  }, [isOpen, activeTab]);
-
-  const toggleTimeMachine = useCallback(async () => {
-    setTmSaving(true);
-    try {
-      const res = await controlPlaneFetch('/api/settings/timemachine', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !tmEnabled }),
-        requireAdminSession: false,
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTmEnabled(!!data.enabled);
-      }
-    } catch {}
-    setTmSaving(false);
-  }, [tmEnabled]);
-
-  // --- Browser Companion (desktop-only) ---
-  const [companionAvailable] = useState(() => isNativeDesktop());
-  const [companion, setCompanion] = useState<CompanionStatus | null>(null);
-  const [companionBusy, setCompanionBusy] = useState(false);
-  const [companionError, setCompanionError] = useState<string | null>(null);
-
-  const [companionLoadFailed, setCompanionLoadFailed] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'protocol' || !companionAvailable) return;
-    setCompanionLoadFailed(false);
-    fetchCompanionStatus()
-      .then((s) => setCompanion(s))
-      .catch(() => {
-        setCompanion(null);
-        setCompanionLoadFailed(true);
-      });
-  }, [isOpen, activeTab, companionAvailable]);
+  const { companionAvailable, companion, companionBusy, companionError, companionLoadFailed, toggleCompanion, openCompanionBrowser } = useCompanionSetting(isOpen, activeTab);
 
   useEffect(() => {
     const refreshTelemetry = () => setGateCompatTelemetry(getGateCompatTelemetrySnapshot());
@@ -198,9 +155,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
     if (typeof window === 'undefined') return;
     const eventName = getGateCompatTelemetryEventName();
     window.addEventListener(eventName, refreshTelemetry as EventListener);
-    return () => {
-      window.removeEventListener(eventName, refreshTelemetry as EventListener);
-    };
+    return () => { window.removeEventListener(eventName, refreshTelemetry as EventListener); };
   }, []);
 
   useEffect(() => {
@@ -209,35 +164,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
     if (typeof window === 'undefined') return;
     const eventName = getBrowserGateLocalRuntimeEventName();
     window.addEventListener(eventName, refreshRuntimeStatus as EventListener);
-    return () => {
-      window.removeEventListener(eventName, refreshRuntimeStatus as EventListener);
-    };
-  }, []);
-
-  const toggleCompanion = useCallback(async () => {
-    setCompanionBusy(true);
-    setCompanionError(null);
-    try {
-      const result = companion?.enabled
-        ? await companionDisable()
-        : await companionEnable();
-      if (result) setCompanion(result);
-    } catch (e) {
-      setCompanionError(e instanceof Error ? e.message : String(e));
-    }
-    setCompanionBusy(false);
-  }, [companion?.enabled]);
-
-  const openCompanionBrowser = useCallback(async () => {
-    setCompanionBusy(true);
-    setCompanionError(null);
-    try {
-      const result = await companionOpenBrowser();
-      if (result) setCompanion(result);
-    } catch (e) {
-      setCompanionError(e instanceof Error ? e.message : String(e));
-    }
-    setCompanionBusy(false);
+    return () => { window.removeEventListener(eventName, refreshRuntimeStatus as EventListener); };
   }, []);
 
   const clearSessionIdentity = () => {
