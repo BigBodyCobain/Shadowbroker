@@ -1,5 +1,13 @@
-// @ts-nocheck
-'use client';
+import { API_BASE } from '@/lib/api';
+import { nextSequence, getDHAlgo, deriveSharedKey, encryptDM, verifyEventSignature } from '@/mesh/meshIdentity';
+import { validateEventPayload } from '@/mesh/meshSchema';
+import { signMeshEvent, issueWormholePairwiseAlias } from '@/mesh/wormholeIdentityClient';
+import { ensureRegisteredDmKey, fetchDmPublicKey, sendOffLedgerConsentMessage } from '@/mesh/meshDmClient';
+import { canUseWormholeBootstrap, bootstrapEncryptAccessRequest } from '@/mesh/wormholeDmBootstrapClient';
+import { generateSharedAlias, buildContactOfferMessage, buildContactAcceptMessage, buildContactDenyMessage } from '@/mesh/meshDmConsent';
+import { connectDeliveryMeta, ensureDmOutboxReleased } from '@/mesh/dmConnectDelivery';
+import { sleep } from './utils';
+import { ACCESS_REQUEST_BATCH_DELAY_MS } from './types';
 
 export interface DeadDropAccessCtx { [k: string]: any; expanded?: any; activeTab?: any; hasId?: any; identity?: any; contacts?: any; accessRequests?: any; pendingSent?: any; dmConsentScopeId?: any; selectedContact?: any; dmView?: any; setContacts?: any; setDmMessages?: any; setAccessRequestsState?: any; setPendingSentState?: any; setDmView?: any; setSendError?: any; setDmUnread?: any; privacyProfile?: any; wormholeEnabled?: any; wormholeReadyState?: any; anonymousDmBlocked?: any; dmRequestTarget?: any; setDmRequestTarget?: any; dmRequestStatus?: any; setDmRequestStatus?: any; setSelectedContact?: any; setShowSas?: any; setSasPhrase?: any; setSasConfirmInput?: any; sendDecoy?: any; isWormholeSecureRequired?: any; getContacts?: any; addContact?: any; updateContact?: any; blockContact?: any; severContact?: any; setAccessRequests?: any; setPendingSent?: any; getPendingSent?: any; getAccessRequests?: any; }
 
@@ -8,7 +16,10 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
     expanded, activeTab, hasId, identity, contacts, accessRequests, pendingSent, dmConsentScopeId, selectedContact, dmView,
     setContacts, setDmMessages, setAccessRequestsState, setPendingSentState, setDmView, setSendError, setDmUnread, privacyProfile,
     wormholeEnabled, wormholeReadyState, anonymousDmBlocked, dmRequestTarget, setDmRequestTarget, dmRequestStatus, setDmRequestStatus,
-    setSelectedContact, setShowSas, setSasPhrase, setSasConfirmInput, sendDecoy, isWormholeSecureRequired, getContacts, addContact, updateContact, blockContact, severContact, setAccessRequests, setPendingSent, getPendingSent, getAccessRequests
+    setSelectedContact, setShowSas, setSasPhrase, setSasConfirmInput, sendDecoy, isWormholeSecureRequired, getContacts, addContact, updateContact, blockContact, severContact, setAccessRequests, setPendingSent, getPendingSent, getAccessRequests,
+    ACCESS_REQUEST_BATCH_JITTER_MS, addContactId, anonymousPublicBlocked, enqueueDmSend, geoHintEnabled, jitterDelay,
+    setAddContactId, setLastDmTransport, setShowAddContact, dmSendQueue, dmSendTimer, dmComposeText, setDmComposeText,
+    dmIncomingRequests, setDmIncomingRequests, dmOutgoingRequests, setDmOutgoingRequests,
   } = ctx as any;
 
 
@@ -127,7 +138,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
       return;
     }
     try {
-      const req = accessRequests.find((r) => r.sender_id === senderId);
+      const req = accessRequests.find((r: any) => r.sender_id === senderId);
       const existingContact = getContacts()[senderId];
       const registry = await fetchDmPublicKey(
         API_BASE,
@@ -243,7 +254,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
           /* ignore */
         }
       }
-      const updated = accessRequests.filter((r) => r.sender_id !== senderId);
+      const updated = accessRequests.filter((r: any) => r.sender_id !== senderId);
       setAccessRequests(updated, dmConsentScopeId);
       setAccessRequestsState(updated);
       setContacts(getContacts());
@@ -324,7 +335,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
   const handleDenyRequest = (senderId: string) => {
     void (async () => {
       try {
-        const req = accessRequests.find((r) => r.sender_id === senderId);
+        const req = accessRequests.find((r: any) => r.sender_id === senderId);
         const existingContact = getContacts()[senderId];
         const targetKey =
           req?.dh_pub_key
@@ -369,7 +380,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
       } catch {
         /* ignore */
       } finally {
-        const updated = accessRequests.filter((r) => r.sender_id !== senderId);
+        const updated = accessRequests.filter((r: any) => r.sender_id !== senderId);
         setAccessRequests(updated, dmConsentScopeId);
         setAccessRequestsState(updated);
       }
@@ -394,7 +405,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
     blockContact(agentId);
     setContacts(getContacts());
     // Also remove from access requests
-    const updated = accessRequests.filter((r) => r.sender_id !== agentId);
+    const updated = accessRequests.filter((r: any) => r.sender_id !== agentId);
     setAccessRequests(updated, dmConsentScopeId);
     setAccessRequestsState(updated);
     if (selectedContact === agentId) {
