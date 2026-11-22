@@ -1016,14 +1016,19 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             return;
   };
 
-  const { handleGateCommand } = useMeshTerminalGateCommand({ addError, addLines, addOutput, addSystem, nodeIdentity, hasSovereignty });
+  const { handleGateCommand } = useMeshTerminalGateCommand({
+    addError, addLines, addOutput, addSystem,
+    gateAccessGranted, requestGateAccess,
+    wormholeSecureRequired, wormholeReadyState,
+    setWormholeSecureRequired, setWormholeReadyState,
+    anonymousModeEnabled, anonymousModeReady,
+    addGateResyncAction,
+  });
 
   const { handleMarketsCommand } = useMeshTerminalMarketsCommand({
     addError, addLines, addOutput, addSystem, nodeIdentity, hasSovereignty, asSearchRecords });
 
   const { handleInfonetCommand } = useMeshTerminalInfonetCommand({ addError, addLines, addOutput, addSystem, nodeIdentity });
-
-  const { handleDmCommand } = useMeshTerminalDmCommand({ addError, addLines, addOutput, addSystem, nodeIdentity, hasSovereignty });
 
   const {
     handleInboxCommand,
@@ -1041,6 +1046,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     addError, addLines, addOutput, addSystem,
     nodeIdentity, setSovereigntyPending, setBusy,
     privateLaneLabel, privateLaneDetail, onDmCount, setSendStep,
+  });
+
+  const { handleDmCommand } = useMeshTerminalDmCommand({
+    addError, addLines, addOutput, addSystem, nodeIdentity,
+    doDMSend, onDmCount, setDmDest, setDmStep,
   });
 
   const { handleVoteCommand } = useMeshTerminalVoteCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty});
