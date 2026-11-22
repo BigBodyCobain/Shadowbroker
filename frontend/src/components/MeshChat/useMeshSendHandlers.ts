@@ -37,7 +37,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     setPendingSent, getPendingSent, gateReplyContext, meshView,
     activePublicMeshAddress, clearGateResyncRequired, decoyEnabled, describeGateLocalRuntimeRequired,
     DM_DECOY_POLL_JITTER_MS, DM_DECOY_POLL_MS, enqueueDmSend, hasStoredPublicLaneIdentity,
-    jitterDelay, markGateResyncRequired, maybeRotateSharedAlias, newGateId, newGateMinRep, newGateName,
+    jitterDelay, markGateResyncRequired, newGateId, newGateMinRep, newGateName,
     openIdentityWizard, promotePendingAlias, randomBase64, randomHex, refreshNativeAuditReport,
     setNewGateMinRep, setNewGateName, setPublicMeshAddress, setReps, setShowCreateGate, setVotedOn,
     votedOn, voteScopeKey, gateIdentity, setGateIdentity, activeGateIdentity,
@@ -48,6 +48,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     gatePollStatus, setGatePollStatus, infonetPollStatus, setInfonetPollStatus, hasSovereignty
     } = ctx as any;
 
+  const gateContactHandlers = useMeshGateContactHandlers(ctx);
 
   const handleSend = async () => {
     const msg = inputValue.trim();
@@ -283,7 +284,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
             }
             try {
               await ensureRegisteredDmKey(API_BASE, identity!, { force: false });
-              const rotatedContact = await maybeRotateSharedAlias(selectedContact, contactInfo);
+              const rotatedContact = await gateContactHandlers.maybeRotateSharedAlias(selectedContact, contactInfo);
               const promotion = promotePendingAlias(selectedContact, rotatedContact);
               if (promotion) updateContact(selectedContact, promotion.delta.updates);
               const effectiveContact = promotion?.promoted || rotatedContact;
@@ -525,7 +526,6 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     setGateKeyStatus((prev: any) => ({ ...prev, [gateKey]: data }));
   }, [wormholeEnabled, wormholeReadyState]);
 
-  const gateContactHandlers = useMeshGateContactHandlers(ctx);
   return {
     ...gateContactHandlers,
     handleSend,

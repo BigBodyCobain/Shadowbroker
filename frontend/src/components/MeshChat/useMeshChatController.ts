@@ -821,16 +821,16 @@ export function useMeshChatController({
     setInfoVerification,
     activeGateSessionRef,
     infoPollSignatureRef,
-    
-    
-    
-    
-    
-    
+    infoCursorRef,
+    refreshInfonetMessages,
+    infoPollTimerRef,
+    infoWaitAbortRef,
+    infoVerificationCacheRef,
+    selectedGateRef,
+    streamEnabledForSelectedGateRef,
     identity,
     contacts,
     hasId,
-    
     activeTab,
     infoMessages,
     gates,
@@ -838,6 +838,13 @@ export function useMeshChatController({
     gatePersonas,
     activeGatePersonaId,
     gateCompatActive,
+    gatePersonaBusy,
+    gatePersonaPromptOpen,
+    gateSessionStreamHydrated,
+    gateSessionStreamStatus,
+    gatePersonaPromptGateId,
+    gatePersonaPromptSeenRef,
+    gateReplyContext,
   });
 
   // ─── Meshtastic Channel Discovery ──────────────────────────────────────
@@ -938,8 +945,16 @@ export function useMeshChatController({
     meshRegion,
     meshChannel,
     meshDirectTarget,
-    
-    
+    activePublicMeshAddress,
+    decoyEnabled,
+    newGateId,
+    newGateName,
+    newGateMinRep,
+    setNewGateName,
+    setNewGateMinRep,
+    setShowCreateGate,
+    openIdentityWizard,
+    setPublicMeshAddress,
     meshMqttEnabled,
     meshSessionActive,
     meshQuickStatus,
@@ -1008,13 +1023,25 @@ export function useMeshChatController({
     
     
     sendError,
-    
-    
-    
+    clearGateResyncRequired,
+    describeGateLocalRuntimeRequired,
+    markGateResyncRequired,
+    DM_DECOY_POLL_MS,
+    DM_DECOY_POLL_JITTER_MS,
+    enqueueDmSend,
+    hasStoredPublicLaneIdentity,
+    jitterDelay,
+    promotePendingAlias,
+    randomBase64,
+    randomHex,
+    refreshNativeAuditReport,
     activeGatePersonaId,
     gatePersonas,
     gateKeyStatus,
-    
+    setReps,
+    votedOn,
+    setVotedOn,
+    voteScopeKey,
     hasSovereignty,
     
     
@@ -1052,10 +1079,15 @@ export function useMeshChatController({
     wormholeEnabled,
     wormholeReadyState,
     anonymousDmBlocked,
-    
-    
-    
-    
+    ACCESS_REQUEST_BATCH_JITTER_MS,
+    addContactId,
+    anonymousPublicBlocked,
+    enqueueDmSend,
+    geoHintEnabled,
+    jitterDelay,
+    setAddContactId,
+    setLastDmTransport,
+    setShowAddContact,
     setSelectedContact,
     setShowSas,
     setSasPhrase,

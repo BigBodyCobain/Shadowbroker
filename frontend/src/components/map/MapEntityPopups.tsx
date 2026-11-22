@@ -122,7 +122,6 @@ export interface MapEntityPopupsProps {
   Region?: any;
   RegionDossierPanel?: any;
   Registration?: any;
-  Report?: any;
   Reported?: any;
   Risk?: any;
   Route?: any;
@@ -927,7 +926,6 @@ export function MapEntityPopups({ p }: { p: MapEntityPopupsProps }) {
     Region,
     RegionDossierPanel,
     Registration,
-    Report,
     Reported,
     Risk,
     Route,

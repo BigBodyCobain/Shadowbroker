@@ -558,5 +558,6 @@ export function useMeshGateContactHandlers(ctx: any) {
     handleResyncGateState, handleCreateGatePersona, handleSelectGatePersona, handleRetireGatePersona, handleRotateGateKey,
     handleUnlockEncryptedGate, handleRefreshSelectedContact, handleResetSelectedContact, handleTrustSelectedRemotePrekey,
     handleApproveGateCompatFallback, handleConfirmSelectedContactSas, handleRecoverSelectedContactRootContinuity,
+    maybeRotateSharedAlias,
   };
 }
