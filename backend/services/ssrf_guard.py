@@ -212,12 +212,37 @@ def validate_domain(domain: str) -> bool:
     return bool(re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", domain or ""))
 
 
-def guard_url_for_peer_request(url: str, *, allow_proxied: bool = False) -> dict[str, Any]:
-    """Lightweight SSRF guard for peer/mesh URLs.
+# Peer URLs are operator/LAN configured, so loopback and RFC1918 peers are
+# legitimate (unlike operator-initiated recon targets). Only metadata-style
+# names are refused here; link-local IPs are caught by _peer_ip_blocked.
+_PEER_METADATA_NAMES = (
+    re.compile(r"^metadata$", re.I),
+    re.compile(r"^metadata\..*$", re.I),
+    re.compile(r"^instance-data$", re.I),
+    re.compile(r"^instance-data\..*$", re.I),
+)
 
-    When `allow_proxied` is True (request will be routed through a proxy/Tor),
-    skip local DNS/IP pinning because resolution happens at the proxy. Still
-    block dangerous schemes, URL credentials, and obviously reserved hostnames.
+
+def _peer_ip_blocked(addr: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(addr.strip("[]"))
+    except ValueError:
+        return True
+    # Loopback and IPv4 private ranges are valid peer transports; link-local,
+    # multicast, reserved, unspecified and IPv6 ULA ranges are not.
+    if ip.version == 6 and ip.is_private and not ip.is_loopback:
+        return True
+    return bool(ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+
+
+def guard_url_for_peer_request(url: str, *, allow_proxied: bool = False) -> dict[str, Any]:
+    """SSRF guard for operator/LAN-configured mesh peer URLs.
+
+    Unlike `validate_host` (built for arbitrary recon targets), this permits
+    loopback and private peers because those are legitimate mesh transports.
+    It still refuses dangerous schemes, URL credentials, metadata hosts and
+    link-local/reserved IPs. When `allow_proxied` is True (SOCKS/Tor),
+    resolution happens at the proxy, so local DNS validation is skipped.
     """
     parsed = urlparse(url)
     host = (parsed.hostname or "").strip().rstrip(".")
@@ -228,11 +253,34 @@ def guard_url_for_peer_request(url: str, *, allow_proxied: bool = False) -> dict
     if not host:
         return {"ok": False, "reason": "empty host"}
     lower = host.lower()
-    if any(p.search(lower) for p in _NAME_BLOCKLIST):
-        return {"ok": False, "reason": "hostname matches reserved name pattern"}
+    if any(p.search(lower) for p in _PEER_METADATA_NAMES):
+        return {"ok": False, "reason": "metadata service hostname"}
     if lower.endswith(".onion"):
         return {"ok": True, "resolved": []}
     if allow_proxied:
-        # Proxied requests resolve at the proxy; avoid local DNS pinning.
         return {"ok": True, "resolved": []}
-    return validate_host(host)
+
+    bracketed = host.strip("[]")
+    try:
+        ipaddress.ip_address(bracketed)
+        is_literal = True
+    except ValueError:
+        is_literal = False
+    if is_literal:
+        if _peer_ip_blocked(bracketed):
+            return {"ok": False, "reason": "IP in link-local or reserved range"}
+        return {"ok": True, "resolved": [bracketed]}
+    if not _HOSTNAME_RE.match(host):
+        return {"ok": False, "reason": "invalid hostname syntax"}
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        return {"ok": False, "reason": f"DNS lookup failed: {exc}"}
+    resolved: list[str] = []
+    for info in infos:
+        addr = info[4][0]
+        if _peer_ip_blocked(addr):
+            return {"ok": False, "reason": f"hostname resolves to reserved IP {addr}"}
+        if addr not in resolved:
+            resolved.append(addr)
+    return {"ok": True, "resolved": resolved}

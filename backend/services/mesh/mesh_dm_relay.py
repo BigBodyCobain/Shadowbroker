@@ -1714,6 +1714,11 @@ class DMRelay:
                 proxies = _infonet_peer_requests_proxies(normalized)
                 if proxies:
                     request_kwargs["proxies"] = proxies
+                from services.ssrf_guard import guard_url_for_peer_request
+                guard = guard_url_for_peer_request(url, allow_proxied=bool(proxies))
+                if not guard.get("ok"):
+                    failed.append({"url": peer_url, "detail": str(guard.get("reason"))})
+                    continue
                 resp = None
                 max_attempts = 3 if normalized in preferred_set else 2
                 last_exc = ""

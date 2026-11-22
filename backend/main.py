@@ -1642,6 +1642,11 @@ def _peer_sync_response(peer_url: str, body: dict[str, Any]) -> dict[str, Any]:
         socks_port = int(get_settings().MESH_ARTI_SOCKS_PORT or 9050)
         proxy = f"socks5h://127.0.0.1:{socks_port}"
         kwargs["proxies"] = {"http": proxy, "https": proxy}
+    from services.ssrf_guard import guard_url_for_peer_request
+
+    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(kwargs.get("proxies")))
+    if not guard.get("ok"):
+        raise ValueError(f"blocked peer url: {guard.get('reason')}")
     response = _requests.post(f"{normalized}/api/mesh/infonet/sync", **kwargs)
     # HTTP 429 must be surfaced as a typed exception carrying the
     # Retry-After value, so finish_sync can honor it and stop hammering
@@ -2229,6 +2234,10 @@ def _http_peer_push_loop() -> None:
                     }
                     if proxies:
                         request_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/infonet/peer-push",
                         **request_kwargs,
@@ -2330,6 +2339,10 @@ def _http_gate_pull_loop() -> None:
                     }
                     if proxies:
                         discovery_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/gate/peer-pull",
                         **discovery_kwargs,
@@ -2373,6 +2386,10 @@ def _http_gate_pull_loop() -> None:
                         }
                         if proxies:
                             pull_kwargs["proxies"] = proxies
+                        from services.ssrf_guard import guard_url_for_peer_request
+                        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                        if not guard.get("ok"):
+                            raise ValueError(f"blocked peer url: {guard.get('reason')}")
                         pull_resp = _requests.post(
                             f"{normalized}/api/mesh/gate/peer-pull",
                             **pull_kwargs,

@@ -2129,15 +2129,13 @@ def _frame_is_fresh(url: str, max_age_s: int = _FRAME_MAX_AGE_S, headers: dict |
     from services.network_utils import default_user_agent
 
     try:
-        from services.ssrf_guard import safe_get
-
-        resp = safe_get(
+        resp = requests.get(
             url,
             headers={"User-Agent": default_user_agent(), "Range": "bytes=0-0", **(headers or {})},
-            timeout=6,
-            max_redirects=3,
+            timeout=(3, 6),
+            stream=True,
         )
-    except Exception:
+    except requests.RequestException:
         return False
     try:
         if resp.status_code not in (200, 206):
