@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
 import { findSelectedEntity } from '@/components/map/geoJSONBuilders';
@@ -8,7 +7,7 @@ import {
   flightPayloadHasKnownRoute,
 } from '@/components/MaplibreViewer.helpers';
 import type { TrailKind } from '@/components/MaplibreViewer.helpers';
-import type { Flight, Ship } from '@/lib/types';
+import type { Flight, Ship } from '@/types/dashboard';
 
 export function useSelectedEntityTrail({ selectedEntity, data, dynamicRoute, setSelectedTrailPoints }: any) {
   useEffect(() => {

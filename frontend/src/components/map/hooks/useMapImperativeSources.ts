@@ -1,10 +1,9 @@
-// @ts-nocheck
 import { useMemo } from 'react';
-import type maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 import { useImperativeSource } from './useImperativeSource';
 
 export function useMapImperativeSources(p: any) {
-  const map = p.map as maplibregl.Map | null;
+  const map = p.map as any;
   useImperativeSource(map, 'commercial-flights', p.commFlightsGeoJSON);
   useImperativeSource(map, 'private-flights', p.privFlightsGeoJSON);
   useImperativeSource(map, 'private-jets', p.privJetsGeoJSON);

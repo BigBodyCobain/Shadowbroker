@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
-import type maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 import { clampZoom } from '@/lib/mapZoom';
 import { emitViewState, onRequest as onMapControlRequest } from '@/lib/mapControlBus';
 
