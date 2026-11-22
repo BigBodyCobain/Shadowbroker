@@ -1,8 +1,9 @@
-// @ts-nocheck
 import { useCallback } from 'react';
+import { prepareWormholeInteractiveLane } from '@/mesh/wormholeIdentityClient';
+import { describeNativeControlError } from '@/lib/desktopControlContract';
 const API='';
 export function useMeshTerminalSayCommand(ctx:any){
-  const {addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty,postGateMessage,invalidateGateCatalogSnapshot,invalidateGateDetailSnapshot,invalidateGateThreadPreviewSnapshot,addGateResyncAction}=ctx;
+  const {addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty,postGateMessage,invalidateGateCatalogSnapshot,invalidateGateDetailSnapshot,invalidateGateThreadPreviewSnapshot,addGateResyncAction, gateAccessGranted, requestGateAccess, wormholeSecureRequired, wormholeReadyState, setWormholeSecureRequired, setWormholeReadyState}=ctx;
   const handleSayCommand = async (args: string[]) => {
           if (!gateAccessGranted) {
             requestGateAccess(`say ${args.join(' ')}`.trim());

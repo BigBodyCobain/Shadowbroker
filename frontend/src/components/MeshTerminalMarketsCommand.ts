@@ -1,5 +1,8 @@
-// @ts-nocheck
 import { useCallback } from 'react';
+import { nextSequence, signEvent, getPublicKeyAlgo } from '@/mesh/meshIdentity';
+import { PROTOCOL_VERSION } from '@/mesh/meshProtocol';
+import { validateEventPayload } from '@/mesh/meshSchema';
+import { pickRecordText } from './MeshTerminal.shared';
 
 const API = '';
 

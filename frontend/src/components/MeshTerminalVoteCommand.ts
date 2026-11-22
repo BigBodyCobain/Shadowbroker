@@ -1,8 +1,10 @@
-// @ts-nocheck
 import { useCallback } from 'react';
+import { nextSequence, signEvent, getPublicKeyAlgo } from '@/mesh/meshIdentity';
+import { PROTOCOL_VERSION } from '@/mesh/meshProtocol';
+import { validateEventPayload } from '@/mesh/meshSchema';
 const API='';
 export function useMeshTerminalVoteCommand(ctx:any){
-  const {addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty}=ctx;
+  const {addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty, activeGateComposeId, expandedGateId, voteDirections, voteScopeKey, setVoteDirections}=ctx;
   const handleVoteCommand = async (args: string[]) => {
             // vote <agent_id> up|down [gate]
             if (!nodeIdentity || !hasSovereignty()) {

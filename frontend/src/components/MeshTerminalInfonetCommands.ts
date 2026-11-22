@@ -1,10 +1,12 @@
-// @ts-nocheck
 import { useCallback } from 'react';
 import {
   hasSovereignty, createIdentityCandidate, getPublicKeyAlgo, signMessage,
+  nextSequence, signEvent, persistIdentity, setSequence, generateDHKeys, verifyEventSignature,
 } from '@/mesh/meshIdentity';
 import { PROTOCOL_VERSION, buildSignaturePayload } from '@/mesh/meshProtocol';
 import { validateEventPayload } from '@/mesh/meshSchema';
+import { verifyMerkleProof } from '@/mesh/meshMerkle';
+import type { InfonetMerkleProof } from './MeshTerminal.shared';
 
 const API = '';
 
@@ -162,7 +164,7 @@ export function useMeshTerminalInfonetCommands(ctx: MeshTerminalInfonetCmdsCtx) 
               String(proof.leaf),
               Number(proof.index ?? 0),
               Array.isArray(proof.proof)
-                ? proof.proof.map((h) => ({ hash: h, side: 'left' as const }))
+                ? proof.proof.map((h: any) => ({ hash: h, side: 'left' as const }))
                 : [],
               merkleRoot,
             );
