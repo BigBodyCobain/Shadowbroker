@@ -1,9 +1,12 @@
-// @ts-nocheck
 import { useCallback, useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
-import { normalizeInfoNetMessage, isEncryptedGateEnvelope, gateDecryptCacheKey } from './useMeshChatController.helpers';
-import { decryptWormholeGateMessages } from '@/mesh/wormholeClient';
-import { describeNativeControlError } from '@/lib/desktopBridge';
+import type { InfoNetMessage } from './types';
+import type { GateMessageSnapshotState } from '@/mesh/gateMessageSnapshot';
+import type { GateAccessHeaderMode } from '@/mesh/gateAccessProof';
+import { normalizeInfoNetMessage, gateDecryptCacheKey } from './utils';
+import { isEncryptedGateEnvelope } from '@/mesh/gateEnvelope';
+import { decryptWormholeGateMessages } from '@/mesh/wormholeIdentityClient';
+import { describeNativeControlError } from '@/lib/desktopControlContract';
 import { describeGateLocalRuntimeRequired } from './useMeshChatController.helpers';
 
 const GATE_DECRYPT_CACHE_MAX = 200;
@@ -37,11 +40,11 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
     async (messages: InfoNetMessage[]): Promise<InfoNetMessage[]> => {
       const baseMessages = (Array.isArray(messages) ? messages : []).map(normalizeInfoNetMessage);
       if (!wormholeEnabled || !wormholeReadyState) {
-        return baseMessages.map((message) => ({ ...message, decrypted_message: '' }));
+        return baseMessages.map((message: any) => ({ ...message, decrypted_message: '' }));
       }
       const hydrated: Array<InfoNetMessage | null> = baseMessages.map((message) => {
         if (!isEncryptedGateEnvelope(message)) {
-          return { ...message, decrypted_message: '' };
+          return { ...(message as any), decrypted_message: '' };
         }
         const cacheKey = gateDecryptCacheKey(message);
         const cached = gateDecryptCacheRef.current.get(cacheKey);
@@ -51,17 +54,17 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
         gateDecryptCacheRef.current.delete(cacheKey);
         gateDecryptCacheRef.current.set(cacheKey, cached);
         return {
-          ...message,
-          epoch: Number(cached.epoch || message.epoch || 0),
+          ...(message as any),
+          epoch: Number(cached.epoch || (message as any).epoch || 0),
           decrypted_message: String(cached.plaintext || ''),
-          reply_to: String(cached.replyTo || message.reply_to || ''),
+          reply_to: String(cached.replyTo || (message as any).reply_to || ''),
         };
       });
 
       const pendingDecrypts = baseMessages
-        .map((message, index) => ({ index, message }))
-        .filter(({ message, index }) => isEncryptedGateEnvelope(message) && hydrated[index] === null)
-        .map(({ index, message }) => ({
+        .map((message: any, index: number) => ({ index, message }))
+        .filter(({ message, index }: any) => isEncryptedGateEnvelope(message) && hydrated[index] === null)
+        .map(({ index, message }: any) => ({
           index,
           message,
           cacheKey: gateDecryptCacheKey(message),
@@ -70,7 +73,7 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
       if (pendingDecrypts.length > 0) {
         try {
           const batch = await decryptWormholeGateMessages(
-            pendingDecrypts.map(({ message }) => ({
+            pendingDecrypts.map(({ message }: any) => ({
               gate_id: String(message.gate || ''),
               epoch: 0,
               ciphertext: String(message.ciphertext || ''),
@@ -83,14 +86,14 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
           );
           const results = Array.isArray(batch.results) ? batch.results : [];
           const compatDecryptBlocked = results.some(
-            (result) => !result?.ok && String(result?.detail || '') === 'gate_backend_decrypt_recovery_only',
+            (result: any) => !result?.ok && String(result?.detail || '') === 'gate_backend_decrypt_recovery_only',
           );
           if (compatDecryptBlocked) {
             setGateError(
               'Service-side gate decrypt is disabled on this runtime. Use native desktop or an explicit recovery path.',
             );
           }
-          pendingDecrypts.forEach(({ index, message, cacheKey }, resultIndex) => {
+          pendingDecrypts.forEach(({ index, message, cacheKey }: any, resultIndex: number) => {
             const decrypted = results[resultIndex];
             if (decrypted?.ok) {
               const selfAuthored = Boolean(decrypted.self_authored);
@@ -136,14 +139,14 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
               describeNativeControlError(err) || 'Gate state changed on another path. Resync before retrying.',
             );
           }
-          pendingDecrypts.forEach(({ index, message }) => {
+          pendingDecrypts.forEach(({ index, message }: any) => {
             hydrated[index] = { ...message, decrypted_message: '' };
           });
         }
       }
 
       return hydrated.map(
-        (message, index) => message ?? { ...baseMessages[index], decrypted_message: '' },
+        (message: any, index: number) => (message as any) ?? { ...(baseMessages[index] as any), decrypted_message: '' },
       );
     },
     [markGateResyncRequired, wormholeEnabled, wormholeReadyState],
@@ -181,7 +184,7 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
           if (targetGate === selectedGateRef.current) {
             infoCursorRef.current = nextSnapshot.cursor;
           }
-          rawMessages = nextSnapshot.messages.map((message) =>
+          rawMessages = nextSnapshot.messages.map((message: any) =>
             normalizeInfoNetMessage(message as InfoNetMessage),
           );
         } else {
@@ -200,7 +203,7 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
           targetGate,
           wormholeEnabled ? '1' : '0',
           wormholeReadyState ? '1' : '0',
-          rawMessages.map((message) => String(message.event_id || '')).join('|'),
+          rawMessages.map((message: any) => String(message.event_id || '')).join('|'),
         ].join('::');
         if (targetGate && targetGate !== selectedGateRef.current) {
           return true;
@@ -237,7 +240,7 @@ export function useMeshInfonetMessages(ctx: MeshInfonetMessagesCtx) {
                 repData && typeof repData.reputations === 'object' && repData.reputations
                   ? repData.reputations
                   : {};
-              setReps((prev) => {
+              setReps((prev: any) => {
                 let changed = false;
                 const next = { ...prev };
                 for (const [nid, value] of Object.entries(reputations)) {
