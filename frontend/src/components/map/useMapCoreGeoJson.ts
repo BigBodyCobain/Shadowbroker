@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo } from 'react';
 import { buildEarthquakesGeoJSON, buildJammingGeoJSON, buildCorrelationsGeoJSON, buildGtRiskGeoJSON, buildTinygsGeoJSON, buildShodanGeoJSON, buildAIIntelGeoJSON } from '@/components/map/geoJSONBuilders';
 

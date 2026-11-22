@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo } from 'react';
 import { trackedFlightsWithIcons, shipsWithIcons } from '@/components/map/labelSubjects';
 import { filterShipsByActiveFilters } from '@/components/map/shipFilters';
@@ -24,7 +23,7 @@ export function useMapCarrierData(ctx: any) {
     [activeLayers.ships_military, data?.ships, activeFilters],
   );
   const carriersGeoJSON = useMemo(
-    () => (activeLayers.ships_military ? buildCarriersGeoJSON(carrierShips) : null),
+    () => (activeLayers.ships_military ? buildCarriersGeoJSON(carrierShips as any) : null),
     [activeLayers.ships_military, carrierShips],
   );
   return { carrierShips, carriersGeoJSON };

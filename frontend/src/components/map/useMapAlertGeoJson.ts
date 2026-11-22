@@ -1,6 +1,5 @@
-// @ts-nocheck
 import { useEffect, useMemo } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { buildUkraineAlertsGeoJSON, buildUkraineAlertLabelsGeoJSON, buildWeatherAlertsGeoJSON, buildWeatherAlertLabelsGeoJSON } from '@/components/map/geoJSONBuilders';
 import { buildSentinelTileUrl, hasSentinelCredentials, getSentinelToken, registerSentinelProtocol } from '@/lib/sentinelHub';
 
