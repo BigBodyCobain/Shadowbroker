@@ -1028,7 +1028,12 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
   const { handleMarketsCommand } = useMeshTerminalMarketsCommand({
     addError, addLines, addOutput, addSystem, nodeIdentity, hasSovereignty, asSearchRecords });
 
-  const { handleInfonetCommand } = useMeshTerminalInfonetCommand({ addError, addLines, addOutput, addSystem, nodeIdentity });
+  const { handleInfonetCommand } = useMeshTerminalInfonetCommand({
+    addError, addLines, addOutput, addSystem, nodeIdentity,
+    setInfonetNodeStatus, setInfonetNodeStatusError,
+    cmdNode, cmdMerkle, cmdSync, cmdRotate, cmdRevoke,
+    getInfonetPeers, setInfonetPeers,
+  });
 
   const {
     handleInboxCommand,
