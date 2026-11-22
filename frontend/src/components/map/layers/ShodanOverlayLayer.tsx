@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -7,7 +6,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
   const sizeMap = { sm: [3, 4, 5] as const, md: [4, 6, 8] as const, lg: [6, 9, 12] as const };
   const textSizeMap = { sm: 10, md: 14, lg: 20 };
   const shapeGlyphs: Record<string, string> = { triangle: '▲', diamond: '◆', square: '■' };
-  const radii = sizeMap[sc.size] ?? sizeMap.md;
+  const radii = sizeMap[sc.size as keyof typeof sizeMap] ?? sizeMap.md;
   const isCircle = sc.shape === 'circle';
   const labelOffset = isCircle ? 1.1 : (sc.size === 'lg' ? 1.6 : sc.size === 'sm' ? 0.9 : 1.2);
   return (
@@ -59,7 +58,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
           filter={['!', ['has', 'point_count']]}
           layout={{
             'text-field': shapeGlyphs[sc.shape] ?? '■',
-            'text-size': textSizeMap[sc.size] ?? 14,
+            'text-size': textSizeMap[sc.size as keyof typeof textSizeMap] ?? 14,
             'text-allow-overlap': true,
             'text-ignore-placement': true,
             'text-font': ['Noto Sans Bold'] }}
