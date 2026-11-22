@@ -1,7 +1,7 @@
-// @ts-nocheck
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Satellite } from 'lucide-react';
 import { checkBackendSentinelStatus, migrateLegacySentinelBrowserKeys } from '@/lib/sentinelHub';
 
 function UsageMeter() {

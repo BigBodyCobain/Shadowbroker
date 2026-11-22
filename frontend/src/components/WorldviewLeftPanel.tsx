@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -839,7 +838,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
       });
     };
     if (!isAllToggleableLayersOn) {
-      withGlobalIncidentsConsent('global_incidents', enableAll);
+      withGlobalIncidentsConsent('global_incidents', true, enableAll);
     } else {
       enableAll();
     }
@@ -1806,7 +1805,7 @@ const WorldviewLeftPanel = React.memo(function WorldviewLeftPanel({
                               !allOn &&
                               (sectionLayerIds as string[]).includes('global_incidents')
                             ) {
-                              withGlobalIncidentsConsent('global_incidents', toggleSection);
+                              withGlobalIncidentsConsent('global_incidents', true, toggleSection);
                             } else {
                               toggleSection();
                             }

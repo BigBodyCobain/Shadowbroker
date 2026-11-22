@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 /**
  * VoiceHudPanel — the voice console panel (voice-agent plan §5.3).

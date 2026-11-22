@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -23,6 +22,8 @@ interface SettingsPanelApiKeysCtx {
   setApiKeyEditing: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   saveApiKey: (envKey: string | null) => Promise<void>;
   CATEGORY_COLORS?: Record<string, string>;
+  nativeProtected?: boolean;
+  setApiKeyMsg?: React.Dispatch<React.SetStateAction<{ type: 'ok' | 'err'; text: string } | null>>;
 }
 
 export function SettingsPanelApiKeys({ ctx }: { ctx: SettingsPanelApiKeysCtx }) {
@@ -32,6 +33,8 @@ export function SettingsPanelApiKeys({ ctx }: { ctx: SettingsPanelApiKeysCtx }) 
     apiKeyInputs, apiKeyEditing, apiKeySaving, apiKeyMsg,
     setApiKeyInputs, setApiKeyEditing, saveApiKey,
     CATEGORY_COLORS: catColors,
+    nativeProtected = false,
+    setApiKeyMsg = () => {},
   } = ctx;
   const CC = catColors || CATEGORY_COLORS;
   return (
