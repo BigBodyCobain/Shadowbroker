@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { useCallback } from 'react';
+import { asSearchRecords, formatLatLng, pickRecordText, recordMatchesQuery } from './MeshTerminal.shared';
 
 const API = '';
 
