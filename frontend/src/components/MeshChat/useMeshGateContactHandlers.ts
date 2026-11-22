@@ -1,7 +1,19 @@
-// @ts-nocheck
-'use client';
-
+import { useCallback } from 'react';
 import { API_BASE } from '@/lib/api';
+import { describeNativeControlError } from '@/lib/desktopControlContract';
+import { verifyEventSignature } from '@/mesh/meshIdentity';
+import { ratchetEncryptDM } from '@/mesh/meshDmWorkerClient';
+import { ratchetReset } from '@/mesh/meshDmWorkerClient';
+import { fetchDmPublicKey, sendDmMessage, sharedMailboxToken } from '@/mesh/meshDmClient';
+import { generateSharedAlias, buildAliasRotateMessage, mergeAliasHistory, preferredDmPeerId } from '@/mesh/meshDmConsent';
+import {
+  activateWormholeGatePersona, clearWormholeGatePersona, createWormholeGatePersona,
+  resyncWormholeGateState, retireWormholeGatePersona, rotateWormholeGateKey,
+  rotateWormholePairwiseAlias, acknowledgeWormholeSasFingerprint, confirmWormholeSasVerification,
+  recoverWormholeSasRootContinuity,
+} from '@/mesh/wormholeIdentityClient';
+import { SHARED_ALIAS_GRACE_MS, SHARED_ALIAS_ROTATE_MS } from './types';
+
 
 export interface MeshGateContactHandlersCtx { [k: string]: any }
 
@@ -20,6 +32,9 @@ export function useMeshGateContactHandlers(ctx: any) {
     setSasPhrase, setDmMaintenanceBusy, setGates, setSelectedGate, setGateCompatActive, setNewGateId,
     isWormholeSecureRequired, isGateSendBlocked, getContacts, updateContact, addContact, getAccessRequests, setAccessRequests,
     setPendingSent, getPendingSent, gateReplyContext, meshView,
+    activeGatePersonaId, approveGateCompatFallback, clearGateResyncRequired, gatePersonaPromptSeenRef, gatePersonas,
+    handleSend, hydrateWormholeContacts, markGateResyncRequired, promotePendingAlias, refreshInfonetMessages,
+    refreshNativeAuditReport, refreshSelectedGateKeyStatus, refreshSelectedGatePersonas, enqueueDmSend,
   } = ctx as any;
   const handleResyncGateState = useCallback(
     async (gateIdOverride?: string): Promise<boolean> => {
@@ -196,7 +211,7 @@ export function useMeshGateContactHandlers(ctx: any) {
         throw new Error(rotated.detail || 'gate_key_rotate_failed');
       }
       clearGateResyncRequired(gateId);
-      setGateKeyStatus((prev) => ({ ...prev, [gateId]: rotated }));
+      setGateKeyStatus((prev: any) => ({ ...prev, [gateId]: rotated }));
       await refreshSelectedGatePersonas(gateId);
       refreshNativeAuditReport();
     } catch (err) {
@@ -214,9 +229,9 @@ export function useMeshGateContactHandlers(ctx: any) {
 
   const maybeRotateSharedAlias = async (
     contactId: string,
-    contact: Contact,
+    contact: any,
     options?: { force?: boolean },
-  ): Promise<Contact> => {
+  ): Promise<any> => {
     const promotion = promotePendingAlias(contactId, contact);
     if (promotion) updateContact(contactId, promotion.delta.updates);
     const refreshed = promotion?.promoted || contact;
@@ -461,7 +476,7 @@ export function useMeshGateContactHandlers(ctx: any) {
     const approvedGateId = gateCompatConsentPrompt.gateId;
     const action = gateCompatConsentPrompt.action;
     approveGateCompatFallback(approvedGateId);
-    setGateCompatActive((prev) => (prev[approvedGateId] ? prev : { ...prev, [approvedGateId]: true }));
+    setGateCompatActive((prev: any) => (prev[approvedGateId] ? prev : { ...prev, [approvedGateId]: true }));
     setGateCompatConsentPrompt(null);
     setGateError('');
     setSendError('');

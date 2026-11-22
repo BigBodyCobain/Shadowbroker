@@ -1,9 +1,7 @@
-// @ts-nocheck
-'use client';
-
 import { useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
 import { isGateSendBlocked } from '@/lib/meshChatPolicies';
+import { verifyEventSignature } from '@/mesh/meshIdentity';
 import {
   fetchGateCatalogSnapshot,
   invalidateGateCatalogSnapshot,
@@ -14,6 +12,8 @@ import {
   waitForGateMessageSnapshot,
 } from '@/mesh/gateMessageSnapshot';
 import {
+  activateWormholeGatePersona,
+  enterWormholeGate,
   fetchWormholeGateKeyStatus,
   hasGateCompatFallbackApproval,
   isWormholeSecureRequired,
@@ -23,9 +23,13 @@ import {
   resyncWormholeGateState,
   syncBrowserWormholeGateState,
 } from '@/mesh/wormholeIdentityClient';
+import { getGateSessionStreamStatus, retainGateSessionStreamGate, subscribeGateSessionStreamEvents } from '@/mesh/gateSessionStream';
 import { nextGateMessagesPollDelayMs, nextGateMessagesWaitRearmDelayMs, nextGateMessagesWaitTimeoutMs } from '@/mesh/gateMetadataTiming';
 import { gateCatalogEntryToGate } from './useMeshChatController.helpers';
 import type { Gate, InfoNetMessage, WormholeGateKeyStatus } from './types';
+import { INFO_VERIFICATION_CACHE_MAX } from './types';
+import type { GateCompatConsentPromptState } from './useMeshChatController.helpers';
+
 
 export function useInfoNetPolling(ctx: Record<string, any>) {
   const {
@@ -35,9 +39,13 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
     setGatePersonaDraftLabel, setGatePersonaPromptError, setGatePersonaPromptGateId, setGatePersonaPromptOpen,
     setGateReplyContext, setInfoVerification,
     activeGateSessionRef, infoPollSignatureRef, infoMessageIdsRef, infoGateHeadRef, infoGateKeyEpochRef,
-    gateCompatApprovalAttemptRef, infoPullInFlightRef, gateCompatConsentPromptGateRef,
+    gateCompatApprovalAttemptRef, infoPullInFlightRef, gateCompatConsentPromptGateRef, infoCursorRef,
     identity, contacts, hasId, wormholeState, activeTab,
-  } = ctx;
+    refreshInfonetMessages, infoPollTimerRef, infoWaitAbortRef, infoMessages, infoVerificationCacheRef,
+    selectedGateRef, streamEnabledForSelectedGateRef, gateKeyStatus, gatePersonaBusy, gatePersonaPromptOpen,
+    gateSessionStreamHydrated, gateSessionStreamStatus, gatePersonaPromptGateId, gatePersonaPromptSeenRef,
+    gatePersonas, gateReplyContext,
+  } = ctx as any;
 
 
   useEffect(() => {
@@ -47,7 +55,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         const nextGates = (await fetchGateCatalogSnapshot()).map(gateCatalogEntryToGate);
         setGates(nextGates);
         if (nextGates.length > 0) {
-          setSelectedGate((prev) => prev || String(nextGates[0].gate_id || '').trim().toLowerCase());
+          setSelectedGate((prev: any) => prev || String(nextGates[0].gate_id || '').trim().toLowerCase());
         }
       } catch {
         /* ignore */
@@ -80,8 +88,8 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         const activePersonaId =
           personasData?.ok ? String(personasData.active_persona_id || '').trim() : '';
         if (personasData?.ok) {
-          setGatePersonas((prev) => ({ ...prev, [nextGate]: personas }));
-          setActiveGatePersonaId((prev) => ({
+          setGatePersonas((prev: any) => ({ ...prev, [nextGate]: personas }));
+          setActiveGatePersonaId((prev: any) => ({
             ...prev,
             [nextGate]: activePersonaId,
           }));
@@ -91,7 +99,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         if (cancelled) return;
         if (status) {
           const nextStatus = status as WormholeGateKeyStatus;
-          setGateKeyStatus((prev) => ({ ...prev, [nextGate]: nextStatus }));
+          setGateKeyStatus((prev: any) => ({ ...prev, [nextGate]: nextStatus }));
         }
         if (status?.ok && status.has_local_access) {
           await syncBrowserWormholeGateState(nextGate).catch(() => false);
@@ -111,7 +119,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
           if (cancelled) return;
           if (status) {
             const nextStatus = status as WormholeGateKeyStatus;
-            setGateKeyStatus((prev) => ({ ...prev, [nextGate]: nextStatus }));
+            setGateKeyStatus((prev: any) => ({ ...prev, [nextGate]: nextStatus }));
           }
           if (!cancelled && status?.ok && status.has_local_access) {
             await syncBrowserWormholeGateState(nextGate).catch(() => false);
@@ -131,7 +139,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
           if (cancelled) return;
           if (status) {
             const nextStatus = status as WormholeGateKeyStatus;
-            setGateKeyStatus((prev) => ({ ...prev, [nextGate]: nextStatus }));
+            setGateKeyStatus((prev: any) => ({ ...prev, [nextGate]: nextStatus }));
           }
           if (!cancelled && status?.ok && status.has_local_access) {
             await syncBrowserWormholeGateState(nextGate).catch(() => false);
@@ -171,8 +179,8 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
       try {
         const data = await listWormholeGatePersonas(gateId).catch(() => null);
         if (!data?.ok || cancelled) return;
-        setGatePersonas((prev) => ({ ...prev, [gateId]: Array.isArray(data.personas) ? data.personas : [] }));
-        setActiveGatePersonaId((prev) => ({
+        setGatePersonas((prev: any) => ({ ...prev, [gateId]: Array.isArray(data.personas) ? data.personas : [] }));
+        setActiveGatePersonaId((prev: any) => ({
           ...prev,
           [gateId]: String(data.active_persona_id || ''),
         }));
@@ -215,7 +223,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         if (data.ok && data.has_local_access && !streamPreferredForSelectedGate) {
           void syncBrowserWormholeGateState(gateId).catch(() => false);
         }
-        setGateKeyStatus((prev) => ({ ...prev, [gateId]: data }));
+        setGateKeyStatus((prev: any) => ({ ...prev, [gateId]: data }));
       } catch {
         /* ignore */
       }
@@ -267,7 +275,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
     ) {
       return;
     }
-    return subscribeGateSessionStreamEvents((event) => {
+    return subscribeGateSessionStreamEvents((event: any) => {
       if (event.event !== 'gate_update' || !event.data || typeof event.data !== 'object') {
         return;
       }
@@ -303,7 +311,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
     setGateCompatConsentPrompt(null);
     const gateId = String(selectedGate || '').trim().toLowerCase();
     if (!gateId) return;
-    setGateCompatActive((prev) => {
+    setGateCompatActive((prev: any) => {
       if (hasGateCompatFallbackApproval(gateId)) {
         return prev[gateId] ? prev : { ...prev, [gateId]: true };
       }
@@ -323,7 +331,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
           : null;
       const eventGateId = String(detail?.gateId || '').trim().toLowerCase();
       if (!eventGateId) return;
-      setGateCompatActive((prev) => (prev[eventGateId] ? prev : { ...prev, [eventGateId]: true }));
+      setGateCompatActive((prev: any) => (prev[eventGateId] ? prev : { ...prev, [eventGateId]: true }));
     };
     window.addEventListener('sb:gate-compat-fallback', handleCompatFallback as EventListener);
     return () => {
@@ -518,7 +526,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
       };
     }
 
-    void refreshInfonetMessages({ gateId: selectedGate }).then((ok) => {
+    void refreshInfonetMessages({ gateId: selectedGate }).then((ok: any) => {
       streamEnabledForSelectedGateRef.current =
         streamPreferredForSelectedGate || isLiveStreamPreferredForSelectedGate();
       if (cancelled) return;
@@ -572,7 +580,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         return;
       }
       const results: Record<string, 'verified' | 'failed' | 'unsigned'> = {};
-      const toVerify = infoMessages.filter((message) => {
+      const toVerify = infoMessages.filter((message: any) => {
         const eventType = message.event_type || (message.gate ? 'gate_message' : 'message');
         if (eventType === 'gate_message') {
           return false;
@@ -585,7 +593,7 @@ export function useInfoNetPolling(ctx: Record<string, any>) {
         return true;
       });
       const verified = await Promise.all(
-        toVerify.map(async (m) => {
+        toVerify.map(async (m: any) => {
           if (!m.signature || !m.public_key || !m.public_key_algo || !m.sequence) {
             return [String(m.event_id || ''), 'unsigned'] as const;
           }
