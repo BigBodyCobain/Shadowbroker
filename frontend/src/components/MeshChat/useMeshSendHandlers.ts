@@ -1,6 +1,20 @@
-// @ts-nocheck
 'use client';
 
+import { useCallback, useEffect } from 'react';
+
+import { nextSequence } from '@/mesh/meshIdentity';
+import { getDHAlgo } from '@/mesh/meshIdentity';
+import { validateEventPayload } from '@/mesh/meshSchema';
+import { signMeshEvent } from '@/mesh/wormholeIdentityClient';
+import { invalidateGateCatalogSnapshot, fetchGateCatalogSnapshot } from '@/mesh/gateCatalogSnapshot';
+import { gateCatalogEntryToGate } from './useMeshChatController.helpers';
+import { listWormholeGatePersonas, fetchWormholeGateKeyStatus, postWormholeGateMessage } from '@/mesh/wormholeIdentityClient';
+import { canUseWormholeBootstrap } from '@/mesh/wormholeDmBootstrapClient';
+import { ensureRegisteredDmKey, sendDmMessage, sharedMailboxToken } from '@/mesh/meshDmClient';
+import { ratchetEncryptDM } from '@/mesh/meshDmWorkerClient';
+import { preferredDmPeerId } from '@/mesh/meshDmConsent';
+import { describeNativeControlError } from '@/lib/desktopControlContract';
+import { useMeshGateContactHandlers } from './useMeshGateContactHandlers';
 import { API_BASE } from '@/lib/api';
 
 export interface MeshSendHandlersCtx { [k: string]: any; activeTab?: any; hasId?: any; busy?: any; inputValue?: any; selectedGate?: any; selectedGateAccessReady?: any; anonymousPublicBlocked?: any; privateInfonetReady?: any; wormholeEnabled?: any; wormholeReadyState?: any; anonymousDmBlocked?: any; privacyProfile?: any; expanded?: any; identity?: any; contacts?: any; selectedContact?: any; dmView?: any; accessRequests?: any; pendingSent?: any; dmConsentScopeId?: any; lastSendTime?: any; meshRegion?: any; meshChannel?: any; meshDirectTarget?: any; meshDestination?: any; meshSenderAddress?: any; meshMqttEnabled?: any; meshSessionActive?: any; meshQuickStatus?: any; gateCompatConsentPrompt?: any; gatePersonaBusy?: any; gateKeyBusy?: any; gateResyncBusy?: any; sasPhrase?: any; sasConfirmInput?: any; dmMaintenanceBusy?: any; setInputValue?: any; setSendError?: any; setBusy?: any; setLastSendTime?: any; setContacts?: any; setDmMessages?: any; setDmUnread?: any; setAccessRequestsState?: any; setPendingSentState?: any; setLastDmTransport?: any; setMeshMessages?: any; setMeshQuickStatus?: any; setMeshSessionActive?: any; setMeshView?: any; setGateError?: any; setGateKeyBusy?: any; setGateKeyStatus?: any; setGatePersonaBusy?: any; setGatePersonaDraftLabel?: any; setGatePersonaPromptError?: any; setGatePersonaPromptGateId?: any; setGatePersonaPromptOpen?: any; setGatePersonas?: any; setActiveGatePersonaId?: any; setGateReplyContext?: any; setGateCompatConsentPrompt?: any; setGateResyncBusy?: any; setInfoMessages?: any; setInfoVerification?: any; setShowSas?: any; setSasConfirmInput?: any; setSasPhrase?: any; setDmMaintenanceBusy?: any; setGates?: any; setSelectedGate?: any; setGateCompatActive?: any; setNewGateId?: any; isWormholeSecureRequired?: any; isGateSendBlocked?: any; getContacts?: any; updateContact?: any; addContact?: any; getAccessRequests?: any; setAccessRequests?: any; setPendingSent?: any; getPendingSent?: any; gateReplyContext?: any; meshView?: any; }
@@ -21,6 +35,17 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     setSasPhrase, setDmMaintenanceBusy, setGates, setSelectedGate, setGateCompatActive, setNewGateId,
     isWormholeSecureRequired, isGateSendBlocked, getContacts, updateContact, addContact, getAccessRequests, setAccessRequests,
     setPendingSent, getPendingSent, gateReplyContext, meshView,
+    activePublicMeshAddress, clearGateResyncRequired, decoyEnabled, describeGateLocalRuntimeRequired,
+    DM_DECOY_POLL_JITTER_MS, DM_DECOY_POLL_MS, enqueueDmSend, hasStoredPublicLaneIdentity,
+    jitterDelay, markGateResyncRequired, maybeRotateSharedAlias, newGateId, newGateMinRep, newGateName,
+    openIdentityWizard, promotePendingAlias, randomBase64, randomHex, refreshNativeAuditReport,
+    setNewGateMinRep, setNewGateName, setPublicMeshAddress, setReps, setShowCreateGate, setVotedOn,
+    votedOn, voteScopeKey, gateIdentity, setGateIdentity, activeGateIdentity,
+    hasPublicLaneIdentity, hasPrivateLaneIdentity, dashboardRestrictedTab, isGateSignedReplyAllowed,
+    publicMeshAddress, setPublicMeshBlockedByWormhole, isWormholeSecureReady, dmDecryptionError,
+    senders, setSenders, meshInbox, setMeshInbox, sasState, sasVerified, sasConfirmPending,
+    setSasVerified, setSasConfirmPending, setSasState, dmPollStatus, setDmPollStatus,
+    gatePollStatus, setGatePollStatus, infonetPollStatus, setInfonetPollStatus, hasSovereignty
     } = ctx as any;
 
 
@@ -99,7 +124,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
             return;
         }
         clearGateResyncRequired(selectedGate);
-        setInfoMessages((prev) => [
+        setInfoMessages((prev: any) => [
           ...prev,
           {
             event_id: `_pending_${Date.now()}`,
@@ -384,7 +409,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     const scopeKey = voteScopeKey(targetId, voteGate);
     // If already voted same direction, ignore
     if (votedOn[scopeKey] === vote) return;
-    setVotedOn((prev) => ({ ...prev, [scopeKey]: vote }));
+    setVotedOn((prev: any) => ({ ...prev, [scopeKey]: vote }));
     try {
       const sequence = nextSequence();
       const votePayload = { target_id: targetId, vote, gate: voteGate };
@@ -413,7 +438,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
       );
       if (res.ok) {
         const data = await res.json();
-        setReps((prev) => ({ ...prev, [targetId]: data.overall || 0 }));
+        setReps((prev: any) => ({ ...prev, [targetId]: data.overall || 0 }));
       }
     } catch {
       /* ignore */
@@ -486,8 +511,8 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     if (!gateKey || !wormholeEnabled || !wormholeReadyState) return;
     const data = await listWormholeGatePersonas(gateKey);
     if (!data.ok) return;
-    setGatePersonas((prev) => ({ ...prev, [gateKey]: Array.isArray(data.personas) ? data.personas : [] }));
-    setActiveGatePersonaId((prev) => ({
+    setGatePersonas((prev: any) => ({ ...prev, [gateKey]: Array.isArray(data.personas) ? data.personas : [] }));
+    setActiveGatePersonaId((prev: any) => ({
       ...prev,
       [gateKey]: String(data.active_persona_id || ''),
     }));
@@ -497,7 +522,7 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     const gateKey = gateId.trim().toLowerCase();
     if (!gateKey || !wormholeEnabled || !wormholeReadyState) return;
     const data = await fetchWormholeGateKeyStatus(gateKey);
-    setGateKeyStatus((prev) => ({ ...prev, [gateKey]: data }));
+    setGateKeyStatus((prev: any) => ({ ...prev, [gateKey]: data }));
   }, [wormholeEnabled, wormholeReadyState]);
 
   const gateContactHandlers = useMeshGateContactHandlers(ctx);
@@ -508,5 +533,5 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     handleVote,
     handleCreateGate,
     refreshSelectedGatePersonas,
-    refreshSelectedGateKeyStatus};
+    refreshSelectedGateKeyStatus} as any;
 }

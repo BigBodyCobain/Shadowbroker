@@ -27,7 +27,8 @@ export interface SettingsPanelWormholeOpts {
 
 export function useSettingsPanelWormhole(opts: SettingsPanelWormholeOpts) {
   const {
-    isOpen, activeTab, onClose, nativeProtected,
+    isOpen, activeTab, onClose, nativeProtected, adminSessionReady, showOperatorTools,
+    refreshAdminSession, fetchKeys, fetchFeeds, fetchEnvMeta, handleProtectedSettingsError, ensureAdminSession,
     setActiveTab, setFeeds, setFeedsDirty, clearSessionIdentity,
     privacyProfile, setPrivacyProfile, sessionMode, setSessionMode, setStrictPrivacy,
     gateCompatTelemetry,
@@ -58,56 +59,6 @@ export function useSettingsPanelWormhole(opts: SettingsPanelWormholeOpts) {
       configured_peers: number;
       active_peers: number;
     } | null>(null);
-
-    const clearApisRef = React.useRef<() => void>(() => {});
-
-    const clearFeedsRef = React.useRef<() => void>(() => {});
-    const handleProtectedSettingsError = useCallback(
-      async (error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Protected settings request failed';
-        if (
-          message === 'Forbidden — admin key not configured' ||
-          message === 'Forbidden — invalid or missing admin key'
-        ) {
-          await clearAdminSession();
-          setAdminSessionReadyRef.current(false);
-          setAdminSessionMsgRef.current(
-            message === 'Forbidden — admin key not configured'
-              ? 'BACKEND ADMIN KEY NOT CONFIGURED'
-              : 'ADMIN KEY INVALID OR EXPIRED',
-          );
-          clearApisRef.current();
-          clearFeedsRef.current();
-          setDmRootHealth(null);
-          setDmRootHealthMsg(message);
-        }
-        return message;
-      },
-      [],
-    );
-
-    const {
-      feeds, feedsDirty, feedSaving, feedMsg,
-      fetchFeeds, updateFeed, removeFeed, addFeed, saveFeeds, resetFeeds, setFeedMsg, clearFeeds,
-    } = useSettingsPanelFeeds(handleProtectedSettingsError);
-    clearFeedsRef.current = clearFeeds;
-
-    const {
-      apis, apiKeyInputs, apiKeyEditing, apiKeySaving, apiKeyMsg,
-      expandedCategories, envMeta, grouped,
-      fetchKeys, saveApiKey, fetchEnvMeta, toggleCategory,
-      setApiKeyInputs, setApiKeyEditing, setApiKeyMsg, clearApiKeys,
-    } = useSettingsPanelApiKeys(handleProtectedSettingsError);
-    clearApisRef.current = clearApiKeys;
-
-    const {
-      adminKey, setAdminKey, adminSessionReady, setAdminSessionReady, adminSessionBusy, adminSessionMsg, setAdminSessionMsg,
-      showOperatorTools, setShowOperatorTools,
-      refreshAdminSession, ensureAdminSession, unlockAdminSession, lockAdminSession,
-    } = useSettingsPanelAdminSession({ activeTab, fetchKeys, fetchFeeds, setDmRootHealth, setDmRootHealthMsg });
-    setAdminSessionReadyRef.current = setAdminSessionReady;
-    setAdminSessionMsgRef.current = setAdminSessionMsg;
-
 
     const fetchWormhole = useCallback(async () => {
       try {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { isWormholeSecureRequired } from '@/mesh/wormholeIdentityClient';
@@ -30,19 +29,19 @@ import {
   decryptSenderSealForContact,
   getAccessRequests,
   getPendingSent,
-  getSenderRecoveryState,
-  mergeAliasHistory,
-  parseAliasRotateMessage,
-  parseDmConsentMessage,
-  preferredDmPeerId,
-  requiresSenderRecovery,
   setAccessRequests,
   setPendingSent,
-  shouldAutoRevealSasForTrust,
+} from './storage';
+import { parseAliasRotateMessage, parseDmConsentMessage, preferredDmPeerId, mergeAliasHistory } from '@/mesh/meshDmConsent';
+import { shouldAutoRevealSasForTrust } from '@/mesh/meshPrivacyHints';
+import {
+  getSenderRecoveryState,
+  requiresSenderRecovery,
   shouldKeepUnresolvedRequestVisible,
   shouldPromoteRecoveredSenderForBootstrap,
   shouldPromoteRecoveredSenderForKnownContact,
-} from './storage';
+} from '@/mesh/requestSenderRecovery';
+import { DM_MESSAGES_POLL_MS, DM_UNREAD_POLL_COLLAPSED_MS, DM_UNREAD_POLL_EXPANDED_MS } from './types';
 
 type DmView = 'contacts' | 'chat' | 'requests' | 'new';
 type PrivacyProfile = 'normal' | 'private' | 'hardened';
@@ -480,7 +479,7 @@ export function useDmPolling(args: {
     setSasConfirmInput('');
     const run = async () => {
       if (!selectedContact) return;
-      const contactInfo = contacts[selectedContact];
+      const contactInfo = contacts[selectedContact as string];
       if (!contactInfo?.dhPubKey) return;
       try {
         const phrase = await deriveSasPhrase(
@@ -498,23 +497,23 @@ export function useDmPolling(args: {
     return () => {
       cancelled = true;
     };
-  }, [selectedContact, contacts[selectedContact]?.dhPubKey]);
+  }, [selectedContact, contacts[selectedContact as string]?.dhPubKey]);
 
   useEffect(() => {
     if (!selectedContact) return;
-    const contactInfo = contacts[selectedContact];
+    const contactInfo = contacts[selectedContact as string];
     if (shouldAutoRevealSasForTrust(contactInfo)) {
       setShowSas(true);
     }
   }, [
     selectedContact,
-    contacts[selectedContact]?.remotePrekeyMismatch,
-    contacts[selectedContact]?.verify_mismatch,
-    contacts[selectedContact]?.remotePrekeyFingerprint,
-    contacts[selectedContact]?.remotePrekeyPinnedAt,
-    contacts[selectedContact]?.verify_registry,
-    contacts[selectedContact]?.verify_inband,
-    contacts[selectedContact]?.verified,
+    contacts[selectedContact as string]?.remotePrekeyMismatch,
+    contacts[selectedContact as string]?.verify_mismatch,
+    contacts[selectedContact as string]?.remotePrekeyFingerprint,
+    contacts[selectedContact as string]?.remotePrekeyPinnedAt,
+    contacts[selectedContact as string]?.verify_registry,
+    contacts[selectedContact as string]?.verify_inband,
+    contacts[selectedContact as string]?.verified,
   ]);
 
   // Refresh witness/vouch counts when opening a chat
