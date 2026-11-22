@@ -4,7 +4,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 
 - Files scanned: 28
 - Routes found: 553
-- UNCLASSIFIED: 235
+- UNCLASSIFIED: 157
 
 | Method | Path | Handler | Auth classification | File |
 |---|---|---|---|---|
@@ -16,30 +16,30 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/thermal/verify` | `thermal_verify` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/sigint/transmit` | `sigint_transmit` | UNCLASSIFIED | HIGH | `backend/main.py` |
 | GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/send` | `mesh_send` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| GET | `/api/mesh/log` | `mesh_log` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/status` | `mesh_status` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/send` | `mesh_send` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/log` | `mesh_log` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/status` | `mesh_status` | handler-auth |  | `backend/main.py` |
 | GET | `/api/mesh/signals` | `mesh_signals` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/messages` | `mesh_messages` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/channels` | `mesh_channels` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/vote` | `mesh_vote` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| POST | `/api/mesh/report` | `mesh_report` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| GET | `/api/mesh/reputation` | `mesh_reputation` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/vote` | `mesh_vote` | signed-write |  | `backend/main.py` |
+| POST | `/api/mesh/report` | `mesh_report` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth |  | `backend/main.py` |
 | GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/reputation/all` | `mesh_reputation_all` | admin/scoped |  | `backend/main.py` |
-| POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| POST | `/api/mesh/gate/create` | `gate_create` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | signed-write |  | `backend/main.py` |
+| POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | signed-write |  | `backend/main.py` |
+| POST | `/api/mesh/gate/create` | `gate_create` | signed-write |  | `backend/main.py` |
 | GET | `/api/mesh/gate/list` | `gate_list` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/status` | `infonet_status` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth |  | `backend/main.py` |
 | GET | `/api/privacy/claims` | `api_privacy_claims` | local-operator |  | `backend/main.py` |
 | GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/infonet/locator` | `infonet_locator` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/metrics` | `mesh_metrics` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/rns/status` | `mesh_rns_status` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth |  | `backend/main.py` |
 | GET | `/api/mesh/infonet/sync` | `infonet_sync` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/mesh/infonet/ingest` | `infonet_ingest` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/mesh/infonet/peer-registry` | `infonet_peer_registry` | local-operator |  | `backend/main.py` |
@@ -57,32 +57,32 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/mesh/gate/{gate_id}/messages` | `gate_messages` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/infonet/messages` | `infonet_messages` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth |  | `backend/main.py` |
 | GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/oracle/predict` | `oracle_predict` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/oracle/predict` | `oracle_predict` | signed-write |  | `backend/main.py` |
 | GET | `/api/mesh/oracle/markets` | `oracle_markets` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/oracle/search` | `oracle_search` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/mesh/oracle/resolve` | `oracle_resolve` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/oracle/stake` | `oracle_stake` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/profile` | `oracle_profile` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/oracle/stake` | `oracle_stake` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth |  | `backend/main.py` |
 | POST | `/api/mesh/oracle/resolve-stakes` | `oracle_resolve_stakes` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/dm/register` | `dm_register_key` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/dm/send` | `dm_send` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| POST | `/api/mesh/dm/poll` | `dm_poll_secure` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/dm/poll` | `dm_poll` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/dm/count` | `dm_count_secure` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/dm/count` | `dm_count` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/dm/block` | `dm_block` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/dm/witness` | `dm_key_witness` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/trust/vouch` | `trust_vouch` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/mesh/dm/register` | `dm_register_key` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | handler-auth |  | `backend/main.py` |
+| POST | `/api/mesh/dm/send` | `dm_send` | signed-write |  | `backend/main.py` |
+| POST | `/api/mesh/dm/poll` | `dm_poll_secure` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/dm/poll` | `dm_poll` | handler-auth |  | `backend/main.py` |
+| POST | `/api/mesh/dm/count` | `dm_count_secure` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/dm/count` | `dm_count` | handler-auth |  | `backend/main.py` |
+| POST | `/api/mesh/dm/block` | `dm_block` | signed-write |  | `backend/main.py` |
+| POST | `/api/mesh/dm/witness` | `dm_key_witness` | signed-write |  | `backend/main.py` |
+| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth |  | `backend/main.py` |
+| POST | `/api/mesh/trust/vouch` | `trust_vouch` | signed-write |  | `backend/main.py` |
 | GET | `/api/mesh/trust/vouches` | `trust_vouches` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/debug-latest` | `debug_latest_data` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/cctv/media` | `cctv_media_proxy` | UNCLASSIFIED | MED | `backend/main.py` |
@@ -98,10 +98,10 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/geocode/search` | `api_geocode_search` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/geocode/reverse` | `api_geocode_reverse` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/sentinel2/search` | `api_sentinel2_search` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/sentinel/token` | `api_sentinel_token` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| POST | `/api/sentinel/token` | `api_sentinel_token` | public-intentional |  | `backend/main.py` |
 | POST | `/api/sentinel/tile` | `api_sentinel_tile` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/settings/api-keys` | `api_get_keys` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/settings/api-keys/meta` | `api_get_keys_meta` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| GET | `/api/settings/api-keys/meta` | `api_get_keys_meta` | public-intentional |  | `backend/main.py` |
 | GET | `/api/basemap-config` | `api_basemap_config` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/tools/shodan/status` | `api_shodan_status` | local-operator |  | `backend/main.py` |
 | POST | `/api/tools/shodan/search` | `api_shodan_search` | local-operator |  | `backend/main.py` |
@@ -114,13 +114,13 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/settings/news-feeds` | `api_get_news_feeds` | local-operator |  | `backend/main.py` |
 | PUT | `/api/settings/news-feeds` | `api_save_news_feeds` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/settings/news-feeds/reset` | `api_reset_news_feeds` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/settings/node` | `api_get_node_settings` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth |  | `backend/main.py` |
 | PUT | `/api/settings/node` | `api_set_node_settings` | local-operator |  | `backend/main.py` |
-| POST | `/api/mesh/infonet/swarm/join` | `infonet_swarm_join` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| POST | `/api/mesh/infonet/swarm/join` | `infonet_swarm_join` | handler-auth |  | `backend/main.py` |
+| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth |  | `backend/main.py` |
 | PUT | `/api/settings/wormhole` | `api_set_wormhole_settings` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth |  | `backend/main.py` |
+| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth |  | `backend/main.py` |
 | POST | `/api/wormhole/join` | `api_wormhole_join` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/wormhole/leave` | `api_wormhole_leave` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/wormhole/identity` | `api_wormhole_identity` | local-operator |  | `backend/main.py` |
@@ -143,9 +143,9 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/wormhole/sign` | `api_wormhole_sign` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/enter` | `api_wormhole_gate_enter` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/leave` | `api_wormhole_gate_leave` | local-operator |  | `backend/main.py` |
-| GET | `/api/wormhole/gate/{gate_id}/identity` | `api_wormhole_gate_identity` | UNCLASSIFIED | HIGH | `backend/main.py` |
-| GET | `/api/wormhole/gate/{gate_id}/personas` | `api_wormhole_gate_personas` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/wormhole/gate/{gate_id}/key` | `api_wormhole_gate_key_status` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| GET | `/api/wormhole/gate/{gate_id}/identity` | `api_wormhole_gate_identity` | local-operator |  | `backend/main.py` |
+| GET | `/api/wormhole/gate/{gate_id}/personas` | `api_wormhole_gate_personas` | local-operator |  | `backend/main.py` |
+| GET | `/api/wormhole/gate/{gate_id}/key` | `api_wormhole_gate_key_status` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/key/rotate` | `api_wormhole_gate_key_rotate` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/persona/create` | `api_wormhole_gate_persona_create` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/persona/activate` | `api_wormhole_gate_persona_activate` | local-operator |  | `backend/main.py` |
@@ -196,12 +196,12 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/system/update` | `system_update` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/settings/api-keys` | `api_get_keys` | local-operator |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/api-keys` | `api_save_keys` | local-operator |  | `backend/routers/admin.py` |
-| GET | `/api/settings/api-keys/meta` | `api_get_keys_meta` | UNCLASSIFIED | HIGH | `backend/routers/admin.py` |
+| GET | `/api/settings/api-keys/meta` | `api_get_keys_meta` | public-intentional |  | `backend/routers/admin.py` |
 | GET | `/api/settings/operator-handle` | `api_get_operator_handle` | local-operator |  | `backend/routers/admin.py` |
 | GET | `/api/settings/news-feeds` | `api_get_news_feeds` | local-operator |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/news-feeds` | `api_save_news_feeds` | admin/scoped |  | `backend/routers/admin.py` |
 | POST | `/api/settings/news-feeds/reset` | `api_reset_news_feeds` | admin/scoped |  | `backend/routers/admin.py` |
-| GET | `/api/settings/node` | `api_get_node_settings` | UNCLASSIFIED | HIGH | `backend/routers/admin.py` |
+| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/node` | `api_set_node_settings` | local-operator |  | `backend/routers/admin.py` |
 | GET | `/api/settings/meshtastic-mqtt` | `api_get_meshtastic_mqtt_settings` | local-operator |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/meshtastic-mqtt` | `api_set_meshtastic_mqtt_settings` | local-operator |  | `backend/routers/admin.py` |
@@ -327,63 +327,63 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/country-risk` | `country_risk` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
 | GET | `/api/telegram-feed` | `telegram_feed` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
 | GET | `/api/telegram/media` | `telegram_media_proxy` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
-| POST | `/api/mesh/dm/register` | `dm_register_key` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/register` | `dm_register_key` | signed-write |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/prekey-peer-lookup` | `dm_prekey_peer_lookup` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/send` | `dm_send` | UNCLASSIFIED | HIGH | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/poll` | `dm_poll_secure` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/send` | `dm_send` | signed-write |  | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/poll` | `dm_poll_secure` | signed-write |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/dm/poll` | `dm_poll` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/count` | `dm_count_secure` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/count` | `dm_count_secure` | signed-write |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/dm/count` | `dm_count` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/block` | `dm_block` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/witness` | `dm_key_witness` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/trust/vouch` | `trust_vouch` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/block` | `dm_block` | signed-write |  | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/witness` | `dm_key_witness` | signed-write |  | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth |  | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/trust/vouch` | `trust_vouch` | signed-write |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/trust/vouches` | `trust_vouches` | admin/scoped |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/peers` | `list_peers` | local-operator |  | `backend/routers/mesh_operator.py` |
 | POST | `/api/mesh/peers` | `add_peer` | local-operator |  | `backend/routers/mesh_operator.py` |
 | DELETE | `/api/mesh/peers` | `remove_peer` | local-operator |  | `backend/routers/mesh_operator.py` |
 | PATCH | `/api/mesh/peers` | `toggle_peer` | local-operator |  | `backend/routers/mesh_operator.py` |
-| POST | `/api/mesh/oracle/predict` | `oracle_predict` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
+| POST | `/api/mesh/oracle/predict` | `oracle_predict` | signed-write |  | `backend/routers/mesh_oracle.py` |
 | GET | `/api/mesh/oracle/markets` | `oracle_markets` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
 | GET | `/api/mesh/oracle/search` | `oracle_search` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
 | GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/oracle/resolve` | `oracle_resolve` | admin/scoped |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| POST | `/api/mesh/oracle/stake` | `oracle_stake` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/profile` | `oracle_profile` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | handler-auth |  | `backend/routers/mesh_oracle.py` |
+| POST | `/api/mesh/oracle/stake` | `oracle_stake` | signed-write |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth |  | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/oracle/resolve-stakes` | `oracle_resolve_stakes` | admin/scoped |  | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/infonet/peer-push` | `infonet_peer_push` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
 | POST | `/api/mesh/dm/replicate-envelope` | `dm_replicate_envelope` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
 | POST | `/api/mesh/gate/peer-push` | `gate_peer_push` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
 | POST | `/api/mesh/gate/peer-pull` | `gate_peer_pull` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
-| POST | `/api/mesh/send` | `mesh_send` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/send` | `mesh_send` | signed-write |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/meshtastic/send` | `meshtastic_public_send` | local-operator |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/log` | `mesh_log` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/status` | `mesh_status` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/log` | `mesh_log` | handler-auth |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/status` | `mesh_status` | handler-auth |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/signals` | `mesh_signals` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/messages` | `mesh_messages` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/channels` | `mesh_channels` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/vote` | `mesh_vote` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/report` | `mesh_report` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/reputation` | `mesh_reputation` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/vote` | `mesh_vote` | signed-write |  | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/report` | `mesh_report` | signed-write |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/reputation/all` | `mesh_reputation_all` | admin/scoped |  | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/gate/create` | `gate_create` | UNCLASSIFIED | HIGH | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/gate/list` | `gate_list` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/status` | `infonet_status` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | signed-write |  | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | signed-write |  | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/gate/create` | `gate_create` | signed-write |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/gate/list` | `gate_list` | handler-auth |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | handler-auth |  | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | signed-write |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/locator` | `infonet_locator` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/metrics` | `mesh_metrics` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/rns/status` | `mesh_rns_status` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/sync` | `infonet_sync` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/infonet/ingest` | `infonet_ingest` | admin/scoped |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/peers` | `list_peers` | local-operator |  | `backend/routers/mesh_public.py` |
@@ -396,8 +396,8 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/mesh/infonet/messages` | `infonet_messages` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/session-stream` | `infonet_session_stream` | admin/scoped |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | handler-auth |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
 | GET | `/missions/config` | `configuration` | local-operator (router-default) |  | `backend/routers/missions.py` |
 | GET | `/missions` | `index` | local-operator (router-default) |  | `backend/routers/missions.py` |
@@ -488,10 +488,10 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/voice/hud-summary` | `voice_hud_summary` | local-operator |  | `backend/routers/voice.py` |
 | POST | `/api/voice/turn` | `voice_turn` | local-operator |  | `backend/routers/voice.py` |
 | POST | `/api/voice/interrogate` | `voice_interrogate` | local-operator |  | `backend/routers/voice.py` |
-| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | UNCLASSIFIED | HIGH | `backend/routers/wormhole.py` |
+| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth |  | `backend/routers/wormhole.py` |
 | PUT | `/api/settings/wormhole` | `api_set_wormhole_settings` | admin/scoped |  | `backend/routers/wormhole.py` |
-| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | UNCLASSIFIED | HIGH | `backend/routers/wormhole.py` |
-| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | UNCLASSIFIED | HIGH | `backend/routers/wormhole.py` |
+| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth |  | `backend/routers/wormhole.py` |
+| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/join` | `api_wormhole_join` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/leave` | `api_wormhole_leave` | UNCLASSIFIED | MED | `backend/routers/wormhole.py` |
 | GET | `/api/wormhole/identity` | `api_wormhole_identity` | local-operator |  | `backend/routers/wormhole.py` |

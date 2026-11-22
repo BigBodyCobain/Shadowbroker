@@ -11320,19 +11320,19 @@ async def api_wormhole_gate_leave(request: Request, body: WormholeGateRequest):
     return leave_gate(str(body.gate_id or ""))
 
 
-@app.get("/api/wormhole/gate/{gate_id}/identity")
+@app.get("/api/wormhole/gate/{gate_id}/identity", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_identity(request: Request, gate_id: str):
     return get_active_gate_identity(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/personas")
+@app.get("/api/wormhole/gate/{gate_id}/personas", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_personas(request: Request, gate_id: str):
     return list_gate_personas(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/key")
+@app.get("/api/wormhole/gate/{gate_id}/key", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_key_status(request: Request, gate_id: str):
     exposure = metadata_exposure_for_request(request, authenticated=True)

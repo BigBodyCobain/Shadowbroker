@@ -31,6 +31,8 @@ def classify(block: str) -> str:
         return 'openclaw-or-local'
     if 'require_peer' in block:
         return 'peer-hmac'
+    if 'requires_signed_write' in block or 'SignedWriteKind' in block:
+        return 'signed-write'
     if 'Depends(' in block:
         return 'depends-other'
     return 'UNCLASSIFIED'
@@ -72,6 +74,16 @@ def scan_file(path: Path):
                 cls = classify(block)
                 if cls == 'UNCLASSIFIED' and default_auth != 'UNCLASSIFIED':
                     cls = default_auth + ' (router-default)'
+                if cls == 'UNCLASSIFIED':
+                    body_window = '\n'.join(lines[j + 1:min(len(lines), j + 60)])
+                    if '_scoped_view_authenticated(' in body_window or '_require_admin(' in body_window or 'require_admin(' in body_window:
+                        cls = 'handler-auth'
+                if cls == 'UNCLASSIFIED':
+                    if (method, arg, name) in {
+                        ('GET', '/api/settings/api-keys/meta', 'api_get_keys_meta'),
+                        ('POST', '/api/sentinel/token', 'api_sentinel_token'),
+                    }:
+                        cls = 'public-intentional'
                 rows.append((method, arg, name, cls, path.relative_to(ROOT).as_posix()))
             i = j
         else:
