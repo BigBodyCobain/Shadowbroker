@@ -92,7 +92,11 @@ export function CorrelationPopup({ alert, onClose }: CorrelationPopupProps) {
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`text-[11px] font-mono tracking-widest px-1.5 py-0.5 rounded border ${sevBadge.bg} ${sevBadge.text}`}>
-              {isAnalysisZone ? alert.severity?.toUpperCase() : `ALERT LVL ${alert.score ?? 0}`}
+              {isAnalysisZone
+                ? alert.severity?.toUpperCase()
+                : alert.score != null
+                  ? `ALERT LVL ${alert.score}`
+                  : 'ALERT'}
             </span>
             {isAnalysisZone && alert.id && (
               <button

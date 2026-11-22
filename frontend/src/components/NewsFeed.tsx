@@ -1437,7 +1437,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         <h2 className="text-xs tracking-widest font-bold text-red-400 flex items-center gap-2">
                             <AlertTriangle size={14} className="text-red-400" /> THREAT INTERCEPT
                         </h2>
-                        <span className="text-[10px] text-[var(--text-muted)] font-mono">LVL: {item.risk_score ?? 0}/10</span>
+                        {item.risk_score != null && <span className="text-[10px] text-[var(--text-muted)] font-mono">LVL: {item.risk_score}/10</span>}
                     </div>
 
                     <div className="p-4 flex flex-col gap-3">
@@ -2007,7 +2007,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
 
                                     <div className="flex items-center gap-1.5 mt-1 relative z-10 flex-wrap">
                                         <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${badgeClass}`}>
-                                            {isBreaking ? 'BREAKING' : `LVL: ${item.risk_score ?? 0}/10`}
+                                            {isBreaking ? 'BREAKING' : item.risk_score != null ? `LVL: ${item.risk_score}/10` : 'INTEL'}
                                         </span>
                                         {item.sentiment != null && (
                                             <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
@@ -2057,12 +2057,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                     <div key={subIdx} className="flex flex-col gap-0.5 pl-2 border-l border-cyan-500/20">
                                                         <div className="flex items-center justify-between text-[11px] uppercase font-bold">
                                                             <span className="text-white">&gt;_ {subItem.source}</span>
-                                                            <span className={
-                                                                (subItem.risk_score ?? 0) >= 9 ? 'text-red-400' :
-                                                                    (subItem.risk_score ?? 0) >= 7 ? 'text-orange-400' :
-                                                                        (subItem.risk_score ?? 0) >= 4 ? 'text-yellow-500' :
+                                                            {subItem.risk_score != null && <span className={
+                                                                subItem.risk_score >= 9 ? 'text-red-400' :
+                                                                    subItem.risk_score >= 7 ? 'text-orange-400' :
+                                                                        subItem.risk_score >= 4 ? 'text-yellow-500' :
                                                                             'text-green-400'
-                                                            }>LVL: {subItem.risk_score}/10</span>
+                                                            }>LVL: {subItem.risk_score}/10</span>}
                                                         </div>
                                                         <a href={subItem.link} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors leading-tight">
                                                             {subItem.title}
