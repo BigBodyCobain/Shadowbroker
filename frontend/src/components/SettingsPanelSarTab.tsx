@@ -1,7 +1,7 @@
-// @ts-nocheck
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { Radar } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 
 export function SarSettingsTab() {

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { setSecureModeCached } from '@/lib/privacyBrowserStorage';
+import { setSecureModeCached } from '@/mesh/meshIdentity';
 import { clearBrowserIdentityState, purgeBrowserContactGraph, purgeBrowserSigningMaterial } from '@/mesh/meshIdentity';
 import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
 import {
