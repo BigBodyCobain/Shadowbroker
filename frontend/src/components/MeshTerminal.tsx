@@ -1037,7 +1037,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     doMeshSend,
     startInteractiveSend,
     doDMSend,
-  } = useMeshTerminalInboxCommand({ addError, addLines, addOutput, addSystem });
+  } = useMeshTerminalInboxCommand({
+    addError, addLines, addOutput, addSystem,
+    nodeIdentity, setSovereigntyPending, setBusy,
+    privateLaneLabel, privateLaneDetail, onDmCount, setSendStep,
+  });
 
   const { handleVoteCommand } = useMeshTerminalVoteCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty});
   const { handleSayCommand } = useMeshTerminalSayCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty,postGateMessage,invalidateGateCatalogSnapshot,invalidateGateDetailSnapshot,invalidateGateThreadPreviewSnapshot,addGateResyncAction});
