@@ -34,6 +34,7 @@ export function SettingsPanelApiKeys({ ctx }: { ctx: SettingsPanelApiKeysCtx }) 
     CATEGORY_COLORS: catColors,
   } = ctx;
   const CC = catColors || CATEGORY_COLORS;
+  return (
             <>
               {/* Info Banner */}
               <div className="mx-4 mt-4 p-3 border border-cyan-900/30 bg-cyan-950/10 space-y-2">
@@ -339,4 +340,5 @@ export function SettingsPanelApiKeys({ ctx }: { ctx: SettingsPanelApiKeysCtx }) 
                 </div>
               </div>
             </>
+  );
 }

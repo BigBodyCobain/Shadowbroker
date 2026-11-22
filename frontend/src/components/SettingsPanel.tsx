@@ -1,6 +1,6 @@
-// @ts-nocheck
 'use client';
 
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SettingsPanelNewsFeeds } from './SettingsPanelNewsFeeds';
 import { SettingsPanelApiKeys } from './SettingsPanelApiKeys';
 import { SettingsPanelProtocol } from './SettingsPanelProtocol';
@@ -16,7 +16,9 @@ import { useSettingsPanelBrowserWipe } from './useSettingsPanelBrowserWipe';
 import { useSettingsPanelWormhole } from './useSettingsPanelWormhole';
 import { clearAdminSession } from '@/lib/adminSession';
 import { isNativeProtectedSettingsReady } from '@/lib/nativeProtectedSettings';
-import { useTranslation } from '@/i18n';
+import { useTranslation, LOCALES, type Locale } from '@/i18n';
+import { motion, AnimatePresence } from '@/lib/motion';
+import { Key, Radar, Rss, Satellite, Settings, Shield, X } from 'lucide-react';
 import {
   getPrivacyProfilePreference,
   getPrivacyStrictPreference,
@@ -26,7 +28,7 @@ import {
   companionDisable,
   companionEnable,
   companionOpenBrowser,
-  fetchCompanionStatus,
+  companionStatus,
   isNativeDesktop,
   type CompanionStatus,
 } from '@/lib/desktopCompanion';
@@ -124,8 +126,11 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const { companionAvailable, companion, companionBusy, companionError, companionLoadFailed, toggleCompanion, openCompanionBrowser } = useCompanionSetting(isOpen, activeTab);
 
   const clearApisRef = React.useRef<() => void>(() => {});
-
   const clearFeedsRef = React.useRef<() => void>(() => {});
+  const setAdminSessionReadyRef = useRef<(v: boolean) => void>(() => {});
+  const setAdminSessionMsgRef = useRef<(v: string | null) => void>(() => {});
+  const setDmRootHealthRef = useRef<(v: any) => void>(() => {});
+  const setDmRootHealthMsgRef = useRef<(v: string | null) => void>(() => {});
   const handleProtectedSettingsError = useCallback(
     async (error: unknown) => {
       const message = error instanceof Error ? error.message : 'Protected settings request failed';
@@ -152,7 +157,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
 
   const {
     feeds, feedsDirty, feedSaving, feedMsg,
-    fetchFeeds, updateFeed, removeFeed, addFeed, saveFeeds, resetFeeds, setFeedMsg, clearFeeds,
+    fetchFeeds, updateFeed, removeFeed, addFeed, saveFeeds, resetFeeds, setFeedMsg, clearFeeds, setFeeds, setFeedsDirty,
   } = useSettingsPanelFeeds(handleProtectedSettingsError);
   clearFeedsRef.current = clearFeeds;
 
@@ -175,7 +180,7 @@ const SettingsPanel = React.memo(function SettingsPanel({
   const wh = useSettingsPanelWormhole({
     isOpen, activeTab, onClose, nativeProtected, adminSessionReady, showOperatorTools,
     refreshAdminSession, fetchKeys, fetchFeeds, fetchEnvMeta, handleProtectedSettingsError, ensureAdminSession,
-    setActiveTab,   clearSessionIdentity,
+    setActiveTab, clearSessionIdentity, setFeeds, setFeedsDirty,
     privacyProfile, setPrivacyProfile, sessionMode, setSessionMode, setStrictPrivacy,
     gateCompatTelemetry,
   });

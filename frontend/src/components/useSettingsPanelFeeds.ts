@@ -110,5 +110,5 @@ export function useSettingsPanelFeeds(handleProtectedSettingsError: (error: unkn
   };
 
   const clearFeeds = useCallback(() => { setFeeds([]); setFeedsDirty(false); setFeedMsg(null); }, []);
-  return { feeds, feedsDirty, feedSaving, feedMsg, fetchFeeds, updateFeed, removeFeed, addFeed, saveFeeds, resetFeeds, setFeedMsg, clearFeeds };
+  return { feeds, feedsDirty, feedSaving, feedMsg, fetchFeeds, updateFeed, removeFeed, addFeed, saveFeeds, resetFeeds, setFeedMsg, clearFeeds, setFeeds, setFeedsDirty };
 }
