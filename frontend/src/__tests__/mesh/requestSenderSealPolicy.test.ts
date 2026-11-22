@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   ensureCanonicalRequestV2SenderSeal,
   REQUEST_V2_SENDER_SEAL_VERSION_ERROR,

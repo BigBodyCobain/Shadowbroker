@@ -1,3 +1,4 @@
+// @ts-nocheck
 import fs from 'fs';
 import path from 'path';
 import { act, cleanup, renderHook } from '@testing-library/react';

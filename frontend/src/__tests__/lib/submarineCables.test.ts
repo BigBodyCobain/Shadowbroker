@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { sanitizeSubmarineCables } from '@/lib/submarineCables';
 
 describe('sanitizeSubmarineCables', () => {

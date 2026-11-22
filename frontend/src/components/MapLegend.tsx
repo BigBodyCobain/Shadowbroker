@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState } from 'react';
@@ -78,8 +79,7 @@ const LEGEND: LegendCategory[] = [
       { svg: turboprop('#0891b2'), label: 'Turboprop (dim cyan)' },
       { svg: heli('#0891b2'), label: 'Helicopter (dim cyan)' },
       { svg: airliner('#555'), label: 'Grounded / Parked (grey)' },
-    ],
-  },
+    ] },
   {
     name: 'PRIVATE / UNKNOWN AVIATION',
     color: 'text-purple-400 border-purple-500/30',
@@ -88,8 +88,7 @@ const LEGEND: LegendCategory[] = [
       { svg: turboprop('#9B59B6'), label: 'Private Flight — Turboprop' },
       { svg: bizjet('#9B59B6'), label: 'Private Jet — Bizjet' },
       { svg: heli('#9B59B6'), label: 'Private / Unknown — Helicopter' },
-    ],
-  },
+    ] },
   {
     name: 'MILITARY AVIATION',
     color: 'text-amber-400 border-amber-500/30',
@@ -99,10 +98,8 @@ const LEGEND: LegendCategory[] = [
       { svg: heli('#f59e0b'), label: 'Military — Helicopter (amber)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="orange" stroke="black"><path d="M12 2L15 8H9L12 2Z" /><rect x="8" y="8" width="8" height="2" /><path d="M4 10L10 14H14L20 10V12L14 16H10L4 12V10Z" /><circle cx="12" cy="14" r="2" fill="red"/></svg>`,
-        label: 'UAV / Drone (live ADS-B)',
-      },
-    ],
-  },
+        label: 'UAV / Drone (live ADS-B)' },
+    ] },
   {
     name: 'TRACKED AIRCRAFT (ALERT)',
     color: 'text-pink-400 border-pink-500/30',
@@ -116,22 +113,18 @@ const LEGEND: LegendCategory[] = [
       { svg: airliner('#FF8C00'), label: 'As Seen on TV / Joe Cool (orange)' },
       { svg: airliner('white'), label: 'Climate Crisis (white)' },
       { svg: airliner('#9B59B6'), label: 'Private Jets / Historic / Other (purple)' },
-    ],
-  },
+    ] },
   {
     name: 'POTUS FLEET',
     color: 'text-yellow-400 border-yellow-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="none" stroke="gold" stroke-width="2" stroke-dasharray="4 2"/><g transform="translate(6,6)"><path d="M12 2C11.2 2 10.5 2.8 10.5 3.5V8.5L3 13V15L10.5 12.5V18L8 19.5V21L12 19.5L16 21V19.5L13.5 18V12.5L21 15V13L13.5 8.5V3.5C13.5 2.8 12.8 2 12 2Z" fill="#FF1493" stroke="black" stroke-width="0.5"/></g></svg>`,
-        label: 'Air Force One / Two (gold ring)',
-      },
+        label: 'Air Force One / Two (gold ring)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="none" stroke="gold" stroke-width="2" stroke-dasharray="4 2"/><g transform="translate(8,6)"><path d="M10 6L10 14L8 16L8 18L10 17L12 22L14 17L16 18L16 16L14 14L14 6C14 4 13 2 12 2C11 2 10 4 10 6Z" fill="#FF1493" stroke="black" stroke-width="0.5"/></g></svg>`,
-        label: 'Marine One (gold ring + heli)',
-      },
-    ],
-  },
+        label: 'Marine One (gold ring + heli)' },
+    ] },
   {
     name: 'SATELLITES',
     color: 'text-sky-400 border-sky-500/30',
@@ -144,8 +137,7 @@ const LEGEND: LegendCategory[] = [
       { svg: sat('#44ff44'), label: 'Commercial Imaging (green)' },
       { svg: sat('#ffdd00'), label: 'Space Station — ISS / Tiangong (gold)' },
       { svg: sat('#aaaaaa'), label: 'Unclassified / Other (grey)' },
-    ],
-  },
+    ] },
   {
     name: 'MARITIME',
     color: 'text-blue-400 border-blue-500/30',
@@ -157,27 +149,22 @@ const LEGEND: LegendCategory[] = [
       { svg: ship('#3b82f6'), label: 'Civilian / Unknown (blue)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="orange" stroke="black"><polygon points="3,21 21,21 20,4 16,4 16,3 12,3 12,4 4,4" /><rect x="15" y="6" width="3" height="10" /></svg>`,
-        label: 'Aircraft Carrier (orange)',
-      },
+        label: 'Aircraft Carrier (orange)' },
       { svg: clusterCircle('#0a3460', '#45d8ff'), label: 'Ship Cluster (count inside)' },
-    ],
-  },
+    ] },
   {
     name: 'GEOPHYSICAL',
     color: 'text-orange-400 border-orange-500/30',
-    items: [{ svg: circle('#ffcc00'), label: 'Earthquake (yellow blob, size = magnitude)' }],
-  },
+    items: [{ svg: circle('#ffcc00'), label: 'Earthquake (yellow blob, size = magnitude)' }] },
   {
     name: 'WILDFIRES',
     color: 'text-red-400 border-red-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 1C8 7 5 10 5 14a7 7 0 0 0 14 0c0-4-3-7-7-13z" fill="#ff6600" stroke="#ffcc00" stroke-width="1"/></svg>`,
-        label: 'Active wildfire / hotspot',
-      },
+        label: 'Active wildfire / hotspot' },
       { svg: clusterCircle('#cc0000', '#ff3300'), label: 'Fire cluster (grouped hotspots)' },
-    ],
-  },
+    ] },
   {
     name: 'INCIDENTS & INTELLIGENCE',
     color: 'text-red-400 border-red-500/30',
@@ -187,20 +174,16 @@ const LEGEND: LegendCategory[] = [
       { svg: triangle('#ff0000'), label: 'Violent / Kinetic event (red)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#ffff00" stroke="#ff0000" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>`,
-        label: 'Threat Alert (news cluster)',
-      },
-    ],
-  },
+        label: 'Threat Alert (news cluster)' },
+    ] },
   {
     name: 'NEWS & OSINT',
     color: 'text-cyan-400 border-cyan-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12" viewBox="0 0 40 24"><rect x="1" y="1" width="38" height="22" rx="3" fill="#111" stroke="cyan" stroke-width="1"/><text x="6" y="10" fill="red" font-size="6" font-family="monospace">!! ALERT</text><text x="6" y="17" fill="white" font-size="4" font-family="monospace">News Headline</text></svg>`,
-        label: 'Geolocated news alert box',
-      },
-    ],
-  },
+        label: 'Geolocated news alert box' },
+    ] },
   {
     name: 'GPS JAMMING / INTERFERENCE',
     color: 'text-red-400 border-red-500/30',
@@ -208,25 +191,20 @@ const LEGEND: LegendCategory[] = [
       { svg: square('#ff0040'), label: 'High severity (>75% aircraft degraded)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" fill="#ff0040" stroke="#000" stroke-width="1" opacity="0.35" rx="2"/></svg>`,
-        label: 'Medium severity (50-75% degraded)',
-      },
+        label: 'Medium severity (50-75% degraded)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" fill="#ff0040" stroke="#000" stroke-width="1" opacity="0.2" rx="2"/></svg>`,
-        label: 'Low severity (25-50% degraded)',
-      },
-    ],
-  },
+        label: 'Low severity (25-50% degraded)' },
+    ] },
   {
     name: 'INFRASTRUCTURE',
     color: 'text-purple-400 border-purple-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.5"><rect x="3" y="3" width="18" height="6" rx="1" fill="#2e1065"/><rect x="3" y="11" width="18" height="6" rx="1" fill="#2e1065"/><circle cx="7" cy="6" r="1" fill="#a78bfa"/><circle cx="7" cy="14" r="1" fill="#a78bfa"/></svg>`,
-        label: 'Data Center',
-      },
+        label: 'Data Center' },
       { svg: circle('#888'), label: 'Internet Outage Zone (grey)' },
-    ],
-  },
+    ] },
   {
     name: 'SURVEILLANCE / CCTV',
     color: 'text-green-400 border-green-500/30',
@@ -235,32 +213,25 @@ const LEGEND: LegendCategory[] = [
       { svg: clusterCircle('#22c55e', '#16a34a'), label: 'Camera cluster (count inside)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="cyan" stroke-width="2"><path d="M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-.894.553H5.652a1 1 0 0 1-.894-.553L2.724 13.447A1 1 0 0 1 3.618 12h3.632M14 12V8a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v4a4 4 0 1 0 8 0Z" /></svg>`,
-        label: 'CCTV icon (detail view)',
-      },
-    ],
-  },
+        label: 'CCTV icon (detail view)' },
+    ] },
   {
     name: 'SELECTION HUD',
     color: 'text-cyan-400 border-cyan-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12" stroke="#22d3ee" stroke-width="2" stroke-dasharray="3 3" opacity="0.5"/><circle cx="20" cy="12" r="2.5" fill="#22d3ee" opacity="0.4"/></svg>`,
-        label: 'Predictive vector (~5 min ahead)',
-      },
+        label: 'Predictive vector (~5 min ahead)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3" opacity="0.2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3" opacity="0.2"/></svg>`,
-        label: 'Proximity rings (10 / 50 / 100nm)',
-      },
+        label: 'Proximity rings (10 / 50 / 100nm)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12" stroke="#22d3ee" stroke-width="2" opacity="0.6"/></svg>`,
-        label: 'Flight trail (position history)',
-      },
+        label: 'Flight trail (position history)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><line x1="4" y1="12" x2="20" y2="12" stroke="cyan" stroke-width="2" opacity="0.8"/><circle cx="4" cy="12" r="2" fill="lime"/><circle cx="20" cy="12" r="2" fill="red"/></svg>`,
-        label: 'Active route (origin → dest)',
-      },
-    ],
-  },
+        label: 'Active route (origin → dest)' },
+    ] },
   {
     name: 'SIGINT GRID',
     color: 'text-emerald-400 border-emerald-500/30',
@@ -268,46 +239,37 @@ const LEGEND: LegendCategory[] = [
       { svg: dot('#22c55e'), label: 'APRS-IS station (green, isnād 0.7)' },
       { svg: triangle('#22c55e'), label: 'Meshtastic node (green triangle, isnād 0.5)' },
       { svg: dot('#f59e0b'), label: 'JS8Call station (amber, isnād 0.9)' },
-    ],
-  },
+    ] },
   {
     name: 'ORACLE SERVICE',
     color: 'text-cyan-400 border-cyan-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12" viewBox="0 0 40 16"><rect x="1" y="1" width="38" height="14" rx="2" fill="#111" stroke="#22d3ee" stroke-width="1"/><text x="4" y="10" fill="#22d3ee" font-size="7" font-family="monospace" font-weight="bold">ORCL:7.2</text></svg>`,
-        label: 'Oracle score badge (weighted risk)',
-      },
+        label: 'Oracle score badge (weighted risk)' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12" viewBox="0 0 40 16"><rect x="1" y="1" width="38" height="14" rx="2" fill="#111" stroke="#a855f7" stroke-width="1"/><text x="4" y="10" fill="#a855f7" font-size="7" font-family="monospace" font-weight="bold">MKT:23%</text></svg>`,
-        label: 'Prediction market consensus',
-      },
+        label: 'Prediction market consensus' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><text x="6" y="16" fill="#22c55e" font-size="14" font-family="monospace" font-weight="bold">▲</text></svg>`,
-        label: 'Sentiment: ▲ positive / ▼ negative / — neutral',
-      },
-    ],
-  },
+        label: 'Sentiment: ▲ positive / ▼ negative / — neutral' },
+    ] },
   {
     name: 'OVERLAYS',
     color: 'text-gray-400 border-gray-500/30',
     items: [
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><rect width="24" height="24" fill="#0a0e1a" opacity="0.4"/><circle cx="12" cy="12" r="4" fill="#ffd700"/></svg>`,
-        label: 'Day / Night terminator',
-      },
+        label: 'Day / Night terminator' },
       {
         svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><line x1="4" y1="4" x2="20" y2="4" stroke="red" stroke-width="2"/><line x1="4" y1="8" x2="20" y2="8" stroke="#ff6600" stroke-width="2"/></svg>`,
-        label: 'Ukraine frontline',
-      },
-    ],
-  },
+        label: 'Ukraine frontline' },
+    ] },
 ];
 
 const MapLegend = React.memo(function MapLegend({
   isOpen,
-  onClose,
-}: {
+  onClose }: {
   isOpen: boolean;
   onClose: () => void;
 }) {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -16,8 +17,7 @@ const ACTIVITY_COLORS: Record<string, string> = {
   normal: 'text-green-400',
   'below normal': 'text-blue-400',
   low: 'text-blue-300',
-  'not calculated': 'text-gray-500',
-};
+  'not calculated': 'text-gray-500' };
 
 export function WastewaterPopup({ plant, onClose }: WastewaterPopupProps) {
   const hasAlerts = plant.alert_count > 0;

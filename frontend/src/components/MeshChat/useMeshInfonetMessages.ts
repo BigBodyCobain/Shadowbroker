@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCallback, useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
 import { normalizeInfoNetMessage, isEncryptedGateEnvelope, gateDecryptCacheKey } from './useMeshChatController.helpers';

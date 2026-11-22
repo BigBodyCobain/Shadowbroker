@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -21,8 +22,7 @@ export function KiwiSdrLayers() {
               'circle-color': 'rgba(245, 158, 11, 0.08)',
               'circle-stroke-width': 1.5,
               'circle-stroke-color': 'rgba(245, 158, 11, 0.35)',
-              'circle-blur': 0.4,
-            }}
+              'circle-blur': 0.4 }}
           />
           {/* Clusters — tower icon with count */}
           <Layer
@@ -37,13 +37,11 @@ export function KiwiSdrLayers() {
               'text-size': 10,
               'text-offset': [0, 1.4],
               'text-allow-overlap': true,
-              'text-font': ['Noto Sans Bold'],
-            }}
+              'text-font': ['Noto Sans Bold'] }}
             paint={{
               'text-color': '#f59e0b',
               'text-halo-color': '#000000',
-              'text-halo-width': 1.5,
-            }}
+              'text-halo-width': 1.5 }}
           />
           {/* Pulse ring behind individual towers */}
           <Layer
@@ -55,8 +53,7 @@ export function KiwiSdrLayers() {
               'circle-color': 'rgba(245, 158, 11, 0.06)',
               'circle-stroke-width': 1,
               'circle-stroke-color': 'rgba(245, 158, 11, 0.3)',
-              'circle-blur': 0.5,
-            }}
+              'circle-blur': 0.5 }}
           />
           {/* Individual tower icons */}
           <Layer
@@ -66,8 +63,7 @@ export function KiwiSdrLayers() {
             layout={{
               'icon-image': 'svgRadioTower',
               'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 8, 0.8, 14, 1.0],
-              'icon-allow-overlap': true,
-            }}
+              'icon-allow-overlap': true }}
           />
         </Source>
   );

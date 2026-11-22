@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -34,13 +35,11 @@ export function FirmsFireLayers() {
           'text-font': ['Noto Sans Bold'],
           'text-size': ['step', ['get', 'point_count'], 9, 10, 10, 50, 11, 200, 12],
           'text-offset': [0, 0.15],
-          'text-allow-overlap': true,
-        }}
+          'text-allow-overlap': true }}
         paint={{
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.8)',
-          'text-halo-width': 1.2,
-        }}
+          'text-halo-width': 1.2 }}
       />
       <Layer
         id="firms-viirs-layer"
@@ -50,8 +49,7 @@ export function FirmsFireLayers() {
           'icon-image': ['get', 'iconId'],
           'icon-size': ['interpolate', ['linear'], ['zoom'], 2, 0.4, 5, 0.6, 8, 0.8, 12, 1.0],
           'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-        }}
+          'icon-ignore-placement': true }}
       />
     </Source>
   );

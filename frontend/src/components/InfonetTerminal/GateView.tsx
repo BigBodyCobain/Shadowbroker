@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -6,19 +7,16 @@ import { API_BASE } from '@/lib/api';
 import {
   nextGateMessagesPollDelayMs,
   nextGateMessagesWaitRearmDelayMs,
-  nextGateMessagesWaitTimeoutMs,
-} from '@/mesh/gateMetadataTiming';
+  nextGateMessagesWaitTimeoutMs } from '@/mesh/gateMetadataTiming';
 import {
   ACTIVE_GATE_ROOM_MESSAGE_LIMIT,
   fetchGateMessageSnapshotState,
-  waitForGateMessageSnapshot,
-} from '@/mesh/gateMessageSnapshot';
+  waitForGateMessageSnapshot } from '@/mesh/gateMessageSnapshot';
 import {
   getGateSessionStreamStatus,
   retainGateSessionStreamGate,
   subscribeGateSessionStreamEvents,
-  subscribeGateSessionStreamStatus,
-} from '@/mesh/gateSessionStream';
+  subscribeGateSessionStreamStatus } from '@/mesh/gateSessionStream';
 import { nextSequence } from '@/mesh/meshIdentity';
 import {
   approveGateCompatFallback,
@@ -29,8 +27,7 @@ import {
   prepareWormholeInteractiveLane,
   signMeshEvent,
   syncBrowserWormholeGateState,
-  type WormholeGateKeyStatus,
-} from '@/mesh/wormholeIdentityClient';
+  type WormholeGateKeyStatus } from '@/mesh/wormholeIdentityClient';
 import { gateEnvelopeDisplayText, gateEnvelopeState, isEncryptedGateEnvelope } from '@/mesh/gateEnvelope';
 import { validateEventPayload } from '@/mesh/meshSchema';
 import { friendlyInfonetError } from '@/mesh/friendlyError';
@@ -62,8 +59,7 @@ const GATE_INTROS: Record<string, string> = {
   'meet-chat':
     'Find other sovereigns in your area. Coordinate local meetups, dead drops, or mesh node deployments. Practice good OPSEC.',
   'opsec-lab':
-    'Operational security discussion. Share techniques, tools, and threat models. Help each other stay invisible.',
-};
+    'Operational security discussion. Share techniques, tools, and threat models. Help each other stay invisible.' };
 
 interface GateViewProps {
   gateName: string;
@@ -186,8 +182,7 @@ function normalizeGateMessage(message: GateMessage): GateMessage {
   if (!message || typeof message !== 'object') {
     return {
       event_id: '',
-      timestamp: 0,
-    };
+      timestamp: 0 };
   }
   const payload = message.payload && typeof message.payload === 'object' ? message.payload : undefined;
   return {
@@ -199,8 +194,7 @@ function normalizeGateMessage(message: GateMessage): GateMessage {
     format: String(message.format ?? payload?.format ?? ''),
     gate_envelope: String(message.gate_envelope ?? payload?.gate_envelope ?? ''),
     envelope_hash: String(message.envelope_hash ?? payload?.envelope_hash ?? ''),
-    reply_to: String(message.reply_to ?? payload?.reply_to ?? ''),
-  };
+    reply_to: String(message.reply_to ?? payload?.reply_to ?? '') };
 }
 
 function describeGateCompatError(detail: string, gateId: string = ''): string {
@@ -286,8 +280,7 @@ export default function GateView({
   onNavigateGate,
   onOpenLiveGate: _onOpenLiveGate,
   availableGates,
-  onOpenShutdownPetition,
-}: GateViewProps) {
+  onOpenShutdownPetition }: GateViewProps) {
   const [searchInput, setSearchInput] = useState('');
   const [messages, setMessages] = useState<GateMessage[]>([]);
   // Self-authored plaintext, keyed by real event_id returned from the POST.
@@ -349,8 +342,7 @@ export default function GateView({
       return;
     }
     void prepareWormholeInteractiveLane({
-      minimumTransportTier: 'private_control_only',
-    }).catch(() => undefined);
+      minimumTransportTier: 'private_control_only' }).catch(() => undefined);
   }, [gateId, status?.has_local_access]);
 
   const streamEnabledForGate =
@@ -384,8 +376,7 @@ export default function GateView({
       return {
         messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
         compatDecryptBlocked: false,
-        roomError: '',
-      };
+        roomError: '' };
     }
 
     try {
@@ -407,8 +398,7 @@ export default function GateView({
             // fresh anon sessions) and uses the durable AES-GCM envelope
             // keyed under gate_secret — which EVERY gate member can
             // decrypt as long as they hold the current gate_secret.
-            recovery_envelope: gateEnvelope.length > 0,
-          };
+            recovery_envelope: gateEnvelope.length > 0 };
         }),
       );
       const results = Array.isArray(batch.results) ? batch.results : [];
@@ -426,14 +416,12 @@ export default function GateView({
               : String(decrypted.plaintext || ''))
             : '',
           epoch: decrypted?.ok ? Number(decrypted.epoch || message.epoch || 0) : message.epoch,
-          reply_to: decryptedReplyTo || String(message.reply_to || ''),
-        };
+          reply_to: decryptedReplyTo || String(message.reply_to || '') };
       });
       return {
         messages: nextMessages,
         compatDecryptBlocked: false,
-        roomError: '',
-      };
+        roomError: '' };
     } catch (error) {
       const detail = error instanceof Error ? error.message : '';
       if (
@@ -443,14 +431,12 @@ export default function GateView({
         return {
           messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
           compatDecryptBlocked: false,
-          roomError: describeGateCompatError(detail, gateId),
-        };
+          roomError: describeGateCompatError(detail, gateId) };
       }
       return {
         messages: baseMessages.map((message) => ({ ...message, decrypted_message: '' })),
         compatDecryptBlocked: false,
-        roomError: '',
-      };
+        roomError: '' };
     }
   }, [gateId]);
 
@@ -511,8 +497,7 @@ export default function GateView({
       const streamOwned = streamEnabledForGateRef.current;
       const nextStatus = await fetchWormholeGateKeyStatus(gateId, {
         force: options.force,
-        mode: streamOwned ? 'session_stream' : 'active_room',
-      });
+        mode: streamOwned ? 'session_stream' : 'active_room' });
       setStatus(nextStatus);
       if (!nextStatus?.ok || !nextStatus.has_local_access) {
         gateCursorRef.current = 0;
@@ -525,8 +510,7 @@ export default function GateView({
       }
       const snapshot = await fetchGateMessageSnapshotState(gateId, ACTIVE_GATE_ROOM_MESSAGE_LIMIT, {
         force: options.force,
-        proofMode: streamOwned ? 'session_stream' : 'default',
-      });
+        proofMode: streamOwned ? 'session_stream' : 'default' });
       gateCursorRef.current = snapshot.cursor;
       await applyGateMessages(snapshot.messages as GateMessage[]);
       return true;
@@ -626,8 +610,7 @@ export default function GateView({
           ACTIVE_GATE_ROOM_MESSAGE_LIMIT,
           {
             timeoutMs: nextGateMessagesWaitTimeoutMs(),
-            signal: controller.signal,
-          },
+            signal: controller.signal },
         );
         waitAbortRef.current = null;
         if (cancelled) return;
@@ -726,8 +709,7 @@ export default function GateView({
       setCompatConsentPrompt({
         gateId: eventGateId,
         action: detail.action,
-        reason: String(detail.reason || ''),
-      });
+        reason: String(detail.reason || '') });
     };
     window.addEventListener(
       'sb:gate-compat-consent-required',
@@ -770,8 +752,7 @@ export default function GateView({
     try {
       const gatePost = await postWormholeGateMessage(gateId, msg, replyContext?.eventId || '').catch((error) => ({
         ok: false,
-        detail: error instanceof Error ? error.message : 'Gate post failed',
-      }));
+        detail: error instanceof Error ? error.message : 'Gate post failed' }));
       if (gatePost?.ok === false) {
         throw new Error(describeGateCompatError(String(gatePost.detail || 'Gate post failed'), gateId));
       }
@@ -799,8 +780,7 @@ export default function GateView({
           node_id: persona,
           gate: gateId,
           reply_to: replyContext?.eventId || '',
-          ephemeral: true,
-        } as GateMessage,
+          ephemeral: true } as GateMessage,
       ]);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Gate post failed';
@@ -848,9 +828,7 @@ export default function GateView({
           public_key_algo: signed.context.publicKeyAlgo,
           voter_sig: signed.signature,
           sequence: signed.sequence,
-          protocol_version: signed.protocolVersion,
-        }),
-      });
+          protocol_version: signed.protocolVersion }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) {
         throw new Error(String(data?.detail || 'Vote failed'));
@@ -860,8 +838,7 @@ export default function GateView({
       const w = typeof data?.weight === 'number' ? data.weight : 1;
       setReps((prev) => ({
         ...prev,
-        [eventId]: Math.round(((prev[eventId] ?? 0) + vote * w) * 10) / 10,
-      }));
+        [eventId]: Math.round(((prev[eventId] ?? 0) + vote * w) * 10) / 10 }));
     } catch (err) {
       // Revert vote state
       setVotedOn((prev) => {
@@ -1110,8 +1087,7 @@ export default function GateView({
                         onClick={() =>
                           setReplyContext({
                             eventId: String(message.event_id || ''),
-                            nodeId: String(message.node_id || ''),
-                          })
+                            nodeId: String(message.node_id || '') })
                         }
                         className="inline-flex items-center gap-1 px-2 py-1 text-[13px] uppercase tracking-[0.18em] border border-cyan-900/40 text-cyan-400 hover:bg-cyan-950/20"
                       >

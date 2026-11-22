@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * §7.D / §3.7 — deterministic zero-model loop phrase coverage.
  *

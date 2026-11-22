@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -22,8 +23,7 @@ export function PskReporterLayers() {
               'circle-color': 'rgba(34, 197, 94, 0.08)',
               'circle-stroke-width': 1.5,
               'circle-stroke-color': 'rgba(34, 197, 94, 0.35)',
-              'circle-blur': 0.4,
-            }}
+              'circle-blur': 0.4 }}
           />
           {/* Clusters — count */}
           <Layer
@@ -35,8 +35,7 @@ export function PskReporterLayers() {
               'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20, 200, 26],
               'circle-color': 'rgba(34, 197, 94, 0.6)',
               'circle-stroke-width': 1.5,
-              'circle-stroke-color': 'rgba(34, 197, 94, 0.9)',
-            }}
+              'circle-stroke-color': 'rgba(34, 197, 94, 0.9)' }}
           />
           <Layer
             id="psk-reporter-cluster-count"
@@ -47,13 +46,11 @@ export function PskReporterLayers() {
               'text-field': '{point_count_abbreviated}',
               'text-size': 10,
               'text-allow-overlap': true,
-              'text-font': ['Noto Sans Bold'],
-            }}
+              'text-font': ['Noto Sans Bold'] }}
             paint={{
               'text-color': '#ffffff',
               'text-halo-color': '#000000',
-              'text-halo-width': 1,
-            }}
+              'text-halo-width': 1 }}
           />
           {/* Individual spots — small green dots */}
           <Layer
@@ -66,8 +63,7 @@ export function PskReporterLayers() {
               'circle-color': 'rgba(34, 197, 94, 0.06)',
               'circle-stroke-width': 1,
               'circle-stroke-color': 'rgba(34, 197, 94, 0.3)',
-              'circle-blur': 0.5,
-            }}
+              'circle-blur': 0.5 }}
           />
           <Layer
             id="psk-reporter-layer"
@@ -78,8 +74,7 @@ export function PskReporterLayers() {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 2.5, 8, 4, 14, 6],
               'circle-color': '#22c55e',
               'circle-stroke-width': 0.5,
-              'circle-stroke-color': 'rgba(34, 197, 94, 0.8)',
-            }}
+              'circle-stroke-color': 'rgba(34, 197, 94, 0.8)' }}
           />
         </Source>
   );

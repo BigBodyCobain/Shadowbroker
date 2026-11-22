@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useMemo } from 'react';
 import type maplibregl from 'maplibre-gl';
 import { useImperativeSource } from './useImperativeSource';

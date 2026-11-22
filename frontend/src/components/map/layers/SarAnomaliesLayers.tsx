@@ -51,6 +51,5 @@ export function SarAnomaliesLayers() {
               }}
             />
           </Source>
-        )}
   );
 }

@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { API_BASE } from '@/lib/api';

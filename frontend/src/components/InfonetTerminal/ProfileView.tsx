@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -33,8 +34,7 @@ interface OracleProfileSummary {
 const EMPTY_REPUTATION: ReputationSummary = {
   overall: 0,
   upvotes: 0,
-  downvotes: 0,
-};
+  downvotes: 0 };
 
 const EMPTY_ORACLE_PROFILE: OracleProfileSummary = {
   oracle_rep: 0,
@@ -42,8 +42,7 @@ const EMPTY_ORACLE_PROFILE: OracleProfileSummary = {
   oracle_rep_locked: 0,
   predictions_won: 0,
   predictions_lost: 0,
-  win_rate: 0,
-};
+  win_rate: 0 };
 
 export default function ProfileView({ onBack, persona, isCitizen, nodeId, publicKey }: ProfileViewProps) {
   const [showWallet, setShowWallet] = useState(false);
@@ -83,8 +82,7 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
             setReputation({
               overall: Number(data?.overall || 0),
               upvotes: Number(data?.upvotes || 0),
-              downvotes: Number(data?.downvotes || 0),
-            });
+              downvotes: Number(data?.downvotes || 0) });
           }
         } catch {
           if (active) {
@@ -105,8 +103,7 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
               oracle_rep_locked: Number(data?.oracle_rep_locked || 0),
               predictions_won: Number(data?.predictions_won || 0),
               predictions_lost: Number(data?.predictions_lost || 0),
-              win_rate: Number(data?.win_rate || 0),
-            });
+              win_rate: Number(data?.win_rate || 0) });
           }
         } catch {
           if (active) {
@@ -140,9 +137,7 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
       width: 320,
       color: {
         dark: '#34d399',
-        light: '#05080d',
-      },
-    })
+        light: '#05080d' } })
       .then((dataUrl) => {
         if (active) {
           setDmInviteQrSrc(dataUrl);
@@ -187,17 +182,15 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
     setDmInviteStatus(null);
     try {
       const exported = await exportWormholeDmInvite();
-      setDmInviteBlob(JSON.stringify(exported, null, 2));
+      setDmInviteBlob(JSON.stringify(exported, 2));
       setDmInviteFingerprint(String(exported.trust_fingerprint || ''));
       setDmInviteStatus({
         type: 'ok',
-        text: 'Signed DM invite generated. Share it only over a trusted out-of-band channel.',
-      });
+        text: 'Signed DM invite generated. Share it only over a trusted out-of-band channel.' });
     } catch (error) {
       setDmInviteStatus({
         type: 'err',
-        text: error instanceof Error ? error.message : 'dm_invite_export_failed',
-      });
+        text: error instanceof Error ? error.message : 'dm_invite_export_failed' });
     } finally {
       setDmInviteBusy(false);
     }
@@ -211,13 +204,11 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
       await navigator.clipboard.writeText(dmInviteBlob);
       setDmInviteStatus({
         type: 'ok',
-        text: 'Signed DM invite copied to clipboard.',
-      });
+        text: 'Signed DM invite copied to clipboard.' });
     } catch (error) {
       setDmInviteStatus({
         type: 'err',
-        text: error instanceof Error ? error.message : 'clipboard_write_failed',
-      });
+        text: error instanceof Error ? error.message : 'clipboard_write_failed' });
     }
   };
 

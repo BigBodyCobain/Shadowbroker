@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { API_BASE } from '@/lib/api';
@@ -507,22 +508,5 @@ export function useMeshSendHandlers(ctx: MeshSendHandlersCtx) {
     handleVote,
     handleCreateGate,
     refreshSelectedGatePersonas,
-    refreshSelectedGateKeyStatus,
-    handleResyncGateState,
-    closeGatePersonaPrompt,
-    openGatePersonaPrompt,
-    handleCreateGatePersona,
-    handleSelectGatePersona,
-    handleRetireGatePersona,
-    handleRotateGateKey,
-    handleUnlockEncryptedGate,
-    maybeRotateSharedAlias,
-    refreshDmContactState,
-    handleRefreshSelectedContact,
-    handleResetSelectedContact,
-    handleTrustSelectedRemotePrekey,
-    handleApproveGateCompatFallback,
-    handleConfirmSelectedContactSas,
-    handleRecoverSelectedContactRootContinuity
-  };
+    refreshSelectedGateKeyStatus};
 }

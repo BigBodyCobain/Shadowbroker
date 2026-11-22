@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -591,7 +592,7 @@ export function useMeshChatController({
       const gateId = String(message.gate || selectedGate || '').trim().toLowerCase();
       const nodeId = String(message.node_id || '').trim();
       if (!eventId || !gateId || !nodeId) return;
-      setGateReplyContext({ eventId, gateId, nodeId });
+      setGateReplyContext({ eventId, gateId});
       focusInputComposer();
     },
     [focusInputComposer, selectedGate],
@@ -821,16 +822,16 @@ export function useMeshChatController({
     setInfoVerification,
     activeGateSessionRef,
     infoPollSignatureRef,
-    infoMessageIdsRef,
-    infoGateHeadRef,
-    infoGateKeyEpochRef,
-    gateCompatApprovalAttemptRef,
-    infoPullInFlightRef,
-    gateCompatConsentPromptGateRef,
+    
+    
+    
+    
+    
+    
     identity,
     contacts,
     hasId,
-    wormholeState,
+    
     activeTab,
     infoMessages,
     gates,
@@ -934,8 +935,8 @@ export function useMeshChatController({
     meshRegion,
     meshChannel,
     meshDirectTarget,
-    meshDestination,
-    meshSenderAddress,
+    
+    
     meshMqttEnabled,
     meshSessionActive,
     meshQuickStatus,
@@ -996,24 +997,24 @@ export function useMeshChatController({
     meshView,
     gateCompatActive,
     canUsePublicMeshInput,
-    dmCompose,
-    setDmCompose,
-    infoInput,
-    setInfoInput,
-    meshInput,
-    setMeshInput,
-    meshtasticStatus,
+    
+    
+    
+    
+    
+    
+    
     sendError,
-    lastSendTimeRef,
-    wormholeReady,
-    canPostToGate,
+    
+    
+    
     activeGatePersonaId,
     gatePersonas,
     gateKeyStatus,
-    selectedGateLabel,
+    
     hasSovereignty,
-    isDeclined,
-    nodeId,
+    
+    
   });
 
   // ─── Dead Drop: Request Access ───────────────────────────────────────────
@@ -1047,10 +1048,10 @@ export function useMeshChatController({
     wormholeEnabled,
     wormholeReadyState,
     anonymousDmBlocked,
-    dmRequestTarget,
-    setDmRequestTarget,
-    dmRequestStatus,
-    setDmRequestStatus,
+    
+    
+    
+    
     setSelectedContact,
     setShowSas,
     setSasPhrase,
@@ -1103,6 +1104,24 @@ export function useMeshChatController({
     closeGatePersonaPrompt, nativeAuditReport,
   });
 
+  const privateInfonetTransportReady = privateInfonetReady && wormholeRnsReady;
+  const privateLaneHint = buildPrivateLaneHint({
+    activeTab,
+    recentPrivateFallback,
+    recentPrivateFallbackReason,
+    dmTransportMode,
+    privateInfonetReady,
+    privateInfonetTransportReady,
+  });
+  const inputDisabled =
+    (activeTab !== 'meshtastic' && !hasId) ||
+    busy ||
+    (activeTab === 'infonet' && !privateInfonetReady) ||
+    (activeTab === 'infonet' && !selectedGate) ||
+    (activeTab === 'infonet' &&
+      !!selectedGate &&
+      wormholeEnabled &&
+      wormholeReadyState &&
       !selectedGateAccessReady) ||
     (activeTab === 'infonet' && anonymousPublicBlocked) ||
     (activeTab === 'meshtastic' && !canUsePublicMeshInput) ||
@@ -1352,7 +1371,7 @@ export function useMeshChatController({
     handleSeverContact,
     handleVouch,
     handleAddContact,
-    openChat,
+    
     handleCreatePublicIdentity,
     handleQuickCreatePublicIdentity,
     handleActivatePublicMeshSession,

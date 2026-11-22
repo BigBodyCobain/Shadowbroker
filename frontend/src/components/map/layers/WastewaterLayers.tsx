@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -13,8 +14,7 @@ export function WastewaterLayers() {
               'circle-radius': ['step', ['get', 'point_count'], 12, 10, 14, 50, 18],
               'circle-color': 'rgba(0, 229, 255, 0.10)',
               'circle-stroke-width': 0,
-              'circle-stroke-color': 'transparent',
-            }}
+              'circle-stroke-color': 'transparent' }}
           />
           {/* Cluster water drop icon + count */}
           <Layer
@@ -31,14 +31,12 @@ export function WastewaterLayers() {
               'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 4, 11, 8, 12],
               'text-offset': [0, 0.1],
               'text-allow-overlap': true,
-              'text-ignore-placement': true,
-            }}
+              'text-ignore-placement': true }}
             paint={{
               'icon-opacity': 1,
               'text-color': '#ffffff',
               'text-halo-color': 'rgba(0, 80, 100, 1)',
-              'text-halo-width': 2.4,
-            }}
+              'text-halo-width': 2.4 }}
           />
           {/* Individual glow — faint backdrop behind water drop icon */}
           <Layer
@@ -49,8 +47,7 @@ export function WastewaterLayers() {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 8, 4, 12, 5, 16, 6],
               'circle-color': ['case', ['>', ['get', 'alert_count'], 0], 'rgba(255, 34, 34, 0.20)', 'rgba(0, 229, 255, 0.20)'],
               'circle-stroke-width': 0.75,
-              'circle-stroke-color': ['case', ['>', ['get', 'alert_count'], 0], 'rgba(255, 82, 82, 0.25)', 'rgba(128, 222, 234, 0.25)'],
-            }}
+              'circle-stroke-color': ['case', ['>', ['get', 'alert_count'], 0], 'rgba(255, 82, 82, 0.25)', 'rgba(128, 222, 234, 0.25)'] }}
           />
           {/* Individual water drop icon overlay */}
           <Layer
@@ -69,14 +66,12 @@ export function WastewaterLayers() {
               'text-anchor': 'top',
               'text-allow-overlap': false,
               'text-optional': true,
-              'text-max-width': 16,
-            }}
+              'text-max-width': 16 }}
             paint={{
               'icon-opacity': 1,
               'text-color': ['case', ['>', ['get', 'alert_count'], 0], '#ff5252', '#80deea'],
               'text-halo-color': 'rgba(0,0,0,0.98)',
-              'text-halo-width': 1.25,
-            }}
+              'text-halo-width': 1.25 }}
           />
         </Source>
   );

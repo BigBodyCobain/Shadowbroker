@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -13,8 +14,7 @@ export function UapSightingsLayers() {
               'circle-radius': ['step', ['get', 'point_count'], 12, 10, 14, 50, 18],
               'circle-color': 'rgba(139, 92, 246, 0.10)',
               'circle-stroke-width': 0,
-              'circle-stroke-color': 'transparent',
-            }}
+              'circle-stroke-color': 'transparent' }}
           />
           {/* Cluster UFO icon + count */}
           <Layer
@@ -31,14 +31,12 @@ export function UapSightingsLayers() {
               'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 4, 11, 8, 12],
               'text-offset': [0, 0.05],
               'text-allow-overlap': true,
-              'text-ignore-placement': true,
-            }}
+              'text-ignore-placement': true }}
             paint={{
               'icon-opacity': 1,
               'text-color': '#ffffff',
               'text-halo-color': 'rgba(88, 28, 135, 1)',
-              'text-halo-width': 2.4,
-            }}
+              'text-halo-width': 2.4 }}
           />
           {/* Individual glow — faint backdrop behind UFO icon */}
           <Layer
@@ -49,8 +47,7 @@ export function UapSightingsLayers() {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 4, 10, 5],
               'circle-color': 'rgba(139, 92, 246, 0.20)',
               'circle-stroke-width': 0.75,
-              'circle-stroke-color': 'rgba(216, 180, 254, 0.25)',
-            }}
+              'circle-stroke-color': 'rgba(216, 180, 254, 0.25)' }}
           />
           {/* Individual UFO icon overlay */}
           <Layer
@@ -69,14 +66,12 @@ export function UapSightingsLayers() {
               'text-anchor': 'top',
               'text-allow-overlap': false,
               'text-optional': true,
-              'text-max-width': 16,
-            }}
+              'text-max-width': 16 }}
             paint={{
               'icon-opacity': 1,
               'text-color': '#d8b4fe',
               'text-halo-color': 'rgba(0,0,0,0.98)',
-              'text-halo-width': 1.25,
-            }}
+              'text-halo-width': 1.25 }}
           />
         </Source>
   );

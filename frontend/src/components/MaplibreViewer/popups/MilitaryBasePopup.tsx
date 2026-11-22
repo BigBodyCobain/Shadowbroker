@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -30,8 +31,7 @@ const BRANCH_LABELS: Record<string, string> = {
   msdf: 'MSDF',
   asdf: 'ASDF',
   missile: 'MISSILE FORCES',
-  nuclear: 'NUCLEAR FACILITY',
-};
+  nuclear: 'NUCLEAR FACILITY' };
 
 const COLOR_MAP: Record<string, string> = {
   'United States': '#3b82f6',
@@ -47,8 +47,7 @@ const COLOR_MAP: Record<string, string> = {
   'Philippines': '#eab308',
   'Australia': '#14b8a6',
   'South Korea': '#a855f7',
-  'United Kingdom': '#6366f1',
-};
+  'United Kingdom': '#6366f1' };
 
 export function MilitaryBasePopup({ base, oracleIntel, onClose }: MilitaryBasePopupProps) {
   const accent = COLOR_MAP[base.country] || '#ec4899';

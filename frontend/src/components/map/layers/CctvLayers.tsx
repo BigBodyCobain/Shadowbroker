@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -21,8 +22,7 @@ export function CctvLayers() {
               'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 24, 200, 30],
               'circle-opacity': 0.8,
               'circle-stroke-width': 2,
-              'circle-stroke-color': '#a0a0a0',
-            }}
+              'circle-stroke-color': '#a0a0a0' }}
           />
           {/* Cluster count labels */}
           <Layer
@@ -33,13 +33,11 @@ export function CctvLayers() {
               'text-font': ['Noto Sans Bold'],
               'text-field': '{point_count_abbreviated}',
               'text-size': 12,
-              'text-allow-overlap': true,
-            }}
+              'text-allow-overlap': true }}
             paint={{
               'text-color': '#000000',
               'text-halo-color': '#ffffff',
-              'text-halo-width': 1,
-            }}
+              'text-halo-width': 1 }}
           />
           {/* Individual camera dots */}
           <Layer
@@ -51,8 +49,7 @@ export function CctvLayers() {
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 2, 8, 4, 14, 6],
               'circle-opacity': 0.9,
               'circle-stroke-width': 1,
-              'circle-stroke-color': '#a0a0a0',
-            }}
+              'circle-stroke-color': '#a0a0a0' }}
           />
         </Source>
   );

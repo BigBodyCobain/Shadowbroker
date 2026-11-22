@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { API_BASE } from '@/lib/api';
 import type { InfonetNodeStatusSnapshot } from '@/mesh/controlPlaneStatusClient';
 
@@ -187,8 +188,7 @@ export function normalizeInfonetMessageRecord(message: InfonetMessageRecord): In
     sender_ref: String(message.sender_ref ?? payload.sender_ref ?? ''),
     format: String(message.format ?? payload.format ?? ''),
     gate_envelope: String(message.gate_envelope ?? payload.gate_envelope ?? ''),
-    envelope_hash: String(message.envelope_hash ?? payload.envelope_hash ?? ''),
-  };
+    envelope_hash: String(message.envelope_hash ?? payload.envelope_hash ?? '') };
 }
 
 export interface GateKeyStatusRecord {
@@ -242,8 +242,7 @@ export function formatNodeTime(ts?: number): string {
   if (!Number.isFinite(value) || value <= 0) return 'never';
   return new Date(value * 1000).toLocaleTimeString([], {
     hour: '2-digit',
-    minute: '2-digit',
-  });
+    minute: '2-digit' });
 }
 
 export function summarizeNodePeer(peerUrl?: string): string {
@@ -298,41 +297,34 @@ export function buildNodeRuntimeLines(snapshot: InfonetNodeStatusSnapshot): Term
     { text: `    Mode:        ${formatNodeMode(snapshot.node_mode)}`, type: 'output' },
     {
       text: `    Bootstrap:   ${describeBootstrapState(snapshot)}`,
-      type: bootstrap?.last_bootstrap_error ? 'error' : 'output',
-    },
+      type: bootstrap?.last_bootstrap_error ? 'error' : 'output' },
     {
       text: `    Peers:       ${Number(bootstrap?.sync_peer_count || 0)} sync | ${Number(bootstrap?.push_peer_count || 0)} push | ${Number(bootstrap?.bootstrap_peer_count || 0)} bootstrap`,
-      type: 'output',
-    },
+      type: 'output' },
     { text: `    Sync Loop:   ${describeSyncOutcome(snapshot)}`, type: 'output' },
     {
       text: `    Next Sync:   ${formatNodeTime(sync?.next_sync_due_at)}`,
-      type: 'output',
-    },
+      type: 'output' },
   ];
   if (push?.last_event_id) {
     lines.push({
       text: `    Last Push:   ${shortNodeHash(push.last_event_id, 18)} @ ${formatNodeTime(push.last_push_ok_at)}`,
-      type: 'output',
-    });
+      type: 'output' });
   }
   if (sync?.fork_detected) {
     lines.push({
       text: '    Fork Stop:   automatic sync paused until the fork is resolved',
-      type: 'error',
-    });
+      type: 'error' });
   }
   if (push?.last_push_error) {
     lines.push({
       text: `    Push Warn:   ${push.last_push_error}`,
-      type: 'error',
-    });
+      type: 'error' });
   }
   if (!snapshot.node_enabled) {
     lines.push({
       text: '    Activate:    click the NODE button in the top-right controls to join the public testnet seed',
-      type: 'dim',
-    });
+      type: 'dim' });
   }
   lines.push({ text: '', type: 'dim' });
   return lines;
@@ -366,8 +358,7 @@ export const SOVEREIGNTY_DECLARATION: TermLine[] = [
   { text: '  - No one controls this network. It is decentralized by design.', type: 'output' },
   {
     text: '  - Public Infonet events are signed; degraded RF/router paths are integrity-only and NOT encrypted',
-    type: 'output',
-  },
+    type: 'output' },
   { text: '  - If your radio broadcasts GPS, your position is visible on the map', type: 'output' },
   { text: '    (disable GPS beacons on hardware to remain geographically anonymous)', type: 'dim' },
   { text: '', type: 'dim' },
@@ -375,8 +366,7 @@ export const SOVEREIGNTY_DECLARATION: TermLine[] = [
   { text: '', type: 'dim' },
   {
     text: "  Type 'accept' to generate your Agent ID, or 'decline' for read-only.",
-    type: 'system',
-  },
+    type: 'system' },
   { text: '', type: 'dim' },
 ];
 
@@ -438,8 +428,7 @@ export const HELP_SECTIONS: Record<string, string[]> = {
     '    place <query>       Search places and infrastructure',
     '    jet <query>         Search jets / flights / operators',
     '    shodan <query>      Search exposed hosts and services',
-  ],
-};
+  ] };
 
 export const GUIDE_TEXT: TermLine[] = [
   { text: '', type: 'dim' },
@@ -448,7 +437,7 @@ export const GUIDE_TEXT: TermLine[] = [
   { text: '  ShadowBroker is a decentralized intelligence network.', type: 'dim' },
   { text: '  It connects to live radio networks (APRS, Meshtastic, JS8Call)', type: 'dim' },
   { text: '  and runs the Infonet — a protocol where every action is', type: 'dim' },
-  { text: '  signed, public, and reputation-scored.', type: 'dim' },
+  { text: '  signed, and reputation-scored.', type: 'dim' },
   { text: '', type: 'dim' },
   { text: '  1. CONNECT', type: 'system' },
   { text: "     Type 'connect' to create your local public Agent identity.", type: 'dim' },

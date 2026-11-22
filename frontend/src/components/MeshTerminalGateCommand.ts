@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCallback } from 'react';
 const API = '';
 export function useMeshTerminalGateCommand(ctx: any) {

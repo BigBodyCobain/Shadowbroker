@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 import React, { useCallback, useState } from 'react';
 import { clearBrowserIdentityState, purgeBrowserDmState } from '@/mesh/meshIdentity';

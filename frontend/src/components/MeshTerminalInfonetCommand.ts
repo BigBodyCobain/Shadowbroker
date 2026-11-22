@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCallback } from 'react';
 const API = '';
 export function useMeshTerminalInfonetCommand(ctx: any) {

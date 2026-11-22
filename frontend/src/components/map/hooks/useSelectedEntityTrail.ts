@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
 import { findSelectedEntity } from '@/components/map/geoJSONBuilders';

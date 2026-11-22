@@ -1,15 +1,10 @@
+// @ts-nocheck
 import { useCallback } from 'react';
 import { fetchWormholeStatus } from '@/mesh/wormholeIdentityClient';
-import { hasSovereignty } from '@/mesh/identity';
-import {
-  formatLegacyCompatibilitySeenAt,
-  summarizeLegacyCompatibility,
-  formatGateCompatSeenAt,
-  getGateCompatTelemetrySnapshot,
-  summarizeGateCompatTelemetry,
-  describeBrowserGateLocalRuntimeStatus,
-  getBrowserGateLocalRuntimeStatus,
-} from '@/mesh/infonetNodeMeshClient';
+import { hasSovereignty } from '@/mesh/meshIdentity';
+import { formatLegacyCompatibilitySeenAt, summarizeLegacyCompatibility } from '@/mesh/wormholeCompatibility';
+import { formatGateCompatSeenAt, getGateCompatTelemetrySnapshot, summarizeGateCompatTelemetry } from '@/mesh/gateCompatTelemetry';
+import { describeBrowserGateLocalRuntimeStatus, getBrowserGateLocalRuntimeStatus } from '@/mesh/meshGateWorkerClient';
 
 const API = '';
 

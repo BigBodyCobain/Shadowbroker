@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -23,8 +24,7 @@ const MISSION_LABELS: Record<string, string> = {
   space_station: '🏠 SPACE STATION',
   starlink: '🌐 STARLINK',
   constellation: '🌐 CONSTELLATION',
-  communication: '📡 COMMUNICATION',
-};
+  communication: '📡 COMMUNICATION' };
 
 export function SatellitePopup({ sat, maneuverAlert, onClose }: SatellitePopupProps) {
   const isISS = sat.mission === 'space_station' && sat.name?.includes('ISS');

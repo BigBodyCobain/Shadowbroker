@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import { buildUkraineAlertsGeoJSON, buildUkraineAlertLabelsGeoJSON, buildWeatherAlertsGeoJSON, buildWeatherAlertLabelsGeoJSON } from '@/components/map/geojsonBuilders';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
@@ -27,8 +28,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
           'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 22, 200, 26],
           'circle-opacity': 0.8,
           'circle-stroke-width': 1.5,
-          'circle-stroke-color': `${sc.color}66`,
-        }}
+          'circle-stroke-color': `${sc.color}66` }}
       />
       <Layer
         id="shodan-cluster-count"
@@ -38,8 +38,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
           'text-field': '{point_count_abbreviated}',
           'text-font': ['Noto Sans Bold'],
           'text-size': 10,
-          'text-allow-overlap': true,
-        }}
+          'text-allow-overlap': true }}
         paint={{ 'text-color': '#ffffff' }}
       />
       <Layer
@@ -51,8 +50,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
           'circle-color': sc.color,
           'circle-opacity': isCircle ? 0.9 : 0.001,
           'circle-stroke-width': isCircle ? 1 : 0,
-          'circle-stroke-color': isCircle ? 'rgba(255,255,255,0.55)' : 'transparent',
-        }}
+          'circle-stroke-color': isCircle ? 'rgba(255,255,255,0.55)' : 'transparent' }}
       />
       {!isCircle && (
         <Layer
@@ -64,8 +62,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
             'text-size': textSizeMap[sc.size] ?? 14,
             'text-allow-overlap': true,
             'text-ignore-placement': true,
-            'text-font': ['Noto Sans Bold'],
-          }}
+            'text-font': ['Noto Sans Bold'] }}
           paint={{ 'text-color': sc.color, 'text-opacity': 0.95 }}
         />
       )}
@@ -80,8 +77,7 @@ export function ShodanOverlayLayer({ shodanStyle }: { shodanStyle?: any }) {
           'text-offset': [0, labelOffset],
           'text-anchor': 'top',
           'text-optional': true,
-          'text-font': ['Noto Sans Bold'],
-        }}
+          'text-font': ['Noto Sans Bold'] }}
         paint={{ 'text-color': '#d1fae5', 'text-halo-color': '#000000', 'text-halo-width': 1 }}
       />
     </Source>

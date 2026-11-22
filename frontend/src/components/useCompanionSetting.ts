@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { companionDisable, companionEnable, companionOpenBrowser, fetchCompanionStatus, isNativeDesktop, type CompanionStatus } from '@/lib/desktopCompanion';

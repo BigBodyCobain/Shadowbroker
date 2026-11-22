@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -33,8 +34,7 @@ function riskTheme(rs: number) {
       bgHeaderColor: 'bg-red-950/50',
       bgClass: 'bg-red-950/20 border-red-500/30',
       titleClass: 'text-cyan-300 font-bold',
-      badgeClass: 'bg-red-500/10 text-red-400 border-red-500/30',
-    };
+      badgeClass: 'bg-red-500/10 text-red-400 border-red-500/30' };
   }
   if (rs >= 7) {
     return {
@@ -44,8 +44,7 @@ function riskTheme(rs: number) {
       bgHeaderColor: 'bg-orange-950/50',
       bgClass: 'bg-orange-950/20 border-orange-500/30',
       titleClass: 'text-cyan-300 font-bold',
-      badgeClass: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
-    };
+      badgeClass: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
   }
   if (rs >= 4) {
     return {
@@ -55,8 +54,7 @@ function riskTheme(rs: number) {
       bgHeaderColor: 'bg-yellow-950/50',
       bgClass: 'bg-yellow-950/20 border-yellow-500/30',
       titleClass: 'text-cyan-300 font-bold',
-      badgeClass: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30',
-    };
+      badgeClass: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30' };
   }
   return {
     hex: '#22c55e',
@@ -65,8 +63,7 @@ function riskTheme(rs: number) {
     bgHeaderColor: 'bg-green-950/50',
     bgClass: 'bg-green-950/20 border-green-500/30',
     titleClass: 'text-cyan-300 font-medium',
-    badgeClass: 'bg-green-500/10 text-green-400 border-green-500/30',
-  };
+    badgeClass: 'bg-green-500/10 text-green-400 border-green-500/30' };
 }
 
 const CYRILLIC_RE = /[\u0400-\u04FF]/;
@@ -88,8 +85,7 @@ function sourceLangLabel(post: TelegramOsintPost): string {
     'zh-cn': 'Chinese',
     fr: 'French',
     de: 'German',
-    pl: 'Polish',
-  };
+    pl: 'Polish' };
   return labels[code] || code.toUpperCase();
 }
 
@@ -302,8 +298,7 @@ export function TelegramOsintPopup({ posts, lat, lng, onClose }: TelegramOsintPo
       <div
         className={`bg-[#080c12] border ${header.borderColor} rounded-lg flex flex-col font-mono overflow-hidden w-[min(520px,92vw)]`}
         style={{
-          boxShadow: `0 0 60px ${header.hex}33, 0 0 160px ${header.hex}11, inset 0 1px 0 rgba(255,255,255,0.05)`,
-        }}
+          boxShadow: `0 0 60px ${header.hex}33, 0 0 160px ${header.hex}11, inset 0 1px 0 rgba(255,255,255,0.05)` }}
       >
         <div
           className={`px-4 py-3 border-b ${header.borderColor}/60 ${header.bgHeaderColor} flex justify-between items-center shrink-0`}

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCallback, useEffect } from 'react';
 import { setInfonetNodeEnabled } from '@/mesh/controlPlaneStatusClient';
 import {

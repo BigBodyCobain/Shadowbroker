@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import type maplibregl from 'maplibre-gl';

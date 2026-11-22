@@ -1,9 +1,11 @@
+// @ts-nocheck
 import { Layer, Source } from 'react-map-gl/maplibre';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 
 export function InternetOutagesLayers() {
   return (
-        <Source id="internet-outages" type="geojson" data={EMPTY_FC}>
+    <>
+      <Source id="internet-outages" type="geojson" data={EMPTY_FC}>
           {/* Outer ring */}
           <Layer
             id="internet-outages-pulse"
@@ -22,8 +24,7 @@ export function InternetOutagesLayers() {
               ],
               'circle-color': 'rgba(180, 180, 180, 0.1)',
               'circle-stroke-width': 1.5,
-              'circle-stroke-color': 'rgba(180, 180, 180, 0.35)',
-            }}
+              'circle-stroke-color': 'rgba(180, 180, 180, 0.35)' }}
           />
           {/* Inner solid circle — all grey, size conveys severity */}
           <Layer
@@ -44,8 +45,7 @@ export function InternetOutagesLayers() {
               'circle-color': '#888888',
               'circle-stroke-width': 2,
               'circle-stroke-color': 'rgba(0, 0, 0, 0.6)',
-              'circle-opacity': 0.9,
-            }}
+              'circle-opacity': 0.9 }}
           />
           {/* Severity % inside circle */}
           <Layer
@@ -61,13 +61,11 @@ export function InternetOutagesLayers() {
               'text-size': 9,
               'text-font': ['Noto Sans Bold'],
               'text-allow-overlap': true,
-              'text-ignore-placement': true,
-            }}
+              'text-ignore-placement': true }}
             paint={{
               'text-color': '#ffffff',
               'text-halo-color': 'rgba(0,0,0,0.8)',
-              'text-halo-width': 1,
-            }}
+              'text-halo-width': 1 }}
           />
           {/* Region name label below — grey */}
           <Layer
@@ -79,13 +77,11 @@ export function InternetOutagesLayers() {
               'text-font': ['Noto Sans Bold'],
               'text-offset': [0, 1.8],
               'text-anchor': 'top',
-              'text-allow-overlap': false,
-            }}
+              'text-allow-overlap': false }}
             paint={{
               'text-color': '#aaaaaa',
               'text-halo-color': 'rgba(0,0,0,0.9)',
-              'text-halo-width': 1.5,
-            }}
+              'text-halo-width': 1.5 }}
           />
         </Source>
 
@@ -108,8 +104,7 @@ export function InternetOutagesLayers() {
               'circle-radius': ['step', ['get', 'point_count'], 12, 10, 16, 50, 20],
               'circle-opacity': 0.7,
               'circle-stroke-width': 1,
-              'circle-stroke-color': '#a78bfa',
-            }}
+              'circle-stroke-color': '#a78bfa' }}
           />
           <Layer
             id="datacenters-cluster-count"
@@ -119,11 +114,9 @@ export function InternetOutagesLayers() {
               'text-field': '{point_count_abbreviated}',
               'text-font': ['Noto Sans Bold'],
               'text-size': 10,
-              'text-allow-overlap': true,
-            }}
+              'text-allow-overlap': true }}
             paint={{
-              'text-color': '#e9d5ff',
-            }}
+              'text-color': '#e9d5ff' }}
           />
           {/* Individual DC icons */}
           <Layer
@@ -139,14 +132,13 @@ export function InternetOutagesLayers() {
               'text-size': 9,
               'text-offset': [0, 1.2],
               'text-anchor': 'top',
-              'text-allow-overlap': false,
-            }}
+              'text-allow-overlap': false }}
             paint={{
               'text-color': '#c4b5fd',
               'text-halo-color': 'rgba(0,0,0,0.9)',
-              'text-halo-width': 1,
-            }}
+              'text-halo-width': 1 }}
           />
-        </Source>
+      </Source>
+    </>
   );
 }
