@@ -1,10 +1,9 @@
-// @ts-nocheck
 'use client';
 import React from 'react';
-import { Send } from 'lucide-react';
+import { Radio, Send } from 'lucide-react';
 
 export function MeshChatInputBar({ p }: { p: any }) {
-  const { activeTab, sendError, canUsePublicMeshInput, meshDirectTarget, activePublicMeshAddress, meshRegion, meshChannel, publicMeshBlockedByWormhole, hasStoredPublicLaneIdentity, meshQuickStatus, openIdentityWizard, meshAddressDraft, setMeshAddressDraft, handleMeshDirectTargetSubmit, handleActivatePublicMeshSession, handleLeaveWormholeForPublicMesh, identityWizardBusy, canUseMeshtasticChat, meshSendBlocked, meshSendBlockedReason, inputDisabled, privateLaneHint, inputRef, inputValue, setInputValue, handleSend, busy, sendDecoy, expanded, openSettings, dashboardRestrictedTab, dashboardRestrictedTitle, privateInfonetBlockedDetail, privateInfonetTransportReady } = p;
+  const { activeTab, sendError, canUsePublicMeshInput, meshDirectTarget, activePublicMeshAddress, meshRegion, meshChannel, publicMeshBlockedByWormhole, hasStoredPublicLaneIdentity, meshQuickStatus, openIdentityWizard, meshAddressDraft, setMeshAddressDraft, handleMeshDirectTargetSubmit, handleActivatePublicMeshSession, handleLeaveWormholeForPublicMesh, identityWizardBusy, canUseMeshtasticChat, meshSendBlocked, meshSendBlockedReason, inputDisabled, privateLaneHint, inputRef, inputValue, setInputValue, handleSend, busy, sendDecoy, expanded, openSettings, dashboardRestrictedTab, dashboardRestrictedTitle, privateInfonetBlockedDetail, privateInfonetTransportReady, meshActivationText, handleMeshActivationAction, meshActivationLabel, meshActivationSideLabel, setMeshDirectTarget, cursorMirrorRef, inputCursorIndex, cursorMarkerRef, setInputCursorIndex, syncCursorPosition, setInputFocused, inputFocused } = p;
   return (
 <>
             {/* INPUT BAR */}
