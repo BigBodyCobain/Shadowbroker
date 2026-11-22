@@ -101,13 +101,14 @@ def test_sha256sums_matching_passes(fake_archive, monkeypatch):
         return {"ShadowBroker_v9.9.9.zip": expected}
 
     monkeypatch.setattr(updater, "_fetch_sha256sums", fake_sums)
-    note = _validate_zip_hash(
-        archive,
-        asset_name="ShadowBroker_v9.9.9.zip",
-        sha256sums_url="https://example.test/SHA256SUMS.txt",
-        release_tag="v9.9.9",
-    )
-    assert "SHA256SUMS.txt" in note
+    with pytest.raises(RuntimeError) as exc_info:
+        _validate_zip_hash(
+            archive,
+            asset_name="ShadowBroker_v9.9.9.zip",
+            sha256sums_url="https://example.test/SHA256SUMS.txt",
+            release_tag="v9.9.9",
+        )
+    assert "not an independent trust root" in str(exc_info.value)
 
 
 def test_sha256sums_mismatch_fails_loudly(fake_archive, monkeypatch):
@@ -197,17 +198,15 @@ def test_https_only_fallback_when_no_source_available(fake_archive, monkeypatch,
     monkeypatch.setattr(updater, "_load_baked_in_release_digests", lambda: {})
 
     with caplog.at_level(logging.WARNING):
-        note = _validate_zip_hash(
-            archive,
-            asset_name="ShadowBroker_v99.99.zip",
-            sha256sums_url="",
-            release_tag="v99.99",
-        )
+        with pytest.raises(RuntimeError) as exc_info:
+            _validate_zip_hash(
+                archive,
+                asset_name="ShadowBroker_v99.99.zip",
+                sha256sums_url="",
+                release_tag="v99.99",
+            )
 
-    assert "https-only" in note.lower()
-    assert any(
-        "fell back to HTTPS-only" in rec.getMessage() for rec in caplog.records
-    )
+    assert "no independent archive digest" in str(exc_info.value)
 
 
 def test_https_only_fallback_when_release_tag_unknown(fake_archive, monkeypatch):
@@ -223,13 +222,14 @@ def test_https_only_fallback_when_release_tag_unknown(fake_archive, monkeypatch)
         lambda: {"v0.0.1": {"old.zip": "0" * 64}},  # different tag, doesn't match
     )
 
-    note = _validate_zip_hash(
-        archive,
-        asset_name="ShadowBroker_v99.99.zip",
-        sha256sums_url="",
-        release_tag="v99.99",
-    )
-    assert "https-only" in note.lower()
+    with pytest.raises(RuntimeError) as exc_info:
+        _validate_zip_hash(
+            archive,
+            asset_name="ShadowBroker_v99.99.zip",
+            sha256sums_url="",
+            release_tag="v99.99",
+        )
+    assert "no independent archive digest" in str(exc_info.value)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -272,6 +272,7 @@ def test_env_override_beats_all_other_sources(fake_archive, monkeypatch):
 def test_fetch_sha256sums_parses_standard_format(monkeypatch):
     """Standard ``sha256sum`` output: ``<digest>  <filename>``."""
     class _Resp:
+        url = "https://example.test/SHA256SUMS.txt"
         text = (
             "f6877c1d66614525315ea82636ce9f7b41178332c4dbf90d27431a1ea1d9cd47  ShadowBroker_v0.9.79.zip\n"
             "e0713c3cdda184cfbea750bfac0d62a35678fec00847e6476f2cac8e7e42046e  ShadowBroker_0.9.79_x64_en-US.msi\n"
@@ -293,6 +294,7 @@ def test_fetch_sha256sums_parses_standard_format(monkeypatch):
 def test_fetch_sha256sums_handles_binary_marker(monkeypatch):
     """sha256sum -b output: ``<digest> *<filename>``."""
     class _Resp:
+        url = "https://example.test/SHA256SUMS.txt"
         text = "f6877c1d66614525315ea82636ce9f7b41178332c4dbf90d27431a1ea1d9cd47 *ShadowBroker_v0.9.79.zip\n"
 
         def raise_for_status(self):
@@ -307,6 +309,7 @@ def test_fetch_sha256sums_handles_binary_marker(monkeypatch):
 def test_fetch_sha256sums_skips_malformed_lines(monkeypatch):
     """Lines that don't parse cleanly are ignored, not aborted on."""
     class _Resp:
+        url = "https://example.test/SHA256SUMS.txt"
         text = (
             "# comment line\n"
             "\n"

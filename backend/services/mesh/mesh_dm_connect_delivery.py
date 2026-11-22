@@ -16,6 +16,9 @@ CONNECT_AUTO_RELEASE_INTENTS = frozenset(
 
 INVITE_CONNECT_TRUST_LEVELS = frozenset({"invite_pinned", "sas_verified"})
 
+# Named constant so callers don't pass a free-text literal as `reason=`.
+INVITE_IMPORT_REASON = "invite_import"
+
 
 def _release_profile() -> str:
     try:
