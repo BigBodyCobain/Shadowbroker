@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback } from 'react';
 import { fetchWormholeStatus } from '@/mesh/wormholeIdentityClient';
 import { hasSovereignty } from '@/mesh/meshIdentity';

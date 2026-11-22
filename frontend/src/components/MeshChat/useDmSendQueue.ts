@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useCallback, useRef } from 'react';
@@ -35,7 +34,7 @@ export function useDmSendQueue(privacyProfile: string) {
             resolve();
           }
         };
-        if (!shouldQueueDmSend(privacyProfile)) {
+        if (!shouldQueueDmSend(privacyProfile as any)) {
           void wrapped();
           return;
         }

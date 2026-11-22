@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect } from 'react';
@@ -8,7 +7,7 @@ export function useMeshIdentitySync(ctx: any) {
     clientHydrated, identityRefreshToken, wormholeEnabled, wormholeReadyState,
     getNodeIdentity, hasSovereignty, hydrateWormholeContacts, fetchWormholeIdentity,
     purgeBrowserSigningMaterial, purgeBrowserContactGraph, purgeBrowserDmState,
-    setContacts, setIdentity,
+    setContacts, setIdentity, getContacts,
   } = ctx;
   useEffect(() => {
     let alive = true;

@@ -1,11 +1,11 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect } from 'react';
 import { API_BASE } from '@/lib/api';
-import { DEFAULT_MESH_ROOTS, sortMeshRoots } from './useMeshChatController.helpers';
+import { DEFAULT_MESH_ROOTS } from './types';
+import { sortMeshRoots } from './utils';
 
-export function useMeshChannelsPolling({ expanded, activeTab, canUsePublicMeshInput, meshRegion, setMeshRoots, setMeshRegion }: any) {
+export function useMeshChannelsPolling({ expanded, activeTab, canUsePublicMeshInput, meshRegion, setMeshRoots, setMeshRegion, setMeshChannels, setActiveChannels }: any) {
   useEffect(() => {
     if (!expanded || activeTab !== 'meshtastic' || !canUsePublicMeshInput) return;
     let cancelled = false;

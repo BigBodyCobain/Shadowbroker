@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { API_BASE } from '@/lib/api';
 import type { InfonetNodeStatusSnapshot } from '@/mesh/controlPlaneStatusClient';
+import { getSensitiveBrowserItem, setSensitiveBrowserItem } from '@/lib/privacyBrowserStorage';
 
 export const API = API_BASE;
 export const INFONET_HEAD_KEY = 'sb_infonet_head';

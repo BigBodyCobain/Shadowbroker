@@ -1,7 +1,6 @@
-// @ts-nocheck
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { companionDisable, companionEnable, companionOpenBrowser, fetchCompanionStatus, isNativeDesktop, type CompanionStatus } from '@/lib/desktopCompanion';
+import { companionDisable, companionEnable, companionOpenBrowser, companionStatus as fetchCompanionStatus, isNativeDesktop, type CompanionStatus } from '@/lib/desktopCompanion';
 
 export function useCompanionSetting(isOpen: boolean, activeTab: string) {
   const [companionAvailable] = useState(() => isNativeDesktop());
@@ -12,7 +11,7 @@ export function useCompanionSetting(isOpen: boolean, activeTab: string) {
   useEffect(() => {
     if (!isOpen || activeTab !== 'protocol' || !companionAvailable) return;
     setCompanionLoadFailed(false);
-    fetchCompanionStatus().then((s) => setCompanion(s)).catch(() => { setCompanion(null); setCompanionLoadFailed(true); });
+    fetchCompanionStatus().then((s: any) => setCompanion(s)).catch(() => { setCompanion(null); setCompanionLoadFailed(true); });
   }, [isOpen, activeTab, companionAvailable]);
   const toggleCompanion = useCallback(async () => {
     setCompanionBusy(true); setCompanionError(null);

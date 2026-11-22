@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useCallback, useMemo } from 'react';
@@ -16,13 +15,13 @@ export function useMeshGateDerivedState(ctx: any) {
     () =>
       selectedGateActivePersonaId
         ? selectedGatePersonaList.find(
-            (persona) => String(persona.persona_id || '') === selectedGateActivePersonaId,
+            (persona: any) => String(persona.persona_id || '') === selectedGateActivePersonaId,
           ) || null
         : null,
     [selectedGateActivePersonaId, selectedGatePersonaList],
   );
   const selectedGateMeta = useMemo(
-    () => gates.find((gate) => gate.gate_id === selectedGateKey) || null,
+    () => gates.find((gate: any) => gate.gate_id === selectedGateKey) || null,
     [gates, selectedGateKey],
   );
   const selectedGateCompatActive = useMemo(
@@ -39,7 +38,7 @@ export function useMeshGateDerivedState(ctx: any) {
   const gatePersonaPromptGateMeta = useMemo(
     () =>
       gates.find(
-        (gate) => gate.gate_id === (gatePersonaPromptGateId || '').trim().toLowerCase(),
+        (gate: any) => gate.gate_id === (gatePersonaPromptGateId || '').trim().toLowerCase(),
       ) || null,
     [gatePersonaPromptGateId, gates],
   );
