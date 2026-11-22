@@ -70,7 +70,7 @@ async def osm_tile(
     # Tile servers occasionally drop a connection under load; retry once
     # before surfacing a 502 so a single transient failure doesn't paint a
     # blank tile into the map.
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=3)) as client:
                 upstream = await client.get(url, headers={"User-Agent": _OSM_USER_AGENT})
@@ -81,7 +81,7 @@ async def osm_tile(
             if attempt == 0:
                 import asyncio
 
-                await asyncio.sleep(0.25)
+                await asyncio.sleep(0.2 * (attempt + 1))
     if upstream is None:
         logger.warning("OSM tile proxy request failed for %s: %s", url, last_exc)
         return Response(status_code=502)
