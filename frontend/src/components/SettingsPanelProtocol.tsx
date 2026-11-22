@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -538,7 +537,7 @@ export function SettingsPanelProtocol({ ctx }: { ctx: Record<string, any> }) {
                       {wormholeQuickButtonLabel}
                     </button>
                     <button
-                      onClick={() => setShowAdvancedWormhole((prev) => !prev)}
+                      onClick={() => setShowAdvancedWormhole((prev: boolean) => !prev)}
                       className="px-3 py-1.5 border border-cyan-500/35 bg-cyan-950/18 text-[13px] font-mono tracking-[0.18em] text-cyan-200 hover:bg-cyan-950/28"
                     >
                       {showAdvancedWormhole ? 'HIDE MANUAL SETUP' : 'MANUAL SETUP'}
@@ -996,7 +995,7 @@ export function SettingsPanelProtocol({ ctx }: { ctx: Record<string, any> }) {
                           </span>
                           <button
                             onClick={() => {
-                              setWormholeSocksDns((prev) => !prev);
+                              setWormholeSocksDns((prev: boolean) => !prev);
                               setWormholeDirty(true);
                             }}
                             className={`px-2 py-1 border text-[13px] font-mono tracking-widest transition-colors ${wormholeSocksDns ? 'border-green-500/40 text-green-400 bg-green-950/20' : 'border-[var(--border-primary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
@@ -1022,7 +1021,7 @@ export function SettingsPanelProtocol({ ctx }: { ctx: Record<string, any> }) {
                       </div>
                       <button
                         onClick={() => {
-                          setWormholeAnonymousMode((prev) => !prev);
+                          setWormholeAnonymousMode((prev: boolean) => !prev);
                           setWormholeDirty(true);
                         }}
                         className={`px-2 py-1 border text-[13px] font-mono tracking-widest transition-colors ${wormholeAnonymousMode ? 'border-green-500/40 text-green-400 bg-green-950/20' : 'border-[var(--border-primary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}

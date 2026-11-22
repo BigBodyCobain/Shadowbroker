@@ -50,7 +50,7 @@ export interface MeshIdentityHandlersCtx {
   setMeshView: (v: any) => void;
   setSenderPopup: (v: any) => void;
   inputRef: React.RefObject<any>;
-  enableMeshMqttBridge: () => Promise<void>;
+  enableMeshMqttBridge: () => Promise<any>;
   errorMessage: (err: any, fallback?: string) => string;
   describeMeshChatControlError: (msg: string) => string;
   [k: string]: any;

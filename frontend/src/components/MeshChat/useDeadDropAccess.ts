@@ -564,6 +564,7 @@ export function useDeadDropAccess(ctx: DeadDropAccessCtx) {
     handleSeverContact,
     handleBlockDM,
     handleVouch,
-    handleAddContact
+    handleAddContact,
+    openChat,
   };
 }

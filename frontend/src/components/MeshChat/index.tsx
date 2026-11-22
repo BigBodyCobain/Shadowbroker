@@ -1,9 +1,13 @@
-// @ts-nocheck
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AgentShellPanel from './AgentShellPanel';
 import InfonetTerminalPanel from './InfonetTerminalPanel';
+import { MeshChatMeshtasticTab } from './MeshChatMeshtasticTab';
+import { MeshChatInputBar } from './MeshChatInputBar';
+import { MeshGatePersonaPrompt } from './MeshGatePersonaPrompt';
+import { MeshSenderPopup } from './MeshSenderPopup';
+import { MeshMuteDialog } from './MeshMuteDialog';
 import {
   INFONET_FLYOUT_MIN_HEIGHT,
   INFONET_FLYOUT_WIDTH,
@@ -725,7 +729,7 @@ const MeshChat = React.memo(function MeshChat(props: MeshChatProps) {
                 />
               )}
 
-              <MeshChatMeshtasticTab p={{ activeChannels, activePublicMeshAddress, activeTab,                   canUsePublicMeshInput,               displayPublicMeshSender,    filteredMeshMessages,  focus,       handleMeshDirectTargetSubmit, handleSenderClick,      identity,   inputRef,  it,        length,     meshAddressDraft, meshChannel, meshChannels, meshDirectTarget, meshInboxMessages, meshMqttBusy, meshMqttConnected, meshMqttConnectionLabel, meshMqttEnabled, meshMqttForm, meshMqttRunning, meshMqttSettings, meshMqttStatusText, meshRegion, meshRoots, meshView,    messagesEndRef,      number,                     refreshMeshMqttSettings,   saveMeshMqttSettings,   scroll,       setMeshAddressDraft, setMeshChannel, setMeshDirectTarget, setMeshMqttForm, setMeshRegion, setMeshView, setTimeout,          timeAgo}} />
+              <MeshChatMeshtasticTab p={{ activeChannels, activePublicMeshAddress, activeTab, canUsePublicMeshInput, displayPublicMeshSender, filteredMeshMessages, handleMeshDirectTargetSubmit, handleSenderClick, identity, inputRef, meshAddressDraft, meshChannel, meshChannels, meshDirectTarget, meshInboxMessages, meshMqttBusy, meshMqttConnected, meshMqttConnectionLabel, meshMqttEnabled, meshMqttForm, meshMqttRunning, meshMqttSettings, meshMqttStatusText, meshRegion, meshRoots, meshView, messagesEndRef, refreshMeshMqttSettings, saveMeshMqttSettings, setMeshAddressDraft, setMeshChannel, setMeshDirectTarget, setMeshMqttForm, setMeshRegion, setMeshView, timeAgo }} />
               {/* Dead Drop chat UI: Infonet Terminal → Messages */}
             </div>
 

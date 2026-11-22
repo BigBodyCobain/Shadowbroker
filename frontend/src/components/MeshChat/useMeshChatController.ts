@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -416,6 +415,31 @@ export function useMeshChatController({
     };
   }, [clientHydrated]);
 
+  // ─── Meshtastic State ────────────────────────────────────────────────────
+  const [meshRegion, setMeshRegion] = useState('US');
+  const [meshRoots, setMeshRoots] = useState<string[]>([...DEFAULT_MESH_ROOTS]);
+  const [meshChannel, setMeshChannel] = useState('LongFast');
+  const [meshChannels, setMeshChannels] = useState<string[]>(['LongFast']);
+  const [activeChannels, setActiveChannels] = useState<Set<string>>(new Set());
+  const [meshMessages, setMeshMessages] = useState<MeshtasticMessage[]>([]);
+
+  // ─── DM / Dead Drop State ────────────────────────────────────────────────
+  const [contacts, setContacts] = useState<Record<string, Contact>>({});
+  const [selectedContact, setSelectedContact] = useState<string>('');
+  const [dmView, setDmView] = useState<DMView>('contacts');
+  const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
+  const [dmMaintenanceBusy, setDmMaintenanceBusy] = useState(false);
+  const [lastDmTransport, setLastDmTransport] = useState<'reticulum' | 'relay' | ''>('');
+  const [anonymousModeEnabled, setAnonymousModeEnabled] = useState(false);
+  const [anonymousModeReady, setAnonymousModeReady] = useState(false);
+  const anonymousPublicBlocked = anonymousModeEnabled && !anonymousModeReady;
+  const anonymousDmBlocked = anonymousModeEnabled && !anonymousModeReady;
+  const secureDmBlocked = (wormholeEnabled && !wormholeReadyState) || anonymousDmBlocked;
+  const [sasPhrase, setSasPhrase] = useState<string>('');
+  const [showSas, setShowSas] = useState<boolean>(false);
+  const [sasConfirmInput, setSasConfirmInput] = useState<string>('');
+  const [geoHintEnabled, setGeoHintEnabledState] = useState<boolean>(false);
+  const [decoyEnabled, setDecoyEnabledState] = useState<boolean>(false);
   useMeshIdentitySync({
     clientHydrated, identityRefreshToken, wormholeEnabled, wormholeReadyState,
     getNodeIdentity, hasSovereignty, hydrateWormholeContacts, fetchWormholeIdentity,
@@ -592,7 +616,7 @@ export function useMeshChatController({
       const gateId = String(message.gate || selectedGate || '').trim().toLowerCase();
       const nodeId = String(message.node_id || '').trim();
       if (!eventId || !gateId || !nodeId) return;
-      setGateReplyContext({ eventId, gateId});
+      setGateReplyContext({ eventId, gateId, nodeId });
       focusInputComposer();
     },
     [focusInputComposer, selectedGate],
@@ -604,31 +628,6 @@ export function useMeshChatController({
     fetchGateMessageSnapshotState, selectedGate,
   });
 
-  // ─── Meshtastic State ────────────────────────────────────────────────────
-  const [meshRegion, setMeshRegion] = useState('US');
-  const [meshRoots, setMeshRoots] = useState<string[]>([...DEFAULT_MESH_ROOTS]);
-  const [meshChannel, setMeshChannel] = useState('LongFast');
-  const [meshChannels, setMeshChannels] = useState<string[]>(['LongFast']);
-  const [activeChannels, setActiveChannels] = useState<Set<string>>(new Set());
-  const [meshMessages, setMeshMessages] = useState<MeshtasticMessage[]>([]);
-
-  // ─── DM / Dead Drop State ────────────────────────────────────────────────
-  const [contacts, setContacts] = useState<Record<string, Contact>>({});
-  const [selectedContact, setSelectedContact] = useState<string>('');
-  const [dmView, setDmView] = useState<DMView>('contacts');
-  const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
-  const [dmMaintenanceBusy, setDmMaintenanceBusy] = useState(false);
-  const [lastDmTransport, setLastDmTransport] = useState<'reticulum' | 'relay' | ''>('');
-  const [anonymousModeEnabled, setAnonymousModeEnabled] = useState(false);
-  const [anonymousModeReady, setAnonymousModeReady] = useState(false);
-  const anonymousPublicBlocked = anonymousModeEnabled && !anonymousModeReady;
-  const anonymousDmBlocked = anonymousModeEnabled && !anonymousModeReady;
-  const secureDmBlocked = (wormholeEnabled && !wormholeReadyState) || anonymousDmBlocked;
-  const [sasPhrase, setSasPhrase] = useState<string>('');
-  const [showSas, setShowSas] = useState<boolean>(false);
-  const [sasConfirmInput, setSasConfirmInput] = useState<string>('');
-  const [geoHintEnabled, setGeoHintEnabledState] = useState<boolean>(false);
-  const [decoyEnabled, setDecoyEnabledState] = useState<boolean>(false);
   const [dmUnread, setDmUnread] = useState(0);
   const [accessRequests, setAccessRequestsState] = useState<AccessRequest[]>([]);
   const [pendingSent, setPendingSentState] = useState<string[]>([]);
@@ -884,9 +883,13 @@ export function useMeshChatController({
     setShowSas,
     setSasPhrase,
     setSasConfirmInput,
-  });
+  } as any);
 
   // ─── Send Handlers ───────────────────────────────────────────────────────
+  const selectedGateKeyEarly = selectedGate.trim().toLowerCase();
+  const selectedGateAccessReady = Boolean(
+    selectedGateKeyEarly && gateKeyStatus[selectedGateKeyEarly]?.has_local_access,
+  );
   const {
     handleSend,
     sendDecoy,
@@ -1026,6 +1029,7 @@ export function useMeshChatController({
     handleBlockDM,
     handleVouch,
     handleAddContact,
+    openChat,
   } = useDeadDropAccess({
     expanded,
     activeTab,
@@ -1095,7 +1099,7 @@ export function useMeshChatController({
   const dashboardRestrictedDetail = '';
   const {
     selectedGateKey, selectedGatePersonaList, selectedGateActivePersonaId, selectedGateActivePersona,
-    selectedGateMeta, selectedGateCompatActive, selectedGateKeyStatus, selectedGateAccessReady,
+    selectedGateMeta, selectedGateCompatActive, selectedGateKeyStatus,
     gatePersonaPromptPersonaList, gatePersonaPromptGateMeta, gatePersonaPromptTitle,
     submitGatePersonaPrompt, selectSavedGatePersona, remainAnonymousInGate, nativeAuditSummary,
   } = useMeshGateDerivedState({
@@ -1371,6 +1375,7 @@ export function useMeshChatController({
     handleSeverContact,
     handleVouch,
     handleAddContact,
+    openChat,
     
     handleCreatePublicIdentity,
     handleQuickCreatePublicIdentity,
