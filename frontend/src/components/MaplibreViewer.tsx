@@ -167,7 +167,7 @@ import {
 import { makeSatSvg, makeISSSvg, makeTrainSvg } from '@/components/map/icons/SatelliteIcons';
 import { makeUfoSvg, makeUfoClusterSvg, makeWaterDropSvg, makeWaterDropClusterSvg } from '@/components/map/icons/OverlayIcons';
 import { EMPTY_FC } from '@/components/map/mapConstants';
-import { useImperativeSource } from '@/components/map/hooks/useImperativeSource';
+import { useMapImperativeSources } from '@/components/map/hooks/useMapImperativeSources';
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
 import { useStaticMapLayersWorker } from '@/components/map/hooks/useStaticMapLayersWorker';
 import { applyDynamicLayerInterp } from '@/components/map/applyDynamicLayerInterp';
@@ -1544,73 +1544,18 @@ const MaplibreViewer = ({
   }, [activeLayers.uap_sightings, activeLayers.wastewater, theme]);
 
   // --- Imperative source updates: bypass React reconciliation for GeoJSON layers ---
-  const mapForHook = mapReady ? mapRef.current : null;
-  useImperativeSource(mapForHook, 'commercial-flights', commFlightsGeoJSON);
-  useImperativeSource(mapForHook, 'private-flights', privFlightsGeoJSON);
-  useImperativeSource(mapForHook, 'private-jets', privJetsGeoJSON);
-  useImperativeSource(mapForHook, 'military-flights', milFlightsGeoJSON);
-  useImperativeSource(mapForHook, 'tracked-flights', trackedFlightsGeoJSON);
-  useImperativeSource(mapForHook, 'uavs', uavGeoJSON);
-  useImperativeSource(mapForHook, 'satellites', satellitesGeoJSON);
-  useImperativeSource(mapForHook, 'tinygs', tinygsGeoJSON);
-  useImperativeSource(mapForHook, 'cctv', cctvGeoJSON, 75);
-  useImperativeSource(mapForHook, 'kiwisdr', kiwisdrGeoJSON, 75);
-  useImperativeSource(mapForHook, 'psk-reporter', pskReporterGeoJSON, 75);
-  useImperativeSource(mapForHook, 'satnogs', satnogsGeoJSON, 75);
-  useImperativeSource(mapForHook, 'scanners', scannerGeoJSON, 75);
-  useImperativeSource(mapForHook, 'firms-fires', firmsGeoJSON, 900);
-  useImperativeSource(mapForHook, 'internet-outages', internetOutagesGeoJSON, 100);
-  useImperativeSource(mapForHook, 'datacenters', dataCentersGeoJSON, 120);
-  useImperativeSource(mapForHook, 'power-plants', powerPlantsGeoJSON, 140);
-  useImperativeSource(mapForHook, 'viirs-change-nodes', viirsChangeNodesGeoJSON, 120);
-  useImperativeSource(mapForHook, 'military-bases', militaryBasesGeoJSON, 75);
-  useImperativeSource(mapForHook, 'gdelt', gdeltGeoJSON, 75);
-  useImperativeSource(mapForHook, 'liveuamap', liveuaGeoJSON, 75);
-  useImperativeSource(mapForHook, 'air-quality-source', airQualityGeoJSON, 100);
-  useImperativeSource(mapForHook, 'volcanoes-source', volcanoesGeoJSON, 100);
-  useImperativeSource(mapForHook, 'fishing-source', fishingGeoJSON, 100);
-  useImperativeSource(mapForHook, 'uap-sightings-source', uapSightingsGeoJSON, 100);
-  useImperativeSource(mapForHook, 'wastewater-source', wastewaterGeoJSON, 100);
-  useImperativeSource(mapForHook, 'crowdthreat-source', crowdthreatGeoJSON, 100);
-  useImperativeSource(mapForHook, 'malware-source', malwareGeoJSON, 100);
-  useImperativeSource(mapForHook, 'telegram-osint-source', telegramOsintGeoJSONPlaced, 100);
-  useImperativeSource(mapForHook, 'submarine-cables-source', submarineCablesGeoJSON, 600);
-  useImperativeSource(mapForHook, 'ships', shipsGeoJSON, 75);
-  useImperativeSource(mapForHook, 'meshtastic-source', meshtasticGeoJSON, 60);
-  useImperativeSource(mapForHook, 'aprs-source', aprsGeoJSON, 60);
-  useImperativeSource(mapForHook, 'trains', trainsGeoJSON, 60);
-  useImperativeSource(mapForHook, 'sar-aois', sarAoisGeoJSON, 120);
-  useImperativeSource(mapForHook, 'sar-anomalies', sarAnomaliesGeoJSON, 120);
-  // Remaining reactive sources → imperative (avoids React reconciling FeatureCollections)
-  useImperativeSource(mapForHook, 'night-overlay', nightGeoJSON, 250);
-  // Twilight feather: the terminator line alone (no polygon closing edges), drawn wide and
-  // blurred over the night fill's hard edge so day fades into night instead of a seam.
-  const terminatorLine = useMemo<GeoJSON.FeatureCollection>(() => {
-    const poly = nightGeoJSON.features[0]?.geometry;
-    const ring = poly && poly.type === 'Polygon' ? poly.coordinates[0] : [];
-    const line = ring.filter(([lng, lat]) => Math.abs(lat) < 84.9 && Math.abs(lng) <= 180).slice(0, 361);
-    return {
-      type: 'FeatureCollection',
-      features: line.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }] : [],
-    };
-  }, [nightGeoJSON]);
-  useImperativeSource(mapForHook, 'night-twilight', terminatorLine, 250);
-  useImperativeSource(mapForHook, 'frontlines', frontlineGeoJSON, 200);
-  useImperativeSource(mapForHook, 'earthquakes', earthquakesGeoJSON, 100);
-  useImperativeSource(mapForHook, 'gps-jamming', jammingGeoJSON, 150);
-  useImperativeSource(mapForHook, 'gt-risk-source', gtRiskGeoJSON, 150);
-  useImperativeSource(mapForHook, 'correlations', correlationsGeoJSON, 100);
-  useImperativeSource(mapForHook, 'shodan-overlay', shodanGeoJSON, 100);
-  useImperativeSource(mapForHook, 'ai-intel-source', aiIntelGeoJSON, 80);
-  useImperativeSource(mapForHook, 'ukraine-alerts-source', ukraineAlertsGeoJSON, 120);
-  useImperativeSource(mapForHook, 'ukraine-alert-labels-source', ukraineAlertLabelsGeoJSON, 120);
-  useImperativeSource(mapForHook, 'weather-alerts-source', weatherAlertsGeoJSON, 120);
-  useImperativeSource(mapForHook, 'weather-alert-labels-source', weatherAlertLabelsGeoJSON, 120);
-  useImperativeSource(mapForHook, 'carriers', carriersGeoJSON, 75);
-  useImperativeSource(mapForHook, 'active-route', activeRouteGeoJSON, 50);
-  useImperativeSource(mapForHook, 'flight-trail', trailGeoJSON, 40);
-  useImperativeSource(mapForHook, 'predictive-path', predictiveGeoJSON, 40);
-  useImperativeSource(mapForHook, 'proximity-rings', proximityRingsGeoJSON, 60);
+  useMapImperativeSources({
+    map: mapReady ? mapRef.current : null,
+    commFlightsGeoJSON, privFlightsGeoJSON, privJetsGeoJSON, milFlightsGeoJSON, trackedFlightsGeoJSON,
+    uavGeoJSON, satellitesGeoJSON, tinygsGeoJSON, cctvGeoJSON, kiwisdrGeoJSON, pskReporterGeoJSON, satnogsGeoJSON, scannerGeoJSON,
+    firmsGeoJSON, internetOutagesGeoJSON, dataCentersGeoJSON, powerPlantsGeoJSON, viirsChangeNodesGeoJSON,
+    militaryBasesGeoJSON, gdeltGeoJSON, liveuaGeoJSON, airQualityGeoJSON, volcanoesGeoJSON, fishingGeoJSON,
+    uapSightingsGeoJSON, wastewaterGeoJSON, crowdthreatGeoJSON, malwareGeoJSON, telegramOsintGeoJSONPlaced, submarineCablesGeoJSON,
+    shipsGeoJSON, meshtasticGeoJSON, aprsGeoJSON, trainsGeoJSON, sarAoisGeoJSON, sarAnomaliesGeoJSON,
+    nightGeoJSON, frontlineGeoJSON, earthquakesGeoJSON, jammingGeoJSON, gtRiskGeoJSON, correlationsGeoJSON, shodanGeoJSON, aiIntelGeoJSON,
+    ukraineAlertsGeoJSON, ukraineAlertLabelsGeoJSON, weatherAlertsGeoJSON, weatherAlertLabelsGeoJSON,
+    carriersGeoJSON, activeRouteGeoJSON, trailGeoJSON, predictiveGeoJSON, proximityRingsGeoJSON,
+  });
 
   const handleMouseMove = useCallback(
     (evt: MapLayerMouseEvent) => {
