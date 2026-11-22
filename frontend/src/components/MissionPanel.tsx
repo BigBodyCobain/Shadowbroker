@@ -50,7 +50,7 @@ export default function MissionPanel({
       refreshMissions(),
       missionRequest<{ watches: Watch[] }>('watches'),
     ])
-      .then(([data, monitoring]) => {
+      .then(([data, , watchData]) => {
         if (!mounted) return;
         setConfig(data);
         setRoles(
@@ -60,7 +60,7 @@ export default function MissionPanel({
             model: data.model,
             max_calls: 5 })),
         );
-        setWatches((monitoring as any).watches);
+        setWatches((watchData as any)?.watches || []);
       })
       .catch((exception) => {
         if (mounted) setError(String(exception.message));

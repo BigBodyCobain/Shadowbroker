@@ -345,7 +345,7 @@ function dmAddressDisplayId(address: LocalDmAddress): string {
 
 function isLikelyRawDmLookupHandle(value: string): boolean {
   const trimmed = value.trim();
-  return !trimmed.startsWith('{') && !trimmed.startsWith('[') && /^[a-zA-Z0-9_.:-]{16 }$/.test(trimmed);
+  return !trimmed.startsWith('{') && !trimmed.startsWith('[') && /^[a-zA-Z0-9_.:-]{16,}$/.test(trimmed);
 }
 
 function parseDmInviteImportBlob(raw: string): Record<string, unknown> {

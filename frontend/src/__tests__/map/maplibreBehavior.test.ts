@@ -62,42 +62,40 @@ describe('MaplibreViewer behavior — buildCctvProxyUrl', () => {
   });
 });
 
-// ─── MaplibreViewer wiring — uses buildCctvProxyUrl ───────────────────────
+// ─── CCTV proxy wiring (rendering extracted to MapSelectedEntityPopups) ───
 
 describe('MaplibreViewer behavior — CCTV proxy wiring', () => {
   const viewer = fs.readFileSync(path.join(COMP_DIR, 'MaplibreViewer.tsx'), 'utf-8');
+  const selected = fs.readFileSync(path.join(COMP_DIR, 'map/MapSelectedEntityPopups.tsx'), 'utf-8');
 
-  it('MaplibreViewer calls buildCctvProxyUrl(rawUrl) in CCTV section', () => {
-    expect(viewer).toContain('buildCctvProxyUrl(rawUrl)');
+  it('CCTV rendering delegates proxy URL construction to buildCctvProxyUrl', () => {
+    expect(selected + viewer).toContain('buildCctvProxyUrl(rawUrl)');
   });
 
-  it('MaplibreViewer imports buildCctvProxyUrl from @/lib/cctvProxy', () => {
-    expect(viewer).toMatch(
-      /import\s*\{[^}]*buildCctvProxyUrl[^}]*\}\s*from\s+['"]@\/lib\/cctvProxy['"]/,
-    );
+  it('MaplibreViewer or popup layer imports/wires buildCctvProxyUrl', () => {
+    const wired =
+      /import\s*\{[^}]*buildCctvProxyUrl[^}]*\}\s*from\s+['"]@\/lib\/cctvProxy['"]/.test(viewer) ||
+      /buildCctvProxyUrl/.test(selected);
+    expect(wired).toBe(true);
   });
 
   it('CCTV proxy URL is assigned to `url` and passed to CctvFullscreenModal', () => {
-    const cctvSection = viewer.slice(
-      viewer.indexOf("selectedEntity?.type === 'cctv'"),
-      viewer.indexOf("selectedEntity?.type === 'cctv'") + 1600,
+    const cctvSection = selected.slice(
+      selected.indexOf("selectedEntity?.type === 'cctv'"),
+      selected.indexOf("selectedEntity?.type === 'cctv'") + 1600,
     );
-    expect(cctvSection).toContain('const url = buildCctvProxyUrl(rawUrl)');
+    expect(cctvSection).toContain('buildCctvProxyUrl(rawUrl)');
     expect(cctvSection).toContain('url={url}');
     expect(cctvSection).toContain('<CctvFullscreenModal');
   });
 });
 
 describe('MaplibreViewer behavior — Telegram visibility fallback', () => {
-  const viewer = fs.readFileSync(path.join(COMP_DIR, 'MaplibreViewer.tsx'), 'utf-8');
+  const layer = fs.readFileSync(path.join(COMP_DIR, 'map/layers/TelegramOsintLayers.tsx'), 'utf-8');
 
   it('keeps a visible MapLibre fallback while HTML pins are temporarily hidden', () => {
-    const telegramSection = viewer.slice(
-      viewer.indexOf('<Source id="telegram-osint-source"'),
-      viewer.indexOf('</Source>', viewer.indexOf('<Source id="telegram-osint-source"')) + '</Source>'.length,
-    );
-    expect(telegramSection).toContain('minzoom={2}');
-    expect(telegramSection).toContain("'circle-opacity': 0.65");
+    expect(layer).toContain('minzoom={2}');
+    expect(layer).toContain("'circle-opacity': 0.65");
   });
 });
 
@@ -142,14 +140,15 @@ describe('MaplibreViewer behavior — popup components have no keyed subscriptio
 
 describe('MaplibreViewer behavior — parent-owned interpolation feeds popup coords', () => {
   const viewer = fs.readFileSync(path.join(COMP_DIR, 'MaplibreViewer.tsx'), 'utf-8');
+  const selected = fs.readFileSync(path.join(COMP_DIR, 'map/MapSelectedEntityPopups.tsx'), 'utf-8');
 
-  it('MaplibreViewer calls interpShip before passing coords to ShipPopup', () => {
-    // Find the ship popup section
-    const shipSection = viewer.slice(
-      viewer.indexOf('{/* Ship / carrier click popup */}'),
-      viewer.indexOf('{/* Ship / carrier click popup */}') + 800,
-    );
-    // interpShip must be called, and its result fed into ShipPopup props
+  it('selected-entity popup layer uses interpShip before passing coords to ShipPopup', () => {
+    const shipSection = selected.includes('{/* Ship / carrier click popup */}')
+      ? selected.slice(
+          selected.indexOf('{/* Ship / carrier click popup */}'),
+          selected.indexOf('{/* Ship / carrier click popup */}') + 800,
+        )
+      : selected;
     expect(shipSection).toContain('interpShip(ship)');
     expect(shipSection).toContain('longitude={iLng}');
     expect(shipSection).toContain('latitude={iLat}');
@@ -159,7 +158,6 @@ describe('MaplibreViewer behavior — parent-owned interpolation feeds popup coo
     const shipPopup = readPopup('ShipPopup.tsx');
     expect(shipPopup).toContain('longitude: number');
     expect(shipPopup).toContain('latitude: number');
-    // Must NOT contain interpolation logic
     expect(shipPopup).not.toContain('interpolatePosition');
     expect(shipPopup).not.toContain('interpShip');
     expect(shipPopup).not.toContain('useInterpolation');

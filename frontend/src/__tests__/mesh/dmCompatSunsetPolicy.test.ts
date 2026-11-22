@@ -13,11 +13,13 @@ function readSource(relativePath: string): string {
 describe('Sprint 6 DM compatibility sunset policy', () => {
   it('keeps receive-side MeshChat request parsing off ambient legacy agent-id lookup', () => {
     const controller = readSource('../../components/MeshChat/useMeshChatController.ts');
+    const dmPolling = readSource('../../components/MeshChat/useDmPolling.ts');
+    const receiveSide = controller + '\n' + dmPolling;
 
-    expect(controller).toMatch(
+    expect(receiveSide).toMatch(
       /fetchDmPublicKey\(\s*API_BASE,\s*m\.sender_id,\s*senderContact\?\.invitePinnedPrekeyLookupHandle/s,
     );
-    expect(controller).not.toMatch(
+    expect(receiveSide).not.toMatch(
       /fetchDmPublicKey\(\s*API_BASE,\s*m\.sender_id,[\s\S]{0,200}allowLegacyAgentId:\s*true/s,
     );
   });
@@ -35,16 +37,19 @@ describe('Sprint 6 DM compatibility sunset policy', () => {
 
   it('keeps MeshTerminal legacy lookup limited to explicit migration commands', () => {
     const terminal = readSource('../../components/MeshTerminal.tsx');
+    const dmCommand = readSource('../../components/MeshTerminalDmCommand.ts');
+    const sendFlow = readSource('../../components/MeshTerminalSendFlow.ts');
+    const terminalSurface = terminal + '\n' + dmCommand + '\n' + sendFlow;
 
-    expect(terminal).not.toMatch(
+    expect(terminalSurface).not.toMatch(
       /fetchDmPublicKey\(\s*API,\s*message\.sender_id,[\s\S]{0,200}allowLegacyAgentId:/s,
     );
-    expect(terminal).not.toMatch(
+    expect(terminalSurface).not.toMatch(
       /fetchDmPublicKey\(\s*API,\s*m\.sender_id,[\s\S]{0,200}allowLegacyAgentId:/s,
     );
 
-    const legacyLookupMatches = terminal.match(/allowLegacyAgentId:\s*true/g) || [];
+    const legacyLookupMatches = terminalSurface.match(/allowLegacyAgentId:\s*true/g) || [];
     expect(legacyLookupMatches).toHaveLength(1);
-    expect(terminal).toContain("only for legacy migration");
+    expect(terminalSurface).toContain("only for legacy migration");
   });
 });

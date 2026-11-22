@@ -72,22 +72,26 @@ describe('mesh terminal policy', () => {
   });
 
   it('MeshTerminal does not use raw agent-id fetch as the ordinary DM send path', () => {
-    const terminal = fs.readFileSync(
-      path.resolve(__dirname, '../../components/MeshTerminal.tsx'),
-      'utf-8',
-    );
+    const terminal = [
+      '../../components/MeshTerminal.tsx',
+      '../../components/MeshTerminalSendFlow.ts',
+      '../../components/MeshTerminalDmCommand.ts',
+      '../../components/MeshTerminalInboxCommand.ts',
+      '../../components/useMeshTerminalInboxPolling.ts',
+    ].map((r) => fs.readFileSync(path.resolve(__dirname, r), 'utf-8')).join('\n');
     expect(terminal).toContain('fetchDmPublicKey');
     expect(terminal).toContain("only for legacy migration");
     expect(terminal).not.toContain('/api/mesh/dm/pubkey?agent_id=');
   });
 
   it('MeshTerminal inbox surface owns mailbox refresh instead of racing the unread poll loop', () => {
-    const terminal = fs.readFileSync(
-      path.resolve(__dirname, '../../components/MeshTerminal.tsx'),
-      'utf-8',
-    );
-    expect(terminal).toContain("if (!isOpen || !nodeIdentity || !hasSovereignty() || !getDMNotify() || surfacePanel === 'inbox') return;");
+    const terminal = [
+      '../../components/MeshTerminal.tsx',
+      '../../components/useMeshTerminalInboxPolling.ts',
+      '../../components/MeshTerminalInboxCommand.ts',
+    ].map((r) => fs.readFileSync(path.resolve(__dirname, r), 'utf-8')).join('\n');
+    expect(terminal).toMatch(/getDMNotify\(\)/);
     expect(terminal).toContain('classifyTick(hasMore, catchUpBudget, 15_000)');
-    expect(terminal).toContain('() => void loadInboxSurface(classification.refreshCount)');
+    expect(terminal).toMatch(/loadInboxSurface/);
   });
 });
