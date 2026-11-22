@@ -231,6 +231,8 @@ import { useMeshIdentityHandlers } from './useMeshIdentityHandlers';
 import { useMeshMqttSettings } from './useMeshMqttSettings';
 import { useMeshChannelsPolling } from './useMeshChannelsPolling';
 import { useWormholePolling } from './useWormholePolling';
+import { useMeshGateDerivedState } from './useMeshGateDerivedState';
+import { useDmSendQueue } from './useDmSendQueue';
 import { useMeshInfonetMessages } from './useMeshInfonetMessages';
 
 // Extracted from MeshChat component. Contains ALL state, effects, and handlers.
@@ -321,7 +323,6 @@ export function useMeshChatController({
   const shouldShowIdentityWarning = activeTab !== 'meshtastic' && !hasId;
   const privateInfonetReady = wormholeEnabled && wormholeReadyState;
   const publicMeshBlockedByWormhole = wormholeEnabled || wormholeReadyState;
-  const dmSendQueue = useRef<(() => Promise<void>)[]>([]);
   const meshMqttRuntime = meshMqttSettings?.runtime;
   const meshMqttEnabled = Boolean(meshMqttSettings?.enabled || meshMqttRuntime?.enabled);
   const canUsePublicMeshInput = Boolean(activePublicMeshAddress) && meshMqttEnabled && !publicMeshBlockedByWormhole;
@@ -353,7 +354,6 @@ export function useMeshChatController({
     setWormholeRnsPeers,
     setSecureModeCached,
   });
-  const dmSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamEnabledForSelectedGateRef = useRef(false);
   const displayPublicMeshSender = useCallback(
     (sender: string) => {
@@ -478,48 +478,7 @@ export function useMeshChatController({
     };
   }, []);
 
-  const flushDmQueue = useCallback(async () => {
-    const queue = dmSendQueue.current.splice(0);
-    if (dmSendTimer.current) {
-      clearTimeout(dmSendTimer.current);
-      dmSendTimer.current = null;
-    }
-    for (const task of queue) {
-      try {
-        await task();
-      } catch {
-        /* ignore */
-      }
-    }
-  }, []);
-
-  const enqueueDmSend = useCallback(
-    (task: () => Promise<void>) => {
-      return new Promise<void>((resolve) => {
-        const wrapped = async () => {
-          try {
-            await task();
-          } catch {
-            /* ignore */
-          } finally {
-            resolve();
-          }
-        };
-        if (!shouldQueueDmSend(privacyProfile)) {
-          void wrapped();
-          return;
-        }
-        dmSendQueue.current.push(wrapped);
-        if (!dmSendTimer.current) {
-          const delay = 120 + Math.random() * 180;
-          dmSendTimer.current = setTimeout(() => {
-            void flushDmQueue();
-          }, delay);
-        }
-      });
-    },
-    [privacyProfile, flushDmQueue],
-  );
+  const { flushDmQueue, enqueueDmSend } = useDmSendQueue(privacyProfile);
 
   // ─── Mute State ─────────────────────────────────────────────────────────
   const {
@@ -1166,94 +1125,17 @@ export function useMeshChatController({
   const dashboardRestrictedTab = false;
   const dashboardRestrictedTitle = '';
   const dashboardRestrictedDetail = '';
-  const selectedGateKey = selectedGate.trim().toLowerCase();
-  const selectedGatePersonaList = selectedGateKey ? gatePersonas[selectedGateKey] || [] : [];
-  const selectedGateActivePersonaId = selectedGateKey ? activeGatePersonaId[selectedGateKey] || '' : '';
-  const selectedGateActivePersona = useMemo(
-    () =>
-      selectedGateActivePersonaId
-        ? selectedGatePersonaList.find(
-            (persona) => String(persona.persona_id || '') === selectedGateActivePersonaId,
-          ) || null
-        : null,
-    [selectedGateActivePersonaId, selectedGatePersonaList],
-  );
-  const selectedGateMeta = useMemo(
-    () => gates.find((gate) => gate.gate_id === selectedGateKey) || null,
-    [gates, selectedGateKey],
-  );
-  const selectedGateCompatActive = useMemo(
-    () => Boolean(selectedGateKey && gateCompatActive[selectedGateKey]),
-    [gateCompatActive, selectedGateKey],
-  );
-  const selectedGateKeyStatus = useMemo(
-    () => (selectedGateKey ? gateKeyStatus[selectedGateKey] || null : null),
-    [gateKeyStatus, selectedGateKey],
-  );
-  const selectedGateAccessReady = Boolean(selectedGateKeyStatus?.has_local_access);
-  const gatePersonaPromptPersonaList =
-    gatePersonaPromptGateId ? gatePersonas[gatePersonaPromptGateId] || [] : [];
-  const gatePersonaPromptGateMeta = useMemo(
-    () =>
-      gates.find(
-        (gate) => gate.gate_id === (gatePersonaPromptGateId || '').trim().toLowerCase(),
-      ) || null,
-    [gatePersonaPromptGateId, gates],
-  );
-  const gatePersonaPromptTitle =
-    gatePersonaPromptGateMeta?.display_name || gatePersonaPromptGateId || selectedGate;
-  const submitGatePersonaPrompt = useCallback(async () => {
-    const ok = await handleCreateGatePersona(gatePersonaDraftLabel);
-    if (ok) {
-      closeGatePersonaPrompt();
-    }
-  }, [closeGatePersonaPrompt, gatePersonaDraftLabel, handleCreateGatePersona]);
-  const selectSavedGatePersona = useCallback(
-    async (personaId: string) => {
-      const ok = await handleSelectGatePersona(personaId);
-      if (ok) {
-        closeGatePersonaPrompt();
-      }
-    },
-    [closeGatePersonaPrompt, handleSelectGatePersona],
-  );
-  const remainAnonymousInGate = useCallback(() => {
-    closeGatePersonaPrompt();
-  }, [closeGatePersonaPrompt]);
-  const nativeAuditSummary = useMemo(() => {
-    if (!nativeAuditReport?.totalEvents) return null;
-    const recent = nativeAuditReport.recent[0] || null;
-    const byOutcome = nativeAuditReport.byOutcome || {};
-    const mismatchCount = (byOutcome.profile_warn || 0) + (byOutcome.profile_denied || 0);
-    const deniedCount =
-      (byOutcome.profile_denied || 0) +
-      (byOutcome.capability_denied || 0) +
-      (byOutcome.shim_refused || 0);
-    return {
-      recent,
-      mismatchCount,
-      deniedCount,
-    };
-  }, [nativeAuditReport]);
-
-  const privateInfonetTransportReady = privateInfonetReady && wormholeRnsReady;
-  const privateLaneHint = buildPrivateLaneHint({
-    activeTab,
-    recentPrivateFallback,
-    recentPrivateFallbackReason,
-    dmTransportMode,
-    privateInfonetReady,
-    privateInfonetTransportReady,
+  const {
+    selectedGateKey, selectedGatePersonaList, selectedGateActivePersonaId, selectedGateActivePersona,
+    selectedGateMeta, selectedGateCompatActive, selectedGateKeyStatus, selectedGateAccessReady,
+    gatePersonaPromptPersonaList, gatePersonaPromptGateMeta, gatePersonaPromptTitle,
+    submitGatePersonaPrompt, selectSavedGatePersona, remainAnonymousInGate, nativeAuditSummary,
+  } = useMeshGateDerivedState({
+    selectedGate, gatePersonas, activeGatePersonaId, gates, gateCompatActive, gateKeyStatus,
+    gatePersonaPromptGateId, gatePersonaDraftLabel, handleCreateGatePersona, handleSelectGatePersona,
+    closeGatePersonaPrompt, nativeAuditReport,
   });
-  const inputDisabled =
-    (activeTab !== 'meshtastic' && !hasId) ||
-    busy ||
-    (activeTab === 'infonet' && !privateInfonetReady) ||
-    (activeTab === 'infonet' && !selectedGate) ||
-    (activeTab === 'infonet' &&
-      !!selectedGate &&
-      wormholeEnabled &&
-      wormholeReadyState &&
+
       !selectedGateAccessReady) ||
     (activeTab === 'infonet' && anonymousPublicBlocked) ||
     (activeTab === 'meshtastic' && !canUsePublicMeshInput) ||
