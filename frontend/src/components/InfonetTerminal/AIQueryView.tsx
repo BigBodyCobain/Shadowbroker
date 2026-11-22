@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -147,7 +146,7 @@ Version: ${data.version || '1.0'}` };
 ${lines || '  No active telemetry data.'}
 
 Threat Level: ${data.threat_level || 'N/A'}
-SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, 0)}` };
+SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, null, 0)}` };
       }
 
       if (lowerQuery === 'report' || lowerQuery === 'intelligence report') {
@@ -156,7 +155,7 @@ SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, 0)}` };
         return {
           content: `🌍🛰️ INTELLIGENCE REPORT:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${data.report || JSON.stringify(data, 2)}` };
+${data.report || JSON.stringify(data, null, 2)}` };
       }
 
       if (lowerQuery.startsWith('pin ')) {

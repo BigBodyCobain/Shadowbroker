@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -182,7 +181,7 @@ export default function ProfileView({ onBack, persona, isCitizen, nodeId, public
     setDmInviteStatus(null);
     try {
       const exported = await exportWormholeDmInvite();
-      setDmInviteBlob(JSON.stringify(exported, 2));
+      setDmInviteBlob(JSON.stringify(exported, null, 2));
       setDmInviteFingerprint(String(exported.trust_fingerprint || ''));
       setDmInviteStatus({
         type: 'ok',

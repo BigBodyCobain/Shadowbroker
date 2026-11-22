@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -61,7 +60,7 @@ export default function MissionPanel({
             model: data.model,
             max_calls: 5 })),
         );
-        setWatches(monitoring.watches);
+        setWatches((monitoring as any).watches);
       })
       .catch((exception) => {
         if (mounted) setError(String(exception.message));
@@ -314,7 +313,7 @@ export default function MissionPanel({
                   Operator approval required: {mission.pending.tool}
                 </strong>
                 <pre className="whitespace-pre-wrap break-words text-slate-200">
-                  {JSON.stringify(mission.pending.args, 2)}
+                  {JSON.stringify(mission.pending.args, null, 2)}
                 </pre>
                 <button
                   className={button}
@@ -532,7 +531,7 @@ export default function MissionPanel({
             </p>
             {watch.last_alert != null && (
               <pre className="whitespace-pre-wrap text-amber-200 max-h-28 overflow-auto">
-                {JSON.stringify(watch.last_alert, 2)}
+                {JSON.stringify(watch.last_alert, null, 2)}
               </pre>
             )}
             <button

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -2288,6 +2287,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           label,
           created_at: Math.floor(Date.now() / 1000),
           invite: exported.invite },
+        null,
         2,
       );
       const record: LocalDmAddress = {
