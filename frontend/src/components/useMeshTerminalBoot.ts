@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useEffect } from 'react';
-import { hasSovereignty, getDHPubKey, generateDHKeys, ensureRegisteredDmKey, getNodeIdentity } from '@/mesh/meshIdentity';
+import { hasSovereignty, getDHPubKey, generateDHKeys, getNodeIdentity } from '@/mesh/meshIdentity';
+import { ensureRegisteredDmKey } from '@/mesh/meshDmClient';
 import { fetchWormholeSettings, fetchWormholeStatus } from '@/mesh/wormholeIdentityClient';
 import { fetchInfonetNodeStatusSnapshot } from '@/mesh/controlPlaneStatusClient';
 import { formatNodeMode, describeBootstrapState, describeSyncOutcome } from './MeshTerminal.shared';

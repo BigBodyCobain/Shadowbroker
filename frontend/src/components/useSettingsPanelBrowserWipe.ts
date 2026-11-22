@@ -1,7 +1,8 @@
 // @ts-nocheck
 'use client';
 import React, { useCallback, useState } from 'react';
-import { clearBrowserIdentityState, purgeBrowserDmState } from '@/mesh/meshIdentity';
+import { clearBrowserIdentityState } from '@/mesh/meshIdentity';
+import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
 import { PRIVACY_SENSITIVE_BROWSER_KEYS } from './SettingsPanel.shared';
 import { setSessionModePreference } from '@/lib/privacyBrowserStorage';
 
