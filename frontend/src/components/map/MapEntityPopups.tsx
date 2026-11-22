@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -1711,7 +1710,7 @@ export function MapEntityPopups({ p }: { p: MapEntityPopupsProps }) {
                   value={pinCategory}
                   onChange={(e) => setPinCategory(e.target.value as PinCategory)}
                   className="w-full px-2 py-1.5 text-[11px] font-mono bg-black/50 border border-violet-500/30 text-white focus:border-violet-500/60 outline-none mb-1.5 border-l-4"
-                  style={{ borderLeftColor: PIN_CATEGORY_COLORS[pinCategory] }}
+                  style={{ borderLeftColor: PIN_CATEGORY_COLORS[pinCategory as PinCategory] }}
                 >
                   {(Object.keys(PIN_CATEGORY_LABELS) as PinCategory[]).map((cat) => (
                     <option key={cat} value={cat} className="bg-[#0a0a14]">

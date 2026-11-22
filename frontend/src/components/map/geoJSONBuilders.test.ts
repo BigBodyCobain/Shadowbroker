@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest';
 import {
   buildEarthquakesGeoJSON,
@@ -27,7 +26,7 @@ const allShipLayers: ActiveLayers = {
   cctv: false,
   ukraine_frontline: true,
   global_incidents: true,
-  firms_fires: true,
+  firms: true,
   jamming: true,
   internet_outages: true,
   datacenters: true,
@@ -41,7 +40,7 @@ const allShipLayers: ActiveLayers = {
   ships_civilian: true,
   ships_passenger: true,
   ships_tracked_yachts: true,
-};
+} as unknown as ActiveLayers;
 
 describe('buildEarthquakesGeoJSON', () => {
   it('returns null for empty array', () => {
@@ -150,8 +149,8 @@ describe('buildShipsGeoJSON', () => {
 
   it('filters out carriers (handled by buildCarriersGeoJSON)', () => {
     const ships: Ship[] = [
-      { name: 'Cargo Ship', lat: 10, lng: 20, type: 'cargo', mmsi: '123' } as Ship,
-      { name: 'USS Nimitz', lat: 30, lng: 40, type: 'carrier', mmsi: '456' } as Ship,
+      { name: 'Cargo Ship', lat: 10, lng: 20, type: 'cargo', mmsi: '123' } as unknown as Ship,
+      { name: 'USS Nimitz', lat: 30, lng: 40, type: 'carrier', mmsi: '456' } as unknown as Ship,
     ];
     const result = buildShipsGeoJSON(ships, allShipLayers, alwaysInView, interpIdentity);
     expect(result!.features).toHaveLength(1);
@@ -160,9 +159,9 @@ describe('buildShipsGeoJSON', () => {
 
   it('assigns correct icon by ship type', () => {
     const ships: Ship[] = [
-      { name: 'Tanker', lat: 10, lng: 20, type: 'tanker', mmsi: '1' } as Ship,
-      { name: 'Yacht', lat: 10, lng: 21, type: 'yacht', mmsi: '2' } as Ship,
-      { name: 'Warship', lat: 10, lng: 22, type: 'military_vessel', mmsi: '3' } as Ship,
+      { name: 'Tanker', lat: 10, lng: 20, type: 'tanker', mmsi: '1' } as unknown as Ship,
+      { name: 'Yacht', lat: 10, lng: 21, type: 'yacht', mmsi: '2' } as unknown as Ship,
+      { name: 'Warship', lat: 10, lng: 22, type: 'military_vessel', mmsi: '3' } as unknown as Ship,
     ];
     const result = buildShipsGeoJSON(ships, allShipLayers, alwaysInView, interpIdentity)!;
     expect(result.features[0].properties?.iconId).toBe('svgShipRed');
@@ -178,8 +177,8 @@ describe('buildCarriersGeoJSON', () => {
 
   it('only includes carriers', () => {
     const ships: Ship[] = [
-      { name: 'USS Nimitz', lat: 30, lng: 40, type: 'carrier', mmsi: '456', heading: 90 } as Ship,
-      { name: 'Cargo Ship', lat: 10, lng: 20, type: 'cargo', mmsi: '123' } as Ship,
+      { name: 'USS Nimitz', lat: 30, lng: 40, type: 'carrier', mmsi: '456', heading: 90 } as unknown as Ship,
+      { name: 'Cargo Ship', lat: 10, lng: 20, type: 'cargo', mmsi: '123' } as unknown as Ship,
     ];
     const result = buildCarriersGeoJSON(ships)!;
     expect(result.features).toHaveLength(1);
@@ -204,7 +203,7 @@ describe('buildFishingActivityGeoJSON', () => {
       },
     ];
     const ships: Ship[] = [
-      { name: 'Pacific Harvest', lat: 12, lng: 34, type: 'cargo', mmsi: '123', heading: 87 } as Ship,
+      { name: 'Pacific Harvest', lat: 12, lng: 34, type: 'cargo', mmsi: '123', heading: 87 } as unknown as Ship,
     ];
 
     const result = buildFishingActivityGeoJSON(events, ships)!;

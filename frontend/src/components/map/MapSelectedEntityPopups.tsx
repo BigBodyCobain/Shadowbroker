@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -799,10 +798,10 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Satellite click popup (with ISS live feed + maneuver alerts) */}
         {selectedEntity?.type === 'satellite' &&
           (() => {
-            const sat = data?.satellites?.find((s) => sameEntityId(s.id, selectedEntity.id));
+            const sat = data?.satellites?.find((s: any) => sameEntityId(s.id, selectedEntity.id));
             if (!sat) return null;
             const maneuverAlert = data?.satellite_analysis?.maneuvers?.find(
-              (m) => m.norad_id === sat.id
+              (m: any) => m.norad_id === sat.id
             );
             return (
               <SatellitePopup
@@ -833,7 +832,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {selectedEntity?.type === 'uap_sighting' &&
           (() => {
             const props = selectedEntity.extra || {};
-            const sighting = data?.uap_sightings?.find((s) => sameEntityId(s.id, selectedEntity.id));
+            const sighting = data?.uap_sightings?.find((s: any) => sameEntityId(s.id, selectedEntity.id));
             const lat = sighting?.lat ?? props.lat;
             const lng = sighting?.lng ?? props.lng;
             if (lat == null || lng == null) return null;
@@ -888,7 +887,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Wastewater plant popup */}
         {selectedEntity?.type === 'wastewater' &&
           (() => {
-            const plant = data?.wastewater?.find((w) => sameEntityId(w.id, selectedEntity.id));
+            const plant = data?.wastewater?.find((w: any) => sameEntityId(w.id, selectedEntity.id));
             if (!plant) return null;
             return (
               <WastewaterPopup
@@ -902,7 +901,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {selectedEntity?.type === 'crowdthreat' &&
           (() => {
             const props = selectedEntity.extra || {};
-            const ct = data?.crowdthreat?.find((c) => `ct-${c.id}` === selectedEntity.id);
+            const ct = data?.crowdthreat?.find((c: any) => `ct-${c.id}` === selectedEntity.id);
             const lat = ct?.lat ?? props.lat;
             const lng = ct?.lng ?? props.lng;
             if (lat == null || lng == null) return null;
@@ -946,7 +945,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Train click popup */}
         {selectedEntity?.type === 'train' &&
           (() => {
-            const train = data?.trains?.find((t) => sameEntityId(t.id, selectedEntity.id));
+            const train = data?.trains?.find((t: any) => sameEntityId(t.id, selectedEntity.id));
             if (!train) return null;
             const isAmtrak = train.source === 'amtrak';
             const sourceLabel = train.source_label || train.source.toUpperCase();
@@ -1000,7 +999,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* UAV click popup — real ADS-B detected drones */}
         {selectedEntity?.type === 'uav' &&
           (() => {
-            const uav = data?.uavs?.find((u) => sameEntityId(u.id, selectedEntity.id));
+            const uav = data?.uavs?.find((u: any) => sameEntityId(u.id, selectedEntity.id));
             if (!uav) return null;
             return (
               <Popup
@@ -1067,10 +1066,10 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {selectedEntity?.type === 'kiwisdr' &&
           (() => {
             const receiver = data?.kiwisdr?.find(
-              (k) => k.name === selectedEntity.name || k.name === String(selectedEntity.id),
+              (k: any) => k.name === selectedEntity.name || k.name === String(selectedEntity.id),
             );
             // use extra if available from the click event, otherwise fallback
-            const props = (selectedEntity.extra || receiver || {}) as KiwiProps;
+            const props = (selectedEntity.extra || receiver || {}) as any;
             const lat =
               props.lat ??
               selectedEntity.extra?.lat ??
@@ -1324,7 +1323,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Police Scanner click popup */}
         {selectedEntity?.type === 'scanner' &&
           (() => {
-            const props = (selectedEntity.extra || {}) as ScannerProps;
+            const props = (selectedEntity.extra || {}) as any;
             const lat = props.lat ?? selectedEntity.extra?.geometry?.coordinates?.[1];
             const lng = props.lng ?? selectedEntity.extra?.geometry?.coordinates?.[0];
             if (lat == null || lng == null) return null;
@@ -1425,9 +1424,9 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* SIGINT signal click popup */}
         {selectedEntity?.type === 'sigint' &&
           (() => {
-            const props = (selectedEntity.extra || {}) as SigintProps;
+            const props = (selectedEntity.extra || {}) as any;
             const sig = data?.sigint?.find(
-              (s) => `${s.source}:${s.callsign}` === selectedEntity.id,
+              (s: any) => `${s.source}:${s.callsign}` === selectedEntity.id,
             );
             const d = sig || props;
             const lat = sig?.lat ?? props.geometry?.coordinates?.[1];
@@ -1448,7 +1447,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Ship / carrier click popup */}
         {selectedEntity?.type === 'ship' &&
           (() => {
-            const ship = data?.ships?.find((s, i: number) => {
+            const ship = data?.ships?.find((s: any, i: number) => {
               return (
                 sameEntityId(s.mmsi || s.name || `ship-${i}`, selectedEntity.id) ||
                 sameEntityId(s.mmsi || s.name || `carrier-${i}`, selectedEntity.id)
@@ -1471,7 +1470,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
           (() => {
             const extra = (selectedEntity.extra || {}) as Record<string, unknown>;
             const anomaly = data?.sar_anomalies?.find(
-              (a) => a.anomaly_id === selectedEntity.id,
+              (a: any) => a.anomaly_id === selectedEntity.id,
             );
             const a = anomaly || extra;
             const lat = typeof a.lat === 'number' ? a.lat : Number(extra.center_lat);
@@ -1646,11 +1645,11 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Data Center click popup */}
         {selectedEntity?.type === 'datacenter' &&
           (() => {
-            const dc = data?.datacenters?.find((_, i: number) => `dc-${i}` === selectedEntity.id);
+            const dc = data?.datacenters?.find((_: any, i: number) => `dc-${i}` === selectedEntity.id);
             if (!dc) return null;
             // Check if any internet outage is in the same country
             const outagesInCountry = (data?.internet_outages || []).filter(
-              (o) =>
+              (o: any) =>
                 o.country_name &&
                 dc.country &&
                 o.country_name.toLowerCase() === dc.country.toLowerCase(),
@@ -1700,7 +1699,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
                   {outagesInCountry.length > 0 && (
                     <div className="mt-1.5 px-2 py-1 bg-red-500/15 border border-red-400/40 rounded text-[10px] text-[#ff6b6b]">
                       OUTAGE IN REGION —{' '}
-                      {outagesInCountry.map((o) => `${o.region_name} (${o.severity}%)`).join(', ')}
+                      {outagesInCountry.map((o: any) => `${o.region_name} (${o.severity}%)`).join(', ')}
                     </div>
                   )}
                   <div className="mt-1.5 text-[10px] text-violet-600 tracking-wider">
@@ -1800,7 +1799,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {selectedEntity?.type === 'military_base' &&
           (() => {
             const base = data?.military_bases?.find(
-              (_, i: number) => `milbase-${i}` === selectedEntity.id,
+              (_: any, i: number) => `milbase-${i}` === selectedEntity.id,
             );
             if (!base) return null;
             return (
@@ -1815,7 +1814,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Ukraine Air Raid Alert popup */}
         {selectedEntity?.type === 'ukraine_alert' &&
           (() => {
-            const alert = data?.ukraine_alerts?.find((a) => String(a.id) === String(selectedEntity.id));
+            const alert = data?.ukraine_alerts?.find((a: any) => String(a.id) === String(selectedEntity.id));
             if (!alert) return null;
             const accent = alert.color || '#ef4444';
             const geom = alert.geometry;
@@ -1844,7 +1843,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Weather Alert popup */}
         {selectedEntity?.type === 'weather_alert' &&
           (() => {
-            const alert = data?.weather_alerts?.find((a) => sameEntityId(a.id, selectedEntity.id));
+            const alert = data?.weather_alerts?.find((a: any) => sameEntityId(a.id, selectedEntity.id));
             if (!alert) return null;
             const sevColors: Record<string, string> = { Extreme: '#ef4444', Severe: '#f97316', Moderate: '#eab308', Minor: '#3b82f6' };
             const accent = sevColors[alert.severity] || '#3b82f6';
@@ -1869,7 +1868,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Air Quality popup */}
         {selectedEntity?.type === 'air_quality' &&
           (() => {
-            const station = data?.air_quality?.find((s) => `aq-${s.id}` === selectedEntity.id);
+            const station = data?.air_quality?.find((s: any) => `aq-${s.id}` === selectedEntity.id);
             if (!station) return null;
             const aqiColors: Record<string, string> = { Good: '#22c55e', Moderate: '#eab308', 'Unhealthy (Sensitive)': '#f97316', Unhealthy: '#ef4444', 'Very Unhealthy': '#a855f7', Hazardous: '#7f1d1d' };
             const label = station.aqi <= 50 ? 'Good' : station.aqi <= 100 ? 'Moderate' : station.aqi <= 150 ? 'Unhealthy (Sensitive)' : station.aqi <= 200 ? 'Unhealthy' : station.aqi <= 300 ? 'Very Unhealthy' : 'Hazardous';
@@ -1896,7 +1895,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
             const idx = Number(selectedEntity.id);
             const eq = Number.isFinite(idx)
               ? data?.earthquakes?.[idx]
-              : data?.earthquakes?.find((e) => e.id === String(selectedEntity.id));
+              : data?.earthquakes?.find((e: any) => e.id === String(selectedEntity.id));
             const lat = typeof eq?.lat === 'number' ? eq.lat : Number(extra.lat);
             const lng = typeof eq?.lng === 'number' ? eq.lng : Number(extra.lng);
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -1980,11 +1979,11 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Fishing Event popup — cross-references with AIS when available */}
         {selectedEntity?.type === 'fishing_event' &&
           (() => {
-            const event = data?.fishing_activity?.find((e) => (e.id || '') === selectedEntity.id);
+            const event = data?.fishing_activity?.find((e: any) => (e.id || '') === selectedEntity.id);
             if (!event) return null;
             // Cross-reference with AIS ships by vessel name
             const vesselNameUpper = (event.vessel_name || '').toUpperCase().trim();
-            const aisMatch = vesselNameUpper && data?.ships?.find((s) => {
+            const aisMatch = vesselNameUpper && data?.ships?.find((s: any) => {
               const shipName = (s.name || '').toUpperCase().trim();
               return shipName && (shipName === vesselNameUpper || shipName.includes(vesselNameUpper) || vesselNameUpper.includes(shipName));
             });
@@ -2029,11 +2028,11 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {/* Fishing vessel → AIS destination route line */}
         {selectedEntity?.type === 'fishing_event' &&
           (() => {
-            const event = data?.fishing_activity?.find((e) => (e.id || '') === selectedEntity.id);
+            const event = data?.fishing_activity?.find((e: any) => (e.id || '') === selectedEntity.id);
             if (!event) return null;
             const vesselNameUpper = (event.vessel_name || '').toUpperCase().trim();
             if (!vesselNameUpper) return null;
-            const aisMatch = data?.ships?.find((s) => {
+            const aisMatch = data?.ships?.find((s: any) => {
               const shipName = (s.name || '').toUpperCase().trim();
               return shipName && (shipName === vesselNameUpper || shipName.includes(vesselNameUpper) || vesselNameUpper.includes(shipName));
             });
@@ -2067,7 +2066,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {(() => {
           if (selectedEntity?.type !== 'telegram_osint' || !data?.telegram_osint?.posts) return null;
           const allPosts = data.telegram_osint.posts;
-          const clusterPosts = allPosts.filter((p) => {
+          const clusterPosts = allPosts.filter((p: any) => {
             if (!p.coords || p.coords.length < 2) return false;
             const key = telegramClusterKey(p.coords[0], p.coords[1]);
             return key === selectedEntity.id || p.id === selectedEntity.id;
@@ -2089,7 +2088,7 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         {(() => {
           if (selectedEntity?.type !== 'gdelt' || !data?.gdelt) return null;
           const item = data.gdelt.find(
-            (g) => (g.properties?.name || String(g.geometry?.coordinates)) === selectedEntity.id,
+            (g: any) => (g.properties?.name || String(g.geometry?.coordinates)) === selectedEntity.id,
           );
           if (!item?.geometry?.coordinates) return null;
           return (
@@ -2224,9 +2223,9 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
         })()}
 
         {selectedEntity?.type === 'liveuamap' &&
-          data?.liveuamap?.find((l) => String(l.id) === String(selectedEntity.id)) &&
+          data?.liveuamap?.find((l: any) => String(l.id) === String(selectedEntity.id)) &&
           (() => {
-            const item = data.liveuamap.find((l) => String(l.id) === String(selectedEntity.id));
+            const item = data.liveuamap.find((l: any) => String(l.id) === String(selectedEntity.id));
             if (!item) return null;
             return (
               <Popup
@@ -2679,10 +2678,10 @@ export function MapSelectedEntityPopups({ p }: { p: any }) {
             onClose={() => setOpenPinDetailId(null)}
             onDeleted={() => {
               setOpenPinDetailId(null);
-              setAiIntelRefreshTick((t) => t + 1);
+              setAiIntelRefreshTick((t: any) => t + 1);
               onPinPlaced?.();
             }}
-            onUpdated={() => setAiIntelRefreshTick((t) => t + 1)}
+            onUpdated={() => setAiIntelRefreshTick((t: any) => t + 1)}
           />
         )}
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -384,7 +383,7 @@ export default function ShodanPanel({
   const exportPresets = useCallback(() => {
     downloadText(
       `shadowbroker-shodan-presets-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify({ source: 'ShadowBroker', type: 'shodan-presets', presets }, 2),
+      JSON.stringify({ source: 'ShadowBroker', type: 'shodan-presets', presets }, null, 2),
     );
   }, [presets]);
 
@@ -427,7 +426,7 @@ export default function ShodanPanel({
           attribution: 'Data from Shodan',
           exported_at: new Date().toISOString(),
           results: currentResults },
-        2,
+        null, 2,
       ),
     );
   }, [currentResults]);
