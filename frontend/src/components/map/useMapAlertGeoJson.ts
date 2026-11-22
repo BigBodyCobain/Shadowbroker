@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { useEffect, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
-import { buildUkraineAlertsGeoJSON, buildUkraineAlertLabelsGeoJSON, buildWeatherAlertsGeoJSON, buildWeatherAlertLabelsGeoJSON } from '@/components/map/geojsonBuilders';
-import { buildSentinelTileUrl, hasSentinelCredentials, getSentinelToken, registerSentinelProtocol } from '@/components/map/sentinelHelpers';
+import { buildUkraineAlertsGeoJSON, buildUkraineAlertLabelsGeoJSON, buildWeatherAlertsGeoJSON, buildWeatherAlertLabelsGeoJSON } from '@/components/map/geoJSONBuilders';
+import { buildSentinelTileUrl, hasSentinelCredentials, getSentinelToken, registerSentinelProtocol } from '@/lib/sentinelHub';
 
 export function useMapAlertGeoJson(ctx: any) {
   const { activeLayers, data, sentinelPreset, sentinelDate } = ctx;

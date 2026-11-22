@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useMemo } from 'react';
-import { buildEarthquakesGeoJSON, buildJammingGeoJSON, buildCorrelationsGeoJSON, buildGtRiskGeoJSON, buildTinygsGeoJSON, buildShodanGeoJSON, buildAIIntelGeoJSON } from '@/components/map/geojsonBuilders';
+import { buildEarthquakesGeoJSON, buildJammingGeoJSON, buildCorrelationsGeoJSON, buildGtRiskGeoJSON, buildTinygsGeoJSON, buildShodanGeoJSON, buildAIIntelGeoJSON } from '@/components/map/geoJSONBuilders';
 
 export function useMapCoreGeoJson(ctx: any) {
   const { activeLayers, data, inView, interpSat, interpTick, shodanResults, aiIntelPins } = ctx;

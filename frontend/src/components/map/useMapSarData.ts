@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '@/lib/api';
-import { buildSarAnomaliesGeoJSON, buildSarAoisGeoJSON } from '@/components/map/geojsonBuilders';
+import { buildSarAnomaliesGeoJSON, buildSarAoisGeoJSON } from '@/components/map/geoJSONBuilders';
 
 export function useMapSarData(ctx: any) {
   const { activeLayers, data, sarAoiListVersion } = ctx;

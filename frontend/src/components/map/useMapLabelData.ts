@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { useMemo } from 'react';
-import { trackedFlightsWithIcons, shipsWithIcons } from '@/components/map/mapHelpers';
-import { filterShipsByActiveFilters } from '@/components/map/shipFilterUtils';
-import { buildCarriersGeoJSON } from '@/components/map/geojsonBuilders';
+import { trackedFlightsWithIcons, shipsWithIcons } from '@/components/map/labelSubjects';
+import { filterShipsByActiveFilters } from '@/components/map/shipFilters';
+import { buildCarriersGeoJSON } from '@/components/map/geoJSONBuilders';
 
 export function useMapLabelData(ctx: any) {
   const { data, dynamicMapLayers } = ctx;

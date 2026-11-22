@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import type * as GeoJSON from 'geojson';
 
@@ -166,6 +165,15 @@ import { makeSatSvg, makeISSSvg, makeTrainSvg } from '@/components/map/icons/Sat
 import { makeUfoSvg, makeUfoClusterSvg, makeWaterDropSvg, makeWaterDropClusterSvg } from '@/components/map/icons/OverlayIcons';
 import { EMPTY_FC } from '@/components/map/mapConstants';
 import { useMapImperativeSources } from '@/components/map/hooks/useMapImperativeSources';
+import { useMapPins } from '@/components/map/useMapPins';
+import { useMapControlRequests } from '@/components/map/hooks/useMapControlRequests';
+import { useMapCoreGeoJson } from '@/components/map/useMapCoreGeoJson';
+import { useMapAlertGeoJson } from '@/components/map/useMapAlertGeoJson';
+import { useMapTrackedSatGeoJson } from '@/components/map/useMapTrackedSatGeoJson';
+import { useMapLabelData, useMapCarrierData } from '@/components/map/useMapLabelData';
+import { useMapSarData } from '@/components/map/useMapSarData';
+import { useSelectedEntityTrail } from '@/components/map/hooks/useSelectedEntityTrail';
+import { registerMapImages } from '@/components/map/registerMapImages';
 import { useDynamicMapLayersWorker } from '@/components/map/hooks/useDynamicMapLayersWorker';
 import { useStaticMapLayersWorker } from '@/components/map/hooks/useStaticMapLayersWorker';
 import { applyDynamicLayerInterp } from '@/components/map/applyDynamicLayerInterp';
@@ -201,6 +209,43 @@ import { DayNightLayers } from '@/components/map/layers/DayNightLayers';
 import { GpsJammingLayers } from '@/components/map/layers/GpsJammingLayers';
 import { GtRiskLayers } from '@/components/map/layers/GtRiskLayers';
 import { CorrelationLayers } from '@/components/map/layers/CorrelationLayers';
+import { VolcanoLayers } from '@/components/map/layers/VolcanoLayers';
+import { UapSightingsLayers } from '@/components/map/layers/UapSightingsLayers';
+import { WastewaterLayers } from '@/components/map/layers/WastewaterLayers';
+import { CrowdThreatLayers } from '@/components/map/layers/CrowdThreatLayers';
+import { TelegramOsintLayers } from '@/components/map/layers/TelegramOsintLayers';
+import { MalwareLayers } from '@/components/map/layers/MalwareLayers';
+import { SubmarineCablesLayers } from '@/components/map/layers/SubmarineCablesLayers';
+import { CarriersLayers } from '@/components/map/layers/CarriersLayers';
+import { FlightCategoryLayers } from '@/components/map/layers/FlightCategoryLayers';
+import { ActiveRouteLayers } from '@/components/map/layers/ActiveRouteLayers';
+import { FlightTrailLayers } from '@/components/map/layers/FlightTrailLayers';
+import { PredictivePathLayers } from '@/components/map/layers/PredictivePathLayers';
+import { ProximityRingsLayers } from '@/components/map/layers/ProximityRingsLayers';
+import { GdeltLayers } from '@/components/map/layers/GdeltLayers';
+import { LiveuamapLayers } from '@/components/map/layers/LiveuamapLayers';
+import { TrackedFlightsLayers } from '@/components/map/layers/TrackedFlightsLayers';
+import { UavsLayers } from '@/components/map/layers/UavsLayers';
+import { SatellitesLayers } from '@/components/map/layers/SatellitesLayers';
+import { TrainsLayers } from '@/components/map/layers/TrainsLayers';
+import { FrontlinesLayer } from '@/components/map/layers/FrontlinesLayer';
+import { EarthquakesLayers } from '@/components/map/layers/EarthquakesLayers';
+import { CctvLayers } from '@/components/map/layers/CctvLayers';
+import { KiwiSdrLayers } from '@/components/map/layers/KiwiSdrLayers';
+import { PskReporterLayers } from '@/components/map/layers/PskReporterLayers';
+import { SatnogsLayers } from '@/components/map/layers/SatnogsLayers';
+import { TinyGSLayers } from '@/components/map/layers/TinyGSLayers';
+import { InternetOutagesLayers } from '@/components/map/layers/InternetOutagesLayers';
+import { PowerPlantsLayers } from '@/components/map/layers/PowerPlantsLayers';
+import { ViirsChangeNodesLayers } from '@/components/map/layers/ViirsChangeNodesLayers';
+import { SarAoisLayers } from '@/components/map/layers/SarAoisLayers';
+import { SarAnomaliesLayers } from '@/components/map/layers/SarAnomaliesLayers';
+import { ShodanOverlayLayer } from '@/components/map/layers/ShodanOverlayLayer';
+import { MilitaryBasesLayers } from '@/components/map/layers/MilitaryBasesLayers';
+import { UkraineAlertsLayers } from '@/components/map/layers/UkraineAlertsLayers';
+import { WeatherAlertsLayers } from '@/components/map/layers/WeatherAlertsLayers';
+import { AirQualityLayers } from '@/components/map/layers/AirQualityLayers';
+import { MapEntityPopups } from '@/components/map/MapEntityPopups';
 import { sameEntityId } from '@/components/map/featureIds';
 import { buildCctvProxyUrl } from '@/lib/cctvProxy';
 import { sanitizeSubmarineCables } from '@/lib/submarineCables';
@@ -631,10 +676,32 @@ const MaplibreViewer = ({
   // Build a set of tracked icao24s to exclude from other flight layers
   const { trackedIcaoSet, satellitesGeoJSON } = useMapTrackedSatGeoJson({ data, activeLayers, inView, interpSat, interpTick });
 
-  const commConfig = COMM_FLIGHT_CONFIG;
-  const privConfig = PRIV_FLIGHT_CONFIG;
-  const jetsConfig = JETS_FLIGHT_CONFIG;
-  const milConfig = MIL_FLIGHT_CONFIG;
+  const commConfig: FlightLayerConfig = {
+    colorMap: COLOR_MAP_COMMERCIAL,
+    groundedMap: GROUNDED_ICON_MAP,
+    typeLabel: 'flight',
+    idPrefix: 'flight-',
+    useTrackHeading: true,
+  };
+  const privConfig: FlightLayerConfig = {
+    colorMap: COLOR_MAP_PRIVATE,
+    groundedMap: GROUNDED_ICON_MAP,
+    typeLabel: 'private_flight',
+    idPrefix: 'pflight-',
+  };
+  const jetsConfig: FlightLayerConfig = {
+    colorMap: COLOR_MAP_JETS,
+    groundedMap: GROUNDED_ICON_MAP,
+    typeLabel: 'private_jet',
+    idPrefix: 'pjet-',
+  };
+  const milConfig: FlightLayerConfig = {
+    colorMap: COLOR_MAP_MILITARY,
+    groundedMap: GROUNDED_ICON_MAP,
+    typeLabel: 'military_flight',
+    idPrefix: 'mflight-',
+    milSpecialMap: MIL_SPECIAL_MAP,
+  };
 
   const shipsLayerEnabled = backendViewportSyncEnabled;
   const sigintLayerEnabled = activeLayers.sigint_meshtastic || activeLayers.sigint_aprs;
@@ -1301,7 +1368,7 @@ const MaplibreViewer = ({
         // AI Intel pin click → open detail popup (takes precedence over entity selection)
         if (e.features && e.features.length > 0) {
           const aiPin = e.features.find(
-            (f) => f.layer?.id === 'ai-intel-pin-layer' && !(f.properties as Record<string, unknown> | null)?.cluster,
+            (f: any) => f.layer?.id === 'ai-intel-pin-layer' && !(f.properties as Record<string, unknown> | null)?.cluster,
           );
           if (aiPin && aiPin.properties?.id) {
             setOpenPinDetailId(String(aiPin.properties.id));
@@ -1316,7 +1383,7 @@ const MaplibreViewer = ({
           // SDR receiver, etc.) is also under the  prefer it — the
           // AOI should only win when the user clicks empty space inside it.
           const nonAoiFeature = e.features.find(
-            (f) => f.layer?.id !== 'sar-aois-fill',
+            (f: any) => f.layer?.id !== 'sar-aois-fill',
           );
           const feature = nonAoiFeature ?? e.features[0];
           const props = feature.properties || {};
@@ -1967,7 +2034,7 @@ const MaplibreViewer = ({
 
         {/* HTML labels for carriers (orange names, with ESTIMATED badge for OSINT positions) */}
         {carriersGeoJSON && !selectedEntity && !isMapInteracting && carrierShips.length > 0 && (
-          <CarrierLabels ships={carrierShips} inView={inView} interpShip={interpShip} />
+          <CarrierLabels ships={carrierShips as any} inView={inView} interpShip={interpShip} />
         )}
 
         {/* HTML labels for tracked yachts (pink owner names) */}
@@ -2021,7 +2088,7 @@ const MaplibreViewer = ({
         {/* Train positions */}
         <TrainsLayers />
 
-        <MapEntityPopups p={{ AIIntelPinDetail,  Activity,    AlertTriangle,          CctvFullscreenModal,            CorrelationPopup,                Event,   ExternalLink,   FishingDestinationRoute,        GtRiskPopup, HTMLTextAreaElement,  Info,     KiwiProps, KiwiSDR,      Location,    MilitaryBasePopup,        Node,         PinCategory,   Play,          Proxy,   Radio,    Record,  RegionDossierPanel,  Report,      Satellite, SatellitePopup, Scanner, ScannerProps,       Ship, ShipPopup,   SigintPopup, SigintProps,   Source,       TelegramOsintPopup,                WastewaterPopup,  WikiImage,                                          articleSourceUrl,                    blur,                buildCctvProxyUrl, buildPolymarketUrl,                                                    createPortal,         data,                                    external,                        focus,    formatDossierTime,                      handleSavePin,                       interpShip,   it,                        length,                                                                          onEntityClick,    onPinPlaced,   open, openPinDetailId,      oracleIntel,                 pendingPin,  pinCategory,  pinLabel, pinLabelInputRef,   pinNotes, pinSaving,                                    regionDossier, regionDossierLoading,                     sameEntityId,           scroll,      selectedEntity,     setAiIntelRefreshTick, setOpenPinDetailId, setPendingPin, setPinCategory, setPinLabel, setPinNotes, setTrackedScanner, setTrackedSdr,                                     status,               telegramClusterKey, telegramClusterNearNewsAlert, telegramMapPinCoords,                          top,                    unknown}} />
+        <MapEntityPopups p={{ AIIntelPinDetail,  Activity,    AlertTriangle,          CctvFullscreenModal,            CorrelationPopup,                   ExternalLink,   FishingDestinationRoute,        GtRiskPopup,   Info,            Location,    MilitaryBasePopup,                    Play,             Radio,      RegionDossierPanel,  Report,      Satellite, SatellitePopup,          ShipPopup,   SigintPopup,           TelegramOsintPopup,                WastewaterPopup,  WikiImage,                                          articleSourceUrl,                                    buildCctvProxyUrl, buildPolymarketUrl,                                                    createPortal,         data,                                    external,                            formatDossierTime,                      handleSavePin,                       interpShip,                                                                                                     onEntityClick,    onPinPlaced,   open, openPinDetailId,      oracleIntel,                 pendingPin,  pinCategory,  pinLabel, pinLabelInputRef,   pinNotes, pinSaving,                                    regionDossier, regionDossierLoading,                     sameEntityId,           scroll,      selectedEntity,     setAiIntelRefreshTick, setOpenPinDetailId, setPendingPin, setPinCategory, setPinLabel, setPinNotes, setTrackedScanner, setTrackedSdr,                                     status,               telegramClusterKey, telegramClusterNearNewsAlert, telegramMapPinCoords}} />
 
         <MeasurementLayers measurePoints={measurePoints} />
       </Map>

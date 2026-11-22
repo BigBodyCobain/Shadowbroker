@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useMemo } from 'react';
-import { buildSatellitesGeoJSON } from '@/components/map/geojsonBuilders';
+import { buildSatellitesGeoJSON } from '@/components/map/geoJSONBuilders';
 
 export function useMapTrackedSatGeoJson(ctx: any) {
   const { data, activeLayers, inView, interpSat, interpTick } = ctx;
