@@ -1,10 +1,10 @@
-// @ts-nocheck
 'use client';
 
 import { MeshTerminalView } from './MeshTerminalView';
 import { useMeshTerminalIntelCommands } from './MeshTerminalIntelCommands';
 import { useMeshTerminalStatusCommands } from './MeshTerminalStatusCommands';
 import { useMeshTerminalCmdStatus } from './MeshTerminalCmdStatus';
+import { useMeshTerminalInfonetCommand } from './MeshTerminalInfonetCommand';
 import { useMeshTerminalInfonetCommands } from './MeshTerminalInfonetCommands';
 import { useMeshTerminalSendFlow } from './MeshTerminalSendFlow';
 import { useMeshTerminalGateCommand } from './MeshTerminalGateCommand';
@@ -487,13 +487,13 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
         const counts: Record<string, number> = {};
         const knownRoots = Array.isArray(data.known_roots) ? data.known_roots : [];
         Object.entries((data.roots || {}) as Record<string, { nodes?: number }>).forEach(
-          ([ entry]) => {
+          ([root, entry]) => {
             counts[root] = Number(entry?.nodes || 0);
           },
         );
         const roots = sortMeshRoots(
           [...DEFAULT_MESH_ROOTS, ...knownRoots, ...Object.keys(counts), meshRegion],
-          
+          counts,
           meshRegion,
         );
         setMeshRoots(roots);
@@ -528,6 +528,12 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
   const nodeModeLabel = formatNodeMode(infonetNodeStatus?.node_mode);
   const nodeBootstrapLabel = describeBootstrapState(infonetNodeStatus);
   const nodeSyncLabel = describeSyncOutcome(infonetNodeStatus);
+  const terminalWriteLockReason = getMeshTerminalWriteLockReason({
+    wormholeRequired: wormholeSecureRequired,
+    wormholeReady: wormholeReadyState,
+    anonymousMode: anonymousModeEnabled,
+    anonymousModeReady: anonymousModeReady,
+  });
 
   // Re-focus input when command finishes (busy → false)
   useEffect(() => {
@@ -1019,7 +1025,19 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
 
   const { handleDmCommand } = useMeshTerminalDmCommand({ addError, addLines, addOutput, addSystem, nodeIdentity, hasSovereignty });
 
-  const { handleInboxCommand } = useMeshTerminalInboxCommand({ addError, addLines, addOutput, addSystem });
+  const {
+    handleInboxCommand,
+    handleSendCommand,
+    handleWhoamiCommand,
+    handleConnectCommand,
+    handleRepCommand,
+    handleMyrepCommand,
+    handleThresholdCommand,
+    doSend,
+    doMeshSend,
+    startInteractiveSend,
+    doDMSend,
+  } = useMeshTerminalInboxCommand({ addError, addLines, addOutput, addSystem });
 
   const { handleVoteCommand } = useMeshTerminalVoteCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty});
   const { handleSayCommand } = useMeshTerminalSayCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty,postGateMessage,invalidateGateCatalogSnapshot,invalidateGateDetailSnapshot,invalidateGateThreadPreviewSnapshot,addGateResyncAction});
@@ -1094,7 +1112,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     return false;
   };
 
-  const handleGateChatModeInput = async (trimmed: string): Promise<boolean> => {
+  const handleGateChatModeInput = async (trimmed: string, gateChatMode: boolean): Promise<boolean> => {
       if (gateChatMode && activeGateComposeId) {
       addLines([
         {
@@ -1173,7 +1191,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
           const dhPub = getDHPubKey();
           if (dhPub) {
             try {
-              await ensureRegisteredDmKey(API,  { force: true });
+              await ensureRegisteredDmKey(API, nodeIdentity!, { force: true });
               addOutput('    Encrypted DM keys registered.');
             } catch {
               /* non-critical */
@@ -1228,7 +1246,7 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
         !dmStep &&
         !sovereigntyPending;
 
-      if (await handleGateChatModeInput(trimmed)) return;
+      if (await handleGateChatModeInput(trimmed, gateChatMode)) return;
 
       if (await handleSovereigntyPromptInput(trimmed)) return;
       if (await handleInteractivePromptInput(trimmed)) return;
@@ -1306,7 +1324,11 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
             break;
           case 'mesh':
           case 'radio': {
-            await handleMeshCommand(cmd.toLowerCase(), args, {});
+            if (args.length === 0) {
+              addError('Usage: mesh <message>');
+            } else {
+              await doMeshSend(args.join(' '), meshRegion);
+            }
             break;
           }
           case 'send':
@@ -1641,6 +1663,6 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
     }
   };
 
-  const { renderStyledLine, renderSurfacePanel } = useMeshTerminalPanels({                                 React, RegExpExecArray,                activatePrivateLane,   addLines, addSystem,                                                                event,  exec, expandedGateDetail, expandedGateId, expandedGateKey, expandedGateLoading, expandedGateMessages, expandedMarketIndex,           focus,      gateCatalog, gateCatalogLoading,   getContacts,                  input, inputRef,               length, lineColor,            meshRegion,            nodeIdentity,         openGateCard, openSurface,        pendingGateCommand,  pickRecordText,    pos,           privateLaneDetail, privateLaneLabel,    publicAgentReady,                 routeToWormholeSetup,  runQuickCommand,      sessionStorage, setActiveGateComposeId, setExpandedMarketIndex, setGateAccessGranted, setGateAccessPromptOpen, setGateReplyTarget, setMeshRegion, setPendingGateCommand, setPrivateLanePromptOpen, setPrivateLanePromptStatus, setSurfacePanel, setTimeout,     size,             string, surfaceInbox, surfaceInboxLoading, surfaceMarkets, surfaceMarketsLoading, surfaceMeshCounts, surfaceMeshLoading, surfacePanel,            top,         unknown,   useCallback,    voteDirections, voteScopeKey,       wormholeReadyState, wormholeSecureRequired});
-  return <MeshTerminalView p={{  AnimatePresence,       GripHorizontal,     Minus,     Terminal,            activeGateComposeId,                     blur,         busy,     centered,  chipTone,                            dmStep,                focus,  formatNodeTime,    gateAccessPromptOpen, gateReplyTarget,  getSelection,    handleKey, hasSovereignty,         infonetNodeStatus, infonetNodeStatusError,   input, inputRef,       isOpen, it,          length,   lines,          minimized,  motion,         nodeBootstrapLabel,  nodeIdentity, nodeModeLabel, nodeSyncLabel,           onClose, onDragStart, onResizeStart, onSettingsClick,    openPrivateLanePrompt, openSurface,                privateLaneLabel, privateLanePromptBusy, privateLanePromptMode, privateLanePromptOpen, privateLanePromptStatus,         renderStyledLine, renderSurfacePanel,  require,        runQuickCommand,   scrollRef,       sendStep,   sessionStorage, setCentered, setInput,  setMinimized,  shortNodeHash,  size,     sovereigntyPending,           summarizeNodePeer,                 top,             windowRef,   wormholeReadyState, wormholeSecureRequired}} />;
+  const { renderStyledLine, renderSurfacePanel } = useMeshTerminalPanels({                                                  activatePrivateLane,   addLines, addSystem,                                                                   expandedGateDetail, expandedGateId, expandedGateKey, expandedGateLoading, expandedGateMessages, expandedMarketIndex,                 gateCatalog, gateCatalogLoading,   getContacts,                  input, inputRef,                lineColor,            meshRegion,            nodeIdentity,         openGateCard, openSurface,        pendingGateCommand,  pickRecordText,               privateLaneDetail, privateLaneLabel,    publicAgentReady,                 routeToWormholeSetup,  runQuickCommand,       setActiveGateComposeId, setExpandedMarketIndex, setGateAccessGranted, setGateAccessPromptOpen, setGateReplyTarget, setMeshRegion, setPendingGateCommand, setPrivateLanePromptOpen, setPrivateLanePromptStatus, setSurfacePanel,                    surfaceInbox, surfaceInboxLoading, surfaceMarkets, surfaceMarketsLoading, surfaceMeshCounts, surfaceMeshLoading, surfacePanel,                            voteDirections, voteScopeKey,       wormholeReadyState, wormholeSecureRequired});
+  return <MeshTerminalView p={{  AnimatePresence,       GripHorizontal,     Minus,     Terminal,            activeGateComposeId,                              busy,     centered,  chipTone,                            dmStep,                  formatNodeTime,    gateAccessPromptOpen, gateReplyTarget,  getSelection,    handleKey, hasSovereignty,         infonetNodeStatus, infonetNodeStatusError,   input, inputRef,       isOpen,              lines,          minimized,  motion,         nodeBootstrapLabel,  nodeIdentity, nodeModeLabel, nodeSyncLabel,           onClose, onDragStart, onResizeStart, onSettingsClick,    openPrivateLanePrompt, openSurface,                privateLaneLabel, privateLanePromptBusy, privateLanePromptMode, privateLanePromptOpen, privateLanePromptStatus,         renderStyledLine, renderSurfacePanel,          runQuickCommand,   scrollRef,       sendStep,    setCentered, setInput,  setMinimized,  shortNodeHash,       sovereigntyPending,           summarizeNodePeer,                              windowRef,   wormholeReadyState, wormholeSecureRequired}} />;
 }

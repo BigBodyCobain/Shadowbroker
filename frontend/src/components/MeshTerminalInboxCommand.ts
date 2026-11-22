@@ -173,5 +173,17 @@ export function useMeshTerminalInboxCommand(ctx: any) {
             addSystem(`  DM threshold set to ${n}. Only nodes with rep >= ${n} can message you.`);
   };
 
-  return { handleInboxCommand };
+  return {
+    handleInboxCommand,
+    handleSendCommand,
+    handleWhoamiCommand,
+    handleConnectCommand,
+    handleRepCommand,
+    handleMyrepCommand,
+    handleThresholdCommand,
+    doSend,
+    doMeshSend,
+    startInteractiveSend,
+    doDMSend,
+  };
 }
