@@ -1255,10 +1255,20 @@ class AsfinagIngestor(BaseCCTVIngestor):
 class MadridCityIngestor(BaseCCTVIngestor):
     """Madrid City Hall traffic cameras from datos.madrid.es KML feed."""
 
-    KML_URL = "https://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+    KML_URL_HTTPS = "https://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+    KML_URL_HTTP = "http://datos.madrid.es/egob/catalogo/202088-0-trafico-camaras.kml"
+    # Back-compat alias for operators referencing the old single URL.
+    KML_URL = KML_URL_HTTPS
 
     def _fetch_kml(self):
-        response = fetch_with_curl(self.KML_URL, timeout=20)
+        """Prefer HTTPS, fall back to plain HTTP if the TLS path fails (#363)."""
+        try:
+            response = fetch_with_curl(self.KML_URL_HTTPS, timeout=20)
+            response.raise_for_status()
+            return response
+        except Exception as exc:
+            logger.warning("Madrid KML HTTPS fetch failed, retrying HTTP: %s", exc)
+        response = fetch_with_curl(self.KML_URL_HTTP, timeout=20)
         response.raise_for_status()
         return response
 
