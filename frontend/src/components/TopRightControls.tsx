@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import GithubIcon from '@/components/icons/GithubIcon';
 import { API_BASE } from '@/lib/api';
+import { copyText } from '@/lib/clipboard';
 import { useTranslation } from '@/i18n';
 import { controlPlaneFetch } from '@/lib/controlPlane';
 import {
@@ -688,7 +689,7 @@ export default function TopRightControls({
           <div className="relative bg-black/40 border border-[var(--border-primary)] p-2 group">
             <code className="text-[10px] font-mono text-green-400 break-all">{dockerCommands}</code>
             <button
-              onClick={() => navigator.clipboard.writeText(dockerCommands)}
+              onClick={() => { void copyText(dockerCommands); }}
               className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity text-[var(--text-muted)] hover:text-cyan-400"
               title="Copy command"
             >

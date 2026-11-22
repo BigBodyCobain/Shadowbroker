@@ -27,6 +27,7 @@ import {
   Globe,
   Rss } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
+import { copyText } from '@/lib/clipboard';
 import type { AIIntelPin, AIIntelLayer, SatelliteScene } from '@/types/aiIntel';
 import { useTranslation } from '@/i18n';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -782,7 +783,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
   const handleCopySnippet = async () => {
     const secret = hmacSecret || (await revealHmacSecret());
     if (!secret) return;
-    navigator.clipboard.writeText(buildSnippet(secret));
+    void copyText(buildSnippet(secret));
     setSnippetCopied(true);
     setTimeout(() => setSnippetCopied(false), 2000);
   };
@@ -1223,7 +1224,7 @@ export default function AIIntelPanel({
   const apiEndpoint = getBackendEndpoint();
 
   const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+    void copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Send, MapPin, Loader2, Brain, Trash2, Sparkles, Link2, Copy, Check, X } from 'lucide-react';
 import { getBackendEndpoint } from '@/lib/backendEndpoint';
+import { copyText } from '@/lib/clipboard';
 
 interface AIMessage {
   role: 'user' | 'ai' | 'system';
@@ -53,7 +54,7 @@ Use "help" to see capabilities.`,
   const apiEndpoint = getBackendEndpoint();
 
   const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+    void copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
