@@ -1,9 +1,20 @@
-// @ts-nocheck
 'use client';
 import React from 'react';
-import { X } from 'lucide-react';
+import { Terminal, X } from 'lucide-react';
 export function MeshGatePersonaPrompt({ p }: { p: any }) {
-  const { gatePersonaPromptOpen, gatePersonaPromptTitle, closeGatePersonaPrompt, gatePersonas, gatePersonaBusy, submitGatePersonaPrompt, setActiveTab, openSettings, selectSavedGatePersona, remainAnonymousInGate, gatePersonaPromptError, gatePersonaDraftLabel, setGatePersonaDraftLabel } = p;
+  const {
+    gatePersonaPromptOpen, gatePersonaPromptTitle, closeGatePersonaPrompt, gatePersonas, gatePersonaBusy,
+    submitGatePersonaPrompt, setActiveTab, openSettings, selectSavedGatePersona, remainAnonymousInGate,
+    gatePersonaPromptError, gatePersonaDraftLabel, setGatePersonaDraftLabel,
+    gatePersonaPromptPersonaList, setGatePersonaPromptError,
+    wormholeEnabled, wormholeReadyState, handleResetPublicIdentity, identityWizardBusy,
+    publicMeshBlockedByWormhole, handleLeaveWormholeForPublicMesh, onSettingsClick,
+    setIdentityWizardOpen, identityWizardStatus, infonetUnlockOpen, setInfonetUnlockOpen,
+    privateInfonetBlockedDetail, openTerminal, deadDropUnlockOpen, setDeadDropUnlockOpen,
+    identityWizardOpen, hasPublicLaneIdentity, hasStoredPublicLaneIdentity, publicMeshAddress,
+    wormholeDescriptor, handleActivatePublicMeshSession, handleCreatePublicIdentity, handleBootstrapPrivateIdentity,
+  } = p as any;
+  const personaList = gatePersonaPromptPersonaList || gatePersonas || [];
   return (
 <>
       {gatePersonaPromptOpen && (
@@ -35,13 +46,13 @@ export function MeshGatePersonaPrompt({ p }: { p: any }) {
                 this gate and cannot be changed in this build.
               </div>
 
-              {gatePersonaPromptPersonaList.length > 0 && (
+              {personaList.length > 0 && (
                 <div className="border border-cyan-800/25 bg-cyan-950/10 px-3 py-3">
                   <div className="text-[12px] font-mono tracking-[0.18em] text-cyan-300 mb-2">
                     SAVED FACES
                   </div>
                   <div className="space-y-2">
-                    {gatePersonaPromptPersonaList.map((persona) => (
+                    {personaList.map((persona: any) => (
                       <button
                         key={persona.persona_id || persona.node_id}
                         onClick={() => void selectSavedGatePersona(String(persona.persona_id || ''))}

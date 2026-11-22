@@ -1,6 +1,6 @@
-// @ts-nocheck
 'use client';
 import React from 'react';
+import { MSG_COLORS } from './types';
 
 export function MeshChatMeshtasticTab({ p }: { p: any }) {
   const {
@@ -183,7 +183,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                       className="bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-[12px] font-mono text-cyan-300 px-2 py-1 outline-none focus:border-cyan-700/50"
                       style={{ width: '132px' }}
                     >
-                      {meshRoots.map((r) => (
+                      {meshRoots.map((r: any) => (
                         <option key={r} value={r}>
                           {r}
                         </option>
@@ -194,7 +194,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                       onChange={(e) => setMeshChannel(e.target.value)}
                       className="flex-1 bg-[var(--bg-secondary)]/50 border border-[var(--border-primary)] text-[12px] font-mono text-green-400 px-2 py-1 outline-none focus:border-cyan-700/50"
                     >
-                      {meshChannels.map((ch) => (
+                      {meshChannels.map((ch: any) => (
                         <option key={ch} value={ch}>
                           {activeChannels.has(ch) ? `* ${ch}` : `  ${ch}`}
                         </option>
@@ -337,7 +337,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                             <span className="text-[var(--text-muted)]">BROKER</span>
                             <input
                               value={meshMqttForm.broker}
-                              onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, broker: e.target.value }))}
+                              onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, broker: e.target.value }))}
                               className="w-full border border-[var(--border-primary)] bg-black/30 px-2 py-1 text-cyan-200 outline-none focus:border-cyan-500/50"
                             />
                           </label>
@@ -345,7 +345,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                             <span className="text-[var(--text-muted)]">PORT</span>
                             <input
                               value={meshMqttForm.port}
-                              onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, port: e.target.value }))}
+                              onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, port: e.target.value }))}
                               className="w-full border border-[var(--border-primary)] bg-black/30 px-2 py-1 text-cyan-200 outline-none focus:border-cyan-500/50"
                             />
                           </label>
@@ -355,7 +355,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                           <span className="text-[var(--text-muted)]">BROKER LOGIN (optional)</span>
                           <input
                             value={meshMqttForm.username}
-                            onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, username: e.target.value }))}
+                            onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, username: e.target.value }))}
                             placeholder="blank uses public Meshtastic default"
                             className="w-full border border-[var(--border-primary)] bg-black/30 px-2 py-1 text-cyan-200 outline-none focus:border-cyan-500/50"
                           />
@@ -368,7 +368,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                           <input
                             type="password"
                             value={meshMqttForm.password}
-                            onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, password: e.target.value }))}
+                            onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, password: e.target.value }))}
                             placeholder={
                               meshMqttSettings?.uses_default_credentials
                                 ? 'blank uses public Meshtastic default'
@@ -387,7 +387,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                           <input
                             type="password"
                             value={meshMqttForm.psk}
-                            onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, psk: e.target.value }))}
+                            onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, psk: e.target.value }))}
                             placeholder="blank uses default LongFast key"
                             className="w-full border border-[var(--border-primary)] bg-black/30 px-2 py-1 text-cyan-200 outline-none placeholder:text-[var(--text-muted)] focus:border-cyan-500/50"
                           />
@@ -398,7 +398,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                             type="checkbox"
                             checked={meshMqttForm.include_default_roots}
                             onChange={(e) =>
-                              setMeshMqttForm((prev) => ({ ...prev, include_default_roots: e.target.checked }))
+                              setMeshMqttForm((prev: any) => ({ ...prev, include_default_roots: e.target.checked }))
                             }
                           />
                           DEFAULT PUBLIC ROOTS
@@ -408,7 +408,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                           <span className="text-[var(--text-muted)]">EXTRA ROOTS</span>
                           <input
                             value={meshMqttForm.extra_roots}
-                            onChange={(e) => setMeshMqttForm((prev) => ({ ...prev, extra_roots: e.target.value }))}
+                            onChange={(e) => setMeshMqttForm((prev: any) => ({ ...prev, extra_roots: e.target.value }))}
                             placeholder="comma separated, optional"
                             className="w-full border border-[var(--border-primary)] bg-black/30 px-2 py-1 text-cyan-200 outline-none placeholder:text-[var(--text-muted)] focus:border-cyan-500/50"
                           />
@@ -464,7 +464,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                             No public direct messages addressed to {activePublicMeshAddress.toUpperCase()} yet.
                           </div>
                         )}
-                        {meshInboxMessages.map((m, i) => (
+                        {meshInboxMessages.map((m: any, i: number) => (
                           <div key={`${m.timestamp}-${i}`} className="py-0.5 leading-[1.65]">
                             <div className="flex items-start gap-1.5 text-[12px] font-mono">
                               <button
@@ -494,7 +494,7 @@ export function MeshChatMeshtasticTab({ p }: { p: any }) {
                       </>
                     )}
                     {meshView === 'channel' &&
-                      filteredMeshMessages.map((m, i) => (
+                      filteredMeshMessages.map((m: any, i: number) => (
                         <div key={`${m.timestamp}-${i}`} className="py-0.5 leading-[1.65]">
                           <div className="flex gap-1.5 text-[12px] font-mono">
                             <button

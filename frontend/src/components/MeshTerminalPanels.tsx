@@ -1,356 +1,12 @@
-// @ts-nocheck
 'use client';
 import React from 'react';
+import type { TermLine } from './MeshTerminal.shared';
 
 export function useMeshTerminalPanels(ctx: any) {
   const {
-    Access,
-    Agent,
-    Begin,
-    Browse,
-    Build,
-    CSSProperties,
-    Category,
-    Check,
-    Checking,
-    Commons,
-    Consensus,
-    Contacts,
-    Create,
-    Creator,
-    Encrypted,
-    Epoch,
-    Gate,
-    Infonet,
-    Loading,
-    LongFast,
-    Look,
-    Mesh,
-    Meshtastic,
-    Messages,
-    News,
-    No,
-    Open,
-    Position,
-    Prediction,
-    Public,
-    Pull,
-    Question,
-    RegExpExecArray,
-    Scan,
-    Search,
-    See,
-    Shodan,
-    Show,
-    Staying,
-    Summarize,
-    Taiwan,
-    Type,
-    Use,
-    Watch,
-    Wormhole,
-    access,
-    actionCommand,
-    actionLabel,
-    activatePrivateLane,
-    active,
-    activity,
-    addLines,
-    addSystem,
-    age,
-    aircraft,
-    airports,
-    alias,
-    all,
-    amber,
-    an,
-    and,
-    apps,
-    around,
-    as,
-    available,
-    aviv,
-    based,
-    bases,
-    between,
-    bg,
-    bitcoin,
-    black,
-    block,
-    blocked,
-    board,
-    border,
-    brief,
-    button,
-    by,
-    calc,
-    cards,
-    catalog,
-    center,
-    channels,
-    colors,
-    cols,
-    commands,
-    commons,
-    connect,
-    consensus_pct,
-    contacts,
-    counts,
-    create,
-    creator_node_id,
-    current,
-    current_epoch,
-    cyan,
-    datacenters,
-    dead,
-    denied,
-    description,
-    detail,
-    details,
-    dim,
-    display_name,
-    div,
-    dm,
-    dossier,
-    dossiers,
-    down,
-    drop,
-    elon,
-    emerald,
-    encrypted,
-    entries,
-    error,
-    event,
-    exact,
-    exec,
-    expandedGateDetail,
-    expandedGateId,
-    expandedGateKey,
-    expandedGateLoading,
-    expandedGateMessages,
-    expandedMarketIndex,
-    experimental,
-    exposed,
-    face,
-    fast,
-    filter,
-    fixed,
-    flags,
-    flex,
-    flow,
-    flows,
-    focus,
-    font,
-    from,
-    fuchsia,
-    full,
-    gap,
-    gateCatalog,
-    gateCatalogLoading,
-    gate_id,
-    gates,
-    getContacts,
-    gi,
-    grid,
-    group,
-    guided,
-    has_local_access,
-    header,
-    headlines,
-    help,
-    here,
-    home,
-    hosts,
-    hover,
-    identity,
-    identity_scope,
-    ignore,
-    inbox,
-    infonet,
-    input,
-    inputRef,
-    inset_0_0_0_1px_rgba,
-    intercept,
-    into,
-    is,
-    items,
-    jet,
-    justify,
-    lane,
-    later,
-    latest,
-    launch,
-    leading,
-    ledger,
-    left,
-    length,
-    lineColor,
-    linked,
-    listen,
-    locked,
-    map,
-    markets,
-    mask,
-    maxHeight,
-    maxWidth,
-    md,
-    member,
-    mesh,
-    meshRegion,
-    message_count,
-    messages,
-    min,
-    min_overall_rep,
-    mono,
-    msgs,
-    mt,
-    musk,
-    need,
-    news,
-    nodeId,
-    nodeIdentity,
-    nodes,
-    not,
-    now,
-    obfuscated,
-    observable,
-    of,
-    on,
-    one,
-    openGateCard,
-    openSurface,
-    operator,
-    ops,
-    or,
-    oracle,
-    org,
-    pattern,
-    pending,
-    pendingGateCommand,
-    person,
-    pickRecordText,
-    pl,
-    place,
-    places,
-    pos,
-    position,
-    post,
-    posting,
-    power,
-    pr,
-    pre,
-    precision,
-    prediction,
-    presets,
-    previews,
-    privateLaneDetail,
-    privateLaneLabel,
-    probability,
-    profile,
-    profiles,
-    publicAgentReady,
-    push,
-    px,
-    py,
-    question,
-    quick,
-    ramstein,
-    records,
-    regional,
-    remain,
-    removeItem,
-    rep,
-    required,
-    restricted,
-    root,
-    rose,
-    route,
-    routeToWormholeSetup,
-    rules,
-    runQuickCommand,
-    saved,
-    search,
-    send,
-    sender,
-    services,
-    sessionStorage,
-    setActiveGateComposeId,
-    setExpandedMarketIndex,
-    setGateAccessGranted,
-    setGateAccessPromptOpen,
-    setGateReplyTarget,
-    setMeshRegion,
-    setPendingGateCommand,
-    setPrivateLanePromptOpen,
-    setPrivateLanePromptStatus,
-    setSurfacePanel,
-    setTimeout,
-    shadow,
-    shodan,
-    shrink,
-    signals,
-    size,
-    slate,
-    slice,
-    sm,
-    sort,
-    source,
-    space,
-    spacex,
-    span,
-    splice,
-    stakes,
-    start,
-    stays,
-    string,
-    surfaceInbox,
-    surfaceInboxLoading,
-    surfaceMarkets,
-    surfaceMarketsLoading,
-    surfaceMeshCounts,
-    surfaceMeshLoading,
-    surfacePanel,
-    sweep,
-    sync,
-    system,
-    taiwan,
-    tap,
-    tel,
-    text,
-    the,
-    then,
-    to,
-    toUpperCase,
-    top,
-    topical,
-    tracking,
-    traffic,
-    transition,
-    translate,
-    trim,
-    u00A0,
-    unblock,
-    unknown,
-    unlock,
-    up,
-    useCallback,
-    view,
-    views,
-    vote,
-    voteDirections,
-    voteScopeKey,
-    want,
-    watch,
-    welcome,
-    when,
-    whitespace,
-    wider,
-    wormholeReadyState,
-    wormholeSecureRequired,
-    wrap,
-    yet,
-    you
-  } = ctx;
+    activatePrivateLane, addLines, addSystem, expandedGateDetail, expandedGateId, expandedGateKey, expandedGateLoading, expandedGateMessages, expandedMarketIndex, gateCatalog, gateCatalogLoading, getContacts, input, inputRef, lineColor, meshRegion, nodeIdentity, openGateCard, openSurface, pendingGateCommand, pickRecordText, privateLaneDetail, privateLaneLabel, publicAgentReady, routeToWormholeSetup, runQuickCommand, setActiveGateComposeId, setExpandedMarketIndex, setGateAccessGranted, setGateAccessPromptOpen, setGateReplyTarget, setMeshRegion, setPendingGateCommand, setPrivateLanePromptOpen, setPrivateLanePromptStatus, setSurfacePanel, surfaceInbox, surfaceInboxLoading, surfaceMarkets, surfaceMarketsLoading, surfaceMeshCounts, surfaceMeshLoading, surfacePanel, voteDirections, voteScopeKey, wormholeReadyState, wormholeSecureRequired
+  } = ctx as any;
+
   const renderStyledLine = (line: TermLine, index: number) => {
     const tokenClasses: Array<{ pattern: RegExp; className: string }> = [
       { pattern: /\b(MESHTASTIC|MESH|RADIO)\b/gi, className: 'text-emerald-300' },
@@ -563,9 +219,9 @@ export function useMeshTerminalPanels(ctx: any) {
             ) : (
               <div className="grid gap-3 md:grid-cols-4">
                 {Object.entries(surfaceMeshCounts)
-                  .sort((a, b) => b[1] - a[1])
+                  .sort((a: any, b: any) => Number(b[1]) - Number(a[1]))
                   .slice(0, 8)
-                  .map(([region, count]) => (
+                  .map(([region, count]: [string, any]) => (
                     <div
                       key={region}
                       className={`border px-4 py-3 font-mono transition-all hover:-translate-y-0.5 ${
@@ -630,7 +286,7 @@ export function useMeshTerminalPanels(ctx: any) {
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-3">
-                {surfaceMarkets.map((market, idx) => {
+                {surfaceMarkets.map((market: any, idx: number) => {
                   const title = pickRecordText(market, ['title', 'question']) || `market-${idx + 1}`;
                   const category = pickRecordText(market, ['category']) || 'market';
                   const pctValue =
@@ -656,7 +312,7 @@ export function useMeshTerminalPanels(ctx: any) {
                         <button
                           type="button"
                           onClick={() =>
-                            setExpandedMarketIndex((prev) => (prev === idx ? null : idx))
+                            setExpandedMarketIndex((prev: any) => (prev === idx ? null : idx))
                           }
                           className="border border-amber-400/20 bg-amber-400/8 px-3 py-1.5 text-[13px] tracking-[0.18em] text-amber-200 hover:bg-amber-400/14"
                         >
@@ -727,7 +383,7 @@ export function useMeshTerminalPanels(ctx: any) {
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {surfaceInbox.map((message, idx) => (
+                {surfaceInbox.map((message: any, idx: number) => (
                   <div
                     key={`${message.sender}-${idx}`}
                     className="border border-cyan-500/20 bg-black/50 px-4 py-4 font-mono transition-all hover:-translate-y-0.5 hover:border-cyan-400/35 hover:bg-cyan-500/6"
@@ -773,13 +429,13 @@ export function useMeshTerminalPanels(ctx: any) {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[11px] tracking-[0.18em] text-fuchsia-200">
-                        {contact.alias || contactId}
+                        {(contact as any).alias || contactId}
                       </div>
                       <div className="text-[13px] text-slate-500">
-                        {contact.blocked ? 'BLOCKED' : 'ACTIVE'}
+                        {(contact as any).blocked ? 'BLOCKED' : 'ACTIVE'}
                       </div>
                     </div>
-                    {contact.alias && (
+                    {(contact as any).alias && (
                       <div className="mt-1 text-[13px] tracking-[0.14em] text-slate-500">{contactId}</div>
                     )}
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -792,10 +448,10 @@ export function useMeshTerminalPanels(ctx: any) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => runQuickCommand(contact.blocked ? `dm unblock ${contactId}` : `dm block ${contactId}`)}
+                        onClick={() => runQuickCommand((contact as any).blocked ? `dm unblock ${contactId}` : `dm block ${contactId}`)}
                         className="border border-fuchsia-500/20 bg-fuchsia-500/8 px-3 py-1.5 text-[13px] tracking-[0.18em] text-fuchsia-300 hover:bg-fuchsia-500/14"
                       >
-                        {contact.blocked ? 'UNBLOCK' : 'BLOCK'}
+                        {(contact as any).blocked ? 'UNBLOCK' : 'BLOCK'}
                       </button>
                     </div>
                   </div>
@@ -829,7 +485,7 @@ export function useMeshTerminalPanels(ctx: any) {
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {gateCatalog.map((gate) => {
+                {gateCatalog.map((gate: any) => {
                   const minRep = gate.rules?.min_overall_rep;
                   const expanded = expandedGateId === gate.gate_id;
                   return (
@@ -937,7 +593,7 @@ export function useMeshTerminalPanels(ctx: any) {
                             <div>
                               <div className="text-[13px] tracking-[0.18em] text-fuchsia-300">THREAD SNAPSHOT</div>
                               <div className="mt-3 grid gap-3">
-                                {expandedGateMessages.map((message, messageIndex) => (
+                                {expandedGateMessages.map((message: any, messageIndex: number) => (
                                   <div
                                     key={`${message.nodeId}-${messageIndex}`}
                                     className="border border-cyan-500/15 bg-black/35 px-3 py-3 text-left transition-all hover:border-cyan-400/30 hover:bg-cyan-500/6"
@@ -1020,79 +676,6 @@ export function useMeshTerminalPanels(ctx: any) {
     }
   };
 
-  const confirmGateAccess = useCallback(() => {
-    if (!wormholeSecureRequired || !wormholeReadyState) {
-      routeToWormholeSetup();
-      return;
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.removeItem(WORMHOLE_RETURN_KEY);
-      } catch {
-        /* ignore */
-      }
-    }
-    setGateAccessGranted(true);
-    setGateAccessPromptOpen(false);
-    const nextCommand = pendingGateCommand;
-    setPendingGateCommand(null);
-    setSurfacePanel('gates');
-    if (nextCommand && nextCommand !== 'gates') {
-      setTimeout(() => runQuickCommand(nextCommand), 40);
-    } else {
-      setTimeout(() => runQuickCommand('gates'), 40);
-    }
-  }, [
-    pendingGateCommand,
-    routeToWormholeSetup,
-    runQuickCommand,
-    wormholeReadyState,
-    wormholeSecureRequired,
-  ]);
-
-  const confirmPrivateLanePrompt = useCallback(() => {
-    void activatePrivateLane('gates');
-  }, [activatePrivateLane]);
-
-  const dismissPrivateLanePrompt = useCallback(() => {
-    setPrivateLanePromptOpen(false);
-    setPrivateLanePromptStatus(null);
-    addSystem('  Staying on the public lane for now.');
-    addLines([
-      {
-        text: "  Mesh stays public. Type 'gates' or tap ENTER WORMHOLE later when you want the obfuscated commons.",
-        type: 'dim',
-      },
-    ]);
-  }, [addLines, addSystem]);
-
-  const denyGateAccess = useCallback(() => {
-    setGateAccessPromptOpen(false);
-    setPendingGateCommand(null);
-    setSurfacePanel('home');
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.removeItem(WORMHOLE_RETURN_KEY);
-      } catch {
-        /* ignore */
-      }
-    }
-    addSystem('  Gate access denied. Infonet Commons gates remain restricted.');
-  }, [addSystem]);
-
-  // Position + size style
-  const sizeStyle: React.CSSProperties = {
-    width: size.w,
-    height: size.h,
-    maxWidth: 'calc(100vw - 4rem)',
-    maxHeight: 'calc(100vh - 4rem)',
-  };
-  const absoluteStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: pos.y,
-    left: pos.x,
-    ...sizeStyle,
-  };
 
   return { renderStyledLine, renderSurfacePanel };
 }
