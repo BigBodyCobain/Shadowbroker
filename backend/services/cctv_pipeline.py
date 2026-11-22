@@ -2129,13 +2129,15 @@ def _frame_is_fresh(url: str, max_age_s: int = _FRAME_MAX_AGE_S, headers: dict |
     from services.network_utils import default_user_agent
 
     try:
-        resp = requests.get(
+        from services.ssrf_guard import safe_get
+
+        resp = safe_get(
             url,
             headers={"User-Agent": default_user_agent(), "Range": "bytes=0-0", **(headers or {})},
-            timeout=(3, 6),
-            stream=True,
+            timeout=6,
+            max_redirects=3,
         )
-    except requests.RequestException:
+    except Exception:
         return False
     try:
         if resp.status_code not in (200, 206):
@@ -2604,7 +2606,14 @@ class APRRIngestor(BaseCCTVIngestor):
     @staticmethod
     def _is_live(media_url: str) -> bool:
         from services.network_utils import default_user_agent
+        from services.ssrf_guard import validate_host
 
+        parsed = urlparse(media_url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host_check = validate_host(parsed.hostname or "")
+        if not host_check.get("ok"):
+            return False
         try:
             resp = requests.get(media_url, headers={"User-Agent": default_user_agent()},
                                 allow_redirects=False, timeout=(3, 8))

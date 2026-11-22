@@ -259,8 +259,13 @@ def fetch_remote_bootstrap_manifest(seed_peer_url: str, *, now: float | None = N
         return None
 
     from main import _infonet_peer_requests_proxies
+    from services.ssrf_guard import guard_url_for_peer_request
 
     proxies = _infonet_peer_requests_proxies(normalized)
+    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+    if not guard.get("ok"):
+        logger.debug("swarm manifest blocked for %s: %s", normalized, guard.get("reason"))
+        return None
     timeout = int(getattr(get_settings(), "MESH_SYNC_TIMEOUT_S", 0) or 45)
     request_kwargs: dict[str, Any] = {"timeout": timeout}
     if proxies:
@@ -367,6 +372,11 @@ def announce_local_peer_to_seeds(*, now: float | None = None, force: bool = Fals
         if not normalized:
             continue
         proxies = _infonet_peer_requests_proxies(normalized)
+        from services.ssrf_guard import guard_url_for_peer_request
+        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+        if not guard.get("ok"):
+            results.append({"seed_peer_url": normalized, "ok": False, "detail": str(guard.get("reason"))})
+            continue
         request_kwargs: dict[str, Any] = {
             "data": body_bytes,
             "headers": {
@@ -481,6 +491,11 @@ def push_infonet_events_to_http_peers(events: list[dict[str, Any]]) -> dict[str,
         if not normalized:
             continue
         proxies = _infonet_peer_requests_proxies(normalized)
+        from services.ssrf_guard import guard_url_for_peer_request
+        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+        if not guard.get("ok"):
+            results.append({"peer_url": normalized, "ok": False, "detail": str(guard.get("reason"))})
+            continue
         request_kwargs: dict[str, Any] = {
             "data": body_bytes,
             "headers": {

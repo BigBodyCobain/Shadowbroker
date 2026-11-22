@@ -4121,7 +4121,7 @@ async def thermal_verify(
     return result
 
 
-@app.post("/api/sigint/transmit")
+@app.post("/api/sigint/transmit", dependencies=[Depends(require_local_operator)])
 @limiter.limit("5/minute")
 async def sigint_transmit(request: Request):
     """Send an APRS-IS message to a specific callsign. Requires ham radio credentials."""

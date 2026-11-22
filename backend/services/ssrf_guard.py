@@ -163,6 +163,7 @@ def safe_get(
     timeout: float = 8.0,
     headers: dict[str, str] | None = None,
     max_redirects: int = 3,
+    stream: bool = False,
 ) -> requests.Response:
     current = url
     session_headers = dict(headers or {})
@@ -209,3 +210,29 @@ def safe_get(
 
 def validate_domain(domain: str) -> bool:
     return bool(re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", domain or ""))
+
+
+def guard_url_for_peer_request(url: str, *, allow_proxied: bool = False) -> dict[str, Any]:
+    """Lightweight SSRF guard for peer/mesh URLs.
+
+    When `allow_proxied` is True (request will be routed through a proxy/Tor),
+    skip local DNS/IP pinning because resolution happens at the proxy. Still
+    block dangerous schemes, URL credentials, and obviously reserved hostnames.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").strip().rstrip(".")
+    if parsed.scheme not in ("http", "https"):
+        return {"ok": False, "reason": f"blocked protocol {parsed.scheme}"}
+    if parsed.username or parsed.password:
+        return {"ok": False, "reason": "URL credentials are not allowed"}
+    if not host:
+        return {"ok": False, "reason": "empty host"}
+    lower = host.lower()
+    if any(p.search(lower) for p in _NAME_BLOCKLIST):
+        return {"ok": False, "reason": "hostname matches reserved name pattern"}
+    if lower.endswith(".onion"):
+        return {"ok": True, "resolved": []}
+    if allow_proxied:
+        # Proxied requests resolve at the proxy; avoid local DNS pinning.
+        return {"ok": True, "resolved": []}
+    return validate_host(host)

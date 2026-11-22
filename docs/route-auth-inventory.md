@@ -4,7 +4,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 
 - Files scanned: 28
 - Routes found: 553
-- UNCLASSIFIED: 157
+- UNCLASSIFIED: 156
 
 | Method | Path | Handler | Auth classification | File |
 |---|---|---|---|---|
@@ -14,7 +14,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/layers` | `update_layers` | local-operator |  | `backend/main.py` |
 | GET | `/api/oracle/region-intel` | `oracle_region_intel` | UNCLASSIFIED | MED | `backend/main.py` |
 | GET | `/api/thermal/verify` | `thermal_verify` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/sigint/transmit` | `sigint_transmit` | UNCLASSIFIED | HIGH | `backend/main.py` |
+| POST | `/api/sigint/transmit` | `sigint_transmit` | local-operator |  | `backend/main.py` |
 | GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | UNCLASSIFIED | MED | `backend/main.py` |
 | POST | `/api/mesh/send` | `mesh_send` | signed-write |  | `backend/main.py` |
 | GET | `/api/mesh/log` | `mesh_log` | handler-auth |  | `backend/main.py` |
