@@ -47,6 +47,10 @@ by the large mechanical component/hook extractions.
     `requests.get` after a DNS-pinned variant broke mocked upstreams.
 - Madrid CCTV KML fetch prefers HTTPS with an HTTP fallback.
 - OSM tile proxy retries transient upstream failures (3 attempts, backoff).
+- The Next.js API proxy uses a short circuit breaker: once an upstream fails,
+  subsequent requests get an immediate `502` with `Retry-After` instead of
+  retrying for ~4.5s each and flooding logs. `scripts/dev-servers.sh` starts
+  both servers together, waits for health, and restarts either one if it exits.
 - Repeated MLS key-package export tracebacks are logged once per alias.
 - Signed-write v1 protocol vectors added at `docs/protocol/signed-write-v1-vectors.json`.
 
@@ -97,7 +101,10 @@ provisioned environment to resolve.
 docker compose pull && docker compose up -d
 # open http://localhost:3000
 
-# from source (two terminals)
+# from source (supervised: waits for health and restarts crashed servers)
+./scripts/dev-servers.sh
+
+# or manually, in two terminals:
 cd backend && ../.venv/bin/python main.py
 cd frontend && npm run dev:frontend
 ```
