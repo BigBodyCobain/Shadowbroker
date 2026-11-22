@@ -53,7 +53,7 @@ export function useMeshTerminalVoteCommand(ctx:any){
               });
               const data = await res.json();
               if (data.ok) {
-                setVoteDirections((prev) => ({
+                setVoteDirections((prev: any) => ({
                   ...prev,
                   [voteScopeKey(vTarget, voteGate)]: voteVal,
                 }));

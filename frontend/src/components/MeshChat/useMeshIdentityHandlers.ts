@@ -1,17 +1,13 @@
-// @ts-nocheck
 import { useCallback, useEffect } from 'react';
 import { setInfonetNodeEnabled } from '@/mesh/controlPlaneStatusClient';
 import {
   bootstrapWormholeIdentity,
   fetchWormholeIdentity,
   fetchWormholeStatus,
-  hydrateWormholeContacts,
   prepareWormholeInteractiveLane,
-  purgeBrowserContactGraph,
-  purgeBrowserDmState,
-  purgeBrowserSigningMaterial,
-  setSecureModeCached,
-} from '@/mesh/meshChatCrypto';
+} from '@/mesh/wormholeIdentityClient';
+import { purgeBrowserContactGraph, purgeBrowserSigningMaterial, hydrateWormholeContacts, setSecureModeCached } from '@/mesh/meshIdentity';
+import { purgeBrowserDmState } from '@/mesh/meshDmWorkerClient';
 import { fetchWormholeSettings, joinWormhole, leaveWormhole } from '@/mesh/wormholeClient';
 import {
   readStoredPublicMeshAddress,
