@@ -8,6 +8,8 @@ import { useMeshTerminalInfonetCommands } from './MeshTerminalInfonetCommands';
 import { useMeshTerminalSendFlow } from './MeshTerminalSendFlow';
 import { useMeshTerminalGateCommand } from './MeshTerminalGateCommand';
 import { useMeshTerminalDmCommand } from './MeshTerminalDmCommand';
+import { useMeshTerminalVoteCommand } from './MeshTerminalVoteCommand';
+import { useMeshTerminalSayCommand } from './MeshTerminalSayCommand';
 import { useMeshTerminalInboxCommand } from './MeshTerminalInboxCommand';
 import { useMeshTerminalPanels } from './MeshTerminalPanels';
 import { useMeshTerminalMarketsCommand } from './MeshTerminalMarketsCommand';
@@ -1062,108 +1064,8 @@ export default function MeshTerminal({ isOpen, launchToken = 0, onClose, onDmCou
 
   const { handleInboxCommand } = useMeshTerminalInboxCommand({ addError, addLines, addOutput, addSystem });
 
-  const handleVoteCommand = async (args: string[]) => {
-            // vote <agent_id> up|down [gate]
-            if (!nodeIdentity || !hasSovereignty()) {
-              addError("Not connected. Type 'connect' to activate your Agent identity.");
-              return;
-            }
-            const vTarget = args[0];
-            const vDir = args[1]?.toLowerCase();
-            const voteGate =
-              String(args[2] || activeGateComposeId || expandedGateId || '').trim().toLowerCase();
-            if (!vTarget || !vDir || !['up', 'down'].includes(vDir)) {
-              addError('Usage: vote <node_id> up|down [gate]');
-              return;
-            }
-            try {
-              const voteVal = vDir === 'up' ? 1 : -1;
-              const existingVote = voteDirections[voteScopeKey(vTarget, voteGate)];
-              if (existingVote === voteVal) {
-                addSystem(
-                  `  Vote already set to ${voteVal > 0 ? 'up' : 'down'} on ${vTarget}${voteGate ? ` in g/${voteGate}` : ''}.`,
-                );
-                return;
-              }
-              const sequence = nextSequence();
-              const votePayload = { target_id: vTarget, vote: voteVal, gate: voteGate };
-              const v = validateEventPayload('vote', votePayload);
-              if (!v.ok) {
-                addError(`Invalid payload: ${v.reason}`);
-                return;
-              }
-              const signature = await signEvent('vote', nodeIdentity.nodeId, sequence, votePayload);
-              const res = await fetch(`${API}/api/mesh/vote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  voter_id: nodeIdentity.nodeId,
-                  voter_pubkey: nodeIdentity.publicKey,
-                  target_id: vTarget,
-                  vote: voteVal,
-                  gate: voteGate || undefined,
-                  public_key_algo: getPublicKeyAlgo(),
-                  voter_sig: signature,
-                  sequence,
-                  protocol_version: PROTOCOL_VERSION,
-                }),
-              });
-              const data = await res.json();
-              if (data.ok) {
-                setVoteDirections((prev) => ({
-                  ...prev,
-                  [voteScopeKey(vTarget, voteGate)]: voteVal,
-                }));
-                addSystem(`  ${data.detail}`);
-              } else {
-                addError(data.detail);
-              }
-            } catch {
-              addError('Failed to cast vote');
-            }
-            return;
-  };
-
-  const handleSayCommand = async (args: string[]) => {
-          if (!gateAccessGranted) {
-            requestGateAccess(`say ${args.join(' ')}`.trim());
-            return;
-          }
-          // say <gate_id> <message>
-          if (!wormholeSecureRequired || !wormholeReadyState) {
-            addSystem('  Preparing Wormhole in the background for gate posting...');
-            try {
-              const prepared = await prepareWormholeInteractiveLane({ bootstrapIdentity: true });
-              setWormholeSecureRequired(Boolean(prepared.settingsEnabled));
-              setWormholeReadyState(Boolean(prepared.ready));
-            } catch (err) {
-              addError(
-                describeNativeControlError(err) ||
-                  (err instanceof Error ? err.message : 'Failed to prepare Wormhole.'),
-              );
-              return;
-            }
-          }
-            const gateId = args[0];
-            const gateMsg = args.slice(1).join(' ');
-            if (!gateId || !gateMsg) {
-              addError('Usage: say <gate_id> <message>');
-              return;
-          }
-            try {
-              const data = await postGateMessage(gateId, gateMsg);
-              invalidateGateCatalogSnapshot();
-              invalidateGateDetailSnapshot(gateId);
-              invalidateGateThreadPreviewSnapshot(gateId);
-              addSystem(`  ${data.detail || `Posted to g/${gateId}`}`);
-            } catch (err) {
-              const detail = err instanceof Error && err.message ? err.message : '';
-              if (!addGateResyncAction(err, gateId)) {
-                addError(describeNativeControlError(err) || detail || 'Failed to post to gate');
-              }
-            }
-          return;
-  };
+  const { handleVoteCommand } = useMeshTerminalVoteCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty});
+  const { handleSayCommand } = useMeshTerminalSayCommand({addError,addSystem,addOutput,addLines,nodeIdentity,hasSovereignty,postGateMessage,invalidateGateCatalogSnapshot,invalidateGateDetailSnapshot,invalidateGateThreadPreviewSnapshot,addGateResyncAction});
 
   const handleSimpleCommand = async (cmd: string, args: string[]) => {
     switch (cmd) {
