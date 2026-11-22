@@ -356,6 +356,25 @@ const MaplibreViewer = ({
   const mapRef = useRef<MapRef>(null);
   const mapInitRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  // Esri World Imagery is fetched directly by the browser. When that host is
+  // unreachable, skip the raster sources entirely instead of emitting one
+  // console error per tile (hundreds of them at higher zoom levels).
+  const [esriImageryReachable, setEsriImageryReachable] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    fetch(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/0/0/0',
+      { mode: 'no-cors', signal: controller.signal },
+    )
+      .catch(() => setEsriImageryReachable(false))
+      .finally(() => clearTimeout(timer));
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, []);
   const { theme: uiTheme, sensor } = useTheme();
   // Sensor modes always grade the dark basemap; MAP TONE (light) applies to the EO view only.
   const theme = sensor !== 'off' ? 'dark' : uiTheme;
@@ -1458,7 +1477,7 @@ const MaplibreViewer = ({
           <Layer id="sb-imagery-anchor" type="circle" paint={{ 'circle-radius': 0, 'circle-opacity': 0 }} />
         </Source>
         {/* Esri World Imagery — high-res static satellite (zoom 0-18+) */}
-        {activeLayers.highres_satellite && (
+        {activeLayers.highres_satellite && esriImageryReachable && (
           <Source
             id="esri-world-imagery"
             type="raster"
@@ -1555,7 +1574,7 @@ const MaplibreViewer = ({
         )}
 
         {/* Esri Reference Overlay — borders, labels, and places on top of imagery layers */}
-        {showImageryReferenceOverlay && (
+        {showImageryReferenceOverlay && esriImageryReachable && (
           <Source
             id="esri-reference-overlay"
             type="raster"
