@@ -2,107 +2,116 @@
 
 Generated statically by `scripts/route_auth_inventory.py`. This is a static heuristic (not runtime introspection). It detects per-route Depends hints and APIRouter(dependencies=...). Review UNCLASSIFIED and depends-other routes manually.
 
+Classification legend:
+
+- `admin/scoped`, `local-operator`, `openclaw-or-local`, `peer-hmac`: explicit `Depends(...)` or in-handler HMAC verification.
+- `signed-write`: signed-envelope enforcement (decorator or handler helper).
+- `handler-auth (scoped/session)`: authorization performed inside the handler (scoped token, WS credential).
+- `peer-gossip (signed events)`: peer gossip endpoint accepting only hashchain-validated events.
+- `public-intentional (read-only)`: GET endpoints with no state change, open by design.
+- `public-intentional`: reviewed non-GET endpoint that is a dry run, pure computation, or fixed-upstream proxy.
+
 - Files scanned: 28
 - Routes found: 553
-- UNCLASSIFIED: 156
+- UNCLASSIFIED: 0
 
 | Method | Path | Handler | Auth classification | File |
 |---|---|---|---|---|
 | GET | `/api/refresh` | `force_refresh` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/ais/feed` | `ais_feed` | local-operator |  | `backend/main.py` |
-| POST | `/api/viewport` | `update_viewport` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/viewport` | `update_viewport` | public-intentional |  | `backend/main.py` |
 | POST | `/api/layers` | `update_layers` | local-operator |  | `backend/main.py` |
-| GET | `/api/oracle/region-intel` | `oracle_region_intel` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/thermal/verify` | `thermal_verify` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/oracle/region-intel` | `oracle_region_intel` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/thermal/verify` | `thermal_verify` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/sigint/transmit` | `sigint_transmit` | local-operator |  | `backend/main.py` |
-| GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/send` | `mesh_send` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/log` | `mesh_log` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/status` | `mesh_status` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/signals` | `mesh_signals` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/messages` | `mesh_messages` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/channels` | `mesh_channels` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/log` | `mesh_log` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/status` | `mesh_status` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/signals` | `mesh_signals` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/messages` | `mesh_messages` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/channels` | `mesh_channels` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/vote` | `mesh_vote` | signed-write |  | `backend/main.py` |
 | POST | `/api/mesh/report` | `mesh_report` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | public-intentional (read-only) |  | `backend/main.py` |
 | GET | `/api/mesh/reputation/all` | `mesh_reputation_all` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | signed-write |  | `backend/main.py` |
 | POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | signed-write |  | `backend/main.py` |
 | POST | `/api/mesh/gate/create` | `gate_create` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/gate/list` | `gate_list` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/gate/list` | `gate_list` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth (scoped) |  | `backend/main.py` |
 | GET | `/api/privacy/claims` | `api_privacy_claims` | local-operator |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/locator` | `infonet_locator` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/sync` | `infonet_sync` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/locator` | `infonet_locator` | public-intentional (read-only) |  | `backend/main.py` |
+| POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | peer-gossip (signed events) |  | `backend/main.py` |
+| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/sync` | `infonet_sync` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/infonet/ingest` | `infonet_ingest` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/mesh/infonet/peer-registry` | `infonet_peer_registry` | local-operator |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/bootstrap-manifest` | `infonet_bootstrap_manifest` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/infonet/peer-announce` | `infonet_peer_announce` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/infonet/peer-push` | `infonet_peer_push` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/gate/peer-push` | `gate_peer_push` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/gate/peer-pull` | `gate_peer_pull` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/infonet/bootstrap-manifest` | `infonet_bootstrap_manifest` | public-intentional (read-only) |  | `backend/main.py` |
+| POST | `/api/mesh/infonet/peer-announce` | `infonet_peer_announce` | peer-hmac |  | `backend/main.py` |
+| POST | `/api/mesh/infonet/peer-push` | `infonet_peer_push` | peer-hmac |  | `backend/main.py` |
+| POST | `/api/mesh/gate/peer-push` | `gate_peer_push` | peer-hmac |  | `backend/main.py` |
+| POST | `/api/mesh/gate/peer-pull` | `gate_peer_pull` | peer-hmac |  | `backend/main.py` |
 | GET | `/api/mesh/peers` | `list_peers` | local-operator |  | `backend/main.py` |
 | POST | `/api/mesh/peers` | `add_peer` | local-operator |  | `backend/main.py` |
 | DELETE | `/api/mesh/peers` | `remove_peer` | local-operator |  | `backend/main.py` |
 | PATCH | `/api/mesh/peers` | `toggle_peer` | local-operator |  | `backend/main.py` |
-| PUT | `/api/mesh/gate/{gate_id}/envelope_policy` | `set_gate_envelope_policy` | UNCLASSIFIED | MED | `backend/main.py` |
-| PUT | `/api/mesh/gate/{gate_id}/legacy_envelope_fallback` | `set_gate_legacy_envelope_fallback` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/gate/{gate_id}/messages` | `gate_messages` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/messages` | `infonet_messages` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | UNCLASSIFIED | MED | `backend/main.py` |
+| PUT | `/api/mesh/gate/{gate_id}/envelope_policy` | `set_gate_envelope_policy` | handler-auth (scoped) |  | `backend/main.py` |
+| PUT | `/api/mesh/gate/{gate_id}/legacy_envelope_fallback` | `set_gate_legacy_envelope_fallback` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/gate/{gate_id}/messages` | `gate_messages` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/messages` | `infonet_messages` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/oracle/predict` | `oracle_predict` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/oracle/markets` | `oracle_markets` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/search` | `oracle_search` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/mesh/oracle/resolve` | `oracle_resolve` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/oracle/markets` | `oracle_markets` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/search` | `oracle_search` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | public-intentional (read-only) |  | `backend/main.py` |
+| POST | `/api/mesh/oracle/resolve` | `oracle_resolve` | admin/scoped |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/mesh/oracle/stake` | `oracle_stake` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth |  | `backend/main.py` |
-| POST | `/api/mesh/oracle/resolve-stakes` | `oracle_resolve_stakes` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth (scoped) |  | `backend/main.py` |
+| POST | `/api/mesh/oracle/resolve-stakes` | `oracle_resolve_stakes` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/mesh/dm/register` | `dm_register_key` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | handler-auth |  | `backend/main.py` |
-| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | handler-auth (scoped) |  | `backend/main.py` |
 | POST | `/api/mesh/dm/send` | `dm_send` | signed-write |  | `backend/main.py` |
 | POST | `/api/mesh/dm/poll` | `dm_poll_secure` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/dm/poll` | `dm_poll` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/dm/poll` | `dm_poll` | handler-auth (scoped) |  | `backend/main.py` |
 | POST | `/api/mesh/dm/count` | `dm_count_secure` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/dm/count` | `dm_count` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/dm/count` | `dm_count` | handler-auth (scoped) |  | `backend/main.py` |
 | POST | `/api/mesh/dm/block` | `dm_block` | signed-write |  | `backend/main.py` |
 | POST | `/api/mesh/dm/witness` | `dm_key_witness` | signed-write |  | `backend/main.py` |
-| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth |  | `backend/main.py` |
+| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth (scoped) |  | `backend/main.py` |
 | POST | `/api/mesh/trust/vouch` | `trust_vouch` | signed-write |  | `backend/main.py` |
 | GET | `/api/mesh/trust/vouches` | `trust_vouches` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/debug-latest` | `debug_latest_data` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/cctv/media` | `cctv_media_proxy` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/health` | `health_check` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/top` | `get_top_radios` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/openmhz/systems` | `api_get_openmhz_systems` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/openmhz/calls/{sys_name}` | `api_get_openmhz_calls` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/openmhz/audio` | `api_get_openmhz_audio` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/nearest` | `api_get_nearest_radio` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/radio/nearest-list` | `api_get_nearest_radios_list` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/route/{callsign}` | `get_flight_route` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/region-dossier` | `api_region_dossier` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/geocode/search` | `api_geocode_search` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/geocode/reverse` | `api_geocode_reverse` | UNCLASSIFIED | MED | `backend/main.py` |
-| GET | `/api/sentinel2/search` | `api_sentinel2_search` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/cctv/media` | `cctv_media_proxy` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/health` | `health_check` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/top` | `get_top_radios` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/openmhz/systems` | `api_get_openmhz_systems` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/openmhz/calls/{sys_name}` | `api_get_openmhz_calls` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/openmhz/audio` | `api_get_openmhz_audio` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/nearest` | `api_get_nearest_radio` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/radio/nearest-list` | `api_get_nearest_radios_list` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/route/{callsign}` | `get_flight_route` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/region-dossier` | `api_region_dossier` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/geocode/search` | `api_geocode_search` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/geocode/reverse` | `api_geocode_reverse` | public-intentional (read-only) |  | `backend/main.py` |
+| GET | `/api/sentinel2/search` | `api_sentinel2_search` | public-intentional (read-only) |  | `backend/main.py` |
 | POST | `/api/sentinel/token` | `api_sentinel_token` | public-intentional |  | `backend/main.py` |
-| POST | `/api/sentinel/tile` | `api_sentinel_tile` | UNCLASSIFIED | MED | `backend/main.py` |
+| POST | `/api/sentinel/tile` | `api_sentinel_tile` | local-operator |  | `backend/main.py` |
 | GET | `/api/settings/api-keys` | `api_get_keys` | admin/scoped |  | `backend/main.py` |
 | GET | `/api/settings/api-keys/meta` | `api_get_keys_meta` | public-intentional |  | `backend/main.py` |
-| GET | `/api/basemap-config` | `api_basemap_config` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/basemap-config` | `api_basemap_config` | public-intentional (read-only) |  | `backend/main.py` |
 | GET | `/api/tools/shodan/status` | `api_shodan_status` | local-operator |  | `backend/main.py` |
 | POST | `/api/tools/shodan/search` | `api_shodan_search` | local-operator |  | `backend/main.py` |
 | POST | `/api/tools/shodan/count` | `api_shodan_count` | local-operator |  | `backend/main.py` |
@@ -114,15 +123,15 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/settings/news-feeds` | `api_get_news_feeds` | local-operator |  | `backend/main.py` |
 | PUT | `/api/settings/news-feeds` | `api_save_news_feeds` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/settings/news-feeds/reset` | `api_reset_news_feeds` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth |  | `backend/main.py` |
+| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth (scoped) |  | `backend/main.py` |
 | PUT | `/api/settings/node` | `api_set_node_settings` | local-operator |  | `backend/main.py` |
-| POST | `/api/mesh/infonet/swarm/join` | `infonet_swarm_join` | handler-auth |  | `backend/main.py` |
-| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth |  | `backend/main.py` |
+| POST | `/api/mesh/infonet/swarm/join` | `infonet_swarm_join` | local-operator |  | `backend/main.py` |
+| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth (scoped) |  | `backend/main.py` |
 | PUT | `/api/settings/wormhole` | `api_set_wormhole_settings` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth |  | `backend/main.py` |
-| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth |  | `backend/main.py` |
-| POST | `/api/wormhole/join` | `api_wormhole_join` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/wormhole/leave` | `api_wormhole_leave` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth (scoped) |  | `backend/main.py` |
+| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth (scoped) |  | `backend/main.py` |
+| POST | `/api/wormhole/join` | `api_wormhole_join` | local-operator |  | `backend/main.py` |
+| POST | `/api/wormhole/leave` | `api_wormhole_leave` | local-operator |  | `backend/main.py` |
 | GET | `/api/wormhole/identity` | `api_wormhole_identity` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/identity/bootstrap` | `api_wormhole_identity_bootstrap` | local-operator |  | `backend/main.py` |
 | GET | `/api/wormhole/dm/identity` | `api_wormhole_dm_identity` | local-operator |  | `backend/main.py` |
@@ -154,8 +163,8 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/wormhole/gate/key/grant` | `api_wormhole_gate_key_grant` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/message/compose` | `api_wormhole_gate_message_compose` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/message/sign-encrypted` | `api_wormhole_gate_message_sign_encrypted` | local-operator |  | `backend/main.py` |
-| POST | `/api/wormhole/gate/message/post-encrypted` | `api_wormhole_gate_message_post_encrypted` | UNCLASSIFIED | MED | `backend/main.py` |
-| POST | `/api/wormhole/gate/message/post` | `api_wormhole_gate_message_post` | local-operator |  | `backend/main.py` |
+| POST | `/api/wormhole/gate/message/post-encrypted` | `api_wormhole_gate_message_post_encrypted` | signed-write |  | `backend/main.py` |
+| POST | `/api/wormhole/gate/message/post` | `api_wormhole_gate_message_post` | signed-write |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/message/decrypt` | `api_wormhole_gate_message_decrypt` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/messages/decrypt` | `api_wormhole_gate_messages_decrypt` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/gate/state/export` | `api_wormhole_gate_state_export` | local-operator |  | `backend/main.py` |
@@ -184,11 +193,11 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | PUT | `/api/wormhole/dm/contact` | `api_wormhole_dm_contact_put` | admin/scoped |  | `backend/main.py` |
 | DELETE | `/api/wormhole/dm/contact/{peer_id}` | `api_wormhole_dm_contact_delete` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/wormhole/dm/contact/{peer_id}/sever` | `api_wormhole_dm_contact_sever` | admin/scoped |  | `backend/main.py` |
-| GET | `/api/wormhole/status` | `api_wormhole_status` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/wormhole/status` | `api_wormhole_status` | handler-auth (scoped) |  | `backend/main.py` |
 | GET | `/api/wormhole/review-export` | `api_wormhole_review_export` | local-operator |  | `backend/main.py` |
 | GET | `/api/wormhole/review-manifest` | `api_wormhole_review_manifest` | local-operator |  | `backend/main.py` |
 | GET | `/api/wormhole/review-consistency` | `api_wormhole_review_consistency` | local-operator |  | `backend/main.py` |
-| GET | `/api/wormhole/health` | `api_wormhole_health` | UNCLASSIFIED | MED | `backend/main.py` |
+| GET | `/api/wormhole/health` | `api_wormhole_health` | handler-auth (scoped) |  | `backend/main.py` |
 | POST | `/api/wormhole/connect` | `api_wormhole_connect` | local-operator |  | `backend/main.py` |
 | POST | `/api/wormhole/disconnect` | `api_wormhole_disconnect` | admin/scoped |  | `backend/main.py` |
 | POST | `/api/wormhole/restart` | `api_wormhole_restart` | admin/scoped |  | `backend/main.py` |
@@ -201,7 +210,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/settings/news-feeds` | `api_get_news_feeds` | local-operator |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/news-feeds` | `api_save_news_feeds` | admin/scoped |  | `backend/routers/admin.py` |
 | POST | `/api/settings/news-feeds/reset` | `api_reset_news_feeds` | admin/scoped |  | `backend/routers/admin.py` |
-| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth |  | `backend/routers/admin.py` |
+| GET | `/api/settings/node` | `api_get_node_settings` | handler-auth (scoped) |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/node` | `api_set_node_settings` | local-operator |  | `backend/routers/admin.py` |
 | GET | `/api/settings/meshtastic-mqtt` | `api_get_meshtastic_mqtt_settings` | local-operator |  | `backend/routers/admin.py` |
 | PUT | `/api/settings/meshtastic-mqtt` | `api_set_meshtastic_mqtt_settings` | local-operator |  | `backend/routers/admin.py` |
@@ -216,7 +225,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/agent-shell/settings` | `read_agent_shell_settings` | local-operator |  | `backend/routers/agent_shell.py` |
 | POST | `/api/agent-shell/ws-token` | `mint_agent_shell_ws_token_route` | local-operator |  | `backend/routers/agent_shell.py` |
 | PUT | `/api/agent-shell/settings` | `write_agent_shell_settings` | local-operator |  | `backend/routers/agent_shell.py` |
-| WEBSOCKET | `/api/agent-shell/ws` | `agent_shell_websocket` | UNCLASSIFIED | MED | `backend/routers/agent_shell.py` |
+| WEBSOCKET | `/api/agent-shell/ws` | `agent_shell_websocket` | handler-auth (session) |  | `backend/routers/agent_shell.py` |
 | GET | `/api/ai/status` | `ai_status` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | POST | `/api/ai/pins` | `create_pin` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | POST | `/api/ai/pins/batch` | `create_pins_batch` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
@@ -252,8 +261,8 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/ai/timemachine/config` | `get_timemachine_config` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | PUT | `/api/ai/timemachine/config` | `update_timemachine_config` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/timemachine/diff` | `diff_snapshots` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
-| GET | `/ai/news/summary` | `ai_news_summary` | UNCLASSIFIED | MED | `backend/routers/ai_intel.py` |
-| GET | `/ai/correlations/explain` | `ai_correlation_explanations` | UNCLASSIFIED | MED | `backend/routers/ai_intel.py` |
+| GET | `/ai/news/summary` | `ai_news_summary` | public-intentional (read-only) |  | `backend/routers/ai_intel.py` |
+| GET | `/ai/correlations/explain` | `ai_correlation_explanations` | public-intentional (read-only) |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/tools` | `agent_tool_manifest` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/capabilities` | `api_capabilities` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/connect-info` | `get_connect_info` | local-operator |  | `backend/routers/ai_intel.py` |
@@ -270,75 +279,75 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/ai/channel/task` | `channel_push_task` | local-operator |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/channel/status` | `channel_status` | local-operator |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/channel/sse` | `channel_sse` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
-| WEBSOCKET | `/api/ai/channel/ws` | `channel_websocket` | UNCLASSIFIED | MED | `backend/routers/ai_intel.py` |
+| WEBSOCKET | `/api/ai/channel/ws` | `channel_websocket` | handler-auth (session) |  | `backend/routers/ai_intel.py` |
 | DELETE | `/api/ai/analysis-zones/{zone_id}` | `delete_analysis_zone` | local-operator |  | `backend/routers/ai_intel.py` |
 | GET | `/api/ai/analysis-zones` | `list_analysis_zones` | openclaw-or-local |  | `backend/routers/ai_intel.py` |
-| GET | `/api/analytics/risk_heatmap` | `risk_heatmap_get` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| POST | `/api/analytics/risk_heatmap` | `risk_heatmap_post` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/dossier/{region}` | `analytics_dossier` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/backtest` | `analytics_backtest` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/rolling` | `analytics_rolling` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/alerts` | `analytics_top_alerts` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/rolling/micro` | `analytics_rolling_micro` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/analytics/rolling/{week_id}` | `analytics_rolling_week` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| POST | `/api/analytics/rolling/freeze` | `analytics_rolling_freeze` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| POST | `/api/analytics/rolling/label` | `analytics_rolling_label` | UNCLASSIFIED | MED | `backend/routers/analytics.py` |
-| GET | `/api/cctv/media` | `cctv_media_proxy` | UNCLASSIFIED | MED | `backend/routers/cctv.py` |
+| GET | `/api/analytics/risk_heatmap` | `risk_heatmap_get` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| POST | `/api/analytics/risk_heatmap` | `risk_heatmap_post` | local-operator |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/dossier/{region}` | `analytics_dossier` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/backtest` | `analytics_backtest` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/rolling` | `analytics_rolling` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/alerts` | `analytics_top_alerts` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/rolling/micro` | `analytics_rolling_micro` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| GET | `/api/analytics/rolling/{week_id}` | `analytics_rolling_week` | public-intentional (read-only) |  | `backend/routers/analytics.py` |
+| POST | `/api/analytics/rolling/freeze` | `analytics_rolling_freeze` | local-operator |  | `backend/routers/analytics.py` |
+| POST | `/api/analytics/rolling/label` | `analytics_rolling_label` | local-operator |  | `backend/routers/analytics.py` |
+| GET | `/api/cctv/media` | `cctv_media_proxy` | public-intentional (read-only) |  | `backend/routers/cctv.py` |
 | GET | `/api/refresh` | `force_refresh` | admin/scoped |  | `backend/routers/data.py` |
 | POST | `/api/ais/feed` | `ais_feed` | local-operator |  | `backend/routers/data.py` |
-| GET | `/api/trail/flight/{icao24}` | `get_selected_flight_trail` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/trail/ship/{mmsi}` | `get_selected_ship_trail` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/aviation/datalink/status` | `aviation_datalink_status` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/aviation/datalink/messages` | `aviation_datalink_messages` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/sigint/meshtastic/status` | `meshtastic_map_status` | UNCLASSIFIED | MED | `backend/routers/data.py` |
+| GET | `/api/trail/flight/{icao24}` | `get_selected_flight_trail` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/trail/ship/{mmsi}` | `get_selected_ship_trail` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/aviation/datalink/status` | `aviation_datalink_status` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/aviation/datalink/messages` | `aviation_datalink_messages` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/sigint/meshtastic/status` | `meshtastic_map_status` | public-intentional (read-only) |  | `backend/routers/data.py` |
 | POST | `/api/sigint/meshtastic/scan` | `meshtastic_planet_scan` | local-operator |  | `backend/routers/data.py` |
-| POST | `/api/viewport` | `update_viewport` | UNCLASSIFIED | MED | `backend/routers/data.py` |
+| POST | `/api/viewport` | `update_viewport` | public-intentional |  | `backend/routers/data.py` |
 | GET | `/api/liveuamap/scraper-status` | `api_liveuamap_scraper_status` | local-operator |  | `backend/routers/data.py` |
 | POST | `/api/liveuamap/scraper-opt-in` | `api_liveuamap_scraper_opt_in` | local-operator |  | `backend/routers/data.py` |
 | GET | `/api/prediction-markets/status` | `api_prediction_markets_status` | local-operator |  | `backend/routers/data.py` |
 | POST | `/api/prediction-markets/opt-in` | `api_prediction_markets_opt_in` | local-operator |  | `backend/routers/data.py` |
-| GET | `/api/layers` | `get_layers` | UNCLASSIFIED | MED | `backend/routers/data.py` |
+| GET | `/api/layers` | `get_layers` | public-intentional (read-only) |  | `backend/routers/data.py` |
 | POST | `/api/layers` | `update_layers` | local-operator |  | `backend/routers/data.py` |
-| GET | `/api/live-data` | `live_data` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/bootstrap/critical` | `bootstrap_critical` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/live-data/fast` | `live_data_fast` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/live-data/slow` | `live_data_slow` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| POST | `/api/satellites/overflights` | `satellite_overflights` | UNCLASSIFIED | MED | `backend/routers/data.py` |
-| GET | `/api/entity/expand` | `entity_expand` | UNCLASSIFIED | MED | `backend/routers/entity_graph.py` |
-| GET | `/api/health` | `health_check` | UNCLASSIFIED | MED | `backend/routers/health.py` |
-| GET | `/api/summary` | `summary` | UNCLASSIFIED | MED | `backend/routers/health.py` |
+| GET | `/api/live-data` | `live_data` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/bootstrap/critical` | `bootstrap_critical` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/live-data/fast` | `live_data_fast` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| GET | `/api/live-data/slow` | `live_data_slow` | public-intentional (read-only) |  | `backend/routers/data.py` |
+| POST | `/api/satellites/overflights` | `satellite_overflights` | public-intentional |  | `backend/routers/data.py` |
+| GET | `/api/entity/expand` | `entity_expand` | local-operator |  | `backend/routers/entity_graph.py` |
+| GET | `/api/health` | `health_check` | public-intentional (read-only) |  | `backend/routers/health.py` |
+| GET | `/api/summary` | `summary` | public-intentional (read-only) |  | `backend/routers/health.py` |
 | GET | `/api/debug-latest` | `debug_latest_data` | admin/scoped |  | `backend/routers/health.py` |
-| GET | `/status` | `infonet_status` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/petitions` | `list_petitions` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/petitions/{petition_id}` | `get_petition` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| POST | `/petitions/preview` | `preview_petition_payload` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| POST | `/events/validate` | `validate_event` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/upgrades` | `list_upgrades` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/upgrades/{proposal_id}` | `get_upgrade` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/markets/{market_id}` | `get_market_state` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/markets/{market_id}/preview-resolution` | `preview_resolution` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/gates/{gate_id}` | `get_gate_state` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/nodes/{node_id}/reputation` | `get_node_reputation` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/bootstrap/markets/{market_id}` | `get_bootstrap_market_state` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| POST | `/append` | `append_event` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/function-keys/operator/{operator_id}/batch-summary` | `operator_batch_summary` | UNCLASSIFIED | MED | `backend/routers/infonet.py` |
-| GET | `/api/malware` | `malware_feed` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
-| GET | `/api/cyber-threats` | `cyber_threats` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
-| GET | `/api/country-risk` | `country_risk` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
-| GET | `/api/telegram-feed` | `telegram_feed` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
-| GET | `/api/telegram/media` | `telegram_media_proxy` | UNCLASSIFIED | MED | `backend/routers/intel_feeds.py` |
+| GET | `/status` | `infonet_status` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/petitions` | `list_petitions` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/petitions/{petition_id}` | `get_petition` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| POST | `/petitions/preview` | `preview_petition_payload` | public-intentional |  | `backend/routers/infonet.py` |
+| POST | `/events/validate` | `validate_event` | public-intentional |  | `backend/routers/infonet.py` |
+| GET | `/upgrades` | `list_upgrades` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/upgrades/{proposal_id}` | `get_upgrade` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/markets/{market_id}` | `get_market_state` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/markets/{market_id}/preview-resolution` | `preview_resolution` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/gates/{gate_id}` | `get_gate_state` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/nodes/{node_id}/reputation` | `get_node_reputation` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/bootstrap/markets/{market_id}` | `get_bootstrap_market_state` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| POST | `/append` | `append_event` | signed-write (handler) |  | `backend/routers/infonet.py` |
+| GET | `/function-keys/operator/{operator_id}/batch-summary` | `operator_batch_summary` | public-intentional (read-only) |  | `backend/routers/infonet.py` |
+| GET | `/api/malware` | `malware_feed` | public-intentional (read-only) |  | `backend/routers/intel_feeds.py` |
+| GET | `/api/cyber-threats` | `cyber_threats` | public-intentional (read-only) |  | `backend/routers/intel_feeds.py` |
+| GET | `/api/country-risk` | `country_risk` | public-intentional (read-only) |  | `backend/routers/intel_feeds.py` |
+| GET | `/api/telegram-feed` | `telegram_feed` | public-intentional (read-only) |  | `backend/routers/intel_feeds.py` |
+| GET | `/api/telegram/media` | `telegram_media_proxy` | public-intentional (read-only) |  | `backend/routers/intel_feeds.py` |
 | POST | `/api/mesh/dm/register` | `dm_register_key` | signed-write |  | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
-| POST | `/api/mesh/dm/prekey-peer-lookup` | `dm_prekey_peer_lookup` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/pubkey` | `dm_get_pubkey` | public-intentional (read-only) |  | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/prekey-bundle` | `dm_get_prekey_bundle` | public-intentional (read-only) |  | `backend/routers/mesh_dm.py` |
+| POST | `/api/mesh/dm/prekey-peer-lookup` | `dm_prekey_peer_lookup` | peer-hmac |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/send` | `dm_send` | signed-write |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/poll` | `dm_poll_secure` | signed-write |  | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/poll` | `dm_poll` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/poll` | `dm_poll` | public-intentional (read-only) |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/count` | `dm_count_secure` | signed-write |  | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/count` | `dm_count` | UNCLASSIFIED | MED | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/count` | `dm_count` | public-intentional (read-only) |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/block` | `dm_block` | signed-write |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/dm/witness` | `dm_key_witness` | signed-write |  | `backend/routers/mesh_dm.py` |
-| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth |  | `backend/routers/mesh_dm.py` |
+| GET | `/api/mesh/dm/witness` | `dm_key_witness_get` | handler-auth (scoped) |  | `backend/routers/mesh_dm.py` |
 | POST | `/api/mesh/trust/vouch` | `trust_vouch` | signed-write |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/trust/vouches` | `trust_vouches` | admin/scoped |  | `backend/routers/mesh_dm.py` |
 | GET | `/api/mesh/peers` | `list_peers` | local-operator |  | `backend/routers/mesh_operator.py` |
@@ -346,59 +355,59 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | DELETE | `/api/mesh/peers` | `remove_peer` | local-operator |  | `backend/routers/mesh_operator.py` |
 | PATCH | `/api/mesh/peers` | `toggle_peer` | local-operator |  | `backend/routers/mesh_operator.py` |
 | POST | `/api/mesh/oracle/predict` | `oracle_predict` | signed-write |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/markets` | `oracle_markets` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/search` | `oracle_search` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | UNCLASSIFIED | MED | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/markets` | `oracle_markets` | public-intentional (read-only) |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/search` | `oracle_search` | public-intentional (read-only) |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/markets/more` | `oracle_markets_more` | public-intentional (read-only) |  | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/oracle/resolve` | `oracle_resolve` | admin/scoped |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | handler-auth |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/consensus` | `oracle_consensus` | public-intentional (read-only) |  | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/oracle/stake` | `oracle_stake` | signed-write |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth |  | `backend/routers/mesh_oracle.py` |
-| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/stakes/{message_id}` | `oracle_stakes_for_message` | handler-auth (scoped) |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/profile` | `oracle_profile` | handler-auth (scoped) |  | `backend/routers/mesh_oracle.py` |
+| GET | `/api/mesh/oracle/predictions` | `oracle_predictions` | handler-auth (scoped) |  | `backend/routers/mesh_oracle.py` |
 | POST | `/api/mesh/oracle/resolve-stakes` | `oracle_resolve_stakes` | admin/scoped |  | `backend/routers/mesh_oracle.py` |
-| POST | `/api/mesh/infonet/peer-push` | `infonet_peer_push` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
-| POST | `/api/mesh/dm/replicate-envelope` | `dm_replicate_envelope` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
-| POST | `/api/mesh/gate/peer-push` | `gate_peer_push` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
-| POST | `/api/mesh/gate/peer-pull` | `gate_peer_pull` | UNCLASSIFIED | MED | `backend/routers/mesh_peer_sync.py` |
+| POST | `/api/mesh/infonet/peer-push` | `infonet_peer_push` | peer-hmac |  | `backend/routers/mesh_peer_sync.py` |
+| POST | `/api/mesh/dm/replicate-envelope` | `dm_replicate_envelope` | peer-hmac |  | `backend/routers/mesh_peer_sync.py` |
+| POST | `/api/mesh/gate/peer-push` | `gate_peer_push` | peer-hmac |  | `backend/routers/mesh_peer_sync.py` |
+| POST | `/api/mesh/gate/peer-pull` | `gate_peer_pull` | peer-hmac |  | `backend/routers/mesh_peer_sync.py` |
 | POST | `/api/mesh/send` | `mesh_send` | signed-write |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/meshtastic/send` | `meshtastic_public_send` | local-operator |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/log` | `mesh_log` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/status` | `mesh_status` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/signals` | `mesh_signals` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/messages` | `mesh_messages` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/channels` | `mesh_channels` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/log` | `mesh_log` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/status` | `mesh_status` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/signals` | `mesh_signals` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/messages` | `mesh_messages` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/channels` | `mesh_channels` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/vote` | `mesh_vote` | signed-write |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/report` | `mesh_report` | signed-write |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/reputation` | `mesh_reputation` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/reputation/batch` | `mesh_reputation_batch` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/reputation/all` | `mesh_reputation_all` | admin/scoped |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/identity/rotate` | `mesh_identity_rotate` | signed-write |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/identity/revoke` | `mesh_identity_revoke` | signed-write |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/gate/create` | `gate_create` | signed-write |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/gate/list` | `gate_list` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | handler-auth |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/gate/list` | `gate_list` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/gate/{gate_id}` | `gate_detail` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/gate/{gate_id}/message` | `gate_message` | signed-write |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/locator` | `infonet_locator` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/sync` | `infonet_sync` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/status` | `infonet_status` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/merkle` | `infonet_merkle` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/locator` | `infonet_locator` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| POST | `/api/mesh/infonet/sync` | `infonet_sync_post` | peer-gossip (signed events) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/metrics` | `mesh_metrics` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/rns/status` | `mesh_rns_status` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/sync` | `infonet_sync` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/infonet/ingest` | `infonet_ingest` | admin/scoped |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/peers` | `list_peers` | local-operator |  | `backend/routers/mesh_public.py` |
 | POST | `/api/mesh/peers` | `add_peer` | local-operator |  | `backend/routers/mesh_public.py` |
 | DELETE | `/api/mesh/peers` | `remove_peer` | local-operator |  | `backend/routers/mesh_public.py` |
 | PATCH | `/api/mesh/peers` | `toggle_peer` | local-operator |  | `backend/routers/mesh_public.py` |
-| PUT | `/api/mesh/gate/{gate_id}/envelope_policy` | `set_gate_envelope_policy` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| PUT | `/api/mesh/gate/{gate_id}/legacy_envelope_fallback` | `set_gate_legacy_envelope_fallback` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/gate/{gate_id}/messages` | `gate_messages` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/messages` | `infonet_messages` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| PUT | `/api/mesh/gate/{gate_id}/envelope_policy` | `set_gate_envelope_policy` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| PUT | `/api/mesh/gate/{gate_id}/legacy_envelope_fallback` | `set_gate_legacy_envelope_fallback` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/gate/{gate_id}/messages` | `gate_messages` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/messages` | `infonet_messages` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/messages/wait` | `infonet_messages_wait` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | GET | `/api/mesh/infonet/session-stream` | `infonet_session_stream` | admin/scoped |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth |  | `backend/routers/mesh_public.py` |
-| GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | UNCLASSIFIED | MED | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/event/{event_id}` | `infonet_event` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/node/{node_id}` | `infonet_node_events` | handler-auth (scoped) |  | `backend/routers/mesh_public.py` |
+| GET | `/api/mesh/infonet/events` | `infonet_events_by_type` | public-intentional (read-only) |  | `backend/routers/mesh_public.py` |
 | GET | `/missions/config` | `configuration` | local-operator (router-default) |  | `backend/routers/missions.py` |
 | GET | `/missions` | `index` | local-operator (router-default) |  | `backend/routers/missions.py` |
 | POST | `/missions` | `create` | local-operator (router-default) |  | `backend/routers/missions.py` |
@@ -427,40 +436,40 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/osint/leaks` | `osint_leaks` | local-operator (router-default) |  | `backend/routers/osint.py` |
 | GET | `/api/osint/sweep` | `osint_sweep_init` | local-operator (router-default) |  | `backend/routers/osint.py` |
 | POST | `/api/osint/sweep/scan` | `osint_sweep_scan` | local-operator (router-default) |  | `backend/routers/osint.py` |
-| GET | `/api/osm-tile/{z}/{x}/{y}.png` | `osm_tile` | UNCLASSIFIED | MED | `backend/routers/osm_tiles.py` |
-| GET | `/api/radio/top` | `get_top_radios` | UNCLASSIFIED | MED | `backend/routers/radio.py` |
-| GET | `/api/radio/openmhz/systems` | `api_get_openmhz_systems` | UNCLASSIFIED | MED | `backend/routers/radio.py` |
+| GET | `/api/osm-tile/{z}/{x}/{y}.png` | `osm_tile` | public-intentional (read-only) |  | `backend/routers/osm_tiles.py` |
+| GET | `/api/radio/top` | `get_top_radios` | public-intentional (read-only) |  | `backend/routers/radio.py` |
+| GET | `/api/radio/openmhz/systems` | `api_get_openmhz_systems` | local-operator |  | `backend/routers/radio.py` |
 | GET | `/api/radio/openmhz/calls/{sys_name}` | `api_get_openmhz_calls` | local-operator |  | `backend/routers/radio.py` |
 | GET | `/api/radio/openmhz/audio` | `api_get_openmhz_audio` | local-operator |  | `backend/routers/radio.py` |
-| GET | `/api/radio/nearest` | `api_get_nearest_radio` | UNCLASSIFIED | MED | `backend/routers/radio.py` |
-| GET | `/api/radio/nearest-list` | `api_get_nearest_radios_list` | UNCLASSIFIED | MED | `backend/routers/radio.py` |
-| GET | `/api/route/{callsign}` | `get_flight_route` | UNCLASSIFIED | MED | `backend/routers/radio.py` |
-| GET | `/api/road-corridors/status` | `road_corridors_status` | UNCLASSIFIED | MED | `backend/routers/road_corridors.py` |
-| GET | `/api/road-corridors` | `list_road_corridors` | UNCLASSIFIED | MED | `backend/routers/road_corridors.py` |
-| POST | `/api/road-corridors/analyze` | `analyze_road_corridor_here` | UNCLASSIFIED | MED | `backend/routers/road_corridors.py` |
-| GET | `/api/road-corridors/analyze/status` | `analyze_road_corridor_status` | UNCLASSIFIED | MED | `backend/routers/road_corridors.py` |
-| GET | `/api/road-corridors/{preset_id}` | `get_road_corridor` | UNCLASSIFIED | MED | `backend/routers/road_corridors.py` |
-| GET | `/api/sar/status` | `sar_status` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
-| GET | `/api/sar/anomalies` | `sar_anomalies` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
-| GET | `/api/sar/scenes` | `sar_scenes` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
-| GET | `/api/sar/coverage` | `sar_coverage` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
-| GET | `/api/sar/near` | `sar_near` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
-| GET | `/api/sar/aois` | `sar_aoi_list` | UNCLASSIFIED | MED | `backend/routers/sar.py` |
+| GET | `/api/radio/nearest` | `api_get_nearest_radio` | public-intentional (read-only) |  | `backend/routers/radio.py` |
+| GET | `/api/radio/nearest-list` | `api_get_nearest_radios_list` | public-intentional (read-only) |  | `backend/routers/radio.py` |
+| GET | `/api/route/{callsign}` | `get_flight_route` | public-intentional (read-only) |  | `backend/routers/radio.py` |
+| GET | `/api/road-corridors/status` | `road_corridors_status` | public-intentional (read-only) |  | `backend/routers/road_corridors.py` |
+| GET | `/api/road-corridors` | `list_road_corridors` | public-intentional (read-only) |  | `backend/routers/road_corridors.py` |
+| POST | `/api/road-corridors/analyze` | `analyze_road_corridor_here` | public-intentional |  | `backend/routers/road_corridors.py` |
+| GET | `/api/road-corridors/analyze/status` | `analyze_road_corridor_status` | public-intentional (read-only) |  | `backend/routers/road_corridors.py` |
+| GET | `/api/road-corridors/{preset_id}` | `get_road_corridor` | public-intentional (read-only) |  | `backend/routers/road_corridors.py` |
+| GET | `/api/sar/status` | `sar_status` | public-intentional (read-only) |  | `backend/routers/sar.py` |
+| GET | `/api/sar/anomalies` | `sar_anomalies` | public-intentional (read-only) |  | `backend/routers/sar.py` |
+| GET | `/api/sar/scenes` | `sar_scenes` | public-intentional (read-only) |  | `backend/routers/sar.py` |
+| GET | `/api/sar/coverage` | `sar_coverage` | public-intentional (read-only) |  | `backend/routers/sar.py` |
+| GET | `/api/sar/near` | `sar_near` | public-intentional (read-only) |  | `backend/routers/sar.py` |
+| GET | `/api/sar/aois` | `sar_aoi_list` | public-intentional (read-only) |  | `backend/routers/sar.py` |
 | POST | `/api/sar/aois` | `sar_aoi_upsert` | local-operator |  | `backend/routers/sar.py` |
 | DELETE | `/api/sar/aois/{aoi_id}` | `sar_aoi_delete` | local-operator |  | `backend/routers/sar.py` |
 | POST | `/api/sar/mode-b/enable` | `sar_mode_b_enable` | local-operator |  | `backend/routers/sar.py` |
 | POST | `/api/sar/mode-b/disable` | `sar_mode_b_disable` | local-operator |  | `backend/routers/sar.py` |
 | GET | `/api/scm-suppliers` | `scm_suppliers` | local-operator |  | `backend/routers/scm.py` |
-| GET | `/api/oracle/region-intel` | `oracle_region_intel` | UNCLASSIFIED | MED | `backend/routers/sigint.py` |
+| GET | `/api/oracle/region-intel` | `oracle_region_intel` | public-intentional (read-only) |  | `backend/routers/sigint.py` |
 | GET | `/api/thermal/verify` | `thermal_verify` | local-operator |  | `backend/routers/sigint.py` |
 | POST | `/api/sigint/transmit` | `sigint_transmit` | local-operator |  | `backend/routers/sigint.py` |
-| GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | UNCLASSIFIED | MED | `backend/routers/sigint.py` |
-| GET | `/api/region-dossier` | `api_region_dossier` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
-| GET | `/api/geocode/search` | `api_geocode_search` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
-| GET | `/api/geocode/reverse` | `api_geocode_reverse` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
-| GET | `/api/wikipedia/summary` | `api_wikipedia_summary` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
-| POST | `/api/wikidata/sparql` | `api_wikidata_sparql` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
-| GET | `/api/sentinel2/search` | `api_sentinel2_search` | UNCLASSIFIED | MED | `backend/routers/tools.py` |
+| GET | `/api/sigint/nearest-sdr` | `nearest_sdr` | public-intentional (read-only) |  | `backend/routers/sigint.py` |
+| GET | `/api/region-dossier` | `api_region_dossier` | public-intentional (read-only) |  | `backend/routers/tools.py` |
+| GET | `/api/geocode/search` | `api_geocode_search` | public-intentional (read-only) |  | `backend/routers/tools.py` |
+| GET | `/api/geocode/reverse` | `api_geocode_reverse` | public-intentional (read-only) |  | `backend/routers/tools.py` |
+| GET | `/api/wikipedia/summary` | `api_wikipedia_summary` | public-intentional (read-only) |  | `backend/routers/tools.py` |
+| POST | `/api/wikidata/sparql` | `api_wikidata_sparql` | public-intentional |  | `backend/routers/tools.py` |
+| GET | `/api/sentinel2/search` | `api_sentinel2_search` | local-operator |  | `backend/routers/tools.py` |
 | POST | `/api/sentinel/token` | `api_sentinel_token` | local-operator |  | `backend/routers/tools.py` |
 | POST | `/api/sentinel/tile` | `api_sentinel_tile` | local-operator |  | `backend/routers/tools.py` |
 | GET | `/api/tools/shodan/status` | `api_shodan_status` | local-operator |  | `backend/routers/tools.py` |
@@ -480,7 +489,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/voice/transcribe` | `voice_transcribe` | local-operator |  | `backend/routers/voice.py` |
 | POST | `/api/voice/session` | `create_voice_session` | local-operator |  | `backend/routers/voice.py` |
 | DELETE | `/api/voice/session/{session_id}` | `delete_voice_session` | local-operator |  | `backend/routers/voice.py` |
-| WEBSOCKET | `/api/voice/session/ws` | `voice_session_ws` | UNCLASSIFIED | MED | `backend/routers/voice.py` |
+| WEBSOCKET | `/api/voice/session/ws` | `voice_session_ws` | handler-auth (session) |  | `backend/routers/voice.py` |
 | POST | `/api/voice/chat` | `voice_chat` | local-operator |  | `backend/routers/voice.py` |
 | GET | `/api/voice/tools` | `voice_tools` | local-operator |  | `backend/routers/voice.py` |
 | GET | `/api/voice/models` | `voice_models` | local-operator |  | `backend/routers/voice.py` |
@@ -488,12 +497,12 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | POST | `/api/voice/hud-summary` | `voice_hud_summary` | local-operator |  | `backend/routers/voice.py` |
 | POST | `/api/voice/turn` | `voice_turn` | local-operator |  | `backend/routers/voice.py` |
 | POST | `/api/voice/interrogate` | `voice_interrogate` | local-operator |  | `backend/routers/voice.py` |
-| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth |  | `backend/routers/wormhole.py` |
+| GET | `/api/settings/wormhole` | `api_get_wormhole_settings` | handler-auth (scoped) |  | `backend/routers/wormhole.py` |
 | PUT | `/api/settings/wormhole` | `api_set_wormhole_settings` | admin/scoped |  | `backend/routers/wormhole.py` |
-| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth |  | `backend/routers/wormhole.py` |
-| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth |  | `backend/routers/wormhole.py` |
+| GET | `/api/settings/privacy-profile` | `api_get_privacy_profile` | handler-auth (scoped) |  | `backend/routers/wormhole.py` |
+| GET | `/api/settings/wormhole-status` | `api_get_wormhole_status` | handler-auth (scoped) |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/join` | `api_wormhole_join` | local-operator |  | `backend/routers/wormhole.py` |
-| POST | `/api/wormhole/leave` | `api_wormhole_leave` | UNCLASSIFIED | MED | `backend/routers/wormhole.py` |
+| POST | `/api/wormhole/leave` | `api_wormhole_leave` | local-operator |  | `backend/routers/wormhole.py` |
 | GET | `/api/wormhole/identity` | `api_wormhole_identity` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/identity/bootstrap` | `api_wormhole_identity_bootstrap` | local-operator |  | `backend/routers/wormhole.py` |
 | GET | `/api/wormhole/dm/identity` | `api_wormhole_dm_identity` | local-operator |  | `backend/routers/wormhole.py` |
@@ -522,7 +531,7 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | GET | `/api/wormhole/gate/{gate_id}/key/sharing` | `api_wormhole_gate_key_sharing` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/gate/message/compose` | `api_wormhole_gate_message_compose` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/gate/message/sign-encrypted` | `api_wormhole_gate_message_sign_encrypted` | local-operator |  | `backend/routers/wormhole.py` |
-| POST | `/api/wormhole/gate/message/post-encrypted` | `api_wormhole_gate_message_post_encrypted` | UNCLASSIFIED | MED | `backend/routers/wormhole.py` |
+| POST | `/api/wormhole/gate/message/post-encrypted` | `api_wormhole_gate_message_post_encrypted` | signed-write (handler) |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/gate/message/post` | `api_wormhole_gate_message_post` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/gate/message/decrypt` | `api_wormhole_gate_message_decrypt` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/gate/messages/decrypt` | `api_wormhole_gate_messages_decrypt` | local-operator |  | `backend/routers/wormhole.py` |
@@ -553,10 +562,10 @@ Generated statically by `scripts/route_auth_inventory.py`. This is a static heur
 | PUT | `/api/wormhole/dm/contact` | `api_wormhole_dm_contact_put` | admin/scoped |  | `backend/routers/wormhole.py` |
 | DELETE | `/api/wormhole/dm/contact/{peer_id}` | `api_wormhole_dm_contact_delete` | admin/scoped |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/dm/contact/{peer_id}/sever` | `api_wormhole_dm_contact_sever` | admin/scoped |  | `backend/routers/wormhole.py` |
-| GET | `/api/wormhole/status` | `api_wormhole_status` | UNCLASSIFIED | MED | `backend/routers/wormhole.py` |
+| GET | `/api/wormhole/status` | `api_wormhole_status` | public-intentional (read-only) |  | `backend/routers/wormhole.py` |
 | GET | `/api/wormhole/private-delivery/{item_id}` | `api_wormhole_private_delivery_item` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/private-delivery/{item_id}/action` | `api_wormhole_private_delivery_action` | local-operator |  | `backend/routers/wormhole.py` |
-| GET | `/api/wormhole/health` | `api_wormhole_health` | UNCLASSIFIED | MED | `backend/routers/wormhole.py` |
+| GET | `/api/wormhole/health` | `api_wormhole_health` | handler-auth (scoped) |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/connect` | `api_wormhole_connect` | local-operator |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/disconnect` | `api_wormhole_disconnect` | admin/scoped |  | `backend/routers/wormhole.py` |
 | POST | `/api/wormhole/restart` | `api_wormhole_restart` | admin/scoped |  | `backend/routers/wormhole.py` |

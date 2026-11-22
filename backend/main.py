@@ -6728,7 +6728,7 @@ async def oracle_markets_more(
     }
 
 
-@app.post("/api/mesh/oracle/resolve")
+@app.post("/api/mesh/oracle/resolve", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve(request: Request):
@@ -6878,7 +6878,7 @@ async def oracle_predictions(request: Request, node_id: str = ""):
     )
 
 
-@app.post("/api/mesh/oracle/resolve-stakes")
+@app.post("/api/mesh/oracle/resolve-stakes", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve_stakes(request: Request):
@@ -9125,7 +9125,7 @@ async def api_sentinel_token(request: Request):
 _sh_token_cache: dict = {"token": None, "expiry": 0, "client_id": ""}
 
 
-@app.post("/api/sentinel/tile")
+@app.post("/api/sentinel/tile", dependencies=[Depends(require_local_operator)])
 @limiter.limit("300/minute")
 async def api_sentinel_tile(request: Request):
     """Proxy Sentinel Hub Process API tile request (avoids CORS block).
@@ -9666,8 +9666,9 @@ async def api_set_node_settings(request: Request, body: NodeSettingsUpdate):
     return result
 
 
-@app.post("/api/mesh/infonet/swarm/join")
+@app.post("/api/mesh/infonet/swarm/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def infonet_swarm_join(request: Request):
     """Announce this node to the fleet seed and pull the signed peer manifest."""
     if not _participant_node_enabled():
@@ -10453,7 +10454,7 @@ async def api_get_wormhole_status(request: Request):
     )
 
 
-@app.post("/api/wormhole/join")
+@app.post("/api/wormhole/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_join(request: Request):
     existing = read_wormhole_settings()
@@ -10507,7 +10508,7 @@ async def api_wormhole_join(request: Request):
     }
 
 
-@app.post("/api/wormhole/leave")
+@app.post("/api/wormhole/leave", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_leave(request: Request):
     updated = write_wormhole_settings(enabled=False)
