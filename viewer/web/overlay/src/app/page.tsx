@@ -42,6 +42,7 @@ import { VIEWER_HIDDEN_LAYERS, asset } from '@/viewer/config';
 import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
+import TokenCard from '@/viewer/TokenCard';
 import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -475,6 +476,7 @@ export default function ViewerDashboard() {
         animate={{ x: showRight ? 0 : 440 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
+        <TokenCard />
         <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
 
         <div className="flex-shrink-0">

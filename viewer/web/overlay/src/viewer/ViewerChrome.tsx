@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, MessagesSquare, Coins } from 'lucide-react';
+import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, MessagesSquare } from 'lucide-react';
 import { VIEWER_LINKS, type ViewerLinkId } from './config';
 import { feedAgeMs, feedIsStale, useFeedStatus } from './feedStatus';
 import { SkillButton } from './SkillModal';
@@ -64,7 +64,7 @@ export function ViewerHeaderCard({ onAbout, onSkill }: { onAbout: () => void; on
       </div>
 
       {/* Community links: one tile each, opening the project's page on that site. */}
-      <nav aria-label="Community links" className="mt-3 grid grid-cols-4 gap-2">
+      <nav aria-label="Community links" className="mt-3 grid grid-cols-3 gap-2">
         {VIEWER_LINKS.map((link) => {
           const look = LINK_LOOK[link.id];
           return (
@@ -129,7 +129,6 @@ const LINK_LOOK: Record<ViewerLinkId, { color: string; icon: React.ReactNode }> 
   discord: { color: '#7b88ff', icon: <BrandIcon path={DISCORD_PATH} /> },
   github: { color: '#dbe7f7', icon: <BrandIcon path={GITHUB_PATH} /> },
   discussions: { color: '#45d8ff', icon: <MessagesSquare size={16} aria-hidden="true" /> },
-  token: { color: '#2cf5a0', icon: <Coins size={16} aria-hidden="true" /> },
 };
 
 /** Top-center banner shown when the published data stopped updating. */

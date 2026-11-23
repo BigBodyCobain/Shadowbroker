@@ -29,6 +29,7 @@ export const VIEWER_CONNECT_HOSTS = [
   'server.arcgisonline.com', // satellite basemap
   'en.wikipedia.org', // summaries, straight from the visitor's browser
   'planetarycomputer.microsoft.com', // right-click: open Sentinel-2 satellite scenes, no key
+  'api.geckoterminal.com', // token card: public price figures, no key
 ] as const;
 
 /** Layer switches that never appear in the viewer. */
@@ -50,18 +51,21 @@ export const VIEWER_STALE_AFTER_MS =
 export const VIEWER_REPO_URL = 'https://github.com/BigBodyCobain/Shadowbroker';
 
 /** Top-right links. Each opens the project's own page on that site in a new tab. */
-export type ViewerLinkId = 'discord' | 'github' | 'discussions' | 'token';
+export type ViewerLinkId = 'discord' | 'github' | 'discussions';
 export const VIEWER_LINKS: readonly { id: ViewerLinkId; label: string; title: string; href: string }[] = [
   { id: 'discord', label: 'Discord', title: 'Join the community on Discord', href: 'https://discord.gg/hTWprYS6gC' },
   { id: 'github', label: 'GitHub', title: 'Source code, and the full app to run yourself', href: VIEWER_REPO_URL },
   { id: 'discussions', label: 'Forum', title: 'Project discussion board on GitHub', href: `${VIEWER_REPO_URL}/discussions` },
-  {
-    id: 'token',
-    label: 'pump.fun',
-    title: 'The project token page on pump.fun',
-    href: 'https://pump.fun/coin/8Uk9f5WfJndkC9VkFRLDwEpHgD2KD8BcFbqh5zuBpump',
-  },
 ];
+
+/** The project token, shown in its own card above the Public Viewer card. */
+const TOKEN_ADDRESS = '8Uk9f5WfJndkC9VkFRLDwEpHgD2KD8BcFbqh5zuBpump';
+export const VIEWER_TOKEN = {
+  symbol: '$SB',
+  href: `https://pump.fun/coin/${TOKEN_ADDRESS}`,
+  /** GeckoTerminal's public, keyless token endpoint. */
+  quoteUrl: `https://api.geckoterminal.com/api/v2/networks/solana/tokens/${TOKEN_ADDRESS}`,
+} as const;
 
 /**
  * Optional chat room, on a separate hosted login + database service. Both
