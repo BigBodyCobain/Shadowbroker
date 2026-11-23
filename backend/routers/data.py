@@ -1031,6 +1031,7 @@ async def live_data_slow(
             "fishing_activity", "psk_reporter", "correlations", "uap_sightings", "wastewater",
             "crowdthreat", "threat_level", "trending_markets", "road_corridor_trends",
             "malware_threats", "cyber_threats", "scm_suppliers", "telegram_osint", "gt_risk",
+            "sar_scenes", "sar_anomalies", "sar_aoi_coverage",
         )
         freshness = get_source_timestamps_snapshot()
         payload = {
@@ -1070,6 +1071,10 @@ async def live_data_slow(
             "correlations": (d.get("correlations") or []) if active_layers.get("correlations", True) else [],
             "uap_sightings": (d.get("uap_sightings") or []) if active_layers.get("uap_sightings", True) else [],
             "wastewater": (d.get("wastewater") or []) if active_layers.get("wastewater", True) else [],
+            # The map draws SAR pins and pass counts from this feed, so they must ship here.
+            "sar_scenes": (d.get("sar_scenes") or []) if active_layers.get("sar", True) else [],
+            "sar_anomalies": (d.get("sar_anomalies") or []) if active_layers.get("sar", True) else [],
+            "sar_aoi_coverage": (d.get("sar_aoi_coverage") or []) if active_layers.get("sar", True) else [],
             "crowdthreat": (d.get("crowdthreat") or []) if active_layers.get("crowdthreat", True) else [],
             "road_corridor_trends": (
                 d.get("road_corridor_trends") or {"updated_at": None, "corridors": []}
