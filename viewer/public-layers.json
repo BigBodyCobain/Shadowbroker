@@ -14,7 +14,11 @@
     "OPENSKY_CLIENT_SECRET",
     "AIS_API_KEY",
     "FIRMS_MAP_KEY",
-    "GFW_API_TOKEN"
+    "GFW_API_TOKEN",
+    "OPENAQ_API_KEY",
+    "ALERTS_IN_UA_TOKEN",
+    "LTA_ACCOUNT_KEY",
+    "AISHUB_USERNAME"
   ],
   "aprs_listen": {
     "_comment": "Listen-only APRS-IS station positions for ONE region. The app caps public APRS-IS at a 500 km radius. Use a neutral city, never the owner's own location: this file is public.",
