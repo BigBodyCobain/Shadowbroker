@@ -59,6 +59,31 @@ def _patch_settings(monkeypatch, **overrides):
     monkeypatch.setattr(mesh_router, "get_settings", fake_fn, raising=False)
     monkeypatch.setattr(services.sigint_bridge, "get_settings", fake_fn)
 
+    # PSK resolution now reads the dedicated MQTT settings store instead of
+    # get_settings(); patch that seam too so overrides still take effect.
+    import services.meshtastic_mqtt_settings as mqtt_settings
+    monkeypatch.setattr(
+        mqtt_settings, "mqtt_psk_hex", lambda: defaults["MESH_MQTT_PSK"], raising=False
+    )
+    monkeypatch.setattr(
+        services.sigint_bridge, "mqtt_psk_hex", lambda: defaults["MESH_MQTT_PSK"], raising=False
+    )
+
+    def _connection_config():
+        return (
+            defaults["MESH_MQTT_BROKER"],
+            defaults["MESH_MQTT_PORT"],
+            defaults["MESH_MQTT_USER"],
+            defaults["MESH_MQTT_PASS"],
+        )
+
+    monkeypatch.setattr(
+        mqtt_settings, "mqtt_connection_config", _connection_config, raising=False
+    )
+    monkeypatch.setattr(
+        services.sigint_bridge, "mqtt_connection_config", _connection_config, raising=False
+    )
+
     return _FakeSettings
 
 
@@ -123,8 +148,8 @@ class TestDefaultCompatibility:
         first = MeshtasticBridge()
         second = MeshtasticBridge()
 
-        assert first._client_id.startswith("sb096-")
-        assert second._client_id.startswith("sb096-")
+        assert first._client_id.startswith("meshchat-")
+        assert second._client_id.startswith("meshchat-")
         assert first._client_id != second._client_id
         assert first._client_id != "shadowbroker-mesh"
         assert second._client_id != "shadowbroker-mesh"
