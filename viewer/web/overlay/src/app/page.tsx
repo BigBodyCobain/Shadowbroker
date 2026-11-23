@@ -37,7 +37,7 @@ import { useAlertToasts } from '@/hooks/useAlertToasts';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
-import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
+import { VIEWER_HIDDEN_LAYERS, asset } from '@/viewer/config';
 import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
@@ -349,7 +349,7 @@ export default function ViewerDashboard() {
         className="absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/sb-mark-72.webp" alt="" width={40} height={33} className="sb-brand-mark" />
+        <img src={asset('/brand/sb-mark-72.webp')} alt="" width={40} height={33} className="sb-brand-mark" />
         <div className="flex flex-col">
           <h1 className="sb-wordmark" aria-label="ShadowBroker">
             SHADOW<span className="sb-wordmark-accent">BROKER</span>

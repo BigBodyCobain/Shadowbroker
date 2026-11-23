@@ -72,6 +72,18 @@
       "file": "src/components/MaplibreViewer.tsx",
       "find": "<Play size={10} /> OPEN PLAYER",
       "replace": "<Play size={10} /> LISTEN ON OPENMHZ ↗"
+    },
+    {
+      "why": "sub-folder hosting: the map worker file sits next to the viewer, not at the top of the site",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');",
+      "replace": "maplibregl.setWorkerUrl(`${process.env.NEXT_PUBLIC_SB_BASE_PATH || ''}/maplibre-gl-worker.mjs`);"
+    },
+    {
+      "why": "sub-folder hosting: the cable map file sits next to the viewer, not at the top of the site",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "fetch('/data/submarine-cables.json')",
+      "replace": "fetch(`${process.env.NEXT_PUBLIC_SB_BASE_PATH || ''}/data/submarine-cables.json`)"
     }
   ]
 }

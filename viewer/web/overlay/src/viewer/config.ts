@@ -3,6 +3,17 @@
  * key, token or private address in the viewer build.
  */
 
+/**
+ * The folder the viewer itself is published in ("" at the top of a site,
+ * "/map" under another site). Set at build time.
+ */
+export const VIEWER_BASE_PATH = (process.env.NEXT_PUBLIC_SB_BASE_PATH || '').replace(/\/+$/, '');
+
+/** Address of one of the viewer's own static files, e.g. asset('/skill/manifest.json'). */
+export function asset(path: string): string {
+  return `${VIEWER_BASE_PATH}${path}`;
+}
+
 /** Where the bridge's files are served from. Set at build time. */
 export const VIEWER_DATA_BASE = (process.env.NEXT_PUBLIC_SB_DATA_BASE || '/live-data').replace(/\/+$/, '');
 
@@ -32,7 +43,8 @@ export const VIEWER_HIDDEN_LAYERS: ReadonlySet<string> = new Set([
 ]);
 
 /** Data older than this is shown as stale instead of live. */
-export const VIEWER_STALE_AFTER_MS = 4 * 60 * 1000;
+export const VIEWER_STALE_AFTER_MS =
+  (Number(process.env.NEXT_PUBLIC_SB_STALE_AFTER_S) > 0 ? Number(process.env.NEXT_PUBLIC_SB_STALE_AFTER_S) : 240) * 1000;
 
 export const VIEWER_REPO_URL = 'https://github.com/BigBodyCobain/Shadowbroker';
 

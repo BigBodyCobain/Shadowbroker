@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, Check, Copy, Download, ShieldCheck, X } from 'lucide-react';
-import { VIEWER_DATA_BASE } from './config';
+import { VIEWER_DATA_BASE, asset } from './config';
 
 /**
  * "View and vet" screen for the public agent skill.
@@ -22,7 +22,7 @@ type SkillManifest = {
   files: SkillFile[];
 };
 
-const SKILL_BASE = '/skill';
+const SKILL_BASE = asset('/skill');
 
 const FACTS: { good: boolean; text: string }[] = [
   { good: true, text: 'Reads the same public data files this page uses.' },

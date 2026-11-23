@@ -279,8 +279,8 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="sb-prose mt-3 space-y-3 text-[13px] leading-relaxed text-[var(--text-primary)]">
           <p>
-            This is a look-only window onto ShadowBroker. It shows a copy of public map data that refreshes a few
-            times a minute. You can pan, zoom, filter and switch layers; those choices stay in your browser.
+            This is a look-only window onto ShadowBroker. It shows a copy of public map data that refreshes every
+            few minutes. You can pan, zoom, filter and switch layers; those choices stay in your browser.
           </p>
           <p>
             Nothing here can send a message, post, change a setting or start a scan. This page has no connection to
