@@ -12,8 +12,7 @@ import {
   previewPetitionPayload,
   signAndAppend,
   type PetitionPayload,
-  type PetitionState,
-} from '@/mesh/infonetEconomyClient';
+  type PetitionState } from '@/mesh/infonetEconomyClient';
 import { useSignAndAppend } from '@/hooks/useSignAndAppend';
 
 interface PetitionsViewProps {
@@ -29,8 +28,7 @@ const STATUS_STYLE: Record<string, { color: string; label: string; icon: typeof 
   failed_signatures: { color: 'text-red-400',    label: 'FAILED — SIGNATURES',   icon: AlertCircle },
   failed_vote:       { color: 'text-red-400',    label: 'FAILED — VOTE',         icon: AlertCircle },
   voided_challenge:  { color: 'text-red-500',    label: 'VOIDED BY CHALLENGE',   icon: AlertCircle },
-  not_found:         { color: 'text-gray-500',   label: 'NOT FOUND',             icon: AlertCircle },
-};
+  not_found:         { color: 'text-gray-500',   label: 'NOT FOUND',             icon: AlertCircle } };
 
 function formatRelative(ts: number, now: number): string {
   if (!ts) return '—';
@@ -82,8 +80,7 @@ function PayloadSummary({ payload }: { payload: PetitionPayload | Record<string,
 function PetitionRow({
   petition,
   now,
-  onAction,
-}: {
+  onAction }: {
   petition: PetitionState;
   now: number;
   onAction: () => void;
@@ -288,23 +285,20 @@ function FilePetitionForm({ onFiled }: { onFiled?: () => void }) {
       const payload: PetitionPayload = {
         type: 'UPDATE_PARAM',
         key: paramKey.trim(),
-        value,
-      };
+        value };
       const res = await previewPetitionPayload(payload);
       if (res.ok) {
         setPreviewResult({
           ok: true,
           changedKeys: res.changed_keys ?? [],
-          newValues: res.new_values ?? {},
-        });
+          newValues: res.new_values ?? {} });
       } else {
         setPreviewResult({ ok: false, reason: res.reason ?? 'unknown_error' });
       }
     } catch (err) {
       setPreviewResult({
         ok: false,
-        reason: err instanceof Error ? err.message : 'network_error',
-      });
+        reason: err instanceof Error ? err.message : 'network_error' });
     } finally {
       setPreviewing(false);
     }
@@ -336,8 +330,7 @@ function FilePetitionForm({ onFiled }: { onFiled?: () => void }) {
       const built = buildPetitionFilePayload(petitionId, inner);
       const res = await signAndAppend({
         event_type: built.event_type,
-        payload: built.payload,
-      });
+        payload: built.payload });
       if (res.ok) {
         setFileResult({ ok: true, eventId: res.event.event_id });
         onFiled?.();
@@ -347,8 +340,7 @@ function FilePetitionForm({ onFiled }: { onFiled?: () => void }) {
     } catch (err) {
       setFileResult({
         ok: false,
-        reason: err instanceof Error ? err.message : 'unknown_error',
-      });
+        reason: err instanceof Error ? err.message : 'unknown_error' });
     } finally {
       setFiling(false);
     }

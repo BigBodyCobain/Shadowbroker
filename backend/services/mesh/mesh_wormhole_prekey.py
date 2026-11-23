@@ -223,15 +223,32 @@ def _peer_http_request(
         "headers": dict(headers or {}),
         "timeout": resolved_timeout,
     }
+    proxies = None
     try:
         from main import _infonet_peer_requests_proxies
+        from services.ssrf_guard import guard_url_for_peer_request
 
         proxy_peer_url = normalize_peer_url(f"{parsed.scheme}://{parsed.netloc}")
         proxies = _infonet_peer_requests_proxies(proxy_peer_url)
+        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+        if not guard.get("ok"):
+            raise OSError(f"blocked peer url: {guard.get('reason')}")
         if proxies:
             request_kwargs["proxies"] = proxies
+    except OSError:
+        raise
     except Exception:
-        pass
+        # If proxy/guard helpers are unavailable, still block obviously unsafe targets.
+        try:
+            from services.ssrf_guard import guard_url_for_peer_request
+
+            guard = guard_url_for_peer_request(normalized, allow_proxied=False)
+            if not guard.get("ok"):
+                raise OSError(f"blocked peer url: {guard.get('reason')}")
+        except OSError:
+            raise
+        except Exception:
+            pass
     if method.upper() == "GET":
         return requests.get(normalized, **request_kwargs)
     request_kwargs["data"] = body_bytes or b""

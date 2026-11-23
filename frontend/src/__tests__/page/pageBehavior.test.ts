@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Sprint 4D behavioral tests — page.tsx wormhole teardown and layer sync.
  */

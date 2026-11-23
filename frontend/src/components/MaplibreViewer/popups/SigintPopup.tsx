@@ -37,14 +37,12 @@ export interface SigintPopupProps {
 const SOURCE_COLORS: Record<string, string> = {
   aprs: '#ff69b4',
   meshtastic: '#22c55e',
-  js8call: '#ff69b4',
-};
+  js8call: '#ff69b4' };
 
 const SOURCE_LABELS: Record<string, string> = {
   aprs: 'APRS-IS',
   meshtastic: 'MESHTASTIC',
-  js8call: 'JS8CALL',
-};
+  js8call: 'JS8CALL' };
 
 function computePosAge(d: SigintData): string | null {
   const ts = d.position_updated_at || d.timestamp;
@@ -260,8 +258,7 @@ export function SigintPopup({ data: d, lat, lng, kiwisdrs, setTrackedSdr, onClos
                     users_max: nearestSdr.users_max,
                     bands: nearestSdr.bands,
                     antenna: nearestSdr.antenna,
-                    location: nearestSdr.location,
-                  });
+                    location: nearestSdr.location });
                 }
                 onClose();
               }}

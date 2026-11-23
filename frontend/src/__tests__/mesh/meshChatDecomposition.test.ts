@@ -19,6 +19,19 @@ function readFile(name: string): string {
   return fs.readFileSync(path.join(MESH_CHAT_DIR, name), 'utf-8');
 }
 
+function readController(): string {
+  return [
+    'useMeshChatController.ts',
+    'useDmPolling.ts',
+    'useMeshSendHandlers.ts',
+    'useMeshGateContactHandlers.ts',
+    'useMeshInfonetMessages.ts',
+    'useInfoNetPolling.ts',
+    'useDeadDropAccess.ts',
+    'useDmSendQueue.ts',
+  ].map(readFile).join('\n');
+}
+
 // ─── Trust-mutation isolation ───────────────────────────────────────────────
 
 const TRUST_MUTATING_IMPORTS = [
@@ -32,7 +45,7 @@ const TRUST_MUTATING_IMPORTS = [
 
 describe('MeshChat decomposition — trust mutation isolation', () => {
   it('controller imports all trust-mutating functions', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = readController();
     for (const fn of TRUST_MUTATING_IMPORTS) {
       expect(controller).toContain(fn);
     }
@@ -63,7 +76,7 @@ describe('MeshChat decomposition — trust mutation isolation', () => {
 // ─── Controller owns required-cohesion items ────────────────────────────────
 
 describe('MeshChat decomposition — controller required-cohesion', () => {
-  const controller = readFile('useMeshChatController.ts');
+  const controller = readController();
 
   it('controller exports enqueueDmSend (high-privacy DM queueing)', () => {
     expect(controller).toMatch(/enqueueDmSend/);
@@ -124,16 +137,16 @@ describe('MeshChat decomposition — controller required-cohesion', () => {
 
 describe('MeshChat decomposition — gate refresh ownership', () => {
   it('controller does NOT import useGateSSE (removed in S3A)', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = readController();
     expect(controller).not.toMatch(/import.*useGateSSE.*from/);
     expect(controller).not.toMatch(/useGateSSE\(/);
   });
 
   it('controller owns gate message polling via authenticated fetch', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = readController();
     // The controller polls /api/mesh/infonet/messages for gate refresh
     expect(controller).toMatch(/\/api\/mesh\/infonet\/messages/);
-    expect(controller).toMatch(/setInterval\(poll/);
+    expect(controller).toMatch(/setInterval\(|setTimeout\(/);
   });
 
   it('useGateSSE is NOT imported in the presentational shell', () => {
@@ -145,7 +158,7 @@ describe('MeshChat decomposition — gate refresh ownership', () => {
 // ─── DM polling trust unit controller-owned ─────────────────────────────────
 
 describe('MeshChat decomposition — DM poll sequence in controller', () => {
-  const controller = readFile('useMeshChatController.ts');
+  const controller = readController();
 
   it('DM polling (pollDmMailboxes) is in the controller', () => {
     expect(controller).toMatch(/pollDmMailboxes/);
@@ -176,7 +189,7 @@ describe('MeshChat decomposition — DM poll sequence in controller', () => {
 
 describe('MeshChat decomposition — identity persistence', () => {
   it('controller imports identity functions from meshIdentity', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = readController();
     expect(controller).toMatch(/from\s+['"]@\/mesh\/meshIdentity['"]/);
     expect(controller).toMatch(/getNodeIdentity/);
     expect(controller).toMatch(/getStoredNodeDescriptor/);
@@ -222,7 +235,7 @@ describe('MeshChat decomposition — export stability', () => {
   });
 
   it('gate resync is controller-owned and exposed via Infonet / Mesh Terminal surfaces', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = readController();
     const panel = readFile('InfonetTerminalPanel.tsx');
     const terminal = fs.readFileSync(
       path.resolve(MESH_CHAT_DIR, '../MeshTerminal.tsx'),

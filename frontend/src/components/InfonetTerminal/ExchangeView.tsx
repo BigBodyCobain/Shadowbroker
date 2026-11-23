@@ -16,8 +16,7 @@ const DATA_KEYS = ['stocks'] as const;
 const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
 const CRYPTO_NAMES: Record<string, string> = {
   BTC: 'Bitcoin', ETH: 'Ethereum', SOL: 'Solana', XRP: 'Ripple', DOGE: 'Dogecoin',
-  ZEC: 'Zcash', XMR: 'Monero', ADA: 'Cardano', DOT: 'Polkadot', AVAX: 'Avalanche',
-};
+  ZEC: 'Zcash', XMR: 'Monero', ADA: 'Cardano', DOT: 'Polkadot', AVAX: 'Avalanche' };
 
 const FALLBACK_PAIRS = [
   { symbol: 'BTC', name: 'Bitcoin', price: '—', change: '—', up: true },
@@ -67,8 +66,7 @@ export default function ExchangeView({ onBack }: ExchangeViewProps) {
             name: CRYPTO_NAMES[sym] || sym,
             price: val.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             change: `${val.change_percent >= 0 ? '+' : ''}${val.change_percent.toFixed(1)}%`,
-            up: val.change_percent >= 0,
-          });
+            up: val.change_percent >= 0 });
         }
       }
     }
@@ -82,8 +80,7 @@ export default function ExchangeView({ onBack }: ExchangeViewProps) {
             name: CRYPTO_NAMES[k.toUpperCase()] || k.toUpperCase(),
             price: val.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             change: `${val.change_percent >= 0 ? '+' : ''}${val.change_percent.toFixed(1)}%`,
-            up: val.change_percent >= 0,
-          });
+            up: val.change_percent >= 0 });
           if (pairs.length >= 8) break;
         }
       }

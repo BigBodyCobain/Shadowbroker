@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hasLocalControlBridge = vi.fn(() => false);

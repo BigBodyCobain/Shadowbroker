@@ -31,8 +31,7 @@ export function ShipPopup({ ship, longitude, latitude, onClose }: ShipPopupProps
             ? 'rgba(255,105,180,0.5)'
             : ship.type === 'carrier'
               ? 'rgba(255,170,0,0.5)'
-              : 'rgba(59,130,246,0.4)',
-        }}
+              : 'rgba(59,130,246,0.4)' }}
       >
         <div className="flex justify-between items-start mb-1">
           <div
@@ -42,8 +41,7 @@ export function ShipPopup({ ship, longitude, latitude, onClose }: ShipPopupProps
                 ? '#FF69B4'
                 : ship.type === 'carrier'
                   ? '#ffaa00'
-                  : '#3b82f6',
-            }}
+                  : '#3b82f6' }}
           >
             {ship.name || 'UNKNOWN VESSEL'}
           </div>
@@ -124,8 +122,7 @@ export function ShipPopup({ ship, longitude, latitude, onClose }: ShipPopupProps
                 {new Date(ship.last_osint_update).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'short',
-                  day: 'numeric',
-                })}
+                  day: 'numeric' })}
               </div>
             )}
             {ship.desc && (

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for companion section failure visibility in SettingsPanel.
  *

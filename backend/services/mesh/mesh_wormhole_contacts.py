@@ -1253,9 +1253,12 @@ def pin_wormhole_dm_invite(
     contacts[peer_key] = _normalize_contact(current)
     _write_contacts(contacts)
     try:
-        from services.mesh.mesh_dm_connect_delivery import grant_connect_relay_policy
+        from services.mesh.mesh_dm_connect_delivery import (
+            INVITE_IMPORT_REASON,
+            grant_connect_relay_policy,
+        )
 
-        grant_connect_relay_policy(peer_key, reason="invite_import")
+        grant_connect_relay_policy(peer_key, reason=INVITE_IMPORT_REASON)
     except Exception:
         pass
     return contacts[peer_key]

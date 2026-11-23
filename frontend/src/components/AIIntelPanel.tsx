@@ -25,9 +25,9 @@ import {
   ChevronDown,
   ChevronRight,
   Globe,
-  Rss,
-} from 'lucide-react';
+  Rss } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
+import { copyText } from '@/lib/clipboard';
 import type { AIIntelPin, AIIntelLayer, SatelliteScene } from '@/types/aiIntel';
 import { useTranslation } from '@/i18n';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -36,8 +36,7 @@ import {
   updateLayer as apiUpdateLayer,
   deleteLayer as apiDeleteLayer,
   refreshLayerFeed as apiRefreshLayerFeed,
-  fetchSatelliteImages,
-} from '@/lib/aiIntelClient';
+  fetchSatelliteImages } from '@/lib/aiIntelClient';
 
 interface AIIntelPanelProps {
   embedded?: boolean;
@@ -80,8 +79,7 @@ function WormholeIdentitySection() {
       const res = await fetch(`${API_BASE}/api/ai/agent-identity/bootstrap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force }),
-      });
+        body: JSON.stringify({ force }) });
       if (res.ok) {
         const data = await res.json();
         setIdentity(data);
@@ -225,8 +223,7 @@ function ChannelStatusSection() {
       await fetch(`${API_BASE}/api/ai/channel/task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_type: taskType, payload }),
-      });
+        body: JSON.stringify({ task_type: taskType, payload }) });
       setTaskPayload('');
       fetchStatus();
     } catch { /* ignore */ }
@@ -471,8 +468,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       await fetch(`${API_BASE}/api/settings/node`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: true }),
-      });
+        body: JSON.stringify({ enabled: true }) });
       setNodeEnabled(true);
       setNodeConfirmed(true);
 
@@ -480,8 +476,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       const idRes = await fetch(`${API_BASE}/api/ai/agent-identity/bootstrap`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: false }),
-      });
+        body: JSON.stringify({ force: false }) });
       if (idRes.ok) {
         const idData = await idRes.json();
         if (idData.node_id) setNodeId(idData.node_id);
@@ -537,8 +532,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       await fetch(`${API_BASE}/api/ai/connect-info/access-tier`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier }),
-      });
+        body: JSON.stringify({ tier }) });
     } catch { /* ignore */ }
     finally { setTierSaving(false); }
   };
@@ -552,8 +546,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
     setRevealing(true);
     try {
       const res = await fetch(`${API_BASE}/api/ai/connect-info/reveal`, {
-        method: 'POST',
-      });
+        method: 'POST' });
       if (!res.ok) return '';
       const data = await res.json();
       const secret = String(data.hmac_secret || '');
@@ -589,8 +582,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
       const res = await fetch(`${API_BASE}/api/settings/node`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: enable }),
-      });
+        body: JSON.stringify({ enabled: enable }) });
       if (res.ok) {
         setNodeEnabled(enable);
         // Auto-bootstrap agent identity when enabling node
@@ -599,8 +591,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
             const idRes = await fetch(`${API_BASE}/api/ai/agent-identity/bootstrap`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ force: false }),
-            });
+              body: JSON.stringify({ force: false }) });
             if (idRes.ok) {
               const idData = await idRes.json();
               setNodeId(idData.node_id || '');
@@ -792,7 +783,7 @@ function ConnectModalBody({ apiEndpoint, handleCopy, copied }: ConnectModalBodyP
   const handleCopySnippet = async () => {
     const secret = hmacSecret || (await revealHmacSecret());
     if (!secret) return;
-    navigator.clipboard.writeText(buildSnippet(secret));
+    void copyText(buildSnippet(secret));
     setSnippetCopied(true);
     setTimeout(() => setSnippetCopied(false), 2000);
   };
@@ -1185,8 +1176,7 @@ export default function AIIntelPanel({
   onMinimizedChange,
   pinPlacementMode,
   onPinPlacementModeChange,
-  embedded = false,
-}: AIIntelPanelProps) {
+  embedded = false }: AIIntelPanelProps) {
   const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
@@ -1234,7 +1224,7 @@ export default function AIIntelPanel({
   const apiEndpoint = getBackendEndpoint();
 
   const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+    void copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
@@ -1278,8 +1268,7 @@ export default function AIIntelPanel({
       await apiCreateLayer({
         name,
         source: feedUrl ? 'feed' : 'user',
-        ...(feedUrl ? { feed_url: feedUrl } : {}),
-      });
+        ...(feedUrl ? { feed_url: feedUrl } : {}) });
       setNewLayerName('');
       setNewLayerFeedUrl('');
       setShowNewLayer(false);
@@ -1315,8 +1304,7 @@ export default function AIIntelPanel({
           await refreshData();
         } catch {}
         setBusy(false);
-      },
-    });
+      } });
   };
 
   const handleRefreshFeed = async (layerId: string) => {
@@ -1351,8 +1339,7 @@ export default function AIIntelPanel({
           await fetch(`${API_BASE}/api/ai/pins/${pinId}`, { method: 'DELETE' });
           await refreshData();
         } catch {}
-      },
-    });
+      } });
   };
 
   // ── Near Me ──────────────────────────────────────────────────────

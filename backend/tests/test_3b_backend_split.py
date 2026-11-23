@@ -283,7 +283,12 @@ class TestLifespanNodeStateWiring:
 
     def _lifespan_source(self) -> str:
         import main
-        return inspect.getsource(main.lifespan)
+        # Node-state wiring was moved into the runtime starter/enable helpers.
+        return (
+            inspect.getsource(main.lifespan)
+            + inspect.getsource(main._start_infonet_node_runtime)
+            + inspect.getsource(main._set_participant_node_enabled)
+        )
 
     def test_lifespan_calls_set_sync_state(self):
         source = self._lifespan_source()
@@ -306,17 +311,14 @@ class TestLifespanNodeStateWiring:
         )
 
     def test_main_imports_set_sync_state_from_node_state(self):
+        import ast
+
         source = _read_backend_source("main.py")
-        # Confirm set_sync_state is present and comes from node_state
         assert "set_sync_state" in source
-        node_state_block = next(
-            (line for line in source.splitlines() if "from node_state import" in line),
-            "",
+        imported = any(
+            isinstance(node, ast.ImportFrom)
+            and node.module == "node_state"
+            and any(alias.name == "set_sync_state" for alias in node.names)
+            for node in ast.parse(source).body
         )
-        assert node_state_block, "main.py must have a 'from node_state import' line"
-        # set_sync_state may span a multi-line import; verify it appears somewhere
-        # near the node_state import (within the module-level import block).
-        import_section = source[:source.find("\n\n\n")]
-        assert "set_sync_state" in import_section, (
-            "set_sync_state must be imported at module level from node_state"
-        )
+        assert imported, "set_sync_state must be imported at module level from node_state"

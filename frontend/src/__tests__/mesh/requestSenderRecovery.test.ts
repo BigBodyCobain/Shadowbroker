@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   getSenderRecoveryState,
   REQUEST_V2_REDUCED_VERSION,

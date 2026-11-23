@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from '@/lib/motion';
+import { copyText } from '@/lib/clipboard';
 import { X, ExternalLink, Key, Shield, Radar, Globe, Satellite, Ship, Radio, Bot, Copy, Check, Network } from 'lucide-react';
 
 const CURRENT_ONBOARDING_VERSION = '0.9.81-agentic-onboarding-1';
@@ -315,7 +316,7 @@ const OnboardingModal = React.memo(function OnboardingModal({
       setAgentMsg({ type: 'err', text: 'Install Tor and create the remote link first, then copy the agent config.' });
       return;
     }
-    await navigator.clipboard.writeText(agentSnippet);
+    if (!(await copyText(agentSnippet))) return;
     setAgentCopied(true);
     setTimeout(() => setAgentCopied(false), 1600);
   };

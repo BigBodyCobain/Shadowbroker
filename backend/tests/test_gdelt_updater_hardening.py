@@ -104,9 +104,9 @@ class TestUpdaterHardening:
         monkeypatch.setattr(
             updater,
             "_download_release",
-            lambda _temp_dir: ("dummy.zip", "v1.2.3", download_url, release_url),
+            lambda _temp_dir: ("dummy.zip", "v1.2.3", download_url, release_url, "ShadowBroker_v1.2.3.zip", ""),
         )
-        monkeypatch.setattr(updater, "_validate_zip_hash", lambda _zip_path: None)
+        monkeypatch.setattr(updater, "_validate_zip_hash", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(updater, "_backup_current", lambda *_args: str(backup_path))
         monkeypatch.setattr(updater, "_extract_and_copy", lambda *_args: 42)
 
@@ -129,7 +129,7 @@ class TestUpdaterHardening:
         monkeypatch.setattr(
             updater,
             "_download_release",
-            lambda _temp_dir: ("dummy.zip", "v1.2.3", download_url, release_url),
+            lambda _temp_dir: ("dummy.zip", "v1.2.3", download_url, release_url, "ShadowBroker_v1.2.3.zip", ""),
         )
 
         result = updater.perform_update(str(tmp_path))

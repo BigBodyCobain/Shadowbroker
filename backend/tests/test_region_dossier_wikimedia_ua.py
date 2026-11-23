@@ -43,9 +43,10 @@ def test_wikidata_call_passes_wikimedia_request_headers():
     headers = calls[0] or {}
     assert "User-Agent" in headers
     assert "Api-User-Agent" in headers
-    # Stable identifier should mention the project + a contact path.
-    assert "Shadowbroker" in headers["Api-User-Agent"] or "ShadowBroker" in headers["Api-User-Agent"]
-    assert "github.com" in headers["Api-User-Agent"].lower()
+    # Per-install operator handle is sent (no shared project name, to avoid
+    # one-rule blocks against every install).
+    assert "operator" in headers["Api-User-Agent"].lower()
+    assert "wikimedia" in headers["Api-User-Agent"].lower()
 
 
 def test_wikipedia_summary_call_passes_wikimedia_request_headers():
@@ -74,19 +75,15 @@ def test_wikipedia_summary_call_passes_wikimedia_request_headers():
         headers = headers or {}
         assert "User-Agent" in headers, f"missing User-Agent on {url}"
         assert "Api-User-Agent" in headers, f"missing Api-User-Agent on {url}"
-        assert "github.com" in headers["Api-User-Agent"].lower()
+        assert "operator" in headers["Api-User-Agent"].lower()
+        assert "wikimedia" in headers["Api-User-Agent"].lower()
 
 
 def test_wikimedia_headers_helper_is_stable():
-    """Regression guard: if someone removes the contact path or the
-    per-operator handle from the Wikimedia headers, we want a loud
-    test failure, not a silent ToS drift.
+    """Regression guard: Wikimedia headers must stay identifiable per install.
 
-    Round 7a: the original ``_WIKIMEDIA_REQUEST_HEADERS`` constant was
-    replaced with the ``_wikimedia_request_headers()`` function so the
-    per-install operator handle is embedded at call time. This test
-    pins both the project identifier AND the contact path AND the
-    per-operator format.
+    The format is intentionally per-operator (no shared project name) so an
+    upstream abuse response cannot blanket-block every ShadowBroker install.
     """
     from services.region_dossier import _wikimedia_request_headers
 
@@ -94,8 +91,6 @@ def test_wikimedia_headers_helper_is_stable():
     aua = headers.get("Api-User-Agent", "")
     ua = headers.get("User-Agent", "")
     for h, label in ((ua, "User-Agent"), (aua, "Api-User-Agent")):
-        assert "Shadowbroker" in h or "ShadowBroker" in h, f"{label} missing project id"
-        assert "github.com" in h.lower(), f"{label} missing contact URL"
-        assert "issues" in h.lower(), f"{label} missing /issues contact path"
-        # Round 7a: must include the per-operator handle.
-        assert "operator:" in h, f"{label} missing per-operator handle: {h!r}"
+        assert "operator" in h.lower(), f"{label} missing per-operator handle: {h!r}"
+        assert "wikimedia" in h.lower(), f"{label} missing purpose: {h!r}"
+    assert ua == aua, "User-Agent and Api-User-Agent should carry the same identifier"

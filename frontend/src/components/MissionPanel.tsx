@@ -6,8 +6,7 @@ import {
   missionRequest,
   type MissionConfiguration,
   type MissionRole,
-  type Watch,
-} from '@/lib/missionClient';
+  type Watch } from '@/lib/missionClient';
 import { articleSourceUrl } from '@/lib/newsArticles';
 
 const button =
@@ -16,8 +15,7 @@ const field = 'w-full bg-black/60 border border-slate-700 rounded px-2 py-1 text
 
 export default function MissionPanel({
   workspace,
-  onClose,
-}: {
+  onClose }: {
   workspace: MissionWorkspace;
   onClose: () => void;
 }) {
@@ -52,7 +50,7 @@ export default function MissionPanel({
       refreshMissions(),
       missionRequest<{ watches: Watch[] }>('watches'),
     ])
-      .then(([data, , monitoring]) => {
+      .then(([data, , watchData]) => {
         if (!mounted) return;
         setConfig(data);
         setRoles(
@@ -60,10 +58,9 @@ export default function MissionPanel({
             role: role as MissionRole['role'],
             provider: data.provider,
             model: data.model,
-            max_calls: 5,
-          })),
+            max_calls: 5 })),
         );
-        setWatches(monitoring.watches);
+        setWatches((watchData as any)?.watches || []);
       })
       .catch((exception) => {
         if (mounted) setError(String(exception.message));
@@ -485,8 +482,7 @@ export default function MissionPanel({
                   track_entity: 'query',
                   track_callsign: 'callsign',
                   track_registration: 'registration',
-                  track_ship: 'name',
-                } as Record<string, string>
+                  track_ship: 'name' } as Record<string, string>
               )[watchType];
               const coords = watchValue.split(',').map((value) => Number(value.trim()));
               if (
@@ -502,14 +498,12 @@ export default function MissionPanel({
                       lat: coords[0],
                       lng: coords[1],
                       radius_km: radius,
-                      entity_types: ['aircraft', 'ships'],
-                    }
+                      entity_types: ['aircraft', 'ships'] }
                   : { [key]: watchValue.trim() };
               await missionRequest('watches', {
                 type: watchType,
                 params,
-                ...(mission ? { mission_id: mission.id } : {}),
-              });
+                ...(mission ? { mission_id: mission.id } : {}) });
               setWatchValue('');
               await refreshWatches();
             })

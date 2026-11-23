@@ -12,9 +12,15 @@ def test_normalize_root_accepts_custom_subroots():
 
 def test_build_subscription_topics_keeps_defaults_and_extras():
     topics = build_subscription_topics(extra_roots="PL,US/rob/snd", extra_topics="msh/+/2/json/#")
-    assert "msh/US/#" in topics
-    assert "msh/PL/#" in topics
-    assert "msh/US/rob/snd/#" in topics
+    # Default US roots are expanded to version/mode/channel-specific topics.
+    assert "msh/US/2/e/LongFast/#" in topics
+    assert "msh/US/2/json/LongFast/#" in topics
+    # Extra roots get the same expanded form.
+    assert "msh/PL/2/e/LongFast/#" in topics
+    assert "msh/PL/2/json/LongFast/#" in topics
+    assert "msh/US/rob/snd/2/e/LongFast/#" in topics
+    assert "msh/US/rob/snd/2/json/LongFast/#" in topics
+    # Explicit extra topics are preserved as-is.
     assert "msh/+/2/json/#" in topics
 
 

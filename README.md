@@ -115,6 +115,20 @@ Open `http://localhost:3000` to view the dashboard! *(Requires [Docker Desktop](
 
 ---
 
+## Configuration & Source of Truth
+
+Use these as canonical configuration files (other copies may exist for compatibility):
+
+| Purpose | Canonical file | Notes |
+|---|---|---|
+| Docker Compose deployment env | `.env.example` → `.env` | Container/compose variables, ports, fleet/mesh/voice toggles. |
+| Local backend process env | `backend/.env.example` → `backend/.env` | Backend-only/local dev settings loaded by backend config. |
+| Python dependencies (runtime) | `backend/pyproject.toml` | Root `pyproject.toml` is workspace metadata; `uv.lock` is the resolved workspace lock. |
+| Frontend dependencies | `frontend/package.json` + `frontend/package-lock.json` | Use `npm ci` for reproducible installs. |
+| Wormhole cleanup script | `kill_wormhole.sh` / `kill_wormhole.bat` | `killwormhole.*` are compatibility wrappers and deprecated. |
+
+---
+
 🔄 How to Update
 
 ShadowBroker uses pre-built Docker images — no local building required. Updating takes seconds:

@@ -730,6 +730,11 @@ class InternetTransport(_PeerPushTransportMixin):
                         hashlib.sha256,
                     ).hexdigest()
                 url = f"{peer_url}{endpoint_path}"
+                from services.ssrf_guard import guard_url_for_peer_request
+
+                guard = guard_url_for_peer_request(url, allow_proxied=False)
+                if not guard.get("ok"):
+                    raise ValueError(f"blocked peer url: {guard.get('reason')}")
                 resp = _requests.post(
                     url,
                     data=padded,
@@ -824,6 +829,11 @@ class TorArtiTransport(_PeerPushTransportMixin):
                         hashlib.sha256,
                     ).hexdigest()
                 url = f"{peer_url}{endpoint_path}"
+                from services.ssrf_guard import guard_url_for_peer_request
+
+                guard = guard_url_for_peer_request(url, allow_proxied=True)
+                if not guard.get("ok"):
+                    raise ValueError(f"blocked peer url: {guard.get('reason')}")
                 resp = _requests.post(
                     url,
                     data=padded,

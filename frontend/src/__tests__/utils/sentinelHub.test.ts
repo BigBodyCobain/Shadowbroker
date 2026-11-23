@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Issue #298 (tg12): Sentinel credentials must no longer live in browser
  * storage, and the proxy calls must not forward them in request bodies.

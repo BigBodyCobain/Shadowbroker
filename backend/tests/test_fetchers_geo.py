@@ -3,7 +3,10 @@ from services.fetchers import geo
 
 
 def test_find_nearest_airport_from_fixture():
-    with open("tests/fixtures/airports.json", "r", encoding="utf-8") as f:
+    from pathlib import Path
+
+    fixture = Path(__file__).resolve().parent / "fixtures" / "airports.json"
+    with open(fixture, "r", encoding="utf-8") as f:
         airports = json.load(f)
 
     geo.cached_airports = airports

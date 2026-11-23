@@ -197,6 +197,10 @@ for _var in _SECRET_VARS:
             logger.error(f"Failed to read secret file {_file_path} for {_var}: {_e}")
 
 from fastapi import APIRouter, FastAPI, Request, Response, Query, Depends, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -1642,6 +1646,11 @@ def _peer_sync_response(peer_url: str, body: dict[str, Any]) -> dict[str, Any]:
         socks_port = int(get_settings().MESH_ARTI_SOCKS_PORT or 9050)
         proxy = f"socks5h://127.0.0.1:{socks_port}"
         kwargs["proxies"] = {"http": proxy, "https": proxy}
+    from services.ssrf_guard import guard_url_for_peer_request
+
+    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(kwargs.get("proxies")))
+    if not guard.get("ok"):
+        raise ValueError(f"blocked peer url: {guard.get('reason')}")
     response = _requests.post(f"{normalized}/api/mesh/infonet/sync", **kwargs)
     # HTTP 429 must be surfaced as a typed exception carrying the
     # Retry-After value, so finish_sync can honor it and stop hammering
@@ -2229,6 +2238,10 @@ def _http_peer_push_loop() -> None:
                     }
                     if proxies:
                         request_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/infonet/peer-push",
                         **request_kwargs,
@@ -2330,6 +2343,10 @@ def _http_gate_pull_loop() -> None:
                     }
                     if proxies:
                         discovery_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/gate/peer-pull",
                         **discovery_kwargs,
@@ -2373,6 +2390,10 @@ def _http_gate_pull_loop() -> None:
                         }
                         if proxies:
                             pull_kwargs["proxies"] = proxies
+                        from services.ssrf_guard import guard_url_for_peer_request
+                        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                        if not guard.get("ok"):
+                            raise ValueError(f"blocked peer url: {guard.get('reason')}")
                         pull_resp = _requests.post(
                             f"{normalized}/api/mesh/gate/peer-pull",
                             **pull_kwargs,
@@ -2929,7 +2950,140 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="Live Risk Dashboard API", lifespan=lifespan)
+app = FastAPI(
+    title="Live Risk Dashboard API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url="/openapi.json",
+)
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="/static/swagger/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger/swagger-ui.css",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+  <head>
+    <title>{app.title} - ReDoc</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body {{ margin: 0; padding: 0; }}</style>
+  </head>
+  <body>
+    <redoc spec-url="{app.openapi_url or '/openapi.json'}"></redoc>
+    <script src="/static/swagger/redoc.standalone.js"></script>
+  </body>
+</html>""")
+
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_html():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+  <head>
+    <title>{app.title} - Scalar</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body {{ margin: 0; }}</style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/static/swagger/scalar.standalone.js"></script>
+    <script>
+      Scalar.createApiReference('#app', {{ url: '{app.openapi_url or "/openapi.json"}' }})
+    </script>
+  </body>
+</html>""")
+
+
+@app.get("/help", include_in_schema=False)
+async def api_help():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{app.title} - Help</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {{ --bg:#f8fafc; --card:#ffffff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --accent:#2563eb; --code:#f1f5f9; }}
+      * {{ box-sizing: border-box; }}
+      body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }}
+      main {{ max-width: 860px; margin: 0 auto; padding: 48px 20px 64px; }}
+      h1 {{ margin:0 0 6px; font-size: 2rem; letter-spacing:-0.02em; }}
+      h2 {{ margin:0 0 12px; font-size: 1.05rem; letter-spacing:-0.01em; }}
+      p {{ margin:0; }}
+      a {{ color:var(--accent); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+      code {{ background:var(--code); padding:2px 6px; border-radius:6px; font-size:0.92em; }}
+      ul {{ margin:0; padding-left:20px; }}
+      li {{ margin:10px 0; }}
+      .muted {{ color:var(--muted); }}
+      .header {{ margin-bottom: 28px; }}
+      .version {{ display:inline-block; margin-top:8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:0.85rem; color:var(--muted); background:var(--card); }}
+      .grid {{ display:grid; gap:16px; }}
+      .card {{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:0 1px 2px rgba(15,23,42,.03); }}
+      .links a {{ font-weight:500; }}
+      .footer {{ margin-top:14px; font-size:0.92rem; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="header">
+        <h1>{app.title}</h1>
+        <p class="muted">Live risk intelligence API</p>
+        <div class="version">Version {APP_VERSION}</div>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <h2>About</h2>
+          <p class="muted">ShadowBroker aggregates OSINT and sensor data into a map-first operational view. The backend combines flight, maritime, satellite, SIGINT, CCTV, news, geospatial, and mesh/wormhole workflows behind a FastAPI service.</p>
+        </section>
+
+        <section class="card links">
+          <h2>Access</h2>
+          <ul>
+            <li><a href="http://127.0.0.1:3000">Frontend</a> <span class="muted">— web interface (<code>http://127.0.0.1:3000</code>)</span></li>
+            <li><a href="http://127.0.0.1:8000">Backend</a> <span class="muted">— API service (<code>http://127.0.0.1:8000</code>)</span></li>
+          </ul>
+        </section>
+
+        <section class="card links">
+          <h2>API Documentation</h2>
+          <ul>
+            <li><a href="/docs">Swagger UI</a> <span class="muted">— interactive API explorer (<code>/docs</code>)</span></li>
+            <li><a href="/redoc">ReDoc</a> <span class="muted">— readable API reference (<code>/redoc</code>)</span></li>
+            <li><a href="/scalar">Scalar</a> <span class="muted">— modern API reference (<code>/scalar</code>)</span></li>
+            <li><a href="/openapi.json">OpenAPI JSON</a> <span class="muted">— machine-readable schema (<code>/openapi.json</code>)</span></li>
+          </ul>
+        </section>
+
+        <section class="card links">
+          <h2>Useful Endpoints</h2>
+          <ul>
+            <li><a href="/api/health">Health</a> <span class="muted">— status, SLO, freshness, uptime (<code>/api/health</code>)</span></li>
+            <li><a href="/api/layers">Layers</a> <span class="muted">— active layer configuration (<code>/api/layers</code>)</span></li>
+            <li><a href="/api/live-data/fast">Live Data (fast)</a> <span class="muted">— high-frequency snapshot (<code>/api/live-data/fast</code>)</span></li>
+            <li><a href="/api/live-data/slow">Live Data (slow)</a> <span class="muted">— enrichment snapshot (<code>/api/live-data/slow</code>)</span></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>""")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -4121,7 +4275,7 @@ async def thermal_verify(
     return result
 
 
-@app.post("/api/sigint/transmit")
+@app.post("/api/sigint/transmit", dependencies=[Depends(require_local_operator)])
 @limiter.limit("5/minute")
 async def sigint_transmit(request: Request):
     """Send an APRS-IS message to a specific callsign. Requires ham radio credentials."""
@@ -6711,7 +6865,7 @@ async def oracle_markets_more(
     }
 
 
-@app.post("/api/mesh/oracle/resolve")
+@app.post("/api/mesh/oracle/resolve", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve(request: Request):
@@ -6861,7 +7015,7 @@ async def oracle_predictions(request: Request, node_id: str = ""):
     )
 
 
-@app.post("/api/mesh/oracle/resolve-stakes")
+@app.post("/api/mesh/oracle/resolve-stakes", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve_stakes(request: Request):
@@ -9108,7 +9262,7 @@ async def api_sentinel_token(request: Request):
 _sh_token_cache: dict = {"token": None, "expiry": 0, "client_id": ""}
 
 
-@app.post("/api/sentinel/tile")
+@app.post("/api/sentinel/tile", dependencies=[Depends(require_local_operator)])
 @limiter.limit("300/minute")
 async def api_sentinel_tile(request: Request):
     """Proxy Sentinel Hub Process API tile request (avoids CORS block).
@@ -9649,8 +9803,9 @@ async def api_set_node_settings(request: Request, body: NodeSettingsUpdate):
     return result
 
 
-@app.post("/api/mesh/infonet/swarm/join")
+@app.post("/api/mesh/infonet/swarm/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def infonet_swarm_join(request: Request):
     """Announce this node to the fleet seed and pull the signed peer manifest."""
     if not _participant_node_enabled():
@@ -10436,7 +10591,7 @@ async def api_get_wormhole_status(request: Request):
     )
 
 
-@app.post("/api/wormhole/join")
+@app.post("/api/wormhole/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_join(request: Request):
     existing = read_wormhole_settings()
@@ -10490,7 +10645,7 @@ async def api_wormhole_join(request: Request):
     }
 
 
-@app.post("/api/wormhole/leave")
+@app.post("/api/wormhole/leave", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_leave(request: Request):
     updated = write_wormhole_settings(enabled=False)
@@ -11320,19 +11475,19 @@ async def api_wormhole_gate_leave(request: Request, body: WormholeGateRequest):
     return leave_gate(str(body.gate_id or ""))
 
 
-@app.get("/api/wormhole/gate/{gate_id}/identity")
+@app.get("/api/wormhole/gate/{gate_id}/identity", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_identity(request: Request, gate_id: str):
     return get_active_gate_identity(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/personas")
+@app.get("/api/wormhole/gate/{gate_id}/personas", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_personas(request: Request, gate_id: str):
     return list_gate_personas(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/key")
+@app.get("/api/wormhole/gate/{gate_id}/key", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_key_status(request: Request, gate_id: str):
     exposure = metadata_exposure_for_request(request, authenticated=True)

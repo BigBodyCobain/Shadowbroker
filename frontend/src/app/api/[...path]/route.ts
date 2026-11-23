@@ -16,6 +16,13 @@ import { resolveAdminSessionToken, verifyPresentedAdminKey } from '@/lib/server/
 import { isAllowedBrowserRequest } from '@/lib/requestOrigin';
 import { readRequestBody, RequestBodyTooLarge } from '@/lib/server/requestBody';
 
+// Short-circuit repeated requests to an upstream that is known to be down.
+// Without this, every poll retries for ~4.5s and floods the log with identical
+// failures while the backend is starting or restarting.
+const UPSTREAM_RETRY_MS = 3000;
+const upstreamDownUntil = new Map<string, number>();
+const upstreamLastLog = new Map<string, number>();
+
 // Headers that must not be forwarded to the backend.
 const STRIP_REQUEST = new Set([
   'connection',
@@ -233,31 +240,54 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<NextResp
         requestInit.body = body;
       }
     }
+    const downUntil = upstreamDownUntil.get(targetBase) || 0;
+    if (Date.now() < downUntil) {
+      return new NextResponse(
+        JSON.stringify({ error: 'Backend unavailable', retry_after_s: Math.ceil((downUntil - Date.now()) / 1000) }),
+        {
+          status: 502,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((downUntil - Date.now()) / 1000) || 1),
+            'X-Proxy-Error': 'upstream_circuit_open',
+          },
+        },
+      );
+    }
+
     const maxAttempts = isBodyless ? 18 : 1;
     let fetchError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
         upstream = await fetch(targetUrl.toString(), requestInit);
         fetchError = null;
+        upstreamDownUntil.delete(targetBase);
         break;
       } catch (error) {
         fetchError = error;
         if (attempt >= maxAttempts) {
-          console.error('api proxy upstream fetch failed', {
-            method: req.method,
-            target: targetUrl.toString(),
-            error,
-          });
+          upstreamDownUntil.set(targetBase, Date.now() + UPSTREAM_RETRY_MS);
+          const lastLog = upstreamLastLog.get(targetBase) || 0;
+          if (Date.now() - lastLog > UPSTREAM_RETRY_MS) {
+            upstreamLastLog.set(targetBase, Date.now());
+            console.error('api proxy upstream fetch failed', {
+              method: req.method,
+              target: targetUrl.toString(),
+              error,
+            });
+          }
         }
         if (attempt >= maxAttempts) break;
         await sleep(250);
       }
     }
     if (!upstream) {
-      return new NextResponse(JSON.stringify({ error: 'Backend unavailable' }), {
+      const retryAfter = Math.ceil((upstreamDownUntil.get(targetBase) || Date.now()) - Date.now()) || 1;
+      return new NextResponse(JSON.stringify({ error: 'Backend unavailable', retry_after_s: retryAfter }), {
         status: 502,
         headers: {
           'Content-Type': 'application/json',
+          'Retry-After': String(retryAfter),
           'X-Proxy-Error': fetchError instanceof Error ? fetchError.name : 'fetch_failed',
         },
       });

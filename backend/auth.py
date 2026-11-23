@@ -55,6 +55,28 @@ from services.mesh.mesh_router import authenticated_push_peer_urls
 logger = logging.getLogger(__name__)
 _PRIVATE_LANE_REFUSAL_FLOOR_S = 0.02
 
+
+def _log_auth_deny(event: str, reason: str, request: Request | None = None, **fields: Any) -> None:
+    """Emit a structured deny log without secrets."""
+    parts = [f"auth_deny event={event}", f"reason={reason}"]
+    if request is not None:
+        try:
+            parts.append(f"method={str(request.method or '').upper()}")
+            parts.append(f"path={_request_scope_path(request)}")
+            client = getattr(request, "client", None)
+            host = str(getattr(client, "host", "") or "") if client else ""
+            if host:
+                parts.append(f"client={host}")
+        except Exception:
+            pass
+    for key, value in fields.items():
+        if value is None:
+            continue
+        text = str(value).replace("\n", " ").replace("\r", " ").strip()
+        if text:
+            parts.append(f"{key}={text}")
+    logger.warning(" ".join(parts))
+
 # ---------------------------------------------------------------------------
 # Admin key helpers
 # ---------------------------------------------------------------------------
@@ -97,7 +119,7 @@ def _scoped_admin_tokens() -> dict[str, list[str]]:
         return {}
     try:
         parsed = json_mod.loads(raw)
-    except Exception as exc:
+    except (json_mod.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("failed to parse MESH_SCOPED_TOKENS: %s", type(exc).__name__)
         return {}
     if not isinstance(parsed, dict):
@@ -234,7 +256,9 @@ def require_admin(request: Request):
     if ok:
         return
     if detail == "insufficient scope":
+        _log_auth_deny("admin_scope_denied", "insufficient_scope", request, required_scope=required_scope)
         raise HTTPException(status_code=403, detail="Forbidden — insufficient scope")
+    _log_auth_deny("admin_denied", detail, request, required_scope=required_scope)
     raise HTTPException(status_code=403, detail=detail)
 
 
@@ -400,6 +424,7 @@ def operator_origin_allowed(request: Request) -> bool:
 def require_local_operator(request: Request):
     """Require an explicit operator credential, including on loopback and Docker."""
     if not operator_origin_allowed(request):
+        _log_auth_deny("local_operator_origin_denied", "untrusted_browser_origin", request)
         raise HTTPException(status_code=403, detail="Forbidden — untrusted browser origin")
     if _is_debug_test_request(request):
         return
@@ -407,6 +432,7 @@ def require_local_operator(request: Request):
     presented = str(request.headers.get("X-Admin-Key", "") or "").strip()
     if admin_key and hmac.compare_digest(presented.encode(), admin_key.encode()):
         return
+    _log_auth_deny("local_operator_denied", "missing_or_invalid_admin_key", request)
     raise HTTPException(status_code=403, detail="Forbidden — operator authentication required")
 
 
@@ -526,6 +552,7 @@ async def require_openclaw_or_local(request: Request):
     without exposing the full admin surface.
     """
     if not operator_origin_allowed(request):
+        _log_auth_deny("openclaw_origin_denied", "untrusted_browser_origin", request)
         raise HTTPException(status_code=403, detail="Forbidden — untrusted browser origin")
     if _is_debug_test_request(request):
         return
@@ -545,6 +572,7 @@ async def require_openclaw_or_local(request: Request):
             "/api/ai/channel/poll",
         )
         if tier != "full" and request.method not in ("GET", "HEAD") and not channel_post:
+            _log_auth_deny("openclaw_tier_denied", "write_requires_full_tier", request, tier=tier)
             raise HTTPException(status_code=403, detail="Write routes require full OpenClaw access tier")
         # Security: reject if agent is also sending Authorization headers.
         # This catches misconfigured proxies forwarding LLM API keys to SB.
@@ -557,6 +585,7 @@ async def require_openclaw_or_local(request: Request):
                     "BLOCKED: HMAC-authenticated request carries Authorization header "
                     "that looks like an LLM API key — rejecting to prevent key leak"
                 )
+                _log_auth_deny("openclaw_auth_header_blocked", "llm_api_key_authorization_header", request)
                 raise HTTPException(
                     status_code=400,
                     detail="Request rejected — Authorization header contains what appears "
@@ -567,6 +596,7 @@ async def require_openclaw_or_local(request: Request):
             )
         return
 
+    _log_auth_deny("openclaw_auth_denied", "missing_or_invalid_auth", request)
     raise HTTPException(status_code=403, detail="Forbidden — authentication required")
 
 

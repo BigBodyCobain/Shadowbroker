@@ -42,16 +42,20 @@ import pytest
 
 
 @pytest.fixture
-def loopback_client():
-    """ASGI client with peer IP 127.0.0.1 so the Sentinel routes' (post-#303)
-    ``require_local_operator`` gate passes.
+def loopback_client(monkeypatch):
+    """ASGI client with peer IP 127.0.0.1 and a valid operator key.
 
-    Built without a context manager so the privacy-core lifespan check
-    doesn't run in the test env.
+    require_local_operator now requires an explicit operator credential even
+    on loopback, so inject a test ADMIN_KEY.
     """
     import asyncio
     from httpx import ASGITransport, AsyncClient
     from main import app
+    from services.config import get_settings
+
+    key = "test-operator-key-" + "x" * 32
+    monkeypatch.setenv("ADMIN_KEY", key)
+    get_settings.cache_clear()
 
     class _Loop:
         def __init__(self):
@@ -60,9 +64,11 @@ def loopback_client():
             self._base = "http://127.0.0.1:8000"
 
         def _do(self, method: str, url: str, **kw):
+            headers = dict(kw.pop("headers", {}) or {})
+            headers.setdefault("X-Admin-Key", key)
             async def go():
                 async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
-                    return await ac.request(method, url, **kw)
+                    return await ac.request(method, url, headers=headers, **kw)
             return self._loop.run_until_complete(go())
 
         def get(self, url, **kw):  return self._do("GET", url, **kw)

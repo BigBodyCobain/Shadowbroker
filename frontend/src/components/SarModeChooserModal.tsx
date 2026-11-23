@@ -19,24 +19,19 @@ interface SarModeChooserModalProps {
 const MODE_B_EXTRAS = [
   {
     title: 'Ground Deformation (mm-scale)',
-    desc: 'NASA OPERA DISP + Copernicus EGMS — detects subsidence, landslides, building collapse, dam stress.',
-  },
+    desc: 'NASA OPERA DISP + Copernicus EGMS — detects subsidence, landslides, building collapse, dam stress.' },
   {
     title: 'Surface Water Change',
-    desc: 'OPERA DSWx — daily flood extent polygons from Sentinel-1, even through cloud cover.',
-  },
+    desc: 'OPERA DSWx — daily flood extent polygons from Sentinel-1, even through cloud cover.' },
   {
     title: 'Vegetation Disturbance',
-    desc: 'OPERA DIST-ALERT — deforestation, burn scars, blast craters.',
-  },
+    desc: 'OPERA DIST-ALERT — deforestation, burn scars, blast craters.' },
   {
     title: 'Damage Assessments',
-    desc: 'UNOSAT + Copernicus EMS — hand-verified damage polygons from active disaster/conflict zones.',
-  },
+    desc: 'UNOSAT + Copernicus EMS — hand-verified damage polygons from active disaster/conflict zones.' },
   {
     title: 'Global Flood Monitoring (no account)',
-    desc: 'GFM daily Sentinel-1 flood masks — activates with any Mode B setup.',
-  },
+    desc: 'GFM daily Sentinel-1 flood masks — activates with any Mode B setup.' },
 ];
 
 const SIGNUP_STEPS = [
@@ -44,26 +39,22 @@ const SIGNUP_STEPS = [
     n: 1,
     label: 'Create a free NASA Earthdata Login',
     url: 'https://urs.earthdata.nasa.gov/users/new',
-    why: 'Takes about 1 minute. Used only to authorize OPERA product downloads.',
-  },
+    why: 'Takes about 1 minute. Used only to authorize OPERA product downloads.' },
   {
     n: 2,
     label: 'Generate an Earthdata user token',
     url: 'https://urs.earthdata.nasa.gov/profile',
-    why: 'After login → "Generate Token". Copy the token string (NOT your password).',
-  },
+    why: 'After login → "Generate Token". Copy the token string (NOT your password).' },
   {
     n: 3,
     label: 'Paste the token below and click "Activate Mode B"',
     url: '',
-    why: 'Stored only on this node, in backend/data/sar_runtime.json. You can revoke it anytime.',
-  },
+    why: 'Stored only on this node, in backend/data/sar_runtime.json. You can revoke it anytime.' },
 ];
 
 const SarModeChooserModal = React.memo(function SarModeChooserModal({
   onClose,
-  onChoiceMade,
-}: SarModeChooserModalProps) {
+  onChoiceMade }: SarModeChooserModalProps) {
   const [view, setView] = useState<'chooser' | 'signup'>('chooser');
   const [earthdataToken, setEarthdataToken] = useState('');
   const [earthdataUser, setEarthdataUser] = useState('');
@@ -104,9 +95,7 @@ const SarModeChooserModal = React.memo(function SarModeChooserModal({
         credentials: 'include',
         body: JSON.stringify({
           earthdata_user: earthdataUser.trim(),
-          earthdata_token: earthdataToken.trim(),
-        }),
-      });
+          earthdata_token: earthdataToken.trim() }) });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         // FastAPI validation errors come back as {detail: [{msg, loc, ...}]},

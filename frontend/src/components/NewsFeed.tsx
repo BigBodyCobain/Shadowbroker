@@ -115,8 +115,7 @@ const AIRCRAFT_WIKI: Record<string, string> = {
     // Russian / other
     SU95: 'Sukhoi Superjet 100', AN12: 'Antonov An-12', AN26: 'Antonov An-26',
     IL76: 'Ilyushin Il-76', IL96: 'Ilyushin Il-96',
-    A400: 'Airbus A400M Atlas', C295: 'Airbus C-295',
-};
+    A400: 'Airbus A400M Atlas', C295: 'Airbus C-295' };
 
 /**
  * Maps plane_alert_db `ac_type` substrings → correct Wikipedia article titles.
@@ -248,8 +247,7 @@ const VESSEL_TYPE_WIKI: Record<string, string> = {
     'cargo': 'https://en.wikipedia.org/wiki/Container_ship',
     'passenger': 'https://en.wikipedia.org/wiki/Cruise_ship',
     'yacht': 'https://en.wikipedia.org/wiki/Superyacht',
-    'military_vessel': 'https://en.wikipedia.org/wiki/Warship',
-};
+    'military_vessel': 'https://en.wikipedia.org/wiki/Warship' };
 
 type FlightTrailPoint = { lat?: number; lng?: number; alt?: number; ts?: number } | number[];
 
@@ -1211,8 +1209,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 'passenger': 'PASSENGER / CRUISE',
                 'yacht': 'PRIVATE YACHT',
                 'military_vessel': 'MILITARY VESSEL',
-                'carrier': 'AIRCRAFT CARRIER',
-            };
+                'carrier': 'AIRCRAFT CARRIER' };
             const typeLabel = vesselTypeLabels[ship.type] || ship.type?.toUpperCase() || 'VESSEL';
 
             const headerColorMap: Record<string, string> = {
@@ -1221,8 +1218,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 'passenger': 'text-white',
                 'yacht': 'text-blue-400',
                 'military_vessel': 'text-yellow-400',
-                'carrier': 'text-orange-400',
-            };
+                'carrier': 'text-orange-400' };
             const headerColor = headerColorMap[ship.type] || 'text-[var(--text-secondary)]';
 
             const headerTitleMap: Record<string, string> = {
@@ -1231,8 +1227,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                 'passenger': 'AIS PASSENGER VESSEL',
                 'yacht': 'AIS YACHT SIGNAL',
                 'military_vessel': 'AIS MILITARY VESSEL',
-                'carrier': 'CARRIER STRIKE GROUP',
-            };
+                'carrier': 'CARRIER STRIKE GROUP' };
             const headerTitle = headerTitleMap[ship.type] || 'AIS VESSEL SIGNAL';
 
             return (
@@ -1442,7 +1437,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                         <h2 className="text-xs tracking-widest font-bold text-red-400 flex items-center gap-2">
                             <AlertTriangle size={14} className="text-red-400" /> THREAT INTERCEPT
                         </h2>
-                        <span className="text-[10px] text-[var(--text-muted)] font-mono">LVL: {item.risk_score}/10</span>
+                        {item.risk_score != null && <span className="text-[10px] text-[var(--text-muted)] font-mono">LVL: {item.risk_score}/10</span>}
                     </div>
 
                     <div className="p-4 flex flex-col gap-3">
@@ -1850,8 +1845,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                     const actorColors: Record<string, string> = {
                                                         'Russia': 'bg-red-500', 'China': 'bg-amber-500',
                                                         'Iran': 'bg-purple-500', 'North Korea': 'bg-pink-500',
-                                                        'Belarus': 'bg-orange-500',
-                                                    };
+                                                        'Belarus': 'bg-orange-500' };
                                                     return Object.entries(fimi.threat_actors).map(([actor, count]) => (
                                                         <div
                                                             key={actor}
@@ -2013,7 +2007,7 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
 
                                     <div className="flex items-center gap-1.5 mt-1 relative z-10 flex-wrap">
                                         <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${badgeClass}`}>
-                                            {isBreaking ? 'BREAKING' : `LVL: ${item.risk_score}/10`}
+                                            {isBreaking ? 'BREAKING' : item.risk_score != null ? `LVL: ${item.risk_score}/10` : 'INTEL'}
                                         </span>
                                         {item.sentiment != null && (
                                             <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded-sm border ${
@@ -2063,12 +2057,12 @@ function NewsFeedInner({ selectedEntity, regionDossier, regionDossierLoading, gt
                                                     <div key={subIdx} className="flex flex-col gap-0.5 pl-2 border-l border-cyan-500/20">
                                                         <div className="flex items-center justify-between text-[11px] uppercase font-bold">
                                                             <span className="text-white">&gt;_ {subItem.source}</span>
-                                                            <span className={
+                                                            {subItem.risk_score != null && <span className={
                                                                 subItem.risk_score >= 9 ? 'text-red-400' :
                                                                     subItem.risk_score >= 7 ? 'text-orange-400' :
                                                                         subItem.risk_score >= 4 ? 'text-yellow-500' :
                                                                             'text-green-400'
-                                                            }>LVL: {subItem.risk_score}/10</span>
+                                                            }>LVL: {subItem.risk_score}/10</span>}
                                                         </div>
                                                         <a href={subItem.link} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors leading-tight">
                                                             {subItem.title}

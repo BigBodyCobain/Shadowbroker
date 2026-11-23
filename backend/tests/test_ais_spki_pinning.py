@@ -60,7 +60,8 @@ def test_ais_proxy_status_starts_empty():
     with ais_stream._vessels_lock:
         ais_stream._proxy_status.clear()
     status = ais_stream.ais_proxy_status()
-    assert status == {}
+    assert status.get("degraded_tls") in (None, False)
+    assert status.get("proxy_spawn_count") == 0
 
 
 def test_ais_proxy_status_returns_copy_not_reference():
@@ -73,12 +74,12 @@ def test_ais_proxy_status_returns_copy_not_reference():
         ais_stream._proxy_status["degraded_tls"] = True
 
     snapshot = ais_stream.ais_proxy_status()
-    assert snapshot == {"degraded_tls": True}
+    assert snapshot.get("degraded_tls") is True
     snapshot["degraded_tls"] = False  # mutate the returned copy
 
     # Original should be untouched
     re_snapshot = ais_stream.ais_proxy_status()
-    assert re_snapshot == {"degraded_tls": True}
+    assert re_snapshot.get("degraded_tls") is True
 
     # Cleanup so other tests start clean
     with ais_stream._vessels_lock:
@@ -97,7 +98,7 @@ def test_health_includes_ais_proxy_field(client):
     payload = response.json()
 
     assert "ais_proxy" in payload
-    assert payload["ais_proxy"] == {"degraded_tls": True}
+    assert payload["ais_proxy"].get("degraded_tls") is True
     # Top-level status should escalate from ok to degraded when AIS is
     # in degraded-TLS mode (unless SLOs already report worse).
     assert payload["status"] in {"degraded", "error"}
@@ -115,4 +116,4 @@ def test_health_ais_proxy_field_when_no_status(client):
     response = client.get("/api/health")
     assert response.status_code == 200
     payload = response.json()
-    assert payload.get("ais_proxy") == {}
+    assert payload.get("ais_proxy", {}).get("degraded_tls") in (None, False)
