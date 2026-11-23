@@ -101,6 +101,11 @@ export default function ViewerDashboard() {
     const r = localStorage.getItem('sb_right_open');
     if (l !== null) setLeftOpen(l === 'true');
     if (r !== null) setRightOpen(r === 'true');
+    // A link ending in #skill opens the agent skill screen directly.
+    if (window.location.hash === '#skill') {
+      setSkillOpen(true);
+      return;
+    }
     // First visit: say what this page is.
     if (localStorage.getItem('sb_viewer_about_seen') !== '1') {
       setAboutOpen(true);
