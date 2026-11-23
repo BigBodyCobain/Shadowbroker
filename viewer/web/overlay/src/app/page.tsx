@@ -144,15 +144,28 @@ export default function ViewerDashboard() {
     }
   }, [phone]);
 
-  // Phone: details of a tapped aircraft, ship or event live in the Intel sheet, so open it.
+  // Phone: details of a tapped aircraft, ship or event live in the Intel sheet. The sheet
+  // opens showing only those details; the other Intel panels come back when it is dismissed.
+  const entityFocus =
+    phone &&
+    selectedEntity != null &&
+    ['flight', 'private_flight', 'private_jet', 'military_flight', 'tracked_flight', 'ship', 'airport', 'gdelt', 'liveuamap'].includes(
+      selectedEntity.type,
+    );
+  const hadEntityFocus = useRef(false);
   useEffect(() => {
-    if (!phone || !selectedEntity) return;
-    const inSheet = ['flight', 'private_flight', 'private_jet', 'military_flight', 'tracked_flight', 'ship', 'airport', 'gdelt', 'liveuamap'];
-    if (!inSheet.includes(selectedEntity.type)) return;
-    setLeftOpen(false);
-    setRightOpen(true);
-    window.setTimeout(() => scrollToMarker('sb-entity-anchor'), 120);
-  }, [phone, selectedEntity]);
+    if (entityFocus) {
+      hadEntityFocus.current = true;
+      setLeftOpen(false);
+      setRightOpen(true);
+      const sheet = document.querySelector<HTMLElement>('.sb-right-col');
+      if (sheet) sheet.scrollTop = 0;
+    } else if (hadEntityFocus.current) {
+      // the selection was cleared (tapped elsewhere, or "Back to map"): put the sheet away
+      hadEntityFocus.current = false;
+      if (phone) setRightOpen(false);
+    }
+  }, [entityFocus, phone, selectedEntity]);
 
   const openPhoneSheet = useCallback((sheet: 'layers' | 'intel', scrollTo?: string) => {
     const wantLeft = sheet === 'layers';
@@ -516,9 +529,15 @@ export default function ViewerDashboard() {
       <motion.div
         className="sb-right-col absolute right-6 top-24 bottom-[32px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
         data-open={showRight}
+        data-focus={entityFocus ? 'entity' : undefined}
         animate={phone ? (sideways ? { x: showRight ? 0 : -700, y: 0 } : { x: 0, y: showRight ? 0 : 900 }) : { x: showRight ? 0 : 440, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
+        {entityFocus && (
+          <button type="button" className="sb-phone-back" onClick={() => setSelectedEntity(null)}>
+            <ChevronLeft size={14} aria-hidden="true" /> Back to map
+          </button>
+        )}
         <TokenCard />
         <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
 

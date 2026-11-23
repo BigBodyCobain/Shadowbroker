@@ -261,7 +261,7 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[9500] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[9500] flex items-start sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label="About the public viewer"
@@ -269,54 +269,88 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="sb-panel w-full max-w-[640px] max-h-[86vh] overflow-y-auto styled-scrollbar px-6 py-5 pointer-events-auto">
-        <div className="flex items-start gap-3">
-          <h2 className="sb-title text-cyan-300 text-[15px]">ABOUT THE PUBLIC VIEWER</h2>
+      {/* Header and button stay put; only the middle scrolls. On a phone it fills the screen from the top. */}
+      <div className="sb-panel sb-about w-full max-w-[640px] flex flex-col pointer-events-auto">
+        <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-[var(--border-primary)]">
+          <h2 className="sb-title text-cyan-300 text-[15px]">SHADOWBROKER LIVE MAP</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto text-cyan-400 hover:text-cyan-200 p-1 rounded-md transition-colors"
+            className="ml-auto grid place-items-center w-10 h-10 -mr-2 text-cyan-400 hover:text-cyan-200 rounded-lg transition-colors"
           >
-            <X size={16} />
+            <X size={20} />
           </button>
         </div>
-        <div className="sb-prose mt-3 space-y-3 text-[13px] leading-relaxed text-[var(--text-primary)]">
-          <p>
-            This is a look-only window onto ShadowBroker. It shows a copy of public map data that refreshes every
-            few minutes. You can pan, zoom, filter and switch layers; those choices stay in your browser.
-          </p>
-          <p>
-            On a computer, right-click anywhere on the map for the latest satellite picture of that spot. Your browser asks
-            the open Sentinel-2 archive for it directly.
-          </p>
-          <p>
-            Nothing here can send a message, post, change a setting or start a scan. This page has no connection to
-            the machine that gathers the data: it only downloads finished data files.
-          </p>
-          <p>
-            The full app adds radio and mesh tools, AI analysis, imagery lookups and your own data sources. It is
-            free and open source, and runs on your own computer.
-          </p>
-        </div>
-        <h3 className="mt-5 text-[11px] font-mono font-bold tracking-[0.16em] text-[var(--text-secondary)]">
-          DATA SOURCES
-        </h3>
-        <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[12px]">
-          {SOURCES.map((s) => (
-            <li key={s.name} className="flex flex-col">
-              <a href={s.href} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-100">
-                {s.name}
-              </a>
-              <span className="text-[var(--text-muted)]">{s.what}</span>
+
+        <div className="sb-about-body flex-1 min-h-0 overflow-y-auto styled-scrollbar px-5 py-4">
+          <ul className="space-y-2.5 text-[14px] leading-snug text-[var(--text-primary)]">
+            <li className="flex gap-2.5">
+              <span className="text-emerald-400" aria-hidden="true">●</span>
+              <span>A live public map of aircraft, ships, satellites and world events.</span>
             </li>
-          ))}
-        </ul>
-        <p className="mt-4 text-[11.5px] text-[var(--text-muted)]">
-          Positions come from public broadcasts and open datasets and may be late, incomplete or wrong. Not for
-          navigation or safety decisions.
-        </p>
+            <li className="flex gap-2.5">
+              <span className="text-emerald-400" aria-hidden="true">●</span>
+              <span>Look-only. Nothing here can send, post or change anything.</span>
+            </li>
+            <li className="flex gap-2.5">
+              <span className="text-amber-400" aria-hidden="true">●</span>
+              <span>Positions come from public broadcasts and can be late or wrong. Not for navigation or safety.</span>
+            </li>
+          </ul>
+
+          <details className="mt-4 text-[13px] text-[var(--text-primary)]">
+            <summary className="cursor-pointer select-none text-[11px] font-mono font-bold tracking-[0.16em] uppercase text-cyan-300">
+              More about this map and its sources
+            </summary>
+            <div className="sb-prose mt-3 space-y-3 leading-relaxed">
+              <p>
+                The data is a copy that refreshes every few minutes. You can pan, zoom, filter and switch layers; those
+                choices stay in your browser.
+              </p>
+              <p>
+                On a computer, right-click anywhere on the map for the latest satellite picture of that spot. Your
+                browser asks the open Sentinel-2 archive for it directly.
+              </p>
+              <p>
+                This page has no connection to the machine that gathers the data: it only downloads finished data
+                files.
+              </p>
+              <p>
+                The full app adds radio and mesh tools, AI analysis, imagery lookups and your own data sources. It is
+                free and open source, and runs on your own computer.
+              </p>
+            </div>
+            <h3 className="mt-4 text-[11px] font-mono font-bold tracking-[0.16em] text-[var(--text-secondary)]">
+              DATA SOURCES
+            </h3>
+            <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[12px]">
+              {SOURCES.map((s) => (
+                <li key={s.name} className="flex flex-col">
+                  <a href={s.href} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-100">
+                    {s.name}
+                  </a>
+                  <span className="text-[var(--text-muted)]">{s.what}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
+
+        <div className="px-5 pt-3 pb-4 border-t border-[var(--border-primary)]">
+          <button type="button" onClick={onClose} className="sb-about-go w-full rounded-xl py-3.5 text-[14px] font-mono font-bold tracking-[0.12em] uppercase">
+            Got it, show me the map
+          </button>
+        </div>
       </div>
+      <style>{`
+        .sb-about { max-height: 86vh; max-height: 86dvh; }
+        .sb-about-go { color: #00210f; background: linear-gradient(135deg, #9dffd6, #2cf5a0 55%, #10b877); box-shadow: 0 10px 34px -14px rgba(44, 245, 160, 0.9); }
+        .sb-about-go:hover, .sb-about-go:focus-visible { filter: brightness(1.08); outline: none; }
+        @media (max-width: 639px) {
+          .sb-about { max-height: 100vh; max-height: 100dvh; border-radius: 0 0 16px 16px; padding-top: env(safe-area-inset-top, 0px); }
+        }
+      `}</style>
     </div>
   );
 }

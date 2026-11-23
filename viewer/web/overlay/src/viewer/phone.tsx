@@ -92,7 +92,7 @@ export function PhoneNav({
 export function PhoneStyles() {
   return (
     <style>{`
-      .sb-phone-nav { display: none; }
+      .sb-phone-nav, .sb-phone-back { display: none; }
       @media ${PHONE_QUERY} {
         /* brand: one small line at the top */
         .sb-brandbar { top: calc(10px + env(safe-area-inset-top, 0px)) !important; left: 12px !important; gap: 8px !important; }
@@ -118,6 +118,14 @@ export function PhoneStyles() {
         html .sb-left-col[data-open='false'], html .sb-right-col[data-open='false'] { pointer-events: none !important; visibility: hidden; }
         .sb-left-col .sb-panel, .sb-right-col .sb-panel { backdrop-filter: none !important; }
         .sb-col-fade { display: none !important; }
+        /* something on the map was tapped: only its details, plus a way back */
+        html .sb-right-col[data-focus='entity'] > :not(#sb-entity-anchor):not(.sb-phone-back) { display: none !important; }
+        .sb-phone-back {
+          flex: none; align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+          min-height: 40px; padding: 0 14px; border-radius: 10px;
+          border: 1px solid rgba(69, 216, 255, 0.38); background: rgba(30, 155, 255, 0.12); color: #9fe6ff;
+          font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+        }
         /* inside a sheet the panels take their natural height and the sheet itself scrolls */
         html .sb-left-col [class*='flex-[3.4'] { flex: 0 0 auto !important; min-height: 0 !important; }
         html .sb-left-col [class*='flex-[3.4'] .sb-scroll-fade {
