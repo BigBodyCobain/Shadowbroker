@@ -32,7 +32,7 @@ def test_real_policy_file_loads_and_withholds_private_layers():
     for key in ("stocks", "telegram_osint", "liveuamap", "trending_markets", "crowdthreat"):
         assert not policy.is_public(key, "fast") and not policy.is_public(key, "slow"), key
     # Every engine switch that feeds a withheld or private surface stays off.
-    for gate in ("ai_intel", "sar", "sigint_aprs", "telegram_osint", "road_corridor_trends"):
+    for gate in ("ai_intel", "sar", "telegram_osint", "road_corridor_trends", "gt_risk"):
         assert policy.engine_layers[gate] is False, gate
 
 
@@ -205,3 +205,30 @@ def test_real_policy_publishes_cameras_direct_only():
     rule = policy.rule("cctv")
     assert policy.is_public("cctv", "fast") and rule["direct_media"]["drop_types"] == ["hls"]
     assert policy.engine_layers["cctv"] is True
+
+
+def test_real_policy_publishes_radio_positions_without_any_text(tmp_path):
+    policy = br.Policy.load(br.DEFAULT_POLICY)
+    bridge = br.Bridge(policy, br.DirPublisher(tmp_path), set())
+    payload = {
+        "sigint": [
+            {
+                "source": "aprs",
+                "callsign": "N0CALL-9",
+                "lat": 40.7,
+                "lng": -74.0,
+                "symbol": "/>",
+                "comment": "on my way home",
+                "status": "QRV",
+                "raw_message": "N0CALL-9>APRS:!4042.00N/07400.00W>on my way home",
+                "emergency_keyword": "help",
+            },
+            {"source": "meshtastic", "callsign": "!abc", "lat": 1.0, "lng": 2.0, "text": "private chat"},
+            {"source": "js8call", "callsign": "K1ABC", "lat": 3.0, "lng": 4.0},
+        ]
+    }
+    bridge.publish_tier("fast", payload)
+    assert _read(tmp_path, "fast.json")["sigint"] == [
+        {"source": "aprs", "callsign": "N0CALL-9", "lat": 40.7, "lng": -74.0, "symbol": "/>"},
+        {"source": "meshtastic", "callsign": "!abc", "lat": 1.0, "lng": 2.0},
+    ]

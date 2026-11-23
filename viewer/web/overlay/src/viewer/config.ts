@@ -26,7 +26,6 @@ export const VIEWER_HIDDEN_LAYERS: ReadonlySet<string> = new Set([
   'ai_intel', // the owner's private pins
   'sar', // the owner's watch areas
   'road_corridor_trends', // starts jobs on the owner's server
-  'sigint_aprs', // not published
   'telegram_osint', // media is relayed through the owner's server
   'crowdthreat', // not published
   'gt_risk', // not published
@@ -36,3 +35,14 @@ export const VIEWER_HIDDEN_LAYERS: ReadonlySet<string> = new Set([
 export const VIEWER_STALE_AFTER_MS = 4 * 60 * 1000;
 
 export const VIEWER_REPO_URL = 'https://github.com/BigBodyCobain/Shadowbroker';
+
+/** Top-right links. Each opens the project's own page on that site in a new tab. */
+export const VIEWER_LINKS: readonly { label: string; title: string; href: string }[] = [
+  { label: 'GitHub', title: 'Source code, and the full app to run yourself', href: VIEWER_REPO_URL },
+  { label: 'Discussions', title: 'Project discussion board', href: `${VIEWER_REPO_URL}/discussions` },
+  {
+    label: 'pump.fun',
+    title: 'The project token page on pump.fun',
+    href: 'https://pump.fun/coin/8Uk9f5WfJndkC9VkFRLDwEpHgD2KD8BcFbqh5zuBpump',
+  },
+];

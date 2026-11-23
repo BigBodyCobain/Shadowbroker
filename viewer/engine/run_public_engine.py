@@ -37,7 +37,6 @@ PUBLIC_ENGINE_ENV = {
     "MESH_INFONET_RELAY_AUTO_WORMHOLE": "false",
     "MESH_INFONET_ALLOW_CLEARNET_SYNC": "false",
     "MESH_MQTT_ENABLED": "false",
-    "APRS_IS_ENABLED": "false",
     "OPENCLAW_ACCESS_TIER": "restricted",
     # No background transport warm-up.
     "MESH_PRIVACY_PREWARM_ENABLE": "false",
@@ -107,6 +106,7 @@ def main() -> int:
 
     for key, value in PUBLIC_ENGINE_ENV.items():
         os.environ[key] = value
+    print(f"[public-engine] APRS listen: {apply_aprs_listen(policy_path)}")
     # The dev "bind all interfaces" switch must never apply here.
     os.environ.pop("SHADOWBROKER_DEV_BIND_ALL", None)
     os.environ["BACKEND_PORT"] = str(args.port)
@@ -155,6 +155,53 @@ def borrow_feed_keys(env_file: Path, policy_path: Path) -> list[str]:
             os.environ[name] = value
             loaded.append(name)
     return loaded
+
+
+APRS_MAX_RADIUS_KM = 500.0
+_APRS_ENV_NAMES = (
+    "APRS_IS_HOST",
+    "APRS_IS_PORT",
+    "APRS_IS_FILTER",
+    "APRS_IS_PRIVATE_SERVER",
+    "APRS_IS_CALLSIGN",
+    "APRS_IS_LAT",
+    "APRS_IS_LON",
+    "APRS_IS_RADIUS_KM",
+)
+
+
+def apply_aprs_listen(policy_path: Path, environ: dict | None = None) -> str:
+    """Configure listen-only APRS-IS from public-layers.json. Returns a summary.
+
+    Receive only: the login uses the no-transmit passcode, a generic callsign
+    and the public server, for one bounded region. Anything else in the
+    environment that could widen or redirect it is cleared.
+    """
+    import json
+
+    env = os.environ if environ is None else environ
+    for name in _APRS_ENV_NAMES:
+        env.pop(name, None)
+    env["APRS_IS_ENABLED"] = "false"
+
+    cfg = json.loads(policy_path.read_text(encoding="utf-8")).get("aprs_listen") or {}
+    if not cfg.get("enabled"):
+        return "off"
+    try:
+        lat = float(cfg["lat"])
+        lon = float(cfg["lon"])
+        radius = float(cfg.get("radius_km", 100))
+    except (KeyError, TypeError, ValueError):
+        return "off (aprs_listen needs numeric lat, lon and radius_km)"
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return "off (aprs_listen lat/lon out of range)"
+    radius = max(1.0, min(radius, APRS_MAX_RADIUS_KM))
+    env["APRS_IS_ENABLED"] = "true"
+    env["APRS_IS_LAT"] = f"{lat:.5f}"
+    env["APRS_IS_LON"] = f"{lon:.5f}"
+    env["APRS_IS_RADIUS_KM"] = f"{radius:g}"
+    env["APRS_IS_CALLSIGN"] = "N0CALL"
+    return f"on, {radius:g} km around {lat:.2f}, {lon:.2f}"
 
 
 def apply_public_layers(policy_path: Path) -> None:

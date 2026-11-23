@@ -2,6 +2,7 @@
   "_comment": [
     "The single list of what the public viewer may show.",
     "engine_keys: the only key names the engine may borrow from another install's .env (--keys-from).",
+    "aprs_listen: one listen-only APRS-IS region (max 500 km). Nothing is ever sent.",
     "engine_layers: fetcher switches forced on the public engine at start.",
     "keys: top-level data keys the bridge may publish. Anything not listed, or",
     "listed with public=false, never leaves the engine machine.",
@@ -15,6 +16,13 @@
     "FIRMS_MAP_KEY",
     "GFW_API_TOKEN"
   ],
+  "aprs_listen": {
+    "_comment": "Listen-only APRS-IS station positions for ONE region. The app caps public APRS-IS at a 500 km radius. Use a neutral city, never the owner's own location: this file is public.",
+    "enabled": true,
+    "lat": 40.7128,
+    "lon": -74.006,
+    "radius_km": 500
+  },
   "engine_layers": {
     "flights": true,
     "private": true,
@@ -39,7 +47,7 @@
     "datacenters": true,
     "military_bases": true,
     "sigint_meshtastic": true,
-    "sigint_aprs": false,
+    "sigint_aprs": true,
     "weather_alerts": true,
     "air_quality": true,
     "volcanoes": true,
@@ -117,9 +125,10 @@
     "sigint": {
       "tier": "fast",
       "public": true,
-      "why": "Node positions only. Message text never leaves the engine.",
+      "why": "Station and node positions only. Message text, beacon comments and raw packets never leave the engine.",
       "only_sources": [
-        "meshtastic"
+        "meshtastic",
+        "aprs"
       ],
       "drop_fields": [
         "text",
@@ -127,7 +136,11 @@
         "msg",
         "payload",
         "raw",
-        "channel"
+        "raw_message",
+        "channel",
+        "comment",
+        "status",
+        "emergency_keyword"
       ]
     },
     "sigint_totals": {

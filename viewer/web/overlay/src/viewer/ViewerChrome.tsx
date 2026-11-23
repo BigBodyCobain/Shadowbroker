@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, ExternalLink } from 'lucide-react';
-import { VIEWER_REPO_URL } from './config';
+import { VIEWER_LINKS } from './config';
 import { feedAgeMs, feedIsStale, useFeedStatus } from './feedStatus';
 
 function useNow(intervalMs: number): number {
@@ -53,7 +53,7 @@ export function ViewerHeaderCard({ onAbout }: { onAbout: () => void }) {
               : `Live · updated ${ageLabel(age ?? 0)}`}
         </span>
       </div>
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onAbout}
@@ -62,15 +62,19 @@ export function ViewerHeaderCard({ onAbout }: { onAbout: () => void }) {
           <Info size={12} aria-hidden="true" />
           About &amp; sources
         </button>
-        <a
-          href={VIEWER_REPO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="sb-chip flex items-center gap-1.5 px-3 py-1.5 text-[10.5px] font-mono tracking-[0.14em] uppercase text-cyan-300 hover:text-cyan-100"
-        >
-          <ExternalLink size={12} aria-hidden="true" />
-          Run the full app
-        </a>
+        {VIEWER_LINKS.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            title={link.title}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sb-chip flex items-center gap-1.5 px-3 py-1.5 text-[10.5px] font-mono tracking-[0.14em] uppercase text-cyan-300 hover:text-cyan-100"
+          >
+            <ExternalLink size={12} aria-hidden="true" />
+            {link.label}
+          </a>
+        ))}
       </div>
     </div>
   );
@@ -181,6 +185,9 @@ const SOURCES: { name: string; what: string; href: string }[] = [
   { name: 'NASA FIRMS / GIBS', what: 'Fires and satellite imagery', href: 'https://earthdata.nasa.gov' },
   { name: 'GDELT Project', what: 'Global incidents', href: 'https://www.gdeltproject.org' },
   { name: 'Meshtastic map (Liam Cottle)', what: 'Public mesh node positions', href: 'https://meshtastic.liamcottle.net' },
+  { name: 'APRS-IS', what: 'Amateur radio station positions (one region, listen-only)', href: 'https://www.aprs-is.net' },
+  { name: 'KiwiSDR / OpenMHZ', what: 'Receiver and scanner locations; you listen on their sites', href: 'http://kiwisdr.com' },
+  { name: 'Public traffic agencies', what: 'Road cameras, loaded from each agency directly', href: 'https://github.com/BigBodyCobain/Shadowbroker' },
   { name: 'OpenFreeMap / OpenMapTiles / OpenStreetMap', what: 'Basemap', href: 'https://openfreemap.org' },
   { name: 'Esri World Imagery', what: 'Satellite basemap', href: 'https://www.esri.com' },
   { name: 'Wikipedia', what: 'Summaries (CC BY-SA)', href: 'https://www.wikipedia.org' },
