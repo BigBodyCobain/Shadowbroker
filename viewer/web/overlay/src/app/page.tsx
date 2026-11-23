@@ -41,6 +41,7 @@ import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
 import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
+import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
 
@@ -406,6 +407,13 @@ export default function ViewerDashboard() {
             </div>
           )}
         </div>
+        {secondaryBootReady && (
+          <div className="contents" style={{ direction: 'ltr' }}>
+            <ErrorBoundary name="Chat">
+              <ChatPanel />
+            </ErrorBoundary>
+          </div>
+        )}
         {secondaryBootReady && (
           <div className="contents" style={{ direction: 'ltr' }}>
             <ViewerToolsPanel

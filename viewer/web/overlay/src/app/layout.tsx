@@ -3,7 +3,7 @@ import localFont from 'next/font/local';
 import MotionRoot from '@/components/MotionRoot';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { I18nProvider } from '@/i18n';
-import { VIEWER_CONNECT_HOSTS, VIEWER_DATA_BASE } from '@/viewer/config';
+import { VIEWER_CHAT, VIEWER_CONNECT_HOSTS, VIEWER_DATA_BASE } from '@/viewer/config';
 import './globals.css';
 
 const jetBrainsMono = localFont({
@@ -44,7 +44,10 @@ export const metadata: Metadata = {
  */
 function contentSecurityPolicy(): string {
   const dataOrigin = /^https?:\/\//i.test(VIEWER_DATA_BASE) ? new URL(VIEWER_DATA_BASE).origin : '';
-  const connect = ["'self'", dataOrigin, ...VIEWER_CONNECT_HOSTS.map((host) => `https://${host}`)].filter(Boolean);
+  const chatOrigin = VIEWER_CHAT.url ? new URL(VIEWER_CHAT.url).origin : '';
+  const connect = ["'self'", dataOrigin, chatOrigin, ...VIEWER_CONNECT_HOSTS.map((host) => `https://${host}`)].filter(
+    Boolean,
+  );
   return [
     "default-src 'self'",
     // Next's static export boots from small inline scripts.

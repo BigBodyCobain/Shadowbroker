@@ -274,9 +274,57 @@ const env = {
   NEXT_TELEMETRY_DISABLED: '1',
   NEXT_PUBLIC_SB_DATA_BASE: process.env.NEXT_PUBLIC_SB_DATA_BASE || '/live-data',
 };
-// No secret may be visible to the build: Next inlines NEXT_PUBLIC_* values.
+// No secret may be visible to the build: Next inlines NEXT_PUBLIC_* values,
+// so only the names below get through.
+const PUBLIC_SETTINGS = new Set([
+  'NEXT_PUBLIC_SB_DATA_BASE',
+  'NEXT_PUBLIC_SB_CHAT_URL',
+  'NEXT_PUBLIC_SB_CHAT_KEY',
+  'NEXT_PUBLIC_SB_CHAT_PROVIDERS',
+]);
 for (const name of Object.keys(env)) {
-  if (name.startsWith('NEXT_PUBLIC_') && name !== 'NEXT_PUBLIC_SB_DATA_BASE') delete env[name];
+  if (name.startsWith('NEXT_PUBLIC_') && !PUBLIC_SETTINGS.has(name)) delete env[name];
+}
+
+// Optional chat settings from viewer/web/chat.config.json (see viewer/chat/README.md).
+const chatConfigPath = path.join(here, 'chat.config.json');
+if (fs.existsSync(chatConfigPath)) {
+  const chat = JSON.parse(fs.readFileSync(chatConfigPath, 'utf8'));
+  env.NEXT_PUBLIC_SB_CHAT_URL = String(chat.url || '');
+  env.NEXT_PUBLIC_SB_CHAT_KEY = String(chat.anonKey || '');
+  env.NEXT_PUBLIC_SB_CHAT_PROVIDERS = (chat.providers || []).join(',');
+}
+checkChatKey(env.NEXT_PUBLIC_SB_CHAT_URL || '', env.NEXT_PUBLIC_SB_CHAT_KEY || '');
+
+/**
+ * The chat key is compiled into the public site, so it must be the project's
+ * public ("anon" / publishable) key. A service or secret key would hand every
+ * visitor full control of the chat database: refuse to build with one.
+ */
+function checkChatKey(url, key) {
+  if (!url && !key) return;
+  if (!url || !key) fail('chat needs both a url and an anonKey, or neither');
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    fail('the chat url is not a valid address');
+  }
+  const local = parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === 'localhost';
+  if (parsedUrl.protocol !== 'https:' && !local) fail('the chat url must be https');
+  if (/^sb_secret_/i.test(key)) fail('the chat key is a SECRET key. Use the publishable (anon) key.');
+  const parts = key.split('.');
+  if (parts.length === 3) {
+    let role = '';
+    try {
+      role = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')).role || '';
+    } catch {
+      fail('the chat key is not a readable token');
+    }
+    if (role !== 'anon') fail(`the chat key has role "${role}". Only the public "anon" key may be used.`);
+  } else if (!/^sb_publishable_/i.test(key)) {
+    fail('the chat key is neither an anon token nor a publishable key');
+  }
 }
 
 // Run Next's entry script with this Node directly: no shell, no path quoting.
