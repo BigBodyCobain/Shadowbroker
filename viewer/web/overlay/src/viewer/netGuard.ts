@@ -19,7 +19,7 @@
  */
 
 import { readDataKey } from '@/hooks/useDataStore';
-import { VIEWER_CONNECT_HOSTS, VIEWER_DATA_BASE } from './config';
+import { VIEWER_CHAT, VIEWER_CONNECT_HOSTS, VIEWER_DATA_BASE } from './config';
 import { classifyRequest, type GuardContext, type LocalRoute } from './guardRules';
 
 export type GuardEvent = { method: string; url: string; at: number };
@@ -109,6 +109,7 @@ export function installNetGuard(): void {
     pageOrigin: window.location.origin,
     dataBase: new URL(VIEWER_DATA_BASE, window.location.href),
     allowedHosts: VIEWER_CONNECT_HOSTS,
+    chatBase: VIEWER_CHAT.url ? new URL(VIEWER_CHAT.url) : null,
   };
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {

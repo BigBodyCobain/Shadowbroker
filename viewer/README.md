@@ -27,6 +27,7 @@ engine and no code that could reach one.
 | Engine launcher | `engine/` | Starts the normal backend on 127.0.0.1 with the community networks off |
 | Bridge | `bridge/` | Reads the engine over loopback, writes the approved data as JSON files |
 | Viewer site | `web/` | Builds the static site from a copy of `frontend/` |
+| Chat (optional) | `chat/` | A public chat room on a separate hosted login service. See `chat/README.md` |
 | The list | `public-layers.json` | The one list of what is public. Engine, bridge and viewer all follow it |
 
 ## Run it locally
@@ -76,6 +77,8 @@ Several independent layers, so one mistake does not expose anything.
    request from page code. Only read requests for the site's own files, the
    data files and a short list of map hosts go out. App routes (`/api/...`)
    are refused inside the browser; sockets are disabled.
+   If the optional chat is configured, signing in and posting go to that
+   one separate service and nowhere else.
 6. **Browser policy.** The page's Content-Security-Policy lists the same
    hosts, so the browser enforces the rule even for code the guard never sees.
 7. **Build-time inspection.** `web/check-dist.mjs` fails the build if a
@@ -119,6 +122,7 @@ Each failure names the file. Fix the cut, stand-in or allowlist, and rebuild.
 
 ```bash
 python -m pytest viewer/bridge -q
+python -m pytest viewer/engine -q
 node --test viewer/web/tests/guardRules.test.ts viewer/web/tests/layerPrefs.test.ts
 node viewer/web/build.mjs        # ends with the built-site inspection
 ```

@@ -4,7 +4,8 @@
  *
  * A request is one of:
  *   - "network": allowed to leave the browser. Read-only, and only to the
- *     viewer's own static files, the bridge's data files, or a listed host;
+ *     viewer's own static files, the bridge's data files, or a listed host.
+ *     The one exception is the optional chat service (sign-in and posting);
  *   - "local":   an app route the viewer can answer without any server;
  *   - "refuse":  everything else. It never touches the network.
  */
@@ -22,7 +23,21 @@ export type GuardContext = {
   dataBase: URL;
   /** Exact outside hostnames that may be read over https. */
   allowedHosts: readonly string[];
+  /** The chat service, if one is configured. The only place a write may go. */
+  chatBase?: URL | null;
 };
+
+/** The chat service's login and data paths. Nothing else on that host is used. */
+const CHAT_PATHS = ['/auth/v1/', '/rest/v1/'];
+
+function chatRequestAllowed(url: URL, verb: string, chatBase: URL): boolean {
+  if (chatBase.protocol !== 'https:' && chatBase.hostname !== '127.0.0.1' && chatBase.hostname !== 'localhost') {
+    return false;
+  }
+  if (url.origin !== chatBase.origin) return false;
+  if (verb !== 'GET' && verb !== 'POST') return false;
+  return CHAT_PATHS.some((prefix) => url.pathname.startsWith(prefix));
+}
 
 function readOnly(method: string): boolean {
   return method === 'GET' || method === 'HEAD';
@@ -58,6 +73,12 @@ export function classifyRequest(url: URL, method: string, ctx: GuardContext): Gu
   }
 
   if (underDataBase(url, ctx.dataBase)) return readOnly(verb) ? { kind: 'network' } : { kind: 'refuse' };
+
+  // Chat: signing in and posting a message are the viewer's only writes, and
+  // they go to the separate chat service, never to anything of the owner's.
+  if (ctx.chatBase && url.origin === ctx.chatBase.origin && url.origin !== ctx.pageOrigin) {
+    return chatRequestAllowed(url, verb, ctx.chatBase) ? { kind: 'network' } : { kind: 'refuse' };
+  }
 
   if (url.origin === ctx.pageOrigin) return readOnly(verb) ? { kind: 'network' } : { kind: 'refuse' };
 
