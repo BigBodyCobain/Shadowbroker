@@ -84,6 +84,24 @@
       "file": "src/components/MaplibreViewer.tsx",
       "find": "fetch('/data/submarine-cables.json')",
       "replace": "fetch(`${process.env.NEXT_PUBLIC_SB_BASE_PATH || ''}/data/submarine-cables.json`)"
+    },
+    {
+      "why": "region panel: the viewer has no country lookup, so the country block is shown only when there is one",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                        {/* COUNTRY */}",
+      "replace": "                        <div className={d.country ? 'flex flex-col gap-2' : 'hidden'}>{/* COUNTRY */}"
+    },
+    {
+      "why": "region panel: closes the country block opened above",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                        {/* LOCAL */}",
+      "replace": "                        </div>{/* LOCAL */}"
+    },
+    {
+      "why": "region panel: the pin label on the map, in plain words",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "{regionDossierLoading ? 'COMPILING...' : '▶ INTEL TARGET'}",
+      "replace": "{regionDossierLoading ? 'LOOKING...' : 'SATELLITE VIEW'}"
     }
   ]
 }

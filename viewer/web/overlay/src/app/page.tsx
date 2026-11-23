@@ -35,6 +35,7 @@ import { useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
 import { useAlertToasts } from '@/hooks/useAlertToasts';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useRegionDossier } from '@/hooks/useRegionDossier';
 import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { VIEWER_HIDDEN_LAYERS, asset } from '@/viewer/config';
@@ -83,6 +84,8 @@ export default function ViewerDashboard() {
 
   const [mouseCoords, setMouseCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  // Right-click: latest satellite picture of that spot, asked for by the visitor's own browser.
+  const { regionDossier, regionDossierLoading, handleMapRightClick } = useRegionDossier(selectedEntity, setSelectedEntity);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -309,7 +312,11 @@ export default function ViewerDashboard() {
   }, [activeLayers, secondaryBootReady]);
 
   // Full-screen views (news dossier, camera) hide the dock and scale bar.
-  const overlayOpen = selectedEntity?.type === 'news' || selectedEntity?.type === 'cctv';
+  // A satellite picture is open: show it like a lightbox, with the side columns out of the way.
+  const imageOpen = selectedEntity?.type === 'region_dossier' && Boolean(regionDossier?.sentinel2);
+  const showLeft = leftOpen && !imageOpen;
+  const showRight = rightOpen && !imageOpen;
+  const overlayOpen = selectedEntity?.type === 'news' || selectedEntity?.type === 'cctv' || imageOpen;
 
   return (
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden font-sans">
@@ -325,9 +332,9 @@ export default function ViewerDashboard() {
           gibsDate={gibsDate}
           gibsOpacity={gibsOpacity}
           onMouseCoords={setMouseCoords}
-          onRightClick={noop}
-          regionDossier={null}
-          regionDossierLoading={false}
+          onRightClick={handleMapRightClick}
+          regionDossier={regionDossier}
+          regionDossierLoading={regionDossierLoading}
           onViewStateChange={setMapView}
           measureMode={measureMode}
           onMeasureClick={handleMeasureClick}
@@ -362,7 +369,7 @@ export default function ViewerDashboard() {
       <motion.div
         className="sb-left-col absolute left-6 top-24 bottom-[32px] w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
         style={{ direction: 'rtl' }}
-        animate={{ x: leftOpen ? 0 : -360 }}
+        animate={{ x: showLeft ? 0 : -360 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <div className="contents" style={{ direction: 'ltr' }}>
@@ -418,8 +425,8 @@ export default function ViewerDashboard() {
           <div className="contents" style={{ direction: 'ltr' }}>
             <ViewerToolsPanel
               panels={{
-                scm: <ScmPanel embedded layerEnabled={activeLayers.scm_suppliers} />,
-                cyber: <CyberThreatPanel embedded layerEnabled={activeLayers.cyber_threats} />,
+                scm: <ScmPanel embedded layerEnabled />,
+                cyber: <CyberThreatPanel embedded layerEnabled />,
               }}
             />
           </div>
@@ -428,8 +435,8 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${leftOpen ? 'sb-edge-left-open' : ''}`}
-        animate={{ x: leftOpen ? 344 : 0 }}
+        className={`absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showLeft ? 'sb-edge-left-open' : ''}`}
+        animate={{ x: showLeft ? 344 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <button
@@ -447,8 +454,8 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${rightOpen ? 'sb-edge-right-open' : ''}`}
-        animate={{ x: rightOpen ? -424 : 0 }}
+        className={`absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showRight ? 'sb-edge-right-open' : ''}`}
+        animate={{ x: showRight ? -424 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <button
@@ -465,7 +472,7 @@ export default function ViewerDashboard() {
       {/* RIGHT: VIEWER CARD, FIND, FILTERS, NEWS */}
       <motion.div
         className="sb-right-col absolute right-6 top-24 bottom-[32px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
-        animate={{ x: rightOpen ? 0 : 440 }}
+        animate={{ x: showRight ? 0 : 440 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
@@ -497,8 +504,8 @@ export default function ViewerDashboard() {
           <ErrorBoundary name="NewsFeed">
             <NewsFeed
               selectedEntity={selectedEntity}
-              regionDossier={null}
-              regionDossierLoading={false}
+              regionDossier={regionDossier}
+              regionDossierLoading={regionDossierLoading}
               gtDossier={null}
               gtDossierLoading={false}
               onArticleClick={handleArticleClick}

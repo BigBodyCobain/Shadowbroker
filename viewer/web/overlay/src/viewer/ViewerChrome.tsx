@@ -242,6 +242,11 @@ const SOURCES: { name: string; what: string; href: string }[] = [
   { name: 'Public traffic agencies', what: 'Road cameras, loaded from each agency directly', href: 'https://github.com/BigBodyCobain/Shadowbroker' },
   { name: 'OpenFreeMap / OpenMapTiles / OpenStreetMap', what: 'Basemap', href: 'https://openfreemap.org' },
   { name: 'Esri World Imagery', what: 'Satellite basemap', href: 'https://www.esri.com' },
+  {
+    name: 'Copernicus Sentinel-2 via Microsoft Planetary Computer',
+    what: 'Right-click satellite pictures (contains modified Copernicus Sentinel data)',
+    href: 'https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a',
+  },
   { name: 'Wikipedia', what: 'Summaries (CC BY-SA)', href: 'https://www.wikipedia.org' },
 ];
 
@@ -281,6 +286,10 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
           <p>
             This is a look-only window onto ShadowBroker. It shows a copy of public map data that refreshes every
             few minutes. You can pan, zoom, filter and switch layers; those choices stay in your browser.
+          </p>
+          <p>
+            Right-click anywhere on the map for the latest satellite picture of that spot. Your browser asks
+            the open Sentinel-2 archive for it directly.
           </p>
           <p>
             Nothing here can send a message, post, change a setting or start a scan. This page has no connection to

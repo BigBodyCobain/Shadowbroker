@@ -28,6 +28,7 @@ export const VIEWER_CONNECT_HOSTS = [
   'gibs.earthdata.nasa.gov', // NASA imagery overlays
   'server.arcgisonline.com', // satellite basemap
   'en.wikipedia.org', // summaries, straight from the visitor's browser
+  'planetarycomputer.microsoft.com', // right-click: open Sentinel-2 satellite scenes, no key
 ] as const;
 
 /** Layer switches that never appear in the viewer. */
