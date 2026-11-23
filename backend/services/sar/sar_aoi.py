@@ -3,8 +3,10 @@
 AOIs are operator-defined regions that the SAR layer watches.  They live
 in ``backend/data/sar_aois.json`` and are loaded once at module init.
 
-The seed file ships with five obvious watch points so a fresh install
-has something to do without any configuration.
+Until that file exists, five built-in watch points are used so a fresh
+install has something to do without any configuration.  ``backend/data``
+is not tracked in git, so the defaults live in code rather than in a seed
+file.  The first operator edit writes the file, and from then on it wins.
 """
 
 from __future__ import annotations
@@ -126,6 +128,57 @@ def point_in_aoi(lat: float, lon: float, aoi: SarAoi) -> bool:
     return haversine_km(lat, lon, aoi.center_lat, aoi.center_lon) <= aoi.radius_km
 
 
+# Built-in watch points, used only while the operator has no AOI file.
+# Public, well-known places where ground or water change is newsworthy.
+_DEFAULT_AOIS: tuple[dict[str, Any], ...] = (
+    {
+        "id": "kakhovka-reservoir",
+        "name": "Kakhovka Reservoir",
+        "description": "Drained reservoir bed and the Dnipro below Zaporizhzhia, Ukraine.",
+        "center": [47.45, 34.25],
+        "radius_km": 60.0,
+        "category": "conflict",
+    },
+    {
+        "id": "suez-canal",
+        "name": "Suez Canal",
+        "description": "Canal corridor from Port Said to Suez, Egypt.",
+        "center": [30.45, 32.35],
+        "radius_km": 60.0,
+        "category": "infrastructure",
+    },
+    {
+        "id": "panama-canal",
+        "name": "Panama Canal",
+        "description": "Canal locks and Gatun Lake, whose level limits ship transits.",
+        "center": [9.12, -79.75],
+        "radius_km": 45.0,
+        "category": "infrastructure",
+    },
+    {
+        "id": "campi-flegrei",
+        "name": "Campi Flegrei",
+        "description": "Restless volcanic field west of Naples, Italy.",
+        "center": [40.83, 14.14],
+        "radius_km": 30.0,
+        "category": "geohazard",
+    },
+    {
+        "id": "lake-mead",
+        "name": "Lake Mead",
+        "description": "Hoover Dam reservoir on the Colorado River, USA.",
+        "center": [36.13, -114.55],
+        "radius_km": 50.0,
+        "category": "watchlist",
+    },
+)
+
+
+def default_aois() -> list[SarAoi]:
+    """The built-in watch points used while no AOI file exists."""
+    return [SarAoi.from_dict(entry) for entry in _DEFAULT_AOIS]
+
+
 _aoi_cache: list[SarAoi] | None = None
 
 
@@ -135,8 +188,9 @@ def load_aois(force: bool = False) -> list[SarAoi]:
     if _aoi_cache is not None and not force:
         return _aoi_cache
     if not AOI_FILE.exists():
-        logger.warning("SAR AOI file missing: %s", AOI_FILE)
-        _aoi_cache = []
+        # No operator file yet: watch the built-in points.  Nothing is written
+        # here; the first add/remove saves the list and the file then wins.
+        _aoi_cache = default_aois()
         return _aoi_cache
     try:
         raw = json.loads(AOI_FILE.read_text(encoding="utf-8"))

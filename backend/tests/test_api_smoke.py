@@ -101,6 +101,33 @@ class TestLiveDataEndpoints:
         assert len(data["datacenters"]) == len(datacenters)
         assert data["power_plants"] == []
 
+    def test_slow_ships_sar_items_only_while_the_layer_is_on(self, client, monkeypatch):
+        from services.fetchers import _store
+
+        anomalies = [{"anomaly_id": "a1", "kind": "surface_water_change", "lat": 1.0, "lon": 2.0}]
+        scenes = [{"scene_id": "s1", "aoi_id": "suez-canal"}]
+        coverage = [{"aoi_id": "suez-canal", "center_lat": 30.45, "center_lon": 32.35, "radius_km": 60.0}]
+        monkeypatch.setitem(_store.latest_data, "sar_anomalies", anomalies)
+        monkeypatch.setitem(_store.latest_data, "sar_scenes", scenes)
+        monkeypatch.setitem(_store.latest_data, "sar_aoi_coverage", coverage)
+
+        monkeypatch.setitem(_store.active_layers, "sar", True)
+        r = client.get("/api/live-data/slow")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["sar_anomalies"] == anomalies
+        assert data["sar_scenes"] == scenes
+        assert data["sar_aoi_coverage"] == coverage
+
+        monkeypatch.setitem(_store.active_layers, "sar", False)
+        _store.bump_active_layers_version()
+        r = client.get("/api/live-data/slow")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["sar_anomalies"] == []
+        assert data["sar_scenes"] == []
+        assert data["sar_aoi_coverage"] == []
+
     def test_slow_handles_geojson_incidents_without_crashing(self, client, monkeypatch):
         from services.fetchers import _store
 

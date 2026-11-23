@@ -23,6 +23,16 @@ r/<latitude>/<longitude>/<radius-km>
 
 For public APRS-IS hosts, `APRS_IS_RADIUS_KM` must be between **1 and 500 km**. Missing coordinates, invalid coordinates, or a larger radius fail closed: the APRS receive bridge does not connect.
 
+### More than one region
+
+One connection can listen to a few more bounded circles. List them as `lat,lon,radius_km`, separated by semicolons:
+
+```env
+APRS_IS_EXTRA_RANGES=51.5074,-0.1278,300;35.6762,139.6503,300
+```
+
+Each extra circle obeys the same 1 to 500 km limit, and at most **8** may be added (9 circles in total, the most an APRS-IS server accepts on one connection). An entry that is malformed, out of bounds or over the limit fails closed, exactly like the main circle. This is for watching a handful of regions; it is not a way to approximate a full feed. Add only the regions you need.
+
 Optional public-client settings:
 
 ```env

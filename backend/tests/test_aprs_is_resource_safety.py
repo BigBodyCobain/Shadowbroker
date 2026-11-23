@@ -22,6 +22,7 @@ _APRS_ENV = (
     "APRS_IS_LAT",
     "APRS_IS_LON",
     "APRS_IS_RADIUS_KM",
+    "APRS_IS_EXTRA_RANGES",
     "APRS_IS_CALLSIGN",
     "APRS_IS_MAX_SIGNALS",
 )
@@ -56,6 +57,40 @@ def test_public_aprs_uses_bounded_geographic_filter(monkeypatch: pytest.MonkeyPa
     assert config.filter_expr == "r/40.71280/-74.00600/250"
     assert "filter r/40.71280/-74.00600/250" in config.login
     assert "25000" not in config.login
+
+
+def test_public_aprs_accepts_extra_bounded_ranges(monkeypatch: pytest.MonkeyPatch) -> None:
+    _enable_public(monkeypatch)
+    monkeypatch.setenv("APRS_IS_RADIUS_KM", "500")
+    monkeypatch.setenv("APRS_IS_EXTRA_RANGES", "51.5,-0.12,500; 35.68,139.69,300;")
+
+    config = aprs_connection_config()
+
+    assert config is not None
+    assert config.filter_expr == (
+        "r/40.71280/-74.00600/500 r/51.50000/-0.12000/500 r/35.68000/139.69000/300"
+    )
+    assert config.login.endswith(f"filter {config.filter_expr}" + chr(13) + chr(10))
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ("51.5,-0.12,25000", "between 1 and 500 km"),
+        ("51.5,-0.12", "lat,lon,radius_km"),
+        ("north,-0.12,100", "numeric"),
+        ("95,-0.12,100", "outside valid coordinate bounds"),
+        (";".join(["10,10,100"] * 9), "at most 8 extra ranges"),
+    ],
+)
+def test_public_aprs_rejects_unsafe_extra_ranges(
+    monkeypatch: pytest.MonkeyPatch, extra: str, message: str
+) -> None:
+    _enable_public(monkeypatch)
+    monkeypatch.setenv("APRS_IS_EXTRA_RANGES", extra)
+
+    with pytest.raises(ValueError, match=message):
+        aprs_connection_config()
 
 
 def test_public_aprs_rejects_global_scale_radius(monkeypatch: pytest.MonkeyPatch) -> None:
