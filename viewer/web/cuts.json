@@ -102,6 +102,18 @@
       "file": "src/components/MaplibreViewer.tsx",
       "find": "{regionDossierLoading ? 'COMPILING...' : '▶ INTEL TARGET'}",
       "replace": "{regionDossierLoading ? 'LOOKING...' : 'SATELLITE VIEW'}"
+    },
+    {
+      "why": "label tidy-up: the viewer shows many more clustered layers (cameras, fishing, mesh), and their bubbles were hiding aircraft and carrier names a second after they appeared. In the viewer a name yields only to a panel, an alert box or another name.",
+      "file": "src/components/map/MapMarkers.tsx",
+      "find": ".filter((l) => l.type === 'circle' && /cluster/.test(l.id) && !/pulse|bg|halo/.test(l.id))",
+      "replace": ".filter(() => false)"
+    },
+    {
+      "why": "label tidy-up: cluster count bubbles no longer hide names either (see the cut above)",
+      "file": "src/components/map/MapMarkers.tsx",
+      "find": "if (r.width > 0) boxes.push(new DOMRect(r.left - 6, r.top - 4, r.width + 12, r.height + 8));",
+      "replace": "void r;"
     }
   ]
 }
