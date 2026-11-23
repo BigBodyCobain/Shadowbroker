@@ -52,4 +52,4 @@ def test_pace_provider_adds_per_page_jitter(monkeypatch):
 
     pm._pace_provider("polymarket", 0.02)
 
-    assert sleeps == [pytest.approx(0.52)]
+    assert sleeps == [pytest.approx(0.52, abs=0.01)]

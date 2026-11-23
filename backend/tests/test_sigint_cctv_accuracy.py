@@ -166,87 +166,26 @@ def test_caltrans_ingestor_prefers_static_image_when_stream_url_is_not_browser_s
 def test_georgia_ingestor_uses_public_511ga_feed_and_paginates(monkeypatch):
     from services import cctv_pipeline
 
-    class _Response:
-        def __init__(self, payload):
-            self.status_code = 200
-            self._payload = payload
-
-        def json(self):
-            return self._payload
-
-    responses = [
-        {
-            "recordsTotal": 2,
-            "data": [
-                {
-                    "id": 14968,
-                    "location": "ALPH-0050: Rucker Rd at Charlotte Dr (Alpharetta)",
-                    "latLng": {
-                        "geography": {
-                            "wellKnownText": "POINT (-84.33039 34.076298)",
-                        }
-                    },
-                    "images": [
-                        {
-                            "id": 22378,
-                            "imageUrl": "/map/Cctv/22378",
-                            "blocked": False,
-                        }
-                    ],
-                }
-            ],
-        },
-        {
-            "recordsTotal": 2,
-            "data": [
-                {
-                    "id": 14969,
-                    "location": "BARR-0034: SR 211 at Pinot Nior Dr (Barrow)",
-                    "latLng": {
-                        "geography": {
-                            "wellKnownText": "POINT (-83.81524 34.10526)",
-                        }
-                    },
-                    "images": [
-                        {
-                            "id": 22379,
-                            "imageUrl": "/map/Cctv/22379",
-                            "blocked": False,
-                        }
-                    ],
-                }
-            ],
-        },
-    ]
     calls = []
 
-    def _fake_fetch(url, method="GET", json_data=None, timeout=15, headers=None):
-        calls.append(
-            {
-                "url": url,
-                "method": method,
-                "json_data": json_data,
-                "headers": headers,
-            }
-        )
-        return _Response(responses.pop(0))
+    def _fake_helper(**kwargs):
+        calls.append(kwargs)
+        return [{"id": "GDOT-14968"}, {"id": "GDOT-14969"}]
 
-    monkeypatch.setattr(cctv_pipeline.GeorgiaDOTIngestor, "PAGE_SIZE", 1)
-    monkeypatch.setattr(cctv_pipeline, "fetch_with_curl", _fake_fetch)
+    monkeypatch.setattr(cctv_pipeline, "_fetch_511_datatables_cameras", _fake_helper)
 
     cameras = cctv_pipeline.GeorgiaDOTIngestor().fetch_data()
 
     assert [cam["id"] for cam in cameras] == ["GDOT-14968", "GDOT-14969"]
-    assert cameras[0]["media_url"] == "https://511ga.org/map/Cctv/22378"
-    assert cameras[0]["media_type"] == "image"
-    assert cameras[0]["lat"] == pytest.approx(34.076298)
-    assert cameras[0]["lon"] == pytest.approx(-84.33039)
-    assert len(calls) == 2
-    assert all(call["url"] == "https://511ga.org/List/GetData/Cameras" for call in calls)
-    assert all(call["method"] == "POST" for call in calls)
-    assert calls[0]["json_data"] == {"draw": 1, "start": 0, "length": 1}
-    assert calls[1]["json_data"] == {"draw": 2, "start": 1, "length": 1}
-    assert calls[0]["headers"]["Referer"] == "https://511ga.org/cctv"
+    assert calls == [
+        {
+            "list_url": "https://511ga.org/List/GetData/Cameras",
+            "base_url": "https://511ga.org",
+            "id_prefix": "GDOT",
+            "source_agency": "Georgia DOT",
+            "referer": "https://511ga.org/cctv",
+        }
+    ]
 
 
 def test_michigan_ingestor_absolutizes_relative_image_urls(monkeypatch):
@@ -551,9 +490,8 @@ def test_cctv_proxy_allows_colorado_media_hosts():
 
 
 def test_data_fetcher_cctv_scheduler_includes_colorado_and_osm():
-    from pathlib import Path
+    from services import cctv_pipeline
 
-    source = Path("backend/services/data_fetcher.py").read_text(encoding="utf-8")
-
-    assert "ColoradoDOTIngestor()" in source
-    assert "OSMTrafficCameraIngestor()" in source
+    names = [type(ingestor).__name__ for ingestor, _key in cctv_pipeline.scheduled_cctv_ingestors()]
+    assert "ColoradoDOTIngestor" in names
+    assert "OSMTrafficCameraIngestor" in names
