@@ -27,6 +27,7 @@ engine and no code that could reach one.
 | Engine launcher | `engine/` | Starts the normal backend on 127.0.0.1 with the community networks off |
 | Bridge | `bridge/` | Reads the engine over loopback, writes the approved data as JSON files |
 | Viewer site | `web/` | Builds the static site from a copy of `frontend/` |
+| Agent skill | `../openclaw-skills/shadowbroker-public/` | Lets any AI agent answer questions from the published files. Read-only, no keys |
 | Chat (optional) | `chat/` | A public chat room on a separate hosted login service. See `chat/README.md` |
 | The list | `public-layers.json` | The one list of what is public. Engine, bridge and viewer all follow it |
 
@@ -38,7 +39,8 @@ engine and no code that could reach one.
 python viewer/engine/run_public_engine.py --port 8011 --keys-from /path/to/an/install/backend/.env
 
 # 2. Bridge: writes data files every 15 s (fast) and 120 s (slow).
-python viewer/bridge/bridge.py --out viewer/web/.data
+#    --lookup-index also publishes a small aircraft/ship index for agents and bots.
+python viewer/bridge/bridge.py --out viewer/web/.data --lookup-index 120
 
 # 3. Viewer: build once (needs `npm ci` in frontend/), then preview.
 node viewer/web/build.mjs
@@ -96,6 +98,17 @@ Some layers show a location and hand the visitor to the source's own site:
 
 In every case the viewer supplies an address and nothing else.
 
+## The agent skill can be read before it is used
+
+The site has an "AI agent skill" button. It shows every file of
+`openclaw-skills/shadowbroker-public/` in full, as plain text, exactly as an
+agent would receive it, with a SHA-256 fingerprint for each and a link to the
+source. Nobody has to trust it unread.
+
+The build copies those files into the site and stops if one of them contains
+anything a reader could not see: invisible or direction-changing characters,
+stray control characters, or an HTML comment in the instructions.
+
 ## Changing what is public
 
 Edit `public-layers.json`, then restart the engine and bridge.
@@ -122,6 +135,7 @@ Each failure names the file. Fix the cut, stand-in or allowlist, and rebuild.
 
 ```bash
 python -m pytest viewer/bridge -q
+python -m pytest openclaw-skills/shadowbroker-public -q
 python -m pytest viewer/engine -q
 node --test viewer/web/tests/guardRules.test.ts viewer/web/tests/layerPrefs.test.ts
 node viewer/web/build.mjs        # ends with the built-site inspection

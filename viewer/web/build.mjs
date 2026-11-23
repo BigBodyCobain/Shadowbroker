@@ -22,6 +22,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -151,6 +152,66 @@ function pruneUnreachable() {
   console.log(`[viewer build] kept ${keep.size} reachable source files, removed ${removed}`);
 }
 
+/**
+ * Copy the public agent skill into the site so visitors can read every line
+ * of it before giving it to an agent ("view and vet").
+ *
+ * The files are published byte for byte with a SHA-256 fingerprint each. The
+ * build stops if one contains anything a reader could not see: invisible or
+ * direction-changing characters, stray control characters, or (in the
+ * instructions) an HTML comment that a Markdown viewer would hide.
+ */
+const SKILL_FILES = [
+  { name: 'SKILL.md', role: 'instructions' },
+  { name: 'sb_public.py', role: 'code' },
+  { name: 'sb_camera.py', role: 'code' },
+  { name: 'skill.yaml', role: 'manifest' },
+];
+// Control characters, soft hyphen, zero-width and direction marks, variation
+// selectors, and the "tag" block used to smuggle invisible text.
+const HIDDEN_CHARS =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uFFF9-\uFFFB\uFE00-\uFE0E\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u;
+
+function publishSkill() {
+  const skillDir = path.join(repo, 'openclaw-skills', 'shadowbroker-public');
+  if (!fs.existsSync(skillDir)) return;
+  const outDir = path.join(buildDir, 'public', 'skill');
+  fs.mkdirSync(outDir, { recursive: true });
+  const files = [];
+  for (const { name, role } of SKILL_FILES) {
+    const text = fs.readFileSync(path.join(skillDir, name), 'utf8').replace(/\r\n/g, '\n');
+    const hidden = HIDDEN_CHARS.exec(text);
+    if (hidden) {
+      const line = text.slice(0, hidden.index).split('\n').length;
+      fail(`skill file ${name} has a hidden character (U+${hidden[0].codePointAt(0).toString(16).toUpperCase()}) on line ${line}`);
+    }
+    if (name.endsWith('.md') && text.includes('<!--')) {
+      fail(`skill file ${name} contains an HTML comment, which a Markdown viewer would hide from a reader`);
+    }
+    const bytes = Buffer.from(text, 'utf8');
+    fs.writeFileSync(path.join(outDir, name), bytes);
+    files.push({
+      name,
+      role,
+      bytes: bytes.length,
+      lines: text.split('\n').length - (text.endsWith('\n') ? 1 : 0),
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    });
+  }
+  const manifest = {
+    name: 'shadowbroker-public',
+    source: 'https://github.com/BigBodyCobain/Shadowbroker/tree/main/openclaw-skills/shadowbroker-public',
+    checks: [
+      'Shown byte for byte as published (line endings normalised to LF)',
+      'No invisible, zero-width or direction-changing characters',
+      'No hidden comments in the instructions',
+    ],
+    files,
+  };
+  fs.writeFileSync(path.join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`[viewer build] published agent skill for viewing (${files.length} files)`);
+}
+
 function linkNodeModules() {
   if (!fs.existsSync(path.join(nodeModules, 'next', 'package.json'))) {
     fail(`no installed packages at ${nodeModules}. Run "npm ci" in frontend/ first.`);
@@ -195,6 +256,7 @@ function prepare() {
   const worker = path.join(nodeModules, 'maplibre-gl', 'dist', 'maplibre-gl-worker.mjs');
   if (fs.existsSync(worker)) fs.copyFileSync(worker, path.join(buildDir, 'public', 'maplibre-gl-worker.mjs'));
 
+  publishSkill();
   linkNodeModules();
   console.log(`[viewer build] prepared ${path.relative(repo, buildDir)}`);
 }

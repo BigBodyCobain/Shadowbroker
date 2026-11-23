@@ -40,6 +40,7 @@ import { LocateBar } from './LocateBar';
 import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
 import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
+import SkillModal from '@/viewer/SkillModal';
 import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -86,6 +87,7 @@ export default function ViewerDashboard() {
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
   const [mapView, setMapView] = useState({ zoom: 2, latitude: 20 });
   const [locateBarOpen, setLocateBarOpen] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
@@ -97,6 +99,11 @@ export default function ViewerDashboard() {
     const r = localStorage.getItem('sb_right_open');
     if (l !== null) setLeftOpen(l === 'true');
     if (r !== null) setRightOpen(r === 'true');
+    // A link ending in #skill opens the agent skill screen directly.
+    if (window.location.hash === '#skill') {
+      setSkillOpen(true);
+      return;
+    }
     // First visit: say what this page is.
     if (localStorage.getItem('sb_viewer_about_seen') !== '1') {
       setAboutOpen(true);
@@ -461,7 +468,7 @@ export default function ViewerDashboard() {
         animate={{ x: rightOpen ? 0 : 440 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
-        <ViewerHeaderCard onAbout={() => setAboutOpen(true)} />
+        <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
 
         <div className="flex-shrink-0">
           <FindLocateBar
@@ -661,6 +668,7 @@ export default function ViewerDashboard() {
 
       <StaleBanner />
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+      {skillOpen && <SkillModal onClose={() => setSkillOpen(false)} />}
     </main>
   );
 }
