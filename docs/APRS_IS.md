@@ -65,5 +65,6 @@ Use dedicated infrastructure for genuinely global/full-feed APRS collection. Do 
 - APRS and Meshtastic now have independent connection lifecycles.
 - Turning the APRS layer off stops the APRS receive bridge; leaving Meshtastic on does not restart it.
 - Failed APRS connections use exponential reconnect backoff with jitter (30 seconds up to 15 minutes) instead of reconnecting every 15 seconds forever.
+- A pool name such as `rotate.aprs2.net` stands for many independent servers, and some refuse receive-only logins. When a server answers the login with a refusal, the bridge sets that server aside for an hour and tries another one from the pool after a short pause (at most six in a row) before falling back to the normal backoff.
 - APRS receive memory is bounded, and only observations from the recent retention window are published.
 - APRS transmit remains a separate operator-initiated path and is not enabled by `APRS_IS_ENABLED`.

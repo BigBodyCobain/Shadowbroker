@@ -14,6 +14,7 @@ import random
 import re
 import socket
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -37,6 +38,20 @@ _SIGNAL_MAX_AGE_S = 600.0
 _RECONNECT_BASE_S = 30.0
 _RECONNECT_MAX_S = 900.0
 _CALLSIGN_RE = re.compile(r"^[A-Z0-9-]{1,9}$")
+# A pool name such as rotate.aprs2.net stands for many independent servers.
+# Some of them refuse receive-only logins. A refusal says nothing about the
+# others, so the next one is tried after a short pause instead of the long
+# reconnect backoff, and the refusing server is left alone for a while.
+_REFUSED_SERVER_TTL_S = 3600.0
+_REFUSAL_RETRY_S = 5.0
+_MAX_REFUSALS_PER_ROUND = 6
+# A session must have worked for this long before the reconnect backoff starts over.
+_HEALTHY_SESSION_S = 300.0
+_LOGIN_REFUSED_MARKERS = (b"login by user not allowed", b"login not allowed")
+
+
+class APRSLoginRefused(ConnectionError):
+    """The server answered the login with a refusal."""
 
 
 @dataclass(frozen=True)
@@ -208,6 +223,9 @@ class APRSISBridge:
         self._config: APRSISConfig | None = None
         self._connected = False
         self._last_error = ""
+        # server address -> monotonic time it refused our login
+        self._refused: dict[str, float] = {}
+        self._login_accepted = False
 
     def is_running(self) -> bool:
         return bool(self._thread and self._thread.is_alive() and not self._stop.is_set())
@@ -302,16 +320,40 @@ class APRSISBridge:
 
     def _run(self) -> None:
         failures = 0
+        refusals = 0
         while not self._stop.is_set():
             config = self._config
             if config is None:
                 return
+            self._login_accepted = False
+            started = time.monotonic()
             try:
                 self._connect_and_read(config)
                 if self._stop.is_set():
                     return
+                if self._login_accepted and time.monotonic() - started >= _HEALTHY_SESSION_S:
+                    # A session that really worked: start the backoff over.
+                    failures = 0
+                    refusals = 0
                 failures += 1
                 self._last_error = "connection_closed"
+            except APRSLoginRefused as exc:
+                if self._stop.is_set():
+                    return
+                refusals += 1
+                self._last_error = f"login_refused: {exc}"
+                if refusals <= _MAX_REFUSALS_PER_ROUND:
+                    logger.info(
+                        "APRS-IS server %s refused the login; trying another server (%d/%d)",
+                        exc,
+                        refusals,
+                        _MAX_REFUSALS_PER_ROUND,
+                    )
+                    self._stop.wait(_REFUSAL_RETRY_S * random.uniform(0.8, 1.2))
+                    continue
+                # Too many refusals in a row: fall back to the normal backoff.
+                refusals = 0
+                failures += 1
             except Exception as exc:
                 if self._stop.is_set():
                     return
@@ -322,8 +364,40 @@ class APRSISBridge:
             logger.info("APRS-IS reconnect backoff %.0fs after %d failure(s)", delay, failures)
             self._stop.wait(delay)
 
+    def _candidate_servers(self, config: APRSISConfig) -> list[str]:
+        """Addresses behind the configured host, refusing ones last-resort only."""
+        try:
+            infos = socket.getaddrinfo(config.host, config.port, type=socket.SOCK_STREAM)
+        except OSError:
+            return [config.host]
+        addresses: list[str] = []
+        for info in infos:
+            address = str(info[4][0])
+            if address not in addresses:
+                addresses.append(address)
+        if not addresses:
+            return [config.host]
+        now = time.monotonic()
+        self._refused = {a: t for a, t in self._refused.items() if now - t < _REFUSED_SERVER_TTL_S}
+        usable = [a for a in addresses if a not in self._refused]
+        if not usable:
+            # Every known server refused within the last hour: start over.
+            self._refused.clear()
+            usable = addresses
+        random.shuffle(usable)
+        return usable
+
+    def _open_socket(self, config: APRSISConfig) -> tuple[socket.socket, str]:
+        last_error: OSError | None = None
+        for address in self._candidate_servers(config)[:3]:
+            try:
+                return socket.create_connection((address, config.port), timeout=30), address
+            except OSError as exc:
+                last_error = exc
+        raise last_error or OSError("no APRS-IS server address")
+
     def _connect_and_read(self, config: APRSISConfig) -> None:
-        sock = socket.create_connection((config.host, config.port), timeout=30)
+        sock, server = self._open_socket(config)
         with self._socket_lock:
             if self._stop.is_set():
                 sock.close()
@@ -349,7 +423,15 @@ class APRSISBridge:
                 while b"\n" in buf:
                     line_bytes, buf = buf.split(b"\n", 1)
                     line_bytes = line_bytes.strip()
-                    if not line_bytes or line_bytes.startswith(b"#"):
+                    if not line_bytes:
+                        continue
+                    if line_bytes.startswith(b"#"):
+                        lowered = line_bytes.lower()
+                        if any(marker in lowered for marker in _LOGIN_REFUSED_MARKERS):
+                            self._refused[server] = time.monotonic()
+                            raise APRSLoginRefused(server)
+                        if b"logresp" in lowered:
+                            self._login_accepted = True
                         continue
                     self._parse_packet(self._decode_line(line_bytes))
         finally:
