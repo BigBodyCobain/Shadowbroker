@@ -197,6 +197,10 @@ for _var in _SECRET_VARS:
             logger.error(f"Failed to read secret file {_file_path} for {_var}: {_e}")
 
 from fastapi import APIRouter, FastAPI, Request, Response, Query, Depends, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -2946,7 +2950,140 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="Live Risk Dashboard API", lifespan=lifespan)
+app = FastAPI(
+    title="Live Risk Dashboard API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url="/openapi.json",
+)
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="/static/swagger/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger/swagger-ui.css",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+  <head>
+    <title>{app.title} - ReDoc</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body {{ margin: 0; padding: 0; }}</style>
+  </head>
+  <body>
+    <redoc spec-url="{app.openapi_url or '/openapi.json'}"></redoc>
+    <script src="/static/swagger/redoc.standalone.js"></script>
+  </body>
+</html>""")
+
+
+@app.get("/scalar", include_in_schema=False)
+async def scalar_html():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+  <head>
+    <title>{app.title} - Scalar</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>body {{ margin: 0; }}</style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/static/swagger/scalar.standalone.js"></script>
+    <script>
+      Scalar.createApiReference('#app', {{ url: '{app.openapi_url or "/openapi.json"}' }})
+    </script>
+  </body>
+</html>""")
+
+
+@app.get("/help", include_in_schema=False)
+async def api_help():
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{app.title} - Help</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {{ --bg:#f8fafc; --card:#ffffff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --accent:#2563eb; --code:#f1f5f9; }}
+      * {{ box-sizing: border-box; }}
+      body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }}
+      main {{ max-width: 860px; margin: 0 auto; padding: 48px 20px 64px; }}
+      h1 {{ margin:0 0 6px; font-size: 2rem; letter-spacing:-0.02em; }}
+      h2 {{ margin:0 0 12px; font-size: 1.05rem; letter-spacing:-0.01em; }}
+      p {{ margin:0; }}
+      a {{ color:var(--accent); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+      code {{ background:var(--code); padding:2px 6px; border-radius:6px; font-size:0.92em; }}
+      ul {{ margin:0; padding-left:20px; }}
+      li {{ margin:10px 0; }}
+      .muted {{ color:var(--muted); }}
+      .header {{ margin-bottom: 28px; }}
+      .version {{ display:inline-block; margin-top:8px; padding:2px 10px; border:1px solid var(--border); border-radius:999px; font-size:0.85rem; color:var(--muted); background:var(--card); }}
+      .grid {{ display:grid; gap:16px; }}
+      .card {{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:0 1px 2px rgba(15,23,42,.03); }}
+      .links a {{ font-weight:500; }}
+      .footer {{ margin-top:14px; font-size:0.92rem; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="header">
+        <h1>{app.title}</h1>
+        <p class="muted">Live risk intelligence API</p>
+        <div class="version">Version {APP_VERSION}</div>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <h2>About</h2>
+          <p class="muted">ShadowBroker aggregates OSINT and sensor data into a map-first operational view. The backend combines flight, maritime, satellite, SIGINT, CCTV, news, geospatial, and mesh/wormhole workflows behind a FastAPI service.</p>
+        </section>
+
+        <section class="card links">
+          <h2>Access</h2>
+          <ul>
+            <li><a href="http://127.0.0.1:3000">Frontend</a> <span class="muted">— web interface (<code>http://127.0.0.1:3000</code>)</span></li>
+            <li><a href="http://127.0.0.1:8000">Backend</a> <span class="muted">— API service (<code>http://127.0.0.1:8000</code>)</span></li>
+          </ul>
+        </section>
+
+        <section class="card links">
+          <h2>API Documentation</h2>
+          <ul>
+            <li><a href="/docs">Swagger UI</a> <span class="muted">— interactive API explorer (<code>/docs</code>)</span></li>
+            <li><a href="/redoc">ReDoc</a> <span class="muted">— readable API reference (<code>/redoc</code>)</span></li>
+            <li><a href="/scalar">Scalar</a> <span class="muted">— modern API reference (<code>/scalar</code>)</span></li>
+            <li><a href="/openapi.json">OpenAPI JSON</a> <span class="muted">— machine-readable schema (<code>/openapi.json</code>)</span></li>
+          </ul>
+        </section>
+
+        <section class="card links">
+          <h2>Useful Endpoints</h2>
+          <ul>
+            <li><a href="/api/health">Health</a> <span class="muted">— status, SLO, freshness, uptime (<code>/api/health</code>)</span></li>
+            <li><a href="/api/layers">Layers</a> <span class="muted">— active layer configuration (<code>/api/layers</code>)</span></li>
+            <li><a href="/api/live-data/fast">Live Data (fast)</a> <span class="muted">— high-frequency snapshot (<code>/api/live-data/fast</code>)</span></li>
+            <li><a href="/api/live-data/slow">Live Data (slow)</a> <span class="muted">— enrichment snapshot (<code>/api/live-data/slow</code>)</span></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>""")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
