@@ -107,6 +107,7 @@ def main() -> int:
     for key, value in PUBLIC_ENGINE_ENV.items():
         os.environ[key] = value
     print(f"[public-engine] APRS listen: {apply_aprs_listen(policy_path)}")
+    print(f"[public-engine] radar layer: {apply_radar(policy_path)}")
     # The dev "bind all interfaces" switch must never apply here.
     os.environ.pop("SHADOWBROKER_DEV_BIND_ALL", None)
     os.environ["BACKEND_PORT"] = str(args.port)
@@ -167,15 +168,19 @@ _APRS_ENV_NAMES = (
     "APRS_IS_LAT",
     "APRS_IS_LON",
     "APRS_IS_RADIUS_KM",
+    "APRS_IS_EXTRA_RANGES",
+    "APRS_IS_MAX_SIGNALS",
 )
+APRS_MAX_EXTRA_RANGES = 8
 
 
 def apply_aprs_listen(policy_path: Path, environ: dict | None = None) -> str:
     """Configure listen-only APRS-IS from public-layers.json. Returns a summary.
 
     Receive only: the login uses the no-transmit passcode, a generic callsign
-    and the public server, for one bounded region. Anything else in the
-    environment that could widen or redirect it is cleared.
+    and the public server, for one bounded region plus at most eight more
+    bounded regions ("more"). Anything else in the environment that could
+    widen or redirect it is cleared.
     """
     import json
 
@@ -201,7 +206,67 @@ def apply_aprs_listen(policy_path: Path, environ: dict | None = None) -> str:
     env["APRS_IS_LON"] = f"{lon:.5f}"
     env["APRS_IS_RADIUS_KM"] = f"{radius:g}"
     env["APRS_IS_CALLSIGN"] = "N0CALL"
+
+    extra: list[str] = []
+    more = cfg.get("more")
+    for entry in (more if isinstance(more, list) else [])[:APRS_MAX_EXTRA_RANGES]:
+        try:
+            e_lat = float(entry["lat"])
+            e_lon = float(entry["lon"])
+            e_radius = float(entry.get("radius_km", 100))
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue  # a bad entry is skipped, never widened
+        if not (-90.0 <= e_lat <= 90.0 and -180.0 <= e_lon <= 180.0):
+            continue
+        e_radius = max(1.0, min(e_radius, APRS_MAX_RADIUS_KM))
+        extra.append(f"{e_lat:.5f},{e_lon:.5f},{e_radius:g}")
+    if extra:
+        env["APRS_IS_EXTRA_RANGES"] = ";".join(extra)
+        # More regions means more stations to hold; still well under the app's hard cap.
+        env["APRS_IS_MAX_SIGNALS"] = "15000"
+        return f"on, {radius:g} km around {lat:.2f}, {lon:.2f} and {len(extra)} more region(s)"
     return f"on, {radius:g} km around {lat:.2f}, {lon:.2f}"
+
+
+_SAR_ENV_NAMES = (
+    "MESH_SAR_CATALOG_ENABLED",
+    "MESH_SAR_PRODUCTS_FETCH",
+    "MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE",
+    "MESH_SAR_EARTHDATA_USER",
+    "MESH_SAR_EARTHDATA_TOKEN",
+    "MESH_SAR_COPERNICUS_USER",
+    "MESH_SAR_COPERNICUS_TOKEN",
+    "MESH_SAR_OPENCLAW_ENABLED",
+    "MESH_SAR_REQUIRE_PRIVATE_TIER",
+)
+
+
+def apply_radar(policy_path: Path, environ: dict | None = None) -> str:
+    """Switch the radar (SAR) layer on or off from public-layers.json. Returns a summary.
+
+    On: public catalogue and public product listings only, for the app's
+    built-in watch areas. No account is ever used (any sign-in found in the
+    environment is cleared), and results are never signed or sent to a mesh:
+    that needs a private transport, which the public engine locks out.
+    """
+    import json
+
+    env = os.environ if environ is None else environ
+    for name in _SAR_ENV_NAMES:
+        env.pop(name, None)
+    env["MESH_SAR_REQUIRE_PRIVATE_TIER"] = "true"
+    env["MESH_SAR_OPENCLAW_ENABLED"] = "false"
+
+    wanted = json.loads(policy_path.read_text(encoding="utf-8")).get("engine_layers") or {}
+    if not wanted.get("sar"):
+        env["MESH_SAR_CATALOG_ENABLED"] = "false"
+        env["MESH_SAR_PRODUCTS_FETCH"] = "block"
+        env["MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE"] = "false"
+        return "off"
+    env["MESH_SAR_CATALOG_ENABLED"] = "true"
+    env["MESH_SAR_PRODUCTS_FETCH"] = "allow"
+    env["MESH_SAR_PRODUCTS_FETCH_ACKNOWLEDGE"] = "true"
+    return "on, public listings only, no account"
 
 
 def apply_public_layers(policy_path: Path) -> None:

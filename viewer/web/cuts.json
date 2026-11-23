@@ -114,6 +114,31 @@
       "file": "src/components/map/MapMarkers.tsx",
       "find": "if (r.width > 0) boxes.push(new DOMRect(r.left - 6, r.top - 4, r.width + 12, r.height + 8));",
       "replace": "void r;"
+    },
+    {
+      "why": "radar watch areas come with the published data; the viewer has no server to ask for them",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "        const res = await fetch(`${API_BASE}/api/sar/aois`, {\n          credentials: 'include',\n        });",
+      "replace": "        const res = new Response('{}');"
+    },
+    {
+      "why": "draw the radar watch areas from the published coverage list",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),\n    [activeLayers.sar, sarAoisList],",
+      "replace": "    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList.length ? sarAoisList : viewerSarAois(data?.sar_aoi_coverage)) : null),\n    [activeLayers.sar, sarAoisList, data?.sar_aoi_coverage],",
+      "prepend": "import { viewerSarAois } from '@/viewer/sarAois';"
+    },
+    {
+      "why": "the viewer has no sign-up; say plainly when there are no radar alerts",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": "? `Catalog only · ${data.sar_scenes.length} Sentinel-1 passes · Alerts: sign up →`",
+      "replace": "? `NASA OPERA · no alerts right now · ${data.sar_scenes.length} Sentinel-1 passes`"
+    },
+    {
+      "why": "the viewer has no sign-up; say plainly when there are no radar alerts",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": ": 'Catalog only (free) · Alerts: sign up →')),",
+      "replace": ": 'NASA OPERA · no alerts right now')),"
     }
   ]
 }

@@ -37,7 +37,6 @@ export const VIEWER_HIDDEN_LAYERS: ReadonlySet<string> = new Set([
   'shodan_overlay', // spends the owner's Shodan credits
   'sentinel_hub', // spends the owner's Copernicus quota
   'ai_intel', // the owner's private pins
-  'sar', // the owner's watch areas
   'road_corridor_trends', // starts jobs on the owner's server
   'telegram_osint', // media is relayed through the owner's server
   'crowdthreat', // not published

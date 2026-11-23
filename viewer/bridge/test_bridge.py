@@ -32,8 +32,12 @@ def test_real_policy_file_loads_and_withholds_private_layers():
     for key in ("stocks", "telegram_osint", "liveuamap", "trending_markets", "crowdthreat"):
         assert not policy.is_public(key, "fast") and not policy.is_public(key, "slow"), key
     # Every engine switch that feeds a withheld or private surface stays off.
-    for gate in ("ai_intel", "sar", "telegram_osint", "road_corridor_trends", "gt_risk"):
+    for gate in ("ai_intel", "telegram_osint", "road_corridor_trends", "gt_risk"):
         assert policy.engine_layers[gate] is False, gate
+    # The radar layer is public: fixed built-in watch areas, public listings, slow tier only.
+    assert policy.engine_layers["sar"] is True
+    for key in ("sar_anomalies", "sar_scenes", "sar_aoi_coverage"):
+        assert policy.is_public(key, "slow") and not policy.is_public(key, "fast"), key
 
 
 def test_unknown_and_withheld_keys_never_published(tmp_path):

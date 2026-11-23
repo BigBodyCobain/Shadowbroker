@@ -2,7 +2,7 @@
   "_comment": [
     "The single list of what the public viewer may show.",
     "engine_keys: the only key names the engine may borrow from another install's .env (--keys-from).",
-    "aprs_listen: one listen-only APRS-IS region (max 500 km). Nothing is ever sent.",
+    "aprs_listen: listen-only APRS-IS for a few bounded regions: one main circle plus up to 8 in 'more' (each max 500 km). Nothing is ever sent.",
     "engine_layers: fetcher switches forced on the public engine at start.",
     "keys: top-level data keys the bridge may publish. Anything not listed, or",
     "listed with public=false, never leaves the engine machine.",
@@ -21,11 +21,49 @@
     "AISHUB_USERNAME"
   ],
   "aprs_listen": {
-    "_comment": "Listen-only APRS-IS station positions for ONE region. The app caps public APRS-IS at a 500 km radius. Use a neutral city, never the owner's own location: this file is public.",
+    "_comment": "Listen-only APRS-IS station positions. The app caps every circle at 500 km and one connection at 9 circles. Use neutral cities, never the owner's own location: this file is public.",
     "enabled": true,
     "lat": 40.7128,
     "lon": -74.006,
-    "radius_km": 500
+    "radius_km": 500,
+    "more": [
+      {
+        "name": "Los Angeles",
+        "lat": 34.0522,
+        "lon": -118.2437,
+        "radius_km": 500
+      },
+      {
+        "name": "Dallas",
+        "lat": 32.7767,
+        "lon": -96.797,
+        "radius_km": 500
+      },
+      {
+        "name": "London",
+        "lat": 51.5074,
+        "lon": -0.1278,
+        "radius_km": 500
+      },
+      {
+        "name": "Frankfurt",
+        "lat": 50.1109,
+        "lon": 8.6821,
+        "radius_km": 500
+      },
+      {
+        "name": "Tokyo",
+        "lat": 35.6762,
+        "lon": 139.6503,
+        "radius_km": 500
+      },
+      {
+        "name": "Sydney",
+        "lat": -33.8688,
+        "lon": 151.2093,
+        "radius_km": 500
+      }
+    ]
   },
   "engine_layers": {
     "flights": true,
@@ -68,7 +106,7 @@
     "wastewater": true,
     "ai_intel": false,
     "crowdthreat": false,
-    "sar": false,
+    "sar": true,
     "road_corridor_trends": false,
     "malware_c2": true,
     "submarine_cables": true,
@@ -365,6 +403,21 @@
       "tier": "slow",
       "public": true,
       "why": "Public scanner directory: location and name only. Visitors listen on the provider's own site."
+    },
+    "sar_anomalies": {
+      "tier": "slow",
+      "public": true,
+      "why": "Public satellite products (NASA OPERA and others) over the engine's built-in watch areas, with a link to the publisher's own picture. No account is used and nothing is signed or relayed."
+    },
+    "sar_scenes": {
+      "tier": "slow",
+      "public": true,
+      "why": "Public Sentinel-1 pass list (Alaska Satellite Facility catalogue) for the same watch areas."
+    },
+    "sar_aoi_coverage": {
+      "tier": "slow",
+      "public": true,
+      "why": "The built-in watch areas (name, centre, radius) and their last and next radar pass. These are fixed public places, not an operator watch list."
     }
   },
   "protocol_keys": [
