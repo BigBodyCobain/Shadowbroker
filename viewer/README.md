@@ -133,7 +133,7 @@ Each failure names the file. Fix the cut, stand-in or allowlist, and rebuild.
 ```bash
 python -m pytest viewer/bridge -q
 python -m pytest openclaw-skills/shadowbroker-public -q
-node --test viewer/web/tests/guardRules.test.ts
+node --test viewer/web/tests/guardRules.test.ts viewer/web/tests/layerPrefs.test.ts
 node viewer/web/build.mjs        # ends with the built-site inspection
 ```
 
