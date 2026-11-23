@@ -38,6 +38,7 @@ import { useWatchlist } from '@/hooks/useWatchlist';
 import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
+import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -46,11 +47,7 @@ const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ss
 const VIEWER_STYLES: MapStyle[] = ['DEFAULT', 'SATELLITE'];
 
 function viewerLayers(layers: ActiveLayers): ActiveLayers {
-  const next = { ...layers };
-  for (const key of VIEWER_HIDDEN_LAYERS) {
-    if (key in next) (next as Record<string, boolean>)[key] = false;
-  }
-  return next;
+  return withHiddenOff(layers, VIEWER_HIDDEN_LAYERS);
 }
 
 function viewerStyle(style: MapStyle): MapStyle {
@@ -123,13 +120,15 @@ export default function ViewerDashboard() {
   }, []);
 
   useEffect(() => {
-    setActiveLayersRaw(viewerLayers(loadActiveLayers()));
+    setActiveLayersRaw(layersOnLoad(getDefaultActiveLayers(), loadActiveLayers(), VIEWER_HIDDEN_LAYERS, readLayerRev()));
     setActiveStyle(viewerStyle(loadMapStyle()));
     setActiveFilters(loadActiveFilters());
     setPrefsHydrated(true);
   }, []);
   useEffect(() => {
-    if (prefsHydrated) saveActiveLayers(activeLayers);
+    if (!prefsHydrated) return;
+    saveActiveLayers(layersToStore(activeLayers, VIEWER_HIDDEN_LAYERS));
+    writeLayerRev();
   }, [activeLayers, prefsHydrated]);
   useEffect(() => {
     if (prefsHydrated) saveMapStyle(activeStyle);
