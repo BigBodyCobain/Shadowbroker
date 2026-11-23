@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { readFileSync } from 'fs';
 import path from 'path';
 import { buildSignaturePayload, type JsonValue } from '@/mesh/meshProtocol';

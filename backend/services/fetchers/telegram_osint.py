@@ -36,7 +36,7 @@ _TEXT_RE = re.compile(
 )
 _DATE_RE = re.compile(
     r'<a class="tgme_widget_message_date" href="(https://t\.me/[^"]+)".*?<time datetime="([^"]+)"',
-    re.IGNORECASE,
+    re.IGNORECASE | re.DOTALL,
 )
 _HAS_VIDEO_RE = re.compile(
     r'tgme_widget_message_video|js-message_video|<video\s',
@@ -53,6 +53,8 @@ _EXTRA_PLACE_KEYWORDS: dict[str, tuple[float, float]] = {
     "киев": (50.450, 30.523),
     "київ": (50.450, 30.523),
     "харьков": (49.993, 36.231),
+    "харькова": (49.993, 36.231),  # "near Kharkiv" (Russian spelling)
+    "харкова": (49.993, 36.231),   # "біля Харкова" (Ukrainian spelling)
     "харків": (49.993, 36.231),
     "одесса": (46.482, 30.724),
     "одеса": (46.482, 30.724),
@@ -71,6 +73,7 @@ _EXTRA_PLACE_KEYWORDS: dict[str, tuple[float, float]] = {
     "بيروت": (33.893, 35.501),
     "tel aviv": (32.085, 34.781),
     "תל אביב": (32.085, 34.781),
+    "usa": (40.712, -74.006),  # hashtag form isn't handled by the shared geoparser
 }
 
 # Country-level news geocodes sit on national centroids that stack with threat alerts.

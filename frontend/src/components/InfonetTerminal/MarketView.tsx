@@ -34,8 +34,7 @@ const CATEGORY_CONFIG: Record<string, { color: string; icon: typeof Shield }> = 
   FINANCE: { color: 'text-emerald-400', icon: DollarSign },
   CRYPTO: { color: 'text-amber-400', icon: DollarSign },
   SPORTS: { color: 'text-orange-400', icon: Activity },
-  NEWS: { color: 'text-cyan-400', icon: Newspaper },
-};
+  NEWS: { color: 'text-cyan-400', icon: Newspaper } };
 
 type Category = 'ALL' | 'POLITICS' | 'CONFLICT' | 'FINANCE' | 'CRYPTO' | 'SPORTS' | 'NEWS';
 

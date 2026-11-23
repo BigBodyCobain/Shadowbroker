@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ArrowLeft, Send, MapPin, Loader2, Brain, Trash2, Sparkles, Link2, Copy, Check, X } from 'lucide-react';
 import { getBackendEndpoint } from '@/lib/backendEndpoint';
+import { copyText } from '@/lib/clipboard';
 
 interface AIMessage {
   role: 'user' | 'ai' | 'system';
@@ -41,8 +42,7 @@ and access all 30+ data layers.
 
 Type a question or command to get started.
 Use "help" to see capabilities.`,
-      timestamp: Date.now(),
-    },
+      timestamp: Date.now() },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -54,7 +54,7 @@ Use "help" to see capabilities.`,
   const apiEndpoint = getBackendEndpoint();
 
   const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text);
+    void copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
@@ -106,16 +106,14 @@ TIME MACHINE:
 SYSTEM:
   • "status"  — AI system status
   • "clear"   — Clear chat history
-  • "help"    — This message`,
-      };
+  • "help"    — This message` };
     }
 
     if (lowerQuery === 'clear') {
       setMessages([{
         role: 'system',
         content: '🌍✅ Chat cleared. Ready for queries.',
-        timestamp: Date.now(),
-      }]);
+        timestamp: Date.now() }]);
       return null;
     }
 
@@ -132,8 +130,7 @@ SYSTEM:
 Status: ${data.status || 'ONLINE'}
 Capabilities: ${(data.capabilities || []).join(', ')}
 Pin Count: ${data.pin_count ?? 'N/A'}
-Version: ${data.version || '1.0'}`,
-        };
+Version: ${data.version || '1.0'}` };
       }
 
       if (lowerQuery === 'summary' || lowerQuery === 'quick summary') {
@@ -150,8 +147,7 @@ Version: ${data.version || '1.0'}`,
 ${lines || '  No active telemetry data.'}
 
 Threat Level: ${data.threat_level || 'N/A'}
-SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, null, 0)}`,
-        };
+SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, null, 0)}` };
       }
 
       if (lowerQuery === 'report' || lowerQuery === 'intelligence report') {
@@ -160,8 +156,7 @@ SIGINT Totals: ${JSON.stringify(data.sigint_totals || {}, null, 0)}`,
         return {
           content: `🌍🛰️ INTELLIGENCE REPORT:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${data.report || JSON.stringify(data, null, 2)}`,
-        };
+${data.report || JSON.stringify(data, null, 2)}` };
       }
 
       if (lowerQuery.startsWith('pin ')) {
@@ -174,8 +169,7 @@ ${data.report || JSON.stringify(data, null, 2)}`,
             const resp = await fetch(`${base}/pins`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ lat, lng, label, category: 'research' }),
-            });
+              body: JSON.stringify({ lat, lng, label, category: 'research' }) });
             const data = await resp.json();
             return {
               content: `🌍📌 SHADOWBROKER PINNING:
@@ -183,8 +177,7 @@ Pin placed successfully!
   📍 ${lat.toFixed(4)}°, ${lng.toFixed(4)}°
   🏷️ ${label}
   🆔 ${data.pin_id || 'assigned'}`,
-              pins: [{ lat, lng, label }],
-            };
+              pins: [{ lat, lng, label }] };
           }
         }
         return { content: '❌ Usage: pin [latitude] [longitude] [label]' };
@@ -202,8 +195,7 @@ Pin placed successfully!
         return {
           content: `🌍📌 AI INTEL PINS (${data.count || 0}):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${pinList || '  No pins placed yet.'}`,
-        };
+${pinList || '  No pins placed yet.'}` };
       }
 
       if (lowerQuery === 'clear pins') {
@@ -215,16 +207,14 @@ ${pinList || '  No pins placed yet.'}`,
         const resp = await fetch(`${base}/timemachine/snapshot`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
+          body: JSON.stringify({}) });
         const data = await resp.json();
         return {
           content: `🌍🕰️ SHADOWBROKER TIMEMACHINE:
 Snapshot taken!
   🆔 ${data.snapshot_id}
   🕐 ${data.timestamp}
-  📊 Layers: ${(data.layers || []).join(', ')}`,
-        };
+  📊 Layers: ${(data.layers || []).join(', ')}` };
       }
 
       if (lowerQuery === 'snapshots' || lowerQuery === 'list snapshots') {
@@ -239,8 +229,7 @@ Snapshot taken!
         return {
           content: `🌍🕰️ TIME MACHINE SNAPSHOTS (${data.count || 0}):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${snapList || '  No snapshots taken yet.'}`,
-        };
+${snapList || '  No snapshots taken yet.'}` };
       }
 
       if (lowerQuery === 'timemachine config' || lowerQuery === 'tm config') {
@@ -258,8 +247,7 @@ High-Frequency (${cfg.profiles?.high_freq?.interval_minutes || 15}min):
 Standard (${cfg.profiles?.standard?.interval_minutes || 120}min):
   ${(cfg.profiles?.standard?.layers || []).join(', ')}
 
-Available presets: paranoid (5min), active (15min), casual (1hr), minimal (6hr)`,
-        };
+Available presets: paranoid (5min), active (15min), casual (1hr), minimal (6hr)` };
       }
 
       if (lowerQuery === 'news summary' || lowerQuery === 'news brief' || lowerQuery === 'ai brief') {
@@ -288,8 +276,7 @@ TRENDING: ${keywords || 'N/A'}
 
 THREAT DISTRIBUTION:
   🔴 CRITICAL: ${td.CRITICAL || 0}  🟠 HIGH: ${td.HIGH || 0}  🟡 ELEVATED: ${td.ELEVATED || 0}
-  🔵 MODERATE: ${td.MODERATE || 0}  🟢 LOW: ${td.LOW || 0}`,
-        };
+  🔵 MODERATE: ${td.MODERATE || 0}  🟢 LOW: ${td.LOW || 0}` };
       }
 
       if (lowerQuery === 'correlations' || lowerQuery === 'explain correlations' || lowerQuery === 'correlation alerts') {
@@ -314,8 +301,7 @@ THREAT DISTRIBUTION:
           content: `🌍⚡ CORRELATION ANALYSIS (${data.count} alerts):
 ${data.summary || ''}
 
-${alerts}`,
-        };
+${alerts}` };
       }
 
       // Generic fallback — try summary
@@ -334,14 +320,12 @@ For complex queries (natural language research, web search,
 multi-step investigations), connect an AI agent with an LLM
 provider to unlock full agent capabilities.
 
-Type "help" for the full command list.`,
-      };
+Type "help" for the full command list.` };
     } catch (error) {
       return {
         content: `🌍⚠️ SHADOWBROKER WARNING:
 Query failed: ${error instanceof Error ? error.message : 'Unknown error'}
-Make sure the ShadowBroker backend is running on localhost:8000.`,
-      };
+Make sure the ShadowBroker backend is running on localhost:8000.` };
     }
   }, []);
 
@@ -359,8 +343,7 @@ Make sure the ShadowBroker backend is running on localhost:8000.`,
         role: 'ai',
         content: result.content,
         timestamp: Date.now(),
-        pins: result.pins,
-      }]);
+        pins: result.pins }]);
     }
 
     setIsLoading(false);
@@ -408,8 +391,7 @@ Make sure the ShadowBroker backend is running on localhost:8000.`,
             onClick={() => setMessages([{
               role: 'system',
               content: '🌍✅ Chat cleared. Ready for queries.',
-              timestamp: Date.now(),
-            }])}
+              timestamp: Date.now() }])}
             className="text-gray-600 hover:text-red-400 transition-colors"
             title="Clear chat"
           >

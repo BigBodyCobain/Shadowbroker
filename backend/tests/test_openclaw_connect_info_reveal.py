@@ -52,8 +52,15 @@ from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture
-def loopback():
+def loopback(monkeypatch):
     from main import app
+    from services.config import get_settings
+
+    # require_local_operator now needs an explicit operator credential even
+    # on loopback; give the test client a valid one.
+    key = "test-operator-key-" + "x" * 32
+    monkeypatch.setenv("ADMIN_KEY", key)
+    get_settings.cache_clear()
 
     class _Client:
         def __init__(self, peer_ip: str = "127.0.0.1"):
@@ -62,9 +69,11 @@ def loopback():
             self._base = f"http://{peer_ip}:8000"
 
         def _do(self, method: str, url: str, **kw):
+            headers = dict(kw.pop("headers", {}) or {})
+            headers.setdefault("X-Admin-Key", key)
             async def go():
                 async with AsyncClient(transport=self._transport, base_url=self._base) as ac:
-                    return await ac.request(method, url, **kw)
+                    return await ac.request(method, url, headers=headers, **kw)
             return self._loop.run_until_complete(go())
 
         def get(self, url, **kw):  return self._do("GET", url, **kw)

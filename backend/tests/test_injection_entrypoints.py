@@ -2,8 +2,23 @@
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from routers import ai_intel
+
+
+def _request() -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/ai/inject",
+            "headers": [],
+            "query_string": b"",
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        }
+    )
 from services.fetchers import _store
 from services.openclaw_channel import _dispatch_command
 
@@ -61,7 +76,7 @@ async def test_rest_rejects_unknown_mode_without_mutation(monkeypatch):
         layer="air_quality", items=[{"id": "new"}], mode="overwrite"
     )
     with pytest.raises(HTTPException) as exc_info:
-        await ai_intel.inject_data(None, body)
+        await ai_intel.inject_data(_request(), body)
     assert exc_info.value.status_code == 400
     assert _store.latest_data["air_quality"] is before
 
@@ -77,7 +92,7 @@ async def test_rest_empty_and_all_invalid_replace_preserve_existing(monkeypatch)
             layer="air_quality", items=invalid_items, mode="replace"
         )
         with pytest.raises(HTTPException) as exc_info:
-            await ai_intel.inject_data(None, body)
+            await ai_intel.inject_data(_request(), body)
         assert exc_info.value.status_code == 400
         assert _store.latest_data["air_quality"] is before
 
@@ -91,7 +106,7 @@ async def test_rest_valid_replace_uses_shared_helper(monkeypatch):
     body = ai_intel.InjectRequest(
         layer="air_quality", items=[{"id": "new"}], mode="replace"
     )
-    result = await ai_intel.inject_data(None, body)
+    result = await ai_intel.inject_data(_request(), body)
     assert result["ok"] is True
     assert result["mode"] == "replace"
     assert result["injected"] == 1

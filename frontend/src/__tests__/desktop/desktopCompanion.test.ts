@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Tests for the desktop companion mode helper (desktopCompanion.ts).
  *

@@ -38,6 +38,12 @@ from services.mesh.mesh_privacy_policy import (
 from services.mesh.mesh_metrics import increment as metrics_inc
 from services.mesh.mesh_privacy_logging import privacy_log_label
 from services.mesh.mesh_wormhole_persona import sign_dm_alias_blob, verify_dm_alias_blob
+
+# Privacy-core failures (e.g. native library missing) repeat on every DM
+# operation. Log the full traceback once per alias, then drop to debug to
+# avoid flooding the backend log with identical stack traces.
+_MLS_EXPORT_FAILURE_LOG_LOCK = threading.Lock()
+_MLS_EXPORT_FAILURE_LOGGED: set[str] = set()
 from services.privacy_core_client import PrivacyCoreClient, PrivacyCoreError
 from services.wormhole_supervisor import (
     connect_wormhole,
@@ -725,10 +731,14 @@ def export_dm_key_package_for_alias(alias: str) -> dict[str, Any]:
             "welcome_dh_pub": str(seal_keypair.get("public_key", "") or ""),
         }
     except Exception:
-        logger.exception(
-            "dm mls key package export failed for %s",
-            privacy_log_label(alias_key, label="alias"),
-        )
+        label = privacy_log_label(alias_key, label="alias")
+        with _MLS_EXPORT_FAILURE_LOG_LOCK:
+            first_failure = label not in _MLS_EXPORT_FAILURE_LOGGED
+            _MLS_EXPORT_FAILURE_LOGGED.add(label)
+        if first_failure:
+            logger.exception("dm mls key package export failed for %s", label)
+        else:
+            logger.debug("dm mls key package export still failing for %s", label)
         return {"ok": False, "detail": "dm_mls_key_package_failed"}
 
 

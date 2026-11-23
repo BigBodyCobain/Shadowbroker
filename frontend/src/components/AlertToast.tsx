@@ -101,9 +101,11 @@ function ToastCard({
             >
               ⚠ {label}
             </span>
-            <span className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">
-              LVL {toast.risk_score}/10
-            </span>
+            {toast.risk_score != null && (
+              <span className="text-[10px] text-[var(--text-muted)] tracking-wider uppercase">
+                LVL {toast.risk_score}/10
+              </span>
+            )}
           </div>
 
           {/* Title */}

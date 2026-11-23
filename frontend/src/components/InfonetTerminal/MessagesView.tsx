@@ -18,8 +18,7 @@ import {
   Trash2,
   UserPlus,
   Users,
-  X,
-} from 'lucide-react';
+  X } from 'lucide-react';
 
 import { API_BASE } from '@/lib/api';
 import { classifyTick, MAX_CATCHUP_POLLS } from '@/lib/dmPollScheduler';
@@ -32,8 +31,7 @@ import {
   sendDmMessage,
   sendOffLedgerConsentMessage,
   sharedMailboxToken,
-  type DmMessageEnvelope,
-} from '@/mesh/meshDmClient';
+  type DmMessageEnvelope } from '@/mesh/meshDmClient';
 import {
   allDmPeerIds,
   buildContactAcceptMessage,
@@ -44,13 +42,11 @@ import {
   parseAliasRotateMessage,
   parseDmConsentMessage,
   preferredDmPeerId,
-  type DmConsentMessage,
-} from '@/mesh/meshDmConsent';
+  type DmConsentMessage } from '@/mesh/meshDmConsent';
 import {
   purgeBrowserDmState,
   ratchetDecryptDM,
-  ratchetEncryptDM,
-} from '@/mesh/meshDmWorkerClient';
+  ratchetEncryptDM } from '@/mesh/meshDmWorkerClient';
 import {
   addContact,
   blockContact,
@@ -73,8 +69,7 @@ import {
   verifyNodeIdBindingFromPublicKey,
   verifyRawSignature,
   type Contact,
-  type NodeIdentity,
-} from '@/mesh/meshIdentity';
+  type NodeIdentity } from '@/mesh/meshIdentity';
 import { connectDeliveryMeta, ensureDmOutboxReleased } from '@/mesh/dmConnectDelivery';
 import {
   getSenderRecoveryState,
@@ -83,13 +78,11 @@ import {
   shouldKeepUnresolvedRequestVisible,
   shouldPromoteRecoveredSenderForBootstrap,
   shouldPromoteRecoveredSenderForKnownContact,
-  type RecoveredSenderSeal,
-} from '@/mesh/requestSenderRecovery';
+  type RecoveredSenderSeal } from '@/mesh/requestSenderRecovery';
 import {
   bootstrapDecryptAccessRequest,
   bootstrapEncryptAccessRequest,
-  canUseWormholeBootstrap,
-} from '@/mesh/wormholeDmBootstrapClient';
+  canUseWormholeBootstrap } from '@/mesh/wormholeDmBootstrapClient';
 import {
   bootstrapWormholeIdentity,
   fetchWormholeStatus,
@@ -106,23 +99,19 @@ import {
   registerWormholeDmKey,
   renameWormholeDmInviteHandle,
   revokeWormholeDmInviteHandle,
-  type WormholeDmAddressRecord,
-} from '@/mesh/wormholeIdentityClient';
+  type WormholeDmAddressRecord } from '@/mesh/wormholeIdentityClient';
 import {
   updatePrivateDeliveryAction,
   type PrivateDeliveryItem,
-  type PrivateDeliverySummary,
-} from '@/mesh/wormholeClient';
+  type PrivateDeliverySummary } from '@/mesh/wormholeClient';
 import {
   buildDmTrustHint,
   dmTrustPrimaryActionLabel,
-  requiresVerifiedFirstContact,
-} from '@/mesh/meshPrivacyHints';
+  requiresVerifiedFirstContact } from '@/mesh/meshPrivacyHints';
 import {
   getContactTrustSummary,
   rootWitnessBadgeLabel,
-  rootWitnessContinuityLabel,
-} from '@/mesh/contactTrustSummary';
+  rootWitnessContinuityLabel } from '@/mesh/contactTrustSummary';
 import GateKeySharingPanel from './GateKeySharingPanel';
 import { friendlyInfonetError } from '@/mesh/friendlyError';
 
@@ -245,8 +234,7 @@ function createShadowbrokerWelcomeMail(): MailItem {
     timestamp: Math.floor(Date.now() / 1000),
     read: false,
     transport: '',
-    deliveryClass: '',
-  };
+    deliveryClass: '' };
 }
 
 function ensureSeedMail(items: MailItem[]): MailItem[] {
@@ -280,8 +268,7 @@ function saveMailbox(scopeId: string, items: MailItem[]): void {
   try {
     const payload: MailboxSnapshot = {
       version: STORAGE_VERSION,
-      items,
-    };
+      items };
     localStorage.setItem(mailboxStorageKey(scopeId), JSON.stringify(payload));
   } catch {
     /* ignore */
@@ -310,8 +297,7 @@ function saveDmAddresses(scopeId: string, addresses: LocalDmAddress[]): void {
   try {
     const payload: LocalDmAddressSnapshot = {
       version: STORAGE_VERSION,
-      addresses: addresses.slice(0, 32),
-    };
+      addresses: addresses.slice(0, 32) };
     localStorage.setItem(dmAddressStorageKey(scopeId), JSON.stringify(payload));
   } catch {
     /* ignore */
@@ -408,15 +394,13 @@ function decodeMailPayload(plaintext: string): { subject: string; body: string }
     const [subjectLine, ...rest] = withoutPrefix.split(/\r?\n/);
     return {
       subject: subjectLine.trim() || 'Secure Message',
-      body: rest.join('\n').replace(/^\n+/, '').trim(),
-    };
+      body: rest.join('\n').replace(/^\n+/, '').trim() };
   }
   const lines = value.split(/\r?\n/);
   const firstLine = lines.find((line) => line.trim()) || 'Secure Message';
   return {
     subject: firstLine.trim().slice(0, 96) || 'Secure Message',
-    body: value.trim(),
-  };
+    body: value.trim() };
 }
 
 function displayNameForPeer(peerId: string, contacts: Record<string, Contact>): string {
@@ -445,8 +429,7 @@ function contactTrustSummary(contact: Contact): { label: string; tone: string; d
     return {
       label: 'Needs Review',
       tone: 'border-red-500/30 text-red-300 bg-red-950/20',
-      detail: 'This contact changed identity details and should be reviewed before sensitive use.',
-    };
+      detail: 'This contact changed identity details and should be reviewed before sensitive use.' };
   }
   if (summary.state === 'invite_pinned') {
     const root = shortFingerprint(
@@ -455,8 +438,7 @@ function contactTrustSummary(contact: Contact): { label: string; tone: string; d
     return {
       label: 'Saved Contact',
       tone: 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20',
-      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.invitePinnedTrustFingerprint || contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
-    };
+      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.invitePinnedTrustFingerprint || contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}` };
   }
   if (summary.state === 'sas_verified') {
     const root = shortFingerprint(
@@ -465,8 +447,7 @@ function contactTrustSummary(contact: Contact): { label: string; tone: string; d
     return {
       label: 'Verified Contact',
       tone: 'border-cyan-500/30 text-cyan-300 bg-cyan-950/20',
-      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
-    };
+      detail: `${summary.rootAttested ? `${rootTrustLabel(summary)} ${root} • ` : ''}Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}` };
   }
   if (
     summary.state === 'mismatch' ||
@@ -477,22 +458,19 @@ function contactTrustSummary(contact: Contact): { label: string; tone: string; d
     return {
       label: summary.state === 'continuity_broken' ? 'Needs Review' : 'Reverify Contact',
       tone: 'border-red-500/30 text-red-300 bg-red-950/20',
-      detail: `${summary.rootMismatch ? `Observed root ${observedRoot} • ` : ''}Observed ${shortFingerprint(contact.remotePrekeyObservedFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
-    };
+      detail: `${summary.rootMismatch ? `Observed root ${observedRoot} • ` : ''}Observed ${shortFingerprint(contact.remotePrekeyObservedFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}` };
   }
   if (contact.remotePrekeyLookupMode === 'legacy_agent_id') {
     return {
       label: 'Saved Contact',
       tone: 'border-yellow-500/30 text-yellow-300 bg-yellow-950/20',
-      detail: 'Added as a contact. A fresh copied address is recommended before sensitive use.',
-    };
+      detail: 'Added as a contact. A fresh copied address is recommended before sensitive use.' };
   }
   if (summary.state === 'tofu_pinned') {
     return {
       label: 'Saved Contact',
       tone: 'border-amber-500/30 text-amber-300 bg-amber-950/10',
-      detail: `Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}`,
-    };
+      detail: `Fingerprint ${shortFingerprint(contact.remotePrekeyFingerprint || '')}${contact.remotePrekeyLookupMode === 'legacy_agent_id' ? ' • legacy lookup' : ''}` };
   }
   return null;
 }
@@ -507,15 +485,13 @@ function contactTrustNextStep(
       label: dmTrustPrimaryActionLabel(contact),
       detail:
         'Import a signed invite in this panel before treating the contact as a trusted first-contact anchor.',
-      action: 'import_invite',
-    };
+      action: 'import_invite' };
   }
   if (summary.recommendedAction === 'verify_sas') {
     return {
       label: dmTrustPrimaryActionLabel(contact),
       detail: 'Compare the SAS phrase in Dead Drop chat before sensitive mail or contact approval.',
-      action: 'dead_drop',
-    };
+      action: 'dead_drop' };
   }
   if (summary.recommendedAction === 'reverify') {
     return {
@@ -523,15 +499,13 @@ function contactTrustNextStep(
       detail: summary.rootMismatch
         ? `${rootWitnessContinuityLabel(summary)} changed. Re-verify the SAS phrase or replace the signed invite in Dead Drop chat before trusting this contact again.`
         : 'Pause private use and re-verify the SAS phrase or replace the signed invite in Dead Drop chat.',
-      action: 'dead_drop',
-    };
+      action: 'dead_drop' };
   }
   if (summary.recommendedAction === 'show_sas') {
     return {
       label: dmTrustPrimaryActionLabel(contact),
       detail: 'Optional: review the SAS phrase in Dead Drop chat for an extra continuity check.',
-      action: 'dead_drop',
-    };
+      action: 'dead_drop' };
   }
   return null;
 }
@@ -565,8 +539,7 @@ function preservePendingDeliveryContacts(
 function deadDropLaunchOptions(contact?: Contact): { showSas?: boolean } {
   const summary = getContactTrustSummary(contact);
   return {
-    showSas: Boolean(summary && summary.recommendedAction !== 'import_invite'),
-  };
+    showSas: Boolean(summary && summary.recommendedAction !== 'import_invite') };
 }
 
 function formatTimestamp(timestamp: number): string {
@@ -689,8 +662,7 @@ async function decryptSenderSeal(
         message: sealMessage,
         signature,
         publicKey,
-        publicKeyAlgo,
-      });
+        publicKeyAlgo });
       return { sender_id: senderId, seal_verified: verified };
     } catch {
       return null;
@@ -706,15 +678,13 @@ async function decryptSenderSeal(
     );
     return {
       sender_id: String(opened.sender_id || '').trim(),
-      seal_verified: Boolean(opened.seal_verified),
-    };
+      seal_verified: Boolean(opened.seal_verified) };
   };
 
   return recoverSenderSealWithFallback({
     wormholeReady: await isWormholeReady(),
     openLocal,
-    openHelper,
-  });
+    openHelper });
 }
 
 async function decryptSenderSealForPeer(
@@ -765,8 +735,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
   const [draft, setDraft] = useState<ComposeDraft>({
     recipient: '',
     subject: '',
-    body: '',
-  });
+    body: '' });
   const [inviteImportAlias, setInviteImportAlias] = useState('');
   const [inviteImportBlob, setInviteImportBlob] = useState('');
   const [inviteImportDetailsOpen, setInviteImportDetailsOpen] = useState(false);
@@ -888,8 +857,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           setIdentity({
             publicKey: wormholeIdentity.public_key,
             privateKey: '',
-            nodeId: wormholeIdentity.node_id,
-          });
+            nodeId: wormholeIdentity.node_id });
           return;
         } catch {
           /* ignore */
@@ -952,8 +920,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         trustFingerprint: '',
         inviteBlob: '',
         createdAt: address.issued_at || 0,
-        expiresAt: address.expires_at || undefined,
-      }));
+        expiresAt: address.expires_at || undefined }));
     return [...dmAddresses, ...serverOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [dmAddresses, remoteDmHandles]);
   const primaryDmAddress = activeDmAddresses[0] || null;
@@ -1007,8 +974,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       return {
         publicKey: wormholeIdentity.public_key,
         privateKey: '',
-        nodeId: wormholeIdentity.node_id,
-      };
+        nodeId: wormholeIdentity.node_id };
     } catch {
       return null;
     }
@@ -1051,8 +1017,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             ? {
                 publicKey: prepared.identity.public_key,
                 privateKey: '',
-                nodeId: prepared.identity.node_id,
-              }
+                nodeId: prepared.identity.node_id }
             : null,
         );
         setDmLaneWarmStatus('');
@@ -1085,8 +1050,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
     dmLaneBackgroundPrepStartedRef.current = true;
     void prepareWormholeInteractiveLane({
       minimumTransportTier: 'private_control_only',
-      timeoutMs: DM_LANE_BACKGROUND_PREP_TIMEOUT_MS,
-    }).catch(() => {
+      timeoutMs: DM_LANE_BACKGROUND_PREP_TIMEOUT_MS }).catch(() => {
       // The backend continues transport startup and queued-release work. The UI
       // should not keep a user-visible action waiting on this background check.
     });
@@ -1172,8 +1136,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
-          audio: false,
-        });
+          audio: false });
         if (!active) {
           stop();
           return;
@@ -1222,8 +1185,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             ? {
                 ...item,
                 folder,
-                read: true,
-              }
+                read: true }
             : item,
         ),
       ),
@@ -1277,8 +1239,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         sent: 0,
         junk: 0,
         spam: 0,
-        trash: 0,
-      },
+        trash: 0 },
     );
   }, [messages]);
 
@@ -1405,8 +1366,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             transport: envelope.transport || 'relay',
             deliveryClass,
             recoveryState: getSenderRecoveryState(envelope),
-            locked: true,
-          };
+            locked: true };
         }
 
         const aliasRotate = parseAliasRotateMessage(plaintext);
@@ -1418,8 +1378,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             previousSharedAliases: mergeAliasHistory([
               contact.sharedAlias,
               ...(contact.previousSharedAliases || []),
-            ]),
-          });
+            ]) });
           return {
             id: `mail-${envelope.msg_id}`,
             msgId: envelope.msg_id,
@@ -1434,8 +1393,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             read: false,
             transport: envelope.transport || 'relay',
             deliveryClass,
-            recoveryState: getSenderRecoveryState(envelope),
-          };
+            recoveryState: getSenderRecoveryState(envelope) };
         }
 
         const consent = parseDmConsentMessage(plaintext);
@@ -1445,8 +1403,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             previousSharedAliases: [],
             pendingSharedAlias: undefined,
             sharedAliasGraceUntil: undefined,
-            sharedAliasRotatedAt: Date.now(),
-          });
+            sharedAliasRotatedAt: Date.now() });
           return {
             id: `mail-${envelope.msg_id}`,
             msgId: envelope.msg_id,
@@ -1462,8 +1419,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             transport: envelope.transport || 'relay',
             deliveryClass,
             requestStatus: 'accepted',
-            recoveryState: getSenderRecoveryState(envelope),
-          };
+            recoveryState: getSenderRecoveryState(envelope) };
         }
         if (consent?.kind === 'contact_deny') {
           return {
@@ -1481,8 +1437,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             transport: envelope.transport || 'relay',
             deliveryClass,
             requestStatus: 'denied',
-            recoveryState: getSenderRecoveryState(envelope),
-          };
+            recoveryState: getSenderRecoveryState(envelope) };
         }
 
         const decoded = decodeMailPayload(plaintext);
@@ -1500,8 +1455,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           read: false,
           transport: envelope.transport || 'relay',
           deliveryClass,
-          recoveryState: getSenderRecoveryState(envelope),
-        };
+          recoveryState: getSenderRecoveryState(envelope) };
       }
 
       let consent: DmConsentMessage | null = null;
@@ -1550,8 +1504,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             previousSharedAliases: [],
             pendingSharedAlias: undefined,
             sharedAliasGraceUntil: undefined,
-            sharedAliasRotatedAt: Date.now(),
-          });
+            sharedAliasRotatedAt: Date.now() });
         }
         return {
           id: `mail-${envelope.msg_id}`,
@@ -1568,8 +1521,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           transport: envelope.transport || 'relay',
           deliveryClass,
           requestStatus: 'accepted',
-          recoveryState: getSenderRecoveryState(envelope),
-        };
+          recoveryState: getSenderRecoveryState(envelope) };
       }
 
       if (consent?.kind === 'contact_deny') {
@@ -1588,8 +1540,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           transport: envelope.transport || 'relay',
           deliveryClass,
           requestStatus: 'denied',
-          recoveryState: getSenderRecoveryState(envelope),
-        };
+          recoveryState: getSenderRecoveryState(envelope) };
       }
 
       if (consent?.kind === 'contact_offer' || shouldKeepUnresolvedRequestVisible(envelope)) {
@@ -1625,8 +1576,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           requestDhAlgo: consent?.kind === 'contact_offer' ? consent.dh_algo : '',
           requestGeoHint: consent?.kind === 'contact_offer' ? consent.geo_hint : '',
           recoveryState: getSenderRecoveryState(envelope),
-          locked: consent?.kind !== 'contact_offer',
-        };
+          locked: consent?.kind !== 'contact_offer' };
       }
 
       return {
@@ -1644,8 +1594,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         transport: envelope.transport || 'relay',
         deliveryClass,
         recoveryState: getSenderRecoveryState(envelope),
-        locked: true,
-      };
+        locked: true };
     },
     [identity?.nodeId, secureRequired],
   );
@@ -1755,8 +1704,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         id: `local-${mail.msgId || randomId('mail')}`,
         folder: 'sent',
         direction: 'outbound',
-        read: true,
-      });
+        read: true });
     },
     [upsertLocalMessage],
   );
@@ -1780,13 +1728,11 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         timestamp: Math.floor(Date.now() / 1000),
         transport: '',
         deliveryClass: 'shared',
-        requestStatus: 'pending',
-      });
+        requestStatus: 'pending' });
       setDraft({
         recipient: opts.recipientId,
         subject: '',
-        body: '',
-      });
+        body: '' });
       setActiveTab('mailbox');
       setSelectedFolder('sent');
       setComposeError('');
@@ -1811,10 +1757,8 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
               acceptedSequence: Number(
                 wormholeRegistration.bundle_sequence || wormholeRegistration.sequence || 0,
               ),
-              bundleFingerprint: String(wormholeRegistration.bundle_fingerprint || ''),
-            },
-            myDhPub: wormholeDhPub,
-          };
+              bundleFingerprint: String(wormholeRegistration.bundle_fingerprint || '') },
+            myDhPub: wormholeDhPub };
         }
       } catch {
         // Fall through to the shared helper, which retries and gives us one more recovery path.
@@ -1878,14 +1822,12 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             timestamp: item.timestamp,
             deliveryClass: 'shared',
             recipientToken,
-            useSealedSender: true,
-          });
+            useSealedSender: true });
           if (sent.ok) {
             upsertLocalMessage({
               ...item,
               requestStatus: 'accepted',
-              transport: sent.transport || '',
-            });
+              transport: sent.transport || '' });
           }
         } catch {
           // Keep the item pending. The next contact hydration or mailbox tick can retry.
@@ -1967,8 +1909,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           timestamp,
           deliveryClass: 'shared',
           recipientToken,
-          useSealedSender: true,
-        });
+          useSealedSender: true });
         if (!sent.ok) {
           throw new Error(sent.detail || 'secure mail send failed');
         }
@@ -1981,8 +1922,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           body,
           timestamp,
           transport: sent.transport || '',
-          deliveryClass: 'shared',
-        });
+          deliveryClass: 'shared' });
         setComposeStatus(
           sent.queued || sent.private_transport_pending
             ? `Mail sealed locally for ${displayNameForPeer(recipient, hydratedContacts)}. Private delivery will release when the lane is ready.`
@@ -1991,8 +1931,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         setDraft({
           recipient,
           subject: '',
-          body: '',
-        });
+          body: '' });
         setActiveTab('mailbox');
         setSelectedFolder('sent');
         return;
@@ -2007,15 +1946,13 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         );
       }
       const targetKey = await fetchDmPublicKey(API_BASE, recipient, lookupHandle, {
-        lookupPeerUrl: recipientContact?.invitePinnedLookupPeerUrl,
-      });
+        lookupPeerUrl: recipientContact?.invitePinnedLookupPeerUrl });
       if (!targetKey?.dh_pub_key) {
         queuePendingDeliveryMail({
           senderId: activeIdentity.nodeId,
           recipientId: recipient,
           subject,
-          body,
-        });
+          body });
         return;
       }
       const offerPlaintext = buildContactOfferMessage(
@@ -2039,16 +1976,14 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           senderId: activeIdentity.nodeId,
           recipientId: recipient,
           subject,
-          body,
-        });
+          body });
         return;
       }
       const msgId = `dm_${Date.now()}_${activeIdentity.nodeId.slice(-4)}`;
       const timestamp = Math.floor(Date.now() / 1000);
       const connectMeta = connectDeliveryMeta({
         intent: 'contact_request',
-        contact: recipientContact,
-      });
+        contact: recipientContact });
       const sent = await ensureDmOutboxReleased(
         await sendOffLedgerConsentMessage({
           apiBase: API_BASE,
@@ -2059,8 +1994,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           msgId,
           timestamp,
           connectIntent: connectMeta.connectIntent,
-          lookupPeerUrl: connectMeta.lookupPeerUrl,
-        }),
+          lookupPeerUrl: connectMeta.lookupPeerUrl }),
       );
       if (!sent.ok) {
         throw new Error(sent.detail || 'contact request failed');
@@ -2076,8 +2010,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         timestamp,
         transport: sent.transport || '',
         deliveryClass: 'request',
-        requestStatus: 'pending',
-      });
+        requestStatus: 'pending' });
       setComposeStatus(
         sent.queued || sent.private_transport_pending
           ? `Contact request sealed locally for ${recipient}. Private delivery will release when the lane is ready.`
@@ -2086,8 +2019,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
       setDraft({
         recipient,
         subject: '',
-        body: '',
-      });
+        body: '' });
       setActiveTab('mailbox');
       setSelectedFolder('sent');
     } catch (error) {
@@ -2097,8 +2029,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           senderId: activeIdentity.nodeId,
           recipientId: recipient,
           subject,
-          body,
-        });
+          body });
       } else {
         setComposeError(normalizeMailError(message));
       }
@@ -2127,8 +2058,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         }
         const { registration, myDhPub } = await ensureLocalDmKey(activeIdentity);
         const targetKey = await fetchDmPublicKey(API_BASE, '', shortAddress, {
-          allowLegacyAgentId: false,
-        });
+          allowLegacyAgentId: false });
         if (!targetKey?.dh_pub_key || !targetKey.agent_id) {
           throw new Error('That address is not reachable yet. Ask them to copy their address again while their device is online.');
         }
@@ -2163,8 +2093,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             ciphertext,
             msgId,
             timestamp,
-            connectIntent: 'invite_short_address',
-          }),
+            connectIntent: 'invite_short_address' }),
         );
         if (!sent.ok) {
           throw new Error(sent.detail || 'contact request failed');
@@ -2179,8 +2108,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           timestamp,
           transport: sent.transport || '',
           deliveryClass: 'request',
-          requestStatus: 'pending',
-        });
+          requestStatus: 'pending' });
         setInviteImportBlob('');
         setInviteImportAlias('');
         setInviteImportDetailsOpen(false);
@@ -2251,13 +2179,11 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             invitePayload.lookup_peer_url ||
             '',
         ),
-        dhPubKey: String(resultContact.dhPubKey || resultContact.invitePinnedDhPubKey || ''),
-      };
+        dhPubKey: String(resultContact.dhPubKey || resultContact.invitePinnedDhPubKey || '') };
       const mergedContacts = importedPeerId
         ? {
             ...hydratedContacts,
-            [importedPeerId]: savedContact,
-          }
+            [importedPeerId]: savedContact }
         : hydratedContacts;
       if (importedPeerId) {
         removedContactIdsRef.current.delete(importedPeerId);
@@ -2360,8 +2286,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           version: 1,
           label,
           created_at: Math.floor(Date.now() / 1000),
-          invite: exported.invite,
-        },
+          invite: exported.invite },
         null,
         2,
       );
@@ -2373,8 +2298,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
         trustFingerprint: exported.trust_fingerprint,
         inviteBlob,
         createdAt: Math.floor(Date.now() / 1000),
-        expiresAt: Number((exported.invite.payload as Record<string, unknown>)?.expires_at || 0) || undefined,
-      };
+        expiresAt: Number((exported.invite.payload as Record<string, unknown>)?.expires_at || 0) || undefined };
       setDmAddresses((prev) => [record, ...prev.filter((item) => item.handle !== handle)].slice(0, 32));
       setDmAddressLabel('');
       if (automatic) {
@@ -2577,8 +2501,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           previousSharedAliases: [],
           pendingSharedAlias: undefined,
           sharedAliasGraceUntil: undefined,
-          sharedAliasRotatedAt: Date.now(),
-        });
+          sharedAliasRotatedAt: Date.now() });
 
         const acceptPlaintext = buildContactAcceptMessage(sharedAlias);
         let ciphertext = '';
@@ -2609,8 +2532,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             msgId,
             timestamp,
             connectIntent: 'contact_accept',
-            lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl,
-          }),
+            lookupPeerUrl: existingContact?.invitePinnedLookupPeerUrl }),
         );
         if (!sent.ok) {
           throw new Error(sent.detail || 'contact accept failed');
@@ -2627,8 +2549,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
           timestamp,
           transport: sent.transport || '',
           deliveryClass: 'request',
-          requestStatus: 'accepted',
-        });
+          requestStatus: 'accepted' });
         applyHydratedContacts(getContacts());
         setComposeStatus(
           sent.queued || sent.private_transport_pending
@@ -2685,8 +2606,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             recipientDhPub: mail.requestDhPubKey,
             ciphertext,
             msgId,
-            timestamp,
-          });
+            timestamp });
           sentQueued = Boolean(sent.queued || sent.private_transport_pending);
           queueSentMail({
             msgId,
@@ -2697,8 +2617,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             body: 'You declined this secure mailbox request.',
             timestamp,
             deliveryClass: 'request',
-            requestStatus: 'denied',
-          });
+            requestStatus: 'denied' });
         }
         moveMessageToFolder(mail.id, 'trash');
         setComposeStatus(
@@ -2722,8 +2641,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
     setDraft({
       recipient: mail.senderId,
       subject: mail.subject.startsWith('Re:') ? mail.subject : `Re: ${mail.subject}`,
-      body: '',
-    });
+      body: '' });
     setActiveTab('compose');
   }, []);
 
@@ -2889,8 +2807,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
             key: 'requests' as const,
             label: 'REQUESTS',
             icon: <UserPlus size={14} className="mr-2" />,
-            badge: pendingContactRequests.length,
-          },
+            badge: pendingContactRequests.length },
           { key: 'contacts' as const, label: 'CONTACTS', icon: <Users size={14} className="mr-2" /> },
           { key: 'restricted' as const, label: 'RESTRICTED', icon: <ShieldOff size={14} className="mr-2" /> },
         ].map((tab) => {
@@ -3669,8 +3586,7 @@ export default function MessagesView({ onBack, onOpenDeadDrop }: MessagesViewPro
                                 onChange={(event) =>
                                   setDmAddressEditLabels((prev) => ({
                                     ...prev,
-                                    [address.handle]: event.target.value,
-                                  }))
+                                    [address.handle]: event.target.value }))
                                 }
                                 className="bg-transparent border border-gray-800 px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/40"
                                 placeholder="Address label"

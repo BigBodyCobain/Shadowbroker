@@ -679,7 +679,7 @@ async def api_wormhole_join(request: Request):
     }
 
 
-@router.post("/api/wormhole/leave")
+@router.post("/api/wormhole/leave", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_leave(request: Request):
     updated = write_wormhole_settings(enabled=False)

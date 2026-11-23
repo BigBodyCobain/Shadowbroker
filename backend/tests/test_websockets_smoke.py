@@ -33,7 +33,7 @@ def test_websockets_narrow_surface_connect_send_close():
 
 
 def test_websockets_version_is_pinned_compatible():
-    pinned_major = "16"
+    pinned_major = "17"
     installed = str(websockets.__version__)
     assert installed.split(".")[0] == pinned_major, (
         "websockets major drifted from the pyproject pin — re-verify the "

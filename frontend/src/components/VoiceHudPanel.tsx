@@ -23,14 +23,12 @@ const DISPOSITION_DOT: Record<FreshnessDisposition, string> = {
   live: 'feed-dot-healthy',
   aging: 'feed-dot-stale',
   stale: 'feed-dot-stale',
-  unknown: 'feed-dot-offline',
-};
+  unknown: 'feed-dot-offline' };
 
 export default function VoiceHudPanel({
   onSubmit,
   onClose,
-  missionWorkspace,
-}: {
+  missionWorkspace }: {
   onSubmit: (text: string) => Promise<void> | void;
   onClose: () => void;
   missionWorkspace?: MissionWorkspace;

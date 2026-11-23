@@ -106,7 +106,9 @@ describe('promotePendingAlias decoupled from updateContact', () => {
   });
 
   it('controller call sites apply updateContact after promotePendingAlias', () => {
-    const controller = readFile('useMeshChatController.ts');
+    const controller = [
+      'useMeshChatController.ts','useDmPolling.ts','useMeshSendHandlers.ts','useMeshGateContactHandlers.ts','useDeadDropAccess.ts','useMeshInfonetMessages.ts'
+    ].map(readFile).join('\n');
     // Both call sites should follow pattern: promotePendingAlias → updateContact
     const promotionCalls = controller.match(/const promotion = promotePendingAlias\(/g);
     expect(promotionCalls?.length).toBeGreaterThanOrEqual(2);

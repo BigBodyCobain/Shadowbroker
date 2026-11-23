@@ -1,50 +1,60 @@
 #!/usr/bin/env bash
-# ============================================================
-#  WORMHOLE KILLER — macOS / Linux
-#  Finds and terminates any orphaned wormhole_server.py processes
-# ============================================================
+set -euo pipefail
 
-echo ""
-echo " ========================================"
-echo "  SHADOWBROKER WORMHOLE CLEANUP (Unix)"
-echo " ========================================"
-echo ""
+echo "=========================================="
+echo " SHADOWBROKER - Kill Wormhole Process"
+echo "=========================================="
+echo
 
-FOUND=0
+# 1. Try graceful API shutdown via the backend
+echo "[*] Attempting graceful shutdown via API..."
+if curl -s -X POST http://127.0.0.1:8000/api/wormhole/leave > /dev/null 2>&1; then
+    echo "[+] API leave request sent."
+else
+    echo "[-] Backend not reachable, skipping API call."
+fi
 
-# Kill any python process running wormhole_server.py
-PIDS=$(pgrep -f "wormhole_server\.py" 2>/dev/null)
+# 2. Kill any process listening on port 8787 (Wormhole server)
+echo "[*] Checking port 8787 for Wormhole process..."
+if command -v lsof > /dev/null 2>&1; then
+    PIDS=$(lsof -ti :8787 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+        for PID in $PIDS; do
+            echo "[*] Found PID $PID on port 8787, killing..."
+            kill -TERM "$PID" 2>/dev/null || kill -9 "$PID" 2>/dev/null || true
+            echo "[+] Killed PID $PID"
+        done
+    else
+        echo "[-] No process found on port 8787."
+    fi
+elif command -v ss > /dev/null 2>&1; then
+    PIDS=$(ss -tlnp 'sport = :8787' 2>/dev/null | grep -oP 'pid=\K[0-9]+' || true)
+    if [ -n "$PIDS" ]; then
+        for PID in $PIDS; do
+            echo "[*] Found PID $PID on port 8787, killing..."
+            kill -TERM "$PID" 2>/dev/null || kill -9 "$PID" 2>/dev/null || true
+            echo "[+] Killed PID $PID"
+        done
+    else
+        echo "[-] No process found on port 8787."
+    fi
+else
+    echo "[-] Neither lsof nor ss available, skipping port check."
+fi
+
+# 3. Kill any python process running wormhole_server.py
+echo "[*] Searching for wormhole_server.py processes..."
+PIDS=$(pgrep -f "wormhole_server.py" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
     for PID in $PIDS; do
-        echo " [KILL] Terminating wormhole process PID: $PID"
-        kill -TERM "$PID" 2>/dev/null
-        FOUND=1
+        echo "[*] Killing wormhole_server.py PID $PID"
+        kill -TERM "$PID" 2>/dev/null || kill -9 "$PID" 2>/dev/null || true
+        echo "[+] Killed PID $PID"
     done
-    # Give them a moment, then force-kill any survivors
-    sleep 2
-    for PID in $PIDS; do
-        if kill -0 "$PID" 2>/dev/null; then
-            echo " [FORCE] Force-killing PID: $PID"
-            kill -9 "$PID" 2>/dev/null
-        fi
-    done
-fi
-
-# Also check port 8787 for anything lingering
-PORT_PID=$(lsof -ti :8787 2>/dev/null)
-if [ -n "$PORT_PID" ]; then
-    for PID in $PORT_PID; do
-        echo " [KILL] Terminating process on port 8787, PID: $PID"
-        kill -TERM "$PID" 2>/dev/null
-        FOUND=1
-    done
-fi
-
-if [ "$FOUND" -eq 0 ]; then
-    echo " [OK] No orphaned wormhole processes found."
 else
-    echo ""
-    echo " [DONE] All wormhole processes terminated."
+    echo "[-] No wormhole_server.py processes found."
 fi
 
-echo ""
+echo
+echo "[+] Wormhole cleanup complete."
+echo "    If processes persist, check 'ps aux | grep wormhole' manually."

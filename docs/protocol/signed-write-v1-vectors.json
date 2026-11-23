@@ -1,0 +1,30 @@
+[
+  {
+    "event_type": "vector_test",
+    "node_id": "!sb_3145f0a9d334b5e405dcb76e31846d6f",
+    "sequence": 1,
+    "payload": {
+      "text": "signed write v1 vector",
+      "marker": "alpha"
+    },
+    "public_key": "DBJ7maxPJsbGbU7YtYtWw1WPF44ZUnO6oESYKWvMhEU=",
+    "public_key_algo": "Ed25519",
+    "signature": "37baf7483bc7232a995476316334437d02d83e1924af6da3e65e719265d6e4b3a65ba03afad135cc8729d642ca1e47e8a0a49a7ee8b2a1ccea2ac64018235b07",
+    "protocol_version": "infonet/2",
+    "signature_payload": "infonet/2|sb-testnet-0|vector_test|!sb_3145f0a9d334b5e405dcb76e31846d6f|1|{\"marker\":\"alpha\",\"text\":\"signed write v1 vector\"}"
+  },
+  {
+    "event_type": "vector_test",
+    "node_id": "!sb_908fce2b6a2519644b5b50dc01603658",
+    "sequence": 2,
+    "payload": {
+      "text": "second vector",
+      "count": 2
+    },
+    "public_key": "s61j3rXx5htFk3tqw71LQ5PNn0r1lBLg2MG1KXMLq0M=",
+    "public_key_algo": "Ed25519",
+    "signature": "e9fb7e2ec2d9ee3e7ce5fbf234a756a9abdfa6b380c05754c37fa8b44e63a48fea368803f173046f3dd9454c7359ef62b397601d990f5ad8da3aea81e133dc04",
+    "protocol_version": "infonet/2",
+    "signature_payload": "infonet/2|sb-testnet-0|vector_test|!sb_908fce2b6a2519644b5b50dc01603658|2|{\"count\":2,\"text\":\"second vector\"}"
+  }
+]

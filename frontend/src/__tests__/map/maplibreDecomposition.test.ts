@@ -65,21 +65,22 @@ describe('MaplibreViewer decomposition — CctvFullscreenModal extraction', () =
 
 describe('MaplibreViewer decomposition — CCTV proxy URL behavior', () => {
   const viewer = readComp('MaplibreViewer.tsx');
+  const selected = readComp('map/MapSelectedEntityPopups.tsx');
 
   it('CCTV section delegates proxy URL construction to buildCctvProxyUrl', () => {
-    expect(viewer).toContain('buildCctvProxyUrl(rawUrl)');
-    expect(viewer).toMatch(
-      /import\s*\{[^}]*buildCctvProxyUrl[^}]*\}\s*from\s+['"]@\/lib\/cctvProxy['"]/,
-    );
+    expect(selected + viewer).toContain('buildCctvProxyUrl(rawUrl)');
+    const wired =
+      /import\s*\{[^}]*buildCctvProxyUrl[^}]*\}\s*from\s+['"]@\/lib\/cctvProxy['"]/.test(viewer) ||
+      /buildCctvProxyUrl/.test(selected);
+    expect(wired).toBe(true);
   });
 
   it('CCTV section passes proxied URL to CctvFullscreenModal', () => {
-    // The pattern: url={url} where url is the proxied URL
-    const cctvSection = viewer.slice(
-      viewer.indexOf("selectedEntity?.type === 'cctv'"),
-      viewer.indexOf('</CctvFullscreenModal>') !== -1
-        ? viewer.indexOf('</CctvFullscreenModal>')
-        : viewer.indexOf('/>', viewer.indexOf('<CctvFullscreenModal')) + 2,
+    const cctvSection = selected.slice(
+      selected.indexOf("selectedEntity?.type === 'cctv'"),
+      selected.indexOf('</CctvFullscreenModal>') !== -1
+        ? selected.indexOf('</CctvFullscreenModal>') + '</CctvFullscreenModal>'.length
+        : selected.indexOf("selectedEntity?.type === 'cctv'") + 1600,
     );
     expect(cctvSection).toContain('<CctvFullscreenModal');
     expect(cctvSection).toContain('url={url}');
@@ -152,61 +153,60 @@ describe('MaplibreViewer decomposition — popup explicit props', () => {
 // ─── Selection / dismissal behavior ────────────────────────────────────────
 
 describe('MaplibreViewer decomposition — selection and dismissal', () => {
-  const viewer = readComp('MaplibreViewer.tsx');
+  const selected = readComp('map/MapSelectedEntityPopups.tsx');
 
   it('satellite popup calls onEntityClick(null) on close', () => {
-    const satSection = viewer.slice(
-      viewer.indexOf("selectedEntity?.type === 'satellite'"),
-      // 500 chars left no slack: onClose ended exactly at the window edge (LF) and fell outside on CRLF checkouts.
-      viewer.indexOf("selectedEntity?.type === 'satellite'") + 900,
+    const satSection = selected.slice(
+      selected.indexOf("selectedEntity?.type === 'satellite'"),
+      selected.indexOf("selectedEntity?.type === 'satellite'") + 900,
     );
     expect(satSection).toContain('<SatellitePopup');
     expect(satSection).toContain('onClose={() => onEntityClick?.(null)}');
   });
 
   it('ship popup calls onEntityClick(null) on close', () => {
-    const shipSection = viewer.slice(
-      viewer.indexOf('{/* Ship / carrier click popup */}'),
-      viewer.indexOf('{/* Ship / carrier click popup */}') + 800,
+    const shipSection = selected.slice(
+      selected.indexOf('{/* Ship / carrier click popup */}'),
+      selected.indexOf('{/* Ship / carrier click popup */}') + 800,
     );
     expect(shipSection).toContain('<ShipPopup');
     expect(shipSection).toContain('onClose={() => onEntityClick?.(null)}');
   });
 
   it('sigint popup calls onEntityClick(null) on close', () => {
-    const sigintSection = viewer.slice(
-      viewer.indexOf('{/* SIGINT signal click popup */}'),
-      viewer.indexOf('{/* SIGINT signal click popup */}') + 1200,
+    const sigintSection = selected.slice(
+      selected.indexOf('{/* SIGINT signal click popup */}'),
+      selected.indexOf('{/* SIGINT signal click popup */}') + 1200,
     );
     expect(sigintSection).toContain('<SigintPopup');
     expect(sigintSection).toContain('onClose={() => onEntityClick?.(null)}');
   });
 
   it('military base popup calls onEntityClick(null) on close', () => {
-    const milSection = viewer.slice(
-      viewer.indexOf("selectedEntity?.type === 'military_base'"),
-      viewer.indexOf("selectedEntity?.type === 'military_base'") + 600,
+    const milSection = selected.slice(
+      selected.indexOf("selectedEntity?.type === 'military_base'"),
+      selected.indexOf("selectedEntity?.type === 'military_base'") + 600,
     );
     expect(milSection).toContain('<MilitaryBasePopup');
     expect(milSection).toContain('onClose={() => onEntityClick?.(null)}');
   });
 
   it('region dossier panel calls onEntityClick(null) on close', () => {
-    const rdSection = viewer.slice(
-      viewer.indexOf('{/* SENTINEL-2 IMAGERY'),
-      viewer.indexOf('{/* SENTINEL-2 IMAGERY') + 500,
+    const rdSection = selected.slice(
+      selected.indexOf('{/* SENTINEL-2 IMAGERY'),
+      selected.indexOf('{/* SENTINEL-2 IMAGERY') + 500,
     );
     expect(rdSection).toContain('<RegionDossierPanel');
-    expect(rdSection).toContain('onClose={() => onEntityClick(null)}');
+    expect(rdSection).toMatch(/onClose=\{\(\) => onEntityClick(?:\?\.)?\(null\)\}/);
   });
 
   it('CCTV fullscreen modal calls onEntityClick(null) on close', () => {
-    const cctvSection = viewer.slice(
-      viewer.indexOf("selectedEntity?.type === 'cctv'"),
-      viewer.indexOf("selectedEntity?.type === 'cctv'") + 1600,
+    const cctvSection = selected.slice(
+      selected.indexOf("selectedEntity?.type === 'cctv'"),
+      selected.indexOf("selectedEntity?.type === 'cctv'") + 1600,
     );
     expect(cctvSection).toContain('<CctvFullscreenModal');
-    expect(cctvSection).toContain('onClose={() => onEntityClick(null)}');
+    expect(cctvSection).toMatch(/onClose=\{\(\) => onEntityClick(?:\?\.)?\(null\)\}/);
   });
 });
 
@@ -331,27 +331,25 @@ describe('MaplibreViewer decomposition — popup components own their Popup wrap
   });
 });
 
-// ─── Data lookups stay in MaplibreViewer ────────────────────────────────────
+// ─── Data lookups stay in parent popup layer ───────────────────────────────
 
 describe('MaplibreViewer decomposition — data lookups in parent', () => {
-  it('satellite lookup stays in MaplibreViewer', () => {
-    const viewer = readComp('MaplibreViewer.tsx');
-    expect(viewer).toContain("data?.satellites?.find");
+  const parent = readComp('MaplibreViewer.tsx') + '\n' + readComp('map/MapSelectedEntityPopups.tsx');
+
+  it('satellite lookup stays in parent popup layer', () => {
+    expect(parent).toContain("data?.satellites?.find");
   });
 
-  it('ship lookup stays in MaplibreViewer', () => {
-    const viewer = readComp('MaplibreViewer.tsx');
-    expect(viewer).toContain("data?.ships?.find");
+  it('ship lookup stays in parent popup layer', () => {
+    expect(parent).toContain("data?.ships?.find");
   });
 
-  it('sigint lookup stays in MaplibreViewer', () => {
-    const viewer = readComp('MaplibreViewer.tsx');
-    expect(viewer).toContain("data?.sigint?.find");
+  it('sigint lookup stays in parent popup layer', () => {
+    expect(parent).toContain("data?.sigint?.find");
   });
 
-  it('military_bases lookup stays in MaplibreViewer', () => {
-    const viewer = readComp('MaplibreViewer.tsx');
-    expect(viewer).toContain("data?.military_bases?.find");
+  it('military_bases lookup stays in parent popup layer', () => {
+    expect(parent).toContain("data?.military_bases?.find");
   });
 
   it('popup components do NOT access data store directly', () => {

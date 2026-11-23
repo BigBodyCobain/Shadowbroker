@@ -161,17 +161,20 @@ def _fetch_layer_feed(layer: dict[str, Any]) -> None:
     layer_name = layer.get("name", layer_id)
 
     try:
-        resp = requests.get(
+        from services.ssrf_guard import safe_get
+
+        resp = safe_get(
             feed_url,
             timeout=_FETCH_TIMEOUT,
             headers={"User-Agent": _feed_ingester_user_agent()},
+            max_redirects=3,
         )
         resp.raise_for_status()
         data = resp.json()
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         logger.warning("Feed fetch failed for layer '%s' (%s): %s", layer_name, feed_url, e)
         return
-    except (ValueError, TypeError) as e:
+    except (TypeError,) as e:
         logger.warning("Feed parse failed for layer '%s' (%s): %s", layer_name, feed_url, e)
         return
 

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import ExternalImage from '@/components/ExternalImage';
+import { copyText } from '@/lib/clipboard';
 
 export interface Sentinel2Data {
   found: boolean;
@@ -319,7 +320,7 @@ export function RegionDossierPanel({ sentinel2: s2, lat, lng, onClose }: RegionD
                         new ClipboardItem({ [blob.type]: blob }),
                       ]);
                     } catch {
-                      await navigator.clipboard.writeText(imgUrl);
+                      await copyText(imgUrl);
                     }
                   }}
                   style={{ ...ACTION_BTN, background: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.4)' }}

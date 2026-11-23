@@ -13,8 +13,7 @@ import {
   Save,
   Search,
   Server,
-  Upload,
-} from 'lucide-react';
+  Upload } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
 import type { SelectedEntity } from '@/types/dashboard';
 import type {
@@ -24,8 +23,7 @@ import type {
   ShodanStatusResponse,
   ShodanStyleConfig,
   ShodanMarkerShape,
-  ShodanMarkerSize,
-} from '@/types/shodan';
+  ShodanMarkerSize } from '@/types/shodan';
 import { countShodan, fetchShodanStatus, lookupShodanHost, searchShodan } from '@/lib/shodanClient';
 import { useTranslation } from '@/i18n';
 
@@ -82,8 +80,7 @@ function toSelectedEntity(match: ShodanSearchMatch): SelectedEntity {
     id: match.id,
     type: 'shodan_host',
     name: `${match.ip}${match.port ? `:${match.port}` : ''}`,
-    extra: { ...match },
-  };
+    extra: { ...match } };
 }
 
 function fromHost(host: ShodanHost): ShodanSearchMatch {
@@ -110,8 +107,7 @@ function fromHost(host: ShodanHost): ShodanSearchMatch {
     tags: host.tags,
     vulns: host.vulns,
     data_snippet: host.services?.[0]?.banner_excerpt ?? null,
-    attribution: host.attribution,
-  };
+    attribution: host.attribution };
 }
 
 function facetList(raw: string): string[] {
@@ -178,8 +174,7 @@ export default function ShodanPanel({
   isMinimized: isMinimizedProp,
   onMinimizedChange,
   settingsOpen,
-  embedded = false,
-}: Props) {
+  embedded = false }: Props) {
   const { t } = useTranslation();
   const [internalMinimized, setInternalMinimized] = useState(true);
   const isMinimized = isMinimizedProp !== undefined ? isMinimizedProp : internalMinimized;
@@ -291,8 +286,7 @@ export default function ShodanPanel({
         query: resp.query,
         total: resp.total,
         facets: resp.facets,
-        note: resp.note,
-      });
+        note: resp.note });
       setHostSummary(null);
       setLastAction(null);
     } catch (err) {
@@ -335,8 +329,7 @@ export default function ShodanPanel({
         id: mapped.id,
         type: 'shodan_host',
         name: `${mapped.ip}${mapped.port ? `:${mapped.port}` : ''}`,
-        extra: { ...resp.host, ...mapped },
-      });
+        extra: { ...resp.host, ...mapped } });
       setLastAction(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Shodan host lookup failed');
@@ -367,8 +360,7 @@ export default function ShodanPanel({
       page,
       facets,
       hostIp,
-      style: { ...styleConfig },
-    };
+      style: { ...styleConfig } };
     setPresets((prev) => [preset, ...prev].slice(0, 16));
     setPresetLabel('');
   }, [facets, hostIp, mode, page, presetLabel, query, styleConfig]);
@@ -412,8 +404,7 @@ export default function ShodanPanel({
             query: String(preset.query || ''),
             page: Math.max(1, Math.min(2, Number(preset.page) || 1)),
             facets: String(preset.facets || ''),
-            hostIp: String(preset.hostIp || ''),
-          }));
+            hostIp: String(preset.hostIp || '') }));
         setPresets((prev) => [...sanitized, ...prev].slice(0, 16));
         setError(null);
       } catch (err) {
@@ -434,10 +425,8 @@ export default function ShodanPanel({
           source: 'Shodan',
           attribution: 'Data from Shodan',
           exported_at: new Date().toISOString(),
-          results: currentResults,
-        },
-        null,
-        2,
+          results: currentResults },
+        null, 2,
       ),
     );
   }, [currentResults]);
@@ -472,8 +461,7 @@ export default function ShodanPanel({
             domains: Array.isArray(row.domains) ? row.domains.map(String) : [],
             tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
             vulns: Array.isArray(row.vulns) ? row.vulns.map(String) : [],
-            attribution: String(row.attribution || parsed?.attribution || 'Data from Shodan'),
-          }))
+            attribution: String(row.attribution || parsed?.attribution || 'Data from Shodan') }))
           .filter((row) => row.lat != null && row.lng != null);
         onResultsChange(sanitized, 'IMPORTED RESULTS');
         setError(null);
@@ -580,8 +568,7 @@ export default function ShodanPanel({
                     fetch(`${API_BASE}/api/settings/api-keys`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ SHODAN_API_KEY: shodanApiKey.trim() }),
-                    })
+                      body: JSON.stringify({ SHODAN_API_KEY: shodanApiKey.trim() }) })
                       .then(() => refreshStatus())
                       .finally(() => setKeySaving(false));
                   }
@@ -603,8 +590,7 @@ export default function ShodanPanel({
                   fetch(`${API_BASE}/api/settings/api-keys`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ SHODAN_API_KEY: shodanApiKey.trim() }),
-                  })
+                    body: JSON.stringify({ SHODAN_API_KEY: shodanApiKey.trim() }) })
                     .then(() => refreshStatus())
                     .finally(() => setKeySaving(false));
                 }}

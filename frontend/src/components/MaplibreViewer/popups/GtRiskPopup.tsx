@@ -65,8 +65,7 @@ export function GtRiskPopup({
   interpretation,
   lat,
   lng,
-  onClose,
-}: GtRiskPopupProps) {
+  onClose }: GtRiskPopupProps) {
   const { t } = useTranslation();
   const color = riskColor(risk);
   const [dossier, setDossier] = useState<GtDossier | null>(null);

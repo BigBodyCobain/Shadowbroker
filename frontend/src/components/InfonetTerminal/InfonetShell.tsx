@@ -8,8 +8,7 @@ import {
   createWormholeGatePersona,
   enterWormholeGate,
   fetchWormholeIdentity,
-  listWormholeGatePersonas,
-} from '@/mesh/wormholeIdentityClient';
+  listWormholeGatePersonas } from '@/mesh/wormholeIdentityClient';
 import GateView from './GateView';
 import MarketView from './MarketView';
 import ProfileView from './ProfileView';
@@ -50,14 +49,11 @@ const COMING_SOON_MODULES: Record<string, { title: string; desc: string; status:
   GIGS: {
     title: 'GIGS — NETWORK BOUNTIES',
     desc: 'Decentralized work contracts, intelligence bounties, and mesh task allocation. Accept jobs, deliver payloads, and earn credits through verified proof-of-work completion.',
-    status: 'MODULE STATUS: TESTNET ONLY — CONTRACT ENGINE IN DEVELOPMENT',
-  },
+    status: 'MODULE STATUS: TESTNET ONLY — CONTRACT ENGINE IN DEVELOPMENT' },
   EXCHANGE: {
     title: 'EXCHANGE — DECENTRALIZED TRADING',
     desc: 'Zero-KYC peer-to-peer asset exchange. Trade crypto against credits with on-chain order books, stealth addresses, and privacy-preserving settlement.',
-    status: 'MODULE STATUS: TESTNET ONLY — LIQUIDITY POOLS NOT YET ACTIVE',
-  },
-};
+    status: 'MODULE STATUS: TESTNET ONLY — LIQUIDITY POOLS NOT YET ACTIVE' } };
 
 const GATES = [
   'infonet', 'general-talk', 'gathered-intel', 'tracked-planes',
@@ -152,8 +148,7 @@ export default function InfonetShell({
   onLaunchGateConsumed,
   onClose,
   onOpenLiveGate,
-  onOpenDeadDrop,
-}: InfonetShellProps) {
+  onOpenDeadDrop }: InfonetShellProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<CommandHistory[]>([]);
   const [isBooting, setIsBooting] = useState(true);
@@ -355,16 +350,14 @@ export default function InfonetShell({
           }
           setHistory(prev => [...prev, {
             command: options.commandLabel,
-            output: <span className="text-red-400">ERR: {detail}</span>,
-          }]);
+            output: <span className="text-red-400">ERR: {detail}</span> }]);
           return;
         }
         if (!waitingShown) {
           waitingShown = true;
           setHistory(prev => [...prev, {
             command: options.commandLabel,
-            output: options.waitingOutput,
-          }]);
+            output: options.waitingOutput }]);
         }
         if (attempt === GATE_LAUNCH_RETRY_ATTEMPTS - 1) {
           if (gateLaunchAttemptRef.current !== launchId) {
@@ -376,8 +369,7 @@ export default function InfonetShell({
               <span className="text-red-400">
                 ERR: The obfuscated lane is taking too long to come online. It is still warming up in the background.
               </span>
-            ),
-          }]);
+            ) }]);
           return;
         }
         await sleep(GATE_LAUNCH_RETRY_DELAY_MS);
@@ -431,8 +423,7 @@ export default function InfonetShell({
                   Warming the obfuscated lane for g/{gateTarget}. The room will open automatically as soon as it is ready.
                 </span>
               ),
-              failurePrefix: 'anonymous_gate_enter_failed',
-            },
+              failurePrefix: 'anonymous_gate_enter_failed' },
           );
         })();
         return;
@@ -468,8 +459,7 @@ export default function InfonetShell({
                 Warming the obfuscated lane for g/{gateTarget}. Your gate face will open automatically when the room is ready.
               </span>
             ),
-            failurePrefix: 'gate_face_create_failed',
-          },
+            failurePrefix: 'gate_face_create_failed' },
         );
       })();
       return;

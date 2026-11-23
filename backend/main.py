@@ -1642,6 +1642,11 @@ def _peer_sync_response(peer_url: str, body: dict[str, Any]) -> dict[str, Any]:
         socks_port = int(get_settings().MESH_ARTI_SOCKS_PORT or 9050)
         proxy = f"socks5h://127.0.0.1:{socks_port}"
         kwargs["proxies"] = {"http": proxy, "https": proxy}
+    from services.ssrf_guard import guard_url_for_peer_request
+
+    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(kwargs.get("proxies")))
+    if not guard.get("ok"):
+        raise ValueError(f"blocked peer url: {guard.get('reason')}")
     response = _requests.post(f"{normalized}/api/mesh/infonet/sync", **kwargs)
     # HTTP 429 must be surfaced as a typed exception carrying the
     # Retry-After value, so finish_sync can honor it and stop hammering
@@ -2229,6 +2234,10 @@ def _http_peer_push_loop() -> None:
                     }
                     if proxies:
                         request_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/infonet/peer-push",
                         **request_kwargs,
@@ -2330,6 +2339,10 @@ def _http_gate_pull_loop() -> None:
                     }
                     if proxies:
                         discovery_kwargs["proxies"] = proxies
+                    from services.ssrf_guard import guard_url_for_peer_request
+                    guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                    if not guard.get("ok"):
+                        raise ValueError(f"blocked peer url: {guard.get('reason')}")
                     resp = _requests.post(
                         f"{normalized}/api/mesh/gate/peer-pull",
                         **discovery_kwargs,
@@ -2373,6 +2386,10 @@ def _http_gate_pull_loop() -> None:
                         }
                         if proxies:
                             pull_kwargs["proxies"] = proxies
+                        from services.ssrf_guard import guard_url_for_peer_request
+                        guard = guard_url_for_peer_request(normalized, allow_proxied=bool(proxies))
+                        if not guard.get("ok"):
+                            raise ValueError(f"blocked peer url: {guard.get('reason')}")
                         pull_resp = _requests.post(
                             f"{normalized}/api/mesh/gate/peer-pull",
                             **pull_kwargs,
@@ -4121,7 +4138,7 @@ async def thermal_verify(
     return result
 
 
-@app.post("/api/sigint/transmit")
+@app.post("/api/sigint/transmit", dependencies=[Depends(require_local_operator)])
 @limiter.limit("5/minute")
 async def sigint_transmit(request: Request):
     """Send an APRS-IS message to a specific callsign. Requires ham radio credentials."""
@@ -6711,7 +6728,7 @@ async def oracle_markets_more(
     }
 
 
-@app.post("/api/mesh/oracle/resolve")
+@app.post("/api/mesh/oracle/resolve", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve(request: Request):
@@ -6861,7 +6878,7 @@ async def oracle_predictions(request: Request, node_id: str = ""):
     )
 
 
-@app.post("/api/mesh/oracle/resolve-stakes")
+@app.post("/api/mesh/oracle/resolve-stakes", dependencies=[Depends(require_admin)])
 @limiter.limit("5/minute")
 @mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def oracle_resolve_stakes(request: Request):
@@ -9108,7 +9125,7 @@ async def api_sentinel_token(request: Request):
 _sh_token_cache: dict = {"token": None, "expiry": 0, "client_id": ""}
 
 
-@app.post("/api/sentinel/tile")
+@app.post("/api/sentinel/tile", dependencies=[Depends(require_local_operator)])
 @limiter.limit("300/minute")
 async def api_sentinel_tile(request: Request):
     """Proxy Sentinel Hub Process API tile request (avoids CORS block).
@@ -9649,8 +9666,9 @@ async def api_set_node_settings(request: Request, body: NodeSettingsUpdate):
     return result
 
 
-@app.post("/api/mesh/infonet/swarm/join")
+@app.post("/api/mesh/infonet/swarm/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
+@mesh_write_exempt(MeshWriteExemption.ADMIN_CONTROL)
 async def infonet_swarm_join(request: Request):
     """Announce this node to the fleet seed and pull the signed peer manifest."""
     if not _participant_node_enabled():
@@ -10436,7 +10454,7 @@ async def api_get_wormhole_status(request: Request):
     )
 
 
-@app.post("/api/wormhole/join")
+@app.post("/api/wormhole/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_join(request: Request):
     existing = read_wormhole_settings()
@@ -10490,7 +10508,7 @@ async def api_wormhole_join(request: Request):
     }
 
 
-@app.post("/api/wormhole/leave")
+@app.post("/api/wormhole/leave", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def api_wormhole_leave(request: Request):
     updated = write_wormhole_settings(enabled=False)
@@ -11320,19 +11338,19 @@ async def api_wormhole_gate_leave(request: Request, body: WormholeGateRequest):
     return leave_gate(str(body.gate_id or ""))
 
 
-@app.get("/api/wormhole/gate/{gate_id}/identity")
+@app.get("/api/wormhole/gate/{gate_id}/identity", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_identity(request: Request, gate_id: str):
     return get_active_gate_identity(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/personas")
+@app.get("/api/wormhole/gate/{gate_id}/personas", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_personas(request: Request, gate_id: str):
     return list_gate_personas(gate_id)
 
 
-@app.get("/api/wormhole/gate/{gate_id}/key")
+@app.get("/api/wormhole/gate/{gate_id}/key", dependencies=[Depends(require_local_operator)])
 @limiter.limit("30/minute")
 async def api_wormhole_gate_key_status(request: Request, gate_id: str):
     exposure = metadata_exposure_for_request(request, authenticated=True)

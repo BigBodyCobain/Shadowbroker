@@ -102,12 +102,13 @@ class TestRunTasksTimeout:
         assert df._TASK_HARD_TIMEOUT_S > 0
 
     def test_future_result_called_with_timeout(self):
-        """_run_tasks must pass timeout= to every future.result() call."""
+        """_run_tasks/_drain_task_futures must pass timeout= to every result()."""
         import inspect
         import services.data_fetcher as df
-        source = inspect.getsource(df._run_tasks)
+        # result() was intentionally moved into the shared drain helper.
+        source = inspect.getsource(df._run_tasks) + inspect.getsource(df._drain_task_futures)
         assert "future.result(timeout=" in source, (
-            "_run_tasks must call future.result(timeout=...) not future.result()"
+            "task futures must be awaited with future.result(timeout=...)"
         )
 
     def test_update_all_data_future_result_called_with_timeout(self):
