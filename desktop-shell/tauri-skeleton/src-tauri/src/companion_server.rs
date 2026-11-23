@@ -240,6 +240,9 @@ fn operator_http_command(path: &str) -> Option<&'static str> {
                 | "/api/mesh/reputation/all"
                 | "/api/mesh/trust/vouches"
                 | "/api/mesh/meshtastic/send"
+                | "/api/mesh/send"
+                | "/api/mesh/infonet/swarm/join"
+                | "/api/road-corridors/analyze"
         )
     {
         return Some("settings.api_keys.get");

@@ -3,6 +3,18 @@ import time
 from collections import deque
 from types import SimpleNamespace
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _reset_send_rate_limit():
+    """This file posts to /api/mesh/send more often than its 10/minute limit."""
+    from limiter import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
 
 class _DummyBreaker:
     def check_and_record(self, _priority):
@@ -33,9 +45,20 @@ class _FakeMeshRouter:
         self.breakers = {"meshtastic": _DummyBreaker()}
         self.route_called = False
 
-    def route(self, _envelope, _credentials):
+    def route(self, _envelope, _credentials, **kwargs):
         self.route_called = True
+        self.route_kwargs = kwargs
         return []
+
+
+def _operator_headers(monkeypatch, *, mqtt_enabled: bool = True) -> dict:
+    """Radio transports are operator-only: sign in and set the MQTT bridge."""
+    import auth
+    from services import meshtastic_mqtt_settings
+
+    monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-admin")
+    monkeypatch.setattr(meshtastic_mqtt_settings, "mqtt_bridge_enabled", lambda: mqtt_enabled)
+    return {"X-Admin-Key": "test-admin"}
 
 
 def _valid_body(**overrides):
@@ -74,9 +97,11 @@ def test_meshtastic_transport_lock_stays_on_public_direct_path(monkeypatch):
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(sigint_grid, "mesh", fake_bridge)
 
+    headers = _operator_headers(monkeypatch)
+
     async def _run():
         async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
-            response = await ac.post("/api/mesh/send", json=_valid_body())
+            response = await ac.post("/api/mesh/send", json=_valid_body(), headers=headers)
             return response.json()
 
     result = asyncio.run(_run())
@@ -102,9 +127,11 @@ def test_meshtastic_transport_lock_does_not_fallback_when_unreachable(monkeypatc
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
 
+    headers = _operator_headers(monkeypatch)
+
     async def _run():
         async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
-            response = await ac.post("/api/mesh/send", json=_valid_body(message="x" * 10))
+            response = await ac.post("/api/mesh/send", json=_valid_body(message="x" * 10), headers=headers)
             return response.json()
 
     result = asyncio.run(_run())
@@ -240,9 +267,11 @@ def test_private_tier_blocks_meshtastic_transport_lock(monkeypatch):
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: "private_transitional")
 
+    headers = _operator_headers(monkeypatch)
+
     async def _run():
         async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
-            response = await ac.post("/api/mesh/send", json=_valid_body())
+            response = await ac.post("/api/mesh/send", json=_valid_body(), headers=headers)
             return response.json()
 
     result = asyncio.run(_run())
@@ -268,7 +297,7 @@ def test_envelope_trust_tier_set_from_wormhole_state(monkeypatch):
             self.meshtastic = _FakeMeshtasticTransport(can_reach=True, send_ok=True)
             self.breakers = {"meshtastic": _DummyBreaker()}
 
-        def route(self, envelope, _credentials):
+        def route(self, envelope, _credentials, **_kwargs):
             from services.mesh.mesh_router import TransportResult
 
             captured_envelopes.append(envelope)
@@ -296,3 +325,125 @@ def test_envelope_trust_tier_set_from_wormhole_state(monkeypatch):
     assert result["ok"] is True
     assert len(captured_envelopes) == 1
     assert captured_envelopes[0].trust_tier == "private_transitional"
+
+
+def test_anonymous_signed_send_cannot_use_radio_transports(monkeypatch):
+    """A signed write proves authorship, not permission to use this node's
+    APRS-IS login or Meshtastic uplink: locks and EMERGENCY need the operator."""
+    import main
+    from services.mesh import mesh_router as mesh_router_mod
+    from httpx import ASGITransport, AsyncClient
+
+    fake_meshtastic = _FakeMeshtasticTransport(can_reach=True, send_ok=True)
+    fake_router = _FakeMeshRouter(fake_meshtastic)
+
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
+    monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
+
+    bodies = [
+        _valid_body(),
+        _valid_body(transport_lock="aprs", destination="N0CALL"),
+        _valid_body(transport_lock="", priority="emergency"),
+    ]
+
+    async def _run():
+        out = []
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            for body in bodies:
+                response = await ac.post("/api/mesh/send", json=body)
+                out.append((response.status_code, response.json()))
+        return out
+
+    for status, result in asyncio.run(_run()):
+        assert status == 403
+        assert result["ok"] is False
+    assert fake_meshtastic.sent == []
+    assert fake_router.route_called is False
+
+
+def test_anonymous_signed_send_routes_without_radio(monkeypatch):
+    import main
+    from services.mesh import mesh_router as mesh_router_mod
+    from httpx import ASGITransport, AsyncClient
+
+    fake_router = _FakeMeshRouter(_FakeMeshtasticTransport())
+
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
+    monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
+
+    body = _valid_body()
+    del body["transport_lock"]
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            return await ac.post("/api/mesh/send", json=body)
+
+    asyncio.run(_run())
+
+    assert fake_router.route_called is True
+    assert fake_router.route_kwargs == {"allow_aprs": False, "allow_meshtastic": False}
+
+
+def test_operator_meshtastic_lock_respects_mqtt_switch(monkeypatch):
+    import main
+    from services.mesh import mesh_router as mesh_router_mod
+    from httpx import ASGITransport, AsyncClient
+
+    fake_meshtastic = _FakeMeshtasticTransport(can_reach=True, send_ok=True)
+    fake_router = _FakeMeshRouter(fake_meshtastic)
+
+    monkeypatch.setattr(main, "_verify_signed_write", lambda **_: (True, "ok"))
+    monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
+    monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
+    headers = _operator_headers(monkeypatch, mqtt_enabled=False)
+
+    async def _run():
+        async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
+            response = await ac.post("/api/mesh/send", json=_valid_body(), headers=headers)
+            return response.json()
+
+    result = asyncio.run(_run())
+
+    assert result["ok"] is False
+    assert "bridge is disabled" in result["detail"]
+    assert fake_meshtastic.sent == []
+
+
+def test_router_radio_switches_skip_aprs_and_meshtastic(monkeypatch):
+    from services.mesh import mesh_router
+    from services.mesh.mesh_router import MeshEnvelope, MeshRouter, Priority, TransportResult
+
+    monkeypatch.setattr(mesh_router, "_supervisor_verified_trust_tier", lambda: "public_degraded")
+
+    class _FakeTransport:
+        def __init__(self, name):
+            self.NAME = name
+            self.sent = []
+
+        def can_reach(self, _envelope):
+            return True
+
+        def send(self, envelope, _credentials):
+            self.sent.append(envelope)
+            return TransportResult(True, self.NAME, "sent")
+
+    router = MeshRouter()
+    router.aprs = _FakeTransport("aprs")
+    router.meshtastic = _FakeTransport("meshtastic")
+    router.internet = _FakeTransport("internet")
+    router.transports = [router.aprs, router.meshtastic, router.internet]
+
+    for priority, payload in ((Priority.EMERGENCY, "help"), (Priority.NORMAL, "hello")):
+        envelope = MeshEnvelope(
+            sender_id="!sb_sender",
+            destination="N0CALL",
+            priority=priority,
+            payload=payload,
+            trust_tier="public_degraded",
+        )
+        router.route(envelope, {}, allow_aprs=False, allow_meshtastic=False)
+
+    assert router.aprs.sent == []
+    assert router.meshtastic.sent == []

@@ -18,6 +18,7 @@ from auth import (
     _private_infonet_policy_snapshot,
     require_admin,
     require_local_operator,
+    is_local_operator_request,
 )
 from limiter import limiter
 
@@ -665,9 +666,30 @@ async def mesh_send(request: Request):
         except Exception:
             pass  # Non-critical — don't block sends if reputation module fails
 
-    # ─── Per-identity throttle ────────────────────────────────────
+    # ─── Public radio lanes are operator-only ────────────────────
+    # A signed write proves who wrote the message, not that they may use
+    # this node's APRS-IS login or Meshtastic MQTT uplink. Anyone can mint
+    # a keypair, so radio transmission and the all-transport EMERGENCY
+    # broadcast require the node's own operator credential.
     priority_str = signed_payload["priority"]
     transport_lock = str(body.get("transport_lock", "") or "").lower()
+    is_operator = is_local_operator_request(request)
+    from services.meshtastic_mqtt_settings import mqtt_bridge_enabled
+
+    allow_aprs = is_operator
+    allow_meshtastic = is_operator and mqtt_bridge_enabled()
+    if not is_operator and (priority_str == "emergency" or transport_lock in {"aprs", "meshtastic"}):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "ok": False,
+                "detail": "Radio transports and emergency broadcast require operator authentication",
+            },
+        )
+    if transport_lock == "meshtastic" and not allow_meshtastic:
+        return {"ok": False, "detail": "Meshtastic MQTT bridge is disabled"}
+
+    # ─── Per-identity throttle ────────────────────────────────────
     throttle_ok, throttle_reason = _check_throttle(node_id, priority_str, transport_lock)
     if not throttle_ok:
         return {"ok": False, "detail": throttle_reason}
@@ -735,9 +757,19 @@ async def mesh_send(request: Request):
                 "Private-tier content cannot be sent over APRS"
             )]
         else:
-            results = mesh_router.route(envelope, credentials)
+            results = mesh_router.route(
+                envelope,
+                credentials,
+                allow_aprs=allow_aprs,
+                allow_meshtastic=allow_meshtastic,
+            )
     else:
-        results = mesh_router.route(envelope, credentials)
+        results = mesh_router.route(
+            envelope,
+            credentials,
+            allow_aprs=allow_aprs,
+            allow_meshtastic=allow_meshtastic,
+        )
     any_ok = any(r.ok for r in results)
 
     # ─── Mirror to Meshtastic bridge feed ────────────────────────

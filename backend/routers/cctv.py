@@ -155,15 +155,58 @@ class _CCTVProxyProfile:
     headers: dict = field(default_factory=dict)
 
 
+# Shared storage hosts: a subdomain or path is somebody else's bucket, so only
+# the exact host is accepted, and only under the listed path prefixes.
+_CCTV_SHARED_STORAGE_PATH_PREFIXES = {
+    "s3-eu-west-1.amazonaws.com": ("/jamcams.tfl.gov.uk/",),
+}
+
+
 def _cctv_host_allowed(hostname) -> bool:
     host = str(hostname or "").strip().lower()
     if not host:
         return False
     for allowed in _CCTV_PROXY_ALLOWED_HOSTS:
         normalized = str(allowed or "").strip().lower()
-        if host == normalized or host.endswith(f".{normalized}"):
+        if host == normalized:
+            return True
+        if normalized in _CCTV_SHARED_STORAGE_PATH_PREFIXES:
+            continue
+        if host.endswith(f".{normalized}"):
             return True
     return False
+
+
+def _cctv_path_allowed(parsed) -> bool:
+    host = str(getattr(parsed, "hostname", "") or "").strip().lower()
+    prefixes = _CCTV_SHARED_STORAGE_PATH_PREFIXES.get(host)
+    if prefixes is None:
+        return True
+    path = str(getattr(parsed, "path", "") or "")
+    return any(path.startswith(prefix) for prefix in prefixes)
+
+
+# Only media is relayed. Anything a browser could render as a page or run as
+# script (HTML, SVG, XML, JS) is refused even from an allowed host.
+_CCTV_ALLOWED_MEDIA_PREFIXES = ("image/", "video/")
+_CCTV_ALLOWED_MEDIA_TYPES = {
+    "application/vnd.apple.mpegurl",
+    "application/x-mpegurl",
+    "audio/mpegurl",
+    "audio/x-mpegurl",
+    "application/octet-stream",
+    "binary/octet-stream",
+    "multipart/x-mixed-replace",
+}
+
+
+def _cctv_media_type_allowed(content_type: str) -> bool:
+    clean = str(content_type or "").split(";", 1)[0].strip().lower()
+    if not clean:
+        return True
+    if clean == "image/svg+xml":
+        return False
+    return clean.startswith(_CCTV_ALLOWED_MEDIA_PREFIXES) or clean in _CCTV_ALLOWED_MEDIA_TYPES
 
 
 def _proxied_cctv_url(target_url: str) -> str:
@@ -327,7 +370,11 @@ def _cctv_upstream_headers(request: Request, profile: _CCTVProxyProfile) -> dict
 
 
 def _cctv_response_headers(resp, cache_seconds: int, include_length: bool = True) -> dict:
-    headers = {"Cache-Control": f"public, max-age={cache_seconds}", "Access-Control-Allow-Origin": "*"}
+    headers = {
+        "Cache-Control": f"public, max-age={cache_seconds}",
+        "Access-Control-Allow-Origin": "*",
+        "X-Content-Type-Options": "nosniff",
+    }
     for key in ("Accept-Ranges", "Content-Range", "ETag", "Last-Modified"):
         value = resp.headers.get(key)
         if value:
@@ -391,7 +438,7 @@ def _fetch_cctv_upstream_response(request: Request, target_url: str, profile: _C
                 next_parsed = urlparse(next_url)
                 if next_parsed.scheme not in ("http", "https"):
                     raise HTTPException(status_code=502, detail="Upstream redirect to non-HTTP scheme")
-                if not _cctv_host_allowed(next_parsed.hostname):
+                if not _cctv_host_allowed(next_parsed.hostname) or not _cctv_path_allowed(next_parsed):
                     logger.warning(
                         "CCTV upstream redirect to disallowed host [%s] %s -> %s",
                         profile.name, current_url, next_url,
@@ -426,7 +473,7 @@ def _rewrite_cctv_hls_playlist(base_url: str, body: str) -> str:
         parsed_target = urlparse(absolute)
         if parsed_target.scheme not in ("http", "https"):
             return candidate
-        if not _cctv_host_allowed(parsed_target.hostname):
+        if not _cctv_host_allowed(parsed_target.hostname) or not _cctv_path_allowed(parsed_target):
             return candidate
         return _proxied_cctv_url(absolute)
 
@@ -521,8 +568,14 @@ def _proxy_cctv_media_response(request: Request, target_url: str):
         if "#EXTM3U" in body:
             body = _rewrite_cctv_hls_playlist(target_url, body)
         resp.close()
-        return Response(content=body, media_type=content_type,
+        if "#EXTM3U" not in body:
+            raise HTTPException(status_code=415, detail="Upstream did not return a playlist")
+        return Response(content=body, media_type="application/vnd.apple.mpegurl",
             headers=_cctv_response_headers(resp, cache_seconds=profile.cache_seconds, include_length=False))
+    if not _cctv_media_type_allowed(content_type):
+        logger.warning("CCTV upstream non-media type [%s] %s: %s", profile.name, target_url, content_type)
+        resp.close()
+        raise HTTPException(status_code=415, detail="Upstream returned non-media content")
     return StreamingResponse(resp.iter_content(chunk_size=65536), status_code=resp.status_code,
         media_type=content_type,
         headers=_cctv_response_headers(resp, cache_seconds=profile.cache_seconds),
@@ -535,7 +588,7 @@ async def cctv_media_proxy(request: Request, url: str = Query(...)):
     """Proxy CCTV media through the backend to bypass browser CORS restrictions."""
     from urllib.parse import urlparse
     parsed = urlparse(url)
-    if not _cctv_host_allowed(parsed.hostname):
+    if not _cctv_host_allowed(parsed.hostname) or not _cctv_path_allowed(parsed):
         raise HTTPException(status_code=403, detail="Host not allowed")
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(status_code=400, detail="Invalid scheme")

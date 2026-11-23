@@ -1,8 +1,9 @@
 """Road corridor Sentinel-2 freight trend endpoints (opt-in slow layer)."""
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from auth import require_local_operator
 from limiter import limiter
 from services.road_corridor_sat.config import optional_deps_available, road_corridor_sat_enabled
 from services.road_corridor_sat.credentials import sentinel_credentials_configured
@@ -61,7 +62,7 @@ async def list_road_corridors(request: Request) -> dict:
     }
 
 
-@router.post("/api/road-corridors/analyze")
+@router.post("/api/road-corridors/analyze", dependencies=[Depends(require_local_operator)])
 @limiter.limit("6/minute")
 async def analyze_road_corridor_here(request: Request, payload: AnalyzeRequest) -> dict:
     """Start an on-demand Sentinel-2 corridor analysis at map center."""

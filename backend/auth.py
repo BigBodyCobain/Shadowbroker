@@ -410,6 +410,16 @@ def require_local_operator(request: Request):
     raise HTTPException(status_code=403, detail="Forbidden — operator authentication required")
 
 
+def is_local_operator_request(request: Request) -> bool:
+    """Non-raising form of ``require_local_operator`` for routes that are
+    public by design but have operator-only branches."""
+    try:
+        require_local_operator(request)
+    except HTTPException:
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # OpenClaw HMAC authentication
 # ---------------------------------------------------------------------------

@@ -1085,10 +1085,19 @@ class MeshRouter:
         self._dedupe[key] = now
         return False
 
-    def route(self, envelope: MeshEnvelope, credentials: dict) -> list[TransportResult]:
+    def route(
+        self,
+        envelope: MeshEnvelope,
+        credentials: dict,
+        *,
+        allow_aprs: bool = True,
+        allow_meshtastic: bool = True,
+    ) -> list[TransportResult]:
         """Route a message through the optimal transport(s).
 
         Returns list of TransportResult (multiple for EMERGENCY broadcast).
+        ``allow_aprs`` / ``allow_meshtastic`` set to False keep the message off
+        that public radio lane (APRS-IS, Meshtastic MQTT).
         """
         results: list[TransportResult] = []
         # Sprint 2 / Rec #2 + #7: re-verify the envelope's trust_tier
@@ -1137,6 +1146,10 @@ class MeshRouter:
             for transport in self.transports:
                 if private_tier and transport.NAME in {"aprs", "meshtastic"}:
                     continue
+                if transport.NAME == "aprs" and not allow_aprs:
+                    continue
+                if transport.NAME == "meshtastic" and not allow_meshtastic:
+                    continue
                 if private_tier and transport.NAME == "internet":
                     continue
                 if transport.can_reach(envelope):
@@ -1148,7 +1161,7 @@ class MeshRouter:
             return results
 
         # ─── Gate 2: APRS callsign target → APRS-IS ───────────────────
-        if not private_tier and self.aprs.can_reach(envelope):
+        if allow_aprs and not private_tier and self.aprs.can_reach(envelope):
             # Check circuit breaker before sending
             cb_ok, cb_reason = self.breakers["aprs"].check_and_record(envelope.priority)
             if not cb_ok:
@@ -1166,7 +1179,7 @@ class MeshRouter:
                 results.append(r)
 
         # ─── Gate 3: Small payload → Meshtastic LoRa ──────────────────
-        if not private_tier and self.meshtastic.can_reach(envelope):
+        if allow_meshtastic and not private_tier and self.meshtastic.can_reach(envelope):
             # Check circuit breaker before sending
             cb_ok, cb_reason = self.breakers["meshtastic"].check_and_record(envelope.priority)
             if not cb_ok:
