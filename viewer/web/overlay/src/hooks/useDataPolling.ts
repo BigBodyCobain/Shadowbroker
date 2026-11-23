@@ -70,6 +70,8 @@ export function useDataPolling() {
     let pollMs = STARTUP_RETRY_MS;
     /** file path -> version already merged into the store */
     const merged = new Map<string, string>();
+    /** time stamp of the newest data set already applied */
+    let newestAt = 0;
 
     const schedule = (ms: number) => {
       if (stopped) return;
@@ -88,6 +90,10 @@ export function useDataPolling() {
       try {
         const manifest = await getJson<Manifest>('manifest.json');
         if (manifest.schema !== SUPPORTED_SCHEMA) throw new Error(`unsupported data schema ${manifest.schema}`);
+        // The data host can briefly hand back an older copy. Never step back to it.
+        const at = Date.parse(manifest.generated_at);
+        if (Number.isFinite(at) && at < newestAt) return;
+        if (Number.isFinite(at)) newestAt = at;
         noteManifest(manifest.generated_at, manifest.seq);
 
         const jobs: Promise<void>[] = [];
@@ -123,8 +129,8 @@ export function useDataPolling() {
         pollMs = Math.max(pollMs, MIN_POLL_MS);
       } finally {
         inFlight = false;
+        schedule(pollMs); // also after the early return above
       }
-      schedule(pollMs);
     };
 
     const onVisibility = () => {

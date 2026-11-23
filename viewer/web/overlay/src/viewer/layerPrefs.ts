@@ -9,7 +9,7 @@
  */
 
 /** Raise when a layer moves from hidden to shown; the list below says which. */
-export const VIEWER_LAYER_REV = 2;
+export const VIEWER_LAYER_REV = 3;
 export const VIEWER_LAYER_REV_KEY = 'sb_viewer_layer_rev';
 
 /**
@@ -17,7 +17,7 @@ export const VIEWER_LAYER_REV_KEY = 'sb_viewer_layer_rev';
  * Browsers that saved switches under an older build get the default back for
  * these, once.
  */
-export const VIEWER_RESTORED_LAYERS: readonly string[] = ['cctv', 'kiwisdr', 'scanners', 'sigint_aprs'];
+export const VIEWER_RESTORED_LAYERS: readonly string[] = ['cctv', 'kiwisdr', 'scanners', 'sigint_aprs', 'sar'];
 
 type Switches = Record<string, boolean>;
 

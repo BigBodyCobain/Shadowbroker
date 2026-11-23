@@ -98,6 +98,25 @@ Some layers show a location and hand the visitor to the source's own site:
 
 In every case the viewer supplies an address and nothing else.
 
+## Publishing under another site, with no server of your own
+
+The viewer can live in a sub-folder of an existing static site, and the data
+files can come from a different static host:
+
+```bash
+NEXT_PUBLIC_SB_BASE_PATH=/map NEXT_PUBLIC_SB_DATA_BASE=https://<data host>/<folder> NEXT_PUBLIC_SB_STALE_AFTER_S=900 node viewer/web/build.mjs
+```
+
+Copy `viewer/web/dist/` into the site's `map/` folder. `NEXT_PUBLIC_SB_STALE_AFTER_S`
+is how old the data may get before the page says so; set it to a few times
+the interval at which the data files are replaced.
+
+The engine and bridge only need to run somewhere that can make outbound
+requests. Nothing has to accept a connection from the internet: a scheduled
+job on a hosted build runner can run them and publish the bridge's output
+folder to a static host. Only the files named in `manifest.json` should be
+published.
+
 ## The agent skill can be read before it is used
 
 The site has an "AI agent skill" button. It shows every file of

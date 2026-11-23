@@ -72,6 +72,79 @@
       "file": "src/components/MaplibreViewer.tsx",
       "find": "<Play size={10} /> OPEN PLAYER",
       "replace": "<Play size={10} /> LISTEN ON OPENMHZ ↗"
+    },
+    {
+      "why": "sub-folder hosting: the map worker file sits next to the viewer, not at the top of the site",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');",
+      "replace": "maplibregl.setWorkerUrl(`${process.env.NEXT_PUBLIC_SB_BASE_PATH || ''}/maplibre-gl-worker.mjs`);"
+    },
+    {
+      "why": "sub-folder hosting: the cable map file sits next to the viewer, not at the top of the site",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "fetch('/data/submarine-cables.json')",
+      "replace": "fetch(`${process.env.NEXT_PUBLIC_SB_BASE_PATH || ''}/data/submarine-cables.json`)"
+    },
+    {
+      "why": "region panel: the viewer has no country lookup, so the country block is shown only when there is one",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                        {/* COUNTRY */}",
+      "replace": "                        <div className={d.country ? 'flex flex-col gap-2' : 'hidden'}>{/* COUNTRY */}"
+    },
+    {
+      "why": "region panel: closes the country block opened above",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                        {/* LOCAL */}",
+      "replace": "                        </div>{/* LOCAL */}"
+    },
+    {
+      "why": "region panel: the pin label on the map, in plain words",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "{regionDossierLoading ? 'COMPILING...' : '▶ INTEL TARGET'}",
+      "replace": "{regionDossierLoading ? 'LOOKING...' : 'SATELLITE VIEW'}"
+    },
+    {
+      "why": "label tidy-up: the viewer shows many more clustered layers (cameras, fishing, mesh), and their bubbles were hiding aircraft and carrier names a second after they appeared. In the viewer a name yields only to a panel, an alert box or another name.",
+      "file": "src/components/map/MapMarkers.tsx",
+      "find": ".filter((l) => l.type === 'circle' && /cluster/.test(l.id) && !/pulse|bg|halo/.test(l.id))",
+      "replace": ".filter(() => false)"
+    },
+    {
+      "why": "label tidy-up: cluster count bubbles no longer hide names either (see the cut above)",
+      "file": "src/components/map/MapMarkers.tsx",
+      "find": "if (r.width > 0) boxes.push(new DOMRect(r.left - 6, r.top - 4, r.width + 12, r.height + 8));",
+      "replace": "void r;"
+    },
+    {
+      "why": "radar watch areas come with the published data; the viewer has no server to ask for them",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "        const res = await fetch(`${API_BASE}/api/sar/aois`, {\n          credentials: 'include',\n        });",
+      "replace": "        const res = new Response('{}');"
+    },
+    {
+      "why": "draw the radar watch areas from the published coverage list",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList) : null),\n    [activeLayers.sar, sarAoisList],",
+      "replace": "    () => (activeLayers.sar ? buildSarAoisGeoJSON(sarAoisList.length ? sarAoisList : viewerSarAois(data?.sar_aoi_coverage)) : null),\n    [activeLayers.sar, sarAoisList, data?.sar_aoi_coverage],",
+      "prepend": "import { viewerSarAois } from '@/viewer/sarAois';"
+    },
+    {
+      "why": "the viewer has no sign-up; say plainly when there are no radar alerts",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": "? `Catalog only · ${data.sar_scenes.length} Sentinel-1 passes · Alerts: sign up →`",
+      "replace": "? `NASA OPERA · no alerts right now · ${data.sar_scenes.length} Sentinel-1 passes`"
+    },
+    {
+      "why": "the viewer has no sign-up; say plainly when there are no radar alerts",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": ": 'Catalog only (free) · Alerts: sign up →')),",
+      "replace": ": 'NASA OPERA · no alerts right now')),"
+    },
+    {
+      "why": "the map must also receive the radar coverage list, which carries the watch areas",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "  'sar_anomalies',\n",
+      "replace": "  'sar_anomalies',\n  'sar_aoi_coverage',\n"
     }
   ]
 }

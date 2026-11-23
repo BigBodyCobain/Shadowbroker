@@ -35,12 +35,15 @@ import { useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
 import { useAlertToasts } from '@/hooks/useAlertToasts';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useRegionDossier } from '@/hooks/useRegionDossier';
 import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
-import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
+import { VIEWER_HIDDEN_LAYERS, asset } from '@/viewer/config';
 import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev } from '@/viewer/layerPrefs';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
+import TokenCard from '@/viewer/TokenCard';
+import { PHONE_LANDSCAPE_QUERY, PHONE_QUERY, PhoneNav, PhoneStyles, scrollToMarker, usePhone } from '@/viewer/phone';
 import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -83,6 +86,17 @@ export default function ViewerDashboard() {
 
   const [mouseCoords, setMouseCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  // Right-click: latest satellite picture of that spot, asked for by the visitor's own browser.
+  const { regionDossier, regionDossierLoading, handleMapRightClick } = useRegionDossier(selectedEntity, setSelectedEntity);
+  const phone = usePhone();
+  const [sideways, setSideways] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia(PHONE_LANDSCAPE_QUERY);
+    const update = () => setSideways(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -95,10 +109,15 @@ export default function ViewerDashboard() {
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
 
   useEffect(() => {
-    const l = localStorage.getItem('sb_left_open');
-    const r = localStorage.getItem('sb_right_open');
-    if (l !== null) setLeftOpen(l === 'true');
-    if (r !== null) setRightOpen(r === 'true');
+    if (window.matchMedia(PHONE_QUERY).matches) {
+      setLeftOpen(false);
+      setRightOpen(false);
+    } else {
+      const l = localStorage.getItem('sb_left_open');
+      const r = localStorage.getItem('sb_right_open');
+      if (l !== null) setLeftOpen(l === 'true');
+      if (r !== null) setRightOpen(r === 'true');
+    }
     // A link ending in #skill opens the agent skill screen directly.
     if (window.location.hash === '#skill') {
       setSkillOpen(true);
@@ -110,12 +129,50 @@ export default function ViewerDashboard() {
       localStorage.setItem('sb_viewer_about_seen', '1');
     }
   }, []);
+  // The open/closed choice is remembered for wide screens only.
   useEffect(() => {
-    localStorage.setItem('sb_left_open', leftOpen.toString());
+    if (!window.matchMedia(PHONE_QUERY).matches) localStorage.setItem('sb_left_open', leftOpen.toString());
   }, [leftOpen]);
   useEffect(() => {
-    localStorage.setItem('sb_right_open', rightOpen.toString());
+    if (!window.matchMedia(PHONE_QUERY).matches) localStorage.setItem('sb_right_open', rightOpen.toString());
   }, [rightOpen]);
+  // Turning the phone, or resizing across the phone width: start from closed sheets.
+  useEffect(() => {
+    if (phone) {
+      setLeftOpen(false);
+      setRightOpen(false);
+    }
+  }, [phone]);
+
+  // Phone: details of a tapped aircraft, ship or event live in the Intel sheet. The sheet
+  // opens showing only those details; the other Intel panels come back when it is dismissed.
+  const entityFocus =
+    phone &&
+    selectedEntity != null &&
+    ['flight', 'private_flight', 'private_jet', 'military_flight', 'tracked_flight', 'ship', 'airport', 'gdelt', 'liveuamap'].includes(
+      selectedEntity.type,
+    );
+  const hadEntityFocus = useRef(false);
+  useEffect(() => {
+    if (entityFocus) {
+      hadEntityFocus.current = true;
+      setLeftOpen(false);
+      setRightOpen(true);
+      const sheet = document.querySelector<HTMLElement>('.sb-right-col');
+      if (sheet) sheet.scrollTop = 0;
+    } else if (hadEntityFocus.current) {
+      // the selection was cleared (tapped elsewhere, or "Back to map"): put the sheet away
+      hadEntityFocus.current = false;
+      if (phone) setRightOpen(false);
+    }
+  }, [entityFocus, phone, selectedEntity]);
+
+  const openPhoneSheet = useCallback((sheet: 'layers' | 'intel', scrollTo?: string) => {
+    const wantLeft = sheet === 'layers';
+    setLeftOpen((was) => (wantLeft ? (scrollTo ? true : !was) : false));
+    setRightOpen((was) => (wantLeft ? false : !was));
+    if (scrollTo) window.setTimeout(() => scrollToMarker(scrollTo), 320);
+  }, []);
 
   // Layer switches, filters and basemap live in this browser only.
   const [activeLayers, setActiveLayersRaw] = useState<ActiveLayers>(() => viewerLayers(getDefaultActiveLayers()));
@@ -309,7 +366,11 @@ export default function ViewerDashboard() {
   }, [activeLayers, secondaryBootReady]);
 
   // Full-screen views (news dossier, camera) hide the dock and scale bar.
-  const overlayOpen = selectedEntity?.type === 'news' || selectedEntity?.type === 'cctv';
+  // A satellite picture is open: show it like a lightbox, with the side columns out of the way.
+  const imageOpen = selectedEntity?.type === 'region_dossier' && Boolean(regionDossier?.sentinel2);
+  const showLeft = leftOpen && !imageOpen;
+  const showRight = rightOpen && !imageOpen;
+  const overlayOpen = selectedEntity?.type === 'news' || selectedEntity?.type === 'cctv' || imageOpen;
 
   return (
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden font-sans">
@@ -325,9 +386,9 @@ export default function ViewerDashboard() {
           gibsDate={gibsDate}
           gibsOpacity={gibsOpacity}
           onMouseCoords={setMouseCoords}
-          onRightClick={noop}
-          regionDossier={null}
-          regionDossierLoading={false}
+          onRightClick={handleMapRightClick}
+          regionDossier={regionDossier}
+          regionDossierLoading={regionDossierLoading}
           onViewStateChange={setMapView}
           measureMode={measureMode}
           onMeasureClick={handleMeasureClick}
@@ -346,10 +407,10 @@ export default function ViewerDashboard() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1 }}
-        className="absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
+        className="sb-brandbar absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/sb-mark-72.webp" alt="" width={40} height={33} className="sb-brand-mark" />
+        <img src={asset('/brand/sb-mark-72.webp')} alt="" width={40} height={33} className="sb-brand-mark" />
         <div className="flex flex-col">
           <h1 className="sb-wordmark" aria-label="ShadowBroker">
             SHADOW<span className="sb-wordmark-accent">BROKER</span>
@@ -362,7 +423,8 @@ export default function ViewerDashboard() {
       <motion.div
         className="sb-left-col absolute left-6 top-24 bottom-[32px] w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
         style={{ direction: 'rtl' }}
-        animate={{ x: leftOpen ? 0 : -360 }}
+        data-open={showLeft}
+        animate={phone ? (sideways ? { x: showLeft ? 0 : -700, y: 0 } : { x: 0, y: showLeft ? 0 : 900 }) : { x: showLeft ? 0 : -360, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <div className="contents" style={{ direction: 'ltr' }}>
@@ -409,6 +471,7 @@ export default function ViewerDashboard() {
         </div>
         {secondaryBootReady && (
           <div className="contents" style={{ direction: 'ltr' }}>
+            <div id="sb-chat-anchor" className="contents" />
             <ErrorBoundary name="Chat">
               <ChatPanel />
             </ErrorBoundary>
@@ -418,8 +481,8 @@ export default function ViewerDashboard() {
           <div className="contents" style={{ direction: 'ltr' }}>
             <ViewerToolsPanel
               panels={{
-                scm: <ScmPanel embedded layerEnabled={activeLayers.scm_suppliers} />,
-                cyber: <CyberThreatPanel embedded layerEnabled={activeLayers.cyber_threats} />,
+                scm: <ScmPanel embedded layerEnabled />,
+                cyber: <CyberThreatPanel embedded layerEnabled />,
               }}
             />
           </div>
@@ -428,8 +491,8 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${leftOpen ? 'sb-edge-left-open' : ''}`}
-        animate={{ x: leftOpen ? 344 : 0 }}
+        className={`sb-edge absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showLeft ? 'sb-edge-left-open' : ''}`}
+        animate={{ x: showLeft ? 344 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <button
@@ -447,8 +510,8 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${rightOpen ? 'sb-edge-right-open' : ''}`}
-        animate={{ x: rightOpen ? -424 : 0 }}
+        className={`sb-edge absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showRight ? 'sb-edge-right-open' : ''}`}
+        animate={{ x: showRight ? -424 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <button
@@ -465,9 +528,17 @@ export default function ViewerDashboard() {
       {/* RIGHT: VIEWER CARD, FIND, FILTERS, NEWS */}
       <motion.div
         className="sb-right-col absolute right-6 top-24 bottom-[32px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
-        animate={{ x: rightOpen ? 0 : 440 }}
+        data-open={showRight}
+        data-focus={entityFocus ? 'entity' : undefined}
+        animate={phone ? (sideways ? { x: showRight ? 0 : -700, y: 0 } : { x: 0, y: showRight ? 0 : 900 }) : { x: showRight ? 0 : 440, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
+        {entityFocus && (
+          <button type="button" className="sb-phone-back" onClick={() => setSelectedEntity(null)}>
+            <ChevronLeft size={14} aria-hidden="true" /> Back to map
+          </button>
+        )}
+        <TokenCard />
         <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
 
         <div className="flex-shrink-0">
@@ -493,12 +564,12 @@ export default function ViewerDashboard() {
           </ErrorBoundary>
         </div>
 
-        <div className="flex-1 min-h-[300px] flex flex-col">
+        <div id="sb-entity-anchor" className="flex-1 min-h-[300px] flex flex-col">
           <ErrorBoundary name="NewsFeed">
             <NewsFeed
               selectedEntity={selectedEntity}
-              regionDossier={null}
-              regionDossierLoading={false}
+              regionDossier={regionDossier}
+              regionDossierLoading={regionDossierLoading}
               gtDossier={null}
               gtDossierLoading={false}
               onArticleClick={handleArticleClick}
@@ -666,6 +737,16 @@ export default function ViewerDashboard() {
 
       <AlertToast toasts={toasts} onDismiss={dismissToast} onFlyTo={handleFlyTo} />
 
+      <PhoneStyles />
+      {phone && !overlayOpen && (
+        <PhoneNav
+          open={showLeft ? 'layers' : showRight ? 'intel' : null}
+          onLayers={() => openPhoneSheet('layers')}
+          onIntel={() => openPhoneSheet('intel')}
+          onChat={() => openPhoneSheet('layers', 'sb-chat-anchor')}
+          onAbout={() => setAboutOpen(true)}
+        />
+      )}
       <StaleBanner />
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
       {skillOpen && <SkillModal onClose={() => setSkillOpen(false)} />}

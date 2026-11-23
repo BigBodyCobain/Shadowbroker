@@ -18,6 +18,8 @@
  * Usage:
  *   node viewer/web/build.mjs                 # build + checks
  *   NEXT_PUBLIC_SB_DATA_BASE=https://data.example.org node viewer/web/build.mjs
+ *   NEXT_PUBLIC_SB_BASE_PATH=/map ...        publish under a sub-folder of another site
+ *   NEXT_PUBLIC_SB_STALE_AFTER_S=1500 ...    data older than this is shown as stale (default 240)
  *   node viewer/web/build.mjs --prepare-only  # stop after step 3
  */
 
@@ -278,12 +280,22 @@ const env = {
 // so only the names below get through.
 const PUBLIC_SETTINGS = new Set([
   'NEXT_PUBLIC_SB_DATA_BASE',
+  'NEXT_PUBLIC_SB_BASE_PATH',
+  'NEXT_PUBLIC_SB_STALE_AFTER_S',
   'NEXT_PUBLIC_SB_CHAT_URL',
   'NEXT_PUBLIC_SB_CHAT_KEY',
   'NEXT_PUBLIC_SB_CHAT_PROVIDERS',
 ]);
 for (const name of Object.keys(env)) {
   if (name.startsWith('NEXT_PUBLIC_') && !PUBLIC_SETTINGS.has(name)) delete env[name];
+}
+
+// Publishing in a sub-folder ("/map"): lower-case folder names only, no trailing slash.
+if (env.NEXT_PUBLIC_SB_BASE_PATH && !/^(\/[a-z0-9][a-z0-9-]*)+$/.test(env.NEXT_PUBLIC_SB_BASE_PATH)) {
+  fail(`NEXT_PUBLIC_SB_BASE_PATH must look like /map, got "${env.NEXT_PUBLIC_SB_BASE_PATH}"`);
+}
+if (env.NEXT_PUBLIC_SB_STALE_AFTER_S && !/^[1-9][0-9]{1,5}$/.test(env.NEXT_PUBLIC_SB_STALE_AFTER_S)) {
+  fail(`NEXT_PUBLIC_SB_STALE_AFTER_S must be a number of seconds, got "${env.NEXT_PUBLIC_SB_STALE_AFTER_S}"`);
 }
 
 // Optional chat settings from viewer/web/chat.config.json (see viewer/chat/README.md).
