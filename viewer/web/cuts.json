@@ -1,0 +1,77 @@
+{
+  "_comment": [
+    "Small text cuts applied to the build copy of frontend/ (never to frontend/ itself).",
+    "Each cut must match exactly `count` times (default 1) or the build fails,",
+    "so an app change can never silently bring a removed control back."
+  ],
+  "cuts": [
+    {
+      "why": "hide layer switches the viewer does not offer",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": "                {sections.map((section) => {",
+      "replace": "                {sections.map((section) => ({ ...section, layers: section.layers.filter((layer) => !VIEWER_HIDDEN_LAYERS.has(layer.id)) })).filter((section) => section.layers.length > 0).map((section) => {",
+      "prepend": "import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';"
+    },
+    {
+      "why": "remove the Meshtastic 'scan planet' button (starts a scan on the owner's server)",
+      "file": "src/components/WorldviewLeftPanel.tsx",
+      "find": "{active && layer.id === 'sigint_meshtastic' && (",
+      "replace": "{false && active && layer.id === 'sigint_meshtastic' && ("
+    },
+    {
+      "why": "remove the OSM basemap (its tiles come through the owner's tile proxy)",
+      "file": "src/components/DisplayMenu.tsx",
+      "find": "            { id: 'OSM' as MapStyle, label: 'OSM' },\n",
+      "replace": ""
+    },
+    {
+      "why": "place-name search is off in the viewer; say so plainly",
+      "file": "src/app/LocateBar.tsx",
+      "find": "Place search unavailable — check backend connection",
+      "replace": "Place names are off in the public viewer. Enter coordinates, e.g. 48.85, 2.35",
+      "count": 2
+    },
+    {
+      "why": "hide the AI Intelligence Brief button (runs the owner's AI on demand)",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                            title=\"AI Intelligence Brief\"",
+      "replace": "                            hidden\n                            title=\"AI Intelligence Brief\""
+    },
+    {
+      "why": "hide the MKT switch (turns market fetching on for the whole server)",
+      "file": "src/components/NewsFeed.tsx",
+      "find": "                                    title={\n                                        marketsCorrelationEnabled\n                                            ? 'Prediction market correlation on intercept stories (clearnet Polymarket/Kalshi)'",
+      "replace": "                                    hidden\n                                    title={\n                                        marketsCorrelationEnabled\n                                            ? 'Prediction market correlation on intercept stories (clearnet Polymarket/Kalshi)'"
+    },
+    {
+      "why": "layer switches stay in the browser; never try to sync them to a server",
+      "file": "src/lib/layerPreferences.ts",
+      "find": "function ensureLayerBackendSync(): void {\n",
+      "replace": "function ensureLayerBackendSync(): void {\n  // Public viewer: there is no backend to sync layer switches with.\n}\n\n// eslint-disable-next-line @typescript-eslint/no-unused-vars\nfunction unusedLayerBackendSync(): void {\n"
+    },
+    {
+      "why": "receiver popup: drop TRACK (the in-app tracker is not in the viewer)",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "className=\"flex-1 text-center px-2 py-1.5 rounded bg-amber-950/40 border border-amber-500/30",
+      "replace": "hidden className=\"flex-1 text-center px-2 py-1.5 rounded bg-amber-950/40 border border-amber-500/30"
+    },
+    {
+      "why": "receiver popup: the remaining button opens the receiver's own site in a new tab",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "<Play size={10} /> TUNE IN",
+      "replace": "<Play size={10} /> OPEN RECEIVER ↗"
+    },
+    {
+      "why": "scanner popup: drop TRACK (the in-app player streams through the owner's server)",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "className=\"flex-1 text-center px-2 py-1.5 rounded bg-red-950/40 border border-red-500/30",
+      "replace": "hidden className=\"flex-1 text-center px-2 py-1.5 rounded bg-red-950/40 border border-red-500/30"
+    },
+    {
+      "why": "scanner popup: the remaining button opens the provider's own site in a new tab",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "<Play size={10} /> OPEN PLAYER",
+      "replace": "<Play size={10} /> LISTEN ON OPENMHZ ↗"
+    }
+  ]
+}

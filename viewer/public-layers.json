@@ -1,0 +1,375 @@
+{
+  "_comment": [
+    "The single list of what the public viewer may show.",
+    "engine_keys: the only key names the engine may borrow from another install's .env (--keys-from).",
+    "aprs_listen: one listen-only APRS-IS region (max 500 km). Nothing is ever sent.",
+    "engine_layers: fetcher switches forced on the public engine at start.",
+    "keys: top-level data keys the bridge may publish. Anything not listed, or",
+    "listed with public=false, never leaves the engine machine.",
+    "Change a verdict here and restart the engine and bridge; nothing else."
+  ],
+  "schema": 1,
+  "engine_keys": [
+    "OPENSKY_CLIENT_ID",
+    "OPENSKY_CLIENT_SECRET",
+    "AIS_API_KEY",
+    "FIRMS_MAP_KEY",
+    "GFW_API_TOKEN"
+  ],
+  "aprs_listen": {
+    "_comment": "Listen-only APRS-IS station positions for ONE region. The app caps public APRS-IS at a 500 km radius. Use a neutral city, never the owner's own location: this file is public.",
+    "enabled": true,
+    "lat": 40.7128,
+    "lon": -74.006,
+    "radius_km": 500
+  },
+  "engine_layers": {
+    "flights": true,
+    "private": true,
+    "jets": true,
+    "military": true,
+    "tracked": true,
+    "satellites": true,
+    "ships_military": true,
+    "ships_cargo": true,
+    "ships_civilian": true,
+    "ships_passenger": true,
+    "ships_tracked_yachts": true,
+    "earthquakes": true,
+    "cctv": true,
+    "ukraine_frontline": true,
+    "global_incidents": true,
+    "gps_jamming": true,
+    "kiwisdr": true,
+    "scanners": true,
+    "firms": true,
+    "internet_outages": true,
+    "datacenters": true,
+    "military_bases": true,
+    "sigint_meshtastic": true,
+    "sigint_aprs": true,
+    "weather_alerts": true,
+    "air_quality": true,
+    "volcanoes": true,
+    "fishing_activity": true,
+    "satnogs": true,
+    "tinygs": true,
+    "ukraine_alerts": true,
+    "power_plants": true,
+    "viirs_nightlights": false,
+    "psk_reporter": true,
+    "correlations": true,
+    "contradictions": true,
+    "uap_sightings": true,
+    "wastewater": true,
+    "ai_intel": false,
+    "crowdthreat": false,
+    "sar": false,
+    "road_corridor_trends": false,
+    "malware_c2": true,
+    "submarine_cables": true,
+    "scm_suppliers": true,
+    "cyber_threats": true,
+    "telegram_osint": false,
+    "gt_risk": false
+  },
+  "keys": {
+    "commercial_flights": {
+      "tier": "fast",
+      "public": true
+    },
+    "private_flights": {
+      "tier": "fast",
+      "public": true
+    },
+    "private_jets": {
+      "tier": "fast",
+      "public": true
+    },
+    "military_flights": {
+      "tier": "fast",
+      "public": true
+    },
+    "tracked_flights": {
+      "tier": "fast",
+      "public": true
+    },
+    "uavs": {
+      "tier": "fast",
+      "public": true
+    },
+    "ships": {
+      "tier": "fast",
+      "public": true
+    },
+    "satellites": {
+      "tier": "fast",
+      "public": true
+    },
+    "satellite_source": {
+      "tier": "fast",
+      "public": true
+    },
+    "satellite_analysis": {
+      "tier": "fast",
+      "public": true
+    },
+    "trains": {
+      "tier": "fast",
+      "public": true
+    },
+    "gps_jamming": {
+      "tier": "fast",
+      "public": true
+    },
+    "sigint": {
+      "tier": "fast",
+      "public": true,
+      "why": "Station and node positions only. Message text, beacon comments and raw packets never leave the engine.",
+      "only_sources": [
+        "meshtastic",
+        "aprs"
+      ],
+      "drop_fields": [
+        "text",
+        "message",
+        "msg",
+        "payload",
+        "raw",
+        "raw_message",
+        "channel",
+        "comment",
+        "status",
+        "emergency_keyword"
+      ]
+    },
+    "sigint_totals": {
+      "tier": "fast",
+      "public": true
+    },
+    "freshness": {
+      "tier": "both",
+      "public": true
+    },
+    "cctv": {
+      "tier": "fast",
+      "public": true,
+      "why": "Only cameras a browser can load straight from the camera's own public address. Nothing is relayed.",
+      "direct_media": {
+        "url_field": "media_url",
+        "type_field": "media_type",
+        "drop_types": [
+          "hls"
+        ],
+        "drop_url_contains": [
+          ".m3u8",
+          "its.txdot.gov"
+        ]
+      },
+      "drop_fields": [
+        "last_updated"
+      ]
+    },
+    "cctv_total": {
+      "tier": "fast",
+      "public": false,
+      "why": "Counts every camera, including ones the viewer cannot show."
+    },
+    "liveuamap": {
+      "tier": "fast",
+      "public": false,
+      "why": "Scraped source; terms not checked."
+    },
+    "news": {
+      "tier": "slow",
+      "public": true
+    },
+    "threat_level": {
+      "tier": "slow",
+      "public": true
+    },
+    "gdelt": {
+      "tier": "slow",
+      "public": true
+    },
+    "military_bases": {
+      "tier": "slow",
+      "public": true
+    },
+    "weather_alerts": {
+      "tier": "slow",
+      "public": true
+    },
+    "weather": {
+      "tier": "slow",
+      "public": true
+    },
+    "space_weather": {
+      "tier": "slow",
+      "public": true
+    },
+    "earthquakes": {
+      "tier": "slow",
+      "public": true
+    },
+    "volcanoes": {
+      "tier": "slow",
+      "public": true
+    },
+    "firms_fires": {
+      "tier": "slow",
+      "public": true
+    },
+    "air_quality": {
+      "tier": "slow",
+      "public": true
+    },
+    "wastewater": {
+      "tier": "slow",
+      "public": true
+    },
+    "internet_outages": {
+      "tier": "slow",
+      "public": true
+    },
+    "datacenters": {
+      "tier": "slow",
+      "public": true
+    },
+    "power_plants": {
+      "tier": "slow",
+      "public": true
+    },
+    "airports": {
+      "tier": "slow",
+      "public": true
+    },
+    "frontlines": {
+      "tier": "slow",
+      "public": true
+    },
+    "ukraine_alerts": {
+      "tier": "slow",
+      "public": true
+    },
+    "fishing_activity": {
+      "tier": "slow",
+      "public": true
+    },
+    "uap_sightings": {
+      "tier": "slow",
+      "public": true
+    },
+    "satnogs_stations": {
+      "tier": "slow",
+      "public": true
+    },
+    "satnogs_observations": {
+      "tier": "slow",
+      "public": true
+    },
+    "satnogs_total": {
+      "tier": "slow",
+      "public": true
+    },
+    "tinygs_satellites": {
+      "tier": "slow",
+      "public": true
+    },
+    "tinygs_total": {
+      "tier": "slow",
+      "public": true
+    },
+    "psk_reporter": {
+      "tier": "slow",
+      "public": true
+    },
+    "viirs_change_nodes": {
+      "tier": "slow",
+      "public": true
+    },
+    "correlations": {
+      "tier": "slow",
+      "public": true
+    },
+    "scm_suppliers": {
+      "tier": "slow",
+      "public": true
+    },
+    "cyber_threats": {
+      "tier": "slow",
+      "public": true
+    },
+    "malware_threats": {
+      "tier": "slow",
+      "public": true
+    },
+    "traffic": {
+      "tier": "slow",
+      "public": true
+    },
+    "last_updated": {
+      "tier": "slow",
+      "public": true
+    },
+    "stocks": {
+      "tier": "slow",
+      "public": false,
+      "why": "Market data licences usually forbid republishing; check before turning on."
+    },
+    "oil": {
+      "tier": "slow",
+      "public": false,
+      "why": "Same as stocks."
+    },
+    "financial_source": {
+      "tier": "slow",
+      "public": false,
+      "why": "Goes with stocks."
+    },
+    "trending_markets": {
+      "tier": "slow",
+      "public": false,
+      "why": "Prediction-market terms not checked."
+    },
+    "telegram_osint": {
+      "tier": "slow",
+      "public": false,
+      "why": "Media is relayed through the owner's server; needs a links-only version first."
+    },
+    "crowdthreat": {
+      "tier": "slow",
+      "public": false,
+      "why": "Source terms not checked."
+    },
+    "gt_risk": {
+      "tier": "slow",
+      "public": false,
+      "why": "Experimental analytics; owner's call."
+    },
+    "road_corridor_trends": {
+      "tier": "slow",
+      "public": false,
+      "why": "Built from the owner's Sentinel jobs."
+    },
+    "kiwisdr": {
+      "tier": "slow",
+      "public": true,
+      "why": "Public receiver directory: location and the receiver's own web address. Visitors open it themselves; nothing is relayed."
+    },
+    "scanners": {
+      "tier": "slow",
+      "public": true,
+      "why": "Public scanner directory: location and name only. Visitors listen on the provider's own site."
+    }
+  },
+  "protocol_keys": [
+    "mode",
+    "payload_scale",
+    "store_version",
+    "layer_versions",
+    "layer_totals",
+    "bootstrap_ready",
+    "bootstrap_payload"
+  ]
+}

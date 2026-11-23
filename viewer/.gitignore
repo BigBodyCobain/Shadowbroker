@@ -1,0 +1,5 @@
+web/.build/
+web/dist/
+web/.data/
+web/chat.config.json
+__pycache__/

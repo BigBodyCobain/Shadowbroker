@@ -37,6 +37,17 @@ try:
 except ImportError:
     httpx = None  # Will use requests as fallback
 
+try:  # imported as a package
+    from . import sb_camera
+except ImportError:  # run or loaded as a single file: take sb_camera.py from this same folder
+    import importlib.util as _importlib_util
+
+    _camera_spec = _importlib_util.spec_from_file_location(
+        "sb_camera", os.path.join(os.path.dirname(os.path.abspath(__file__)), "sb_camera.py")
+    )
+    sb_camera = _importlib_util.module_from_spec(_camera_spec)
+    _camera_spec.loader.exec_module(sb_camera)
+
 
 SB_BASE = os.environ.get("SHADOWBROKER_URL", "http://127.0.0.1:8000")
 
@@ -1134,6 +1145,59 @@ class ShadowBrokerClient:
             or "alpr" in str(c.get("direction_facing", "")).lower()
         ]
         return alpr[:limit]
+
+    # ── Camera vision ────────────────────────────────────────────────
+
+    async def find_cameras(
+        self,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+        radius_km: float = 5,
+        query: str = "",
+        media_type: str = "",
+        limit: int = 10,
+    ) -> dict:
+        """Find cameras near a point and/or by words in their name or source.
+
+        Nearest first. Each result says whether a snapshot is possible
+        (``snapshot``: image, clip, first_frame or none).
+        """
+        data = await self.get_telemetry()
+        found = sb_camera.search_cameras(
+            data.get("cctv", []), lat=lat, lng=lng, radius_km=radius_km,
+            query=query, media_type=media_type, limit=limit,
+        )
+        return {"ok": True, **found}
+
+    async def camera_snapshot(
+        self,
+        camera_id: str = "",
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+        radius_km: float = 5,
+        query: str = "",
+        out_dir: Optional[str] = None,
+        inline: bool = False,
+        frame: bool = True,
+    ) -> dict:
+        """Save one current picture (or short clip) from a camera so a vision model can look at it.
+
+        Give a ``camera_id`` from find_cameras, or ``lat``/``lng`` to use the
+        nearest camera. The camera must be in the CCTV layer; an address is
+        never accepted directly. Only public internet cameras over HTTPS are
+        fetched (see sb_camera.py for every check). Returns the file ``path``.
+        """
+        data = await self.get_telemetry()
+        try:
+            camera = sb_camera.pick_camera(
+                data.get("cctv", []), camera_id=camera_id, lat=lat, lng=lng, radius_km=radius_km, query=query,
+            )
+            shot = await asyncio.to_thread(
+                sb_camera.take_snapshot, camera, out_dir=out_dir, inline=inline, frame=frame,
+            )
+        except sb_camera.CameraError as exc:
+            return {"ok": False, "detail": str(exc)}
+        return {"ok": True, **shot}
 
     # ── AI News & Correlation Endpoints ──
     async def news_summary(self) -> dict:
