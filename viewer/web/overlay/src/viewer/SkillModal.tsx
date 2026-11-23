@@ -25,11 +25,16 @@ type SkillManifest = {
 const SKILL_BASE = '/skill';
 
 const FACTS: { good: boolean; text: string }[] = [
-  { good: true, text: 'Reads the same public data files this page uses. Nothing else.' },
+  { good: true, text: 'Reads the same public data files this page uses.' },
+  {
+    good: true,
+    text: 'Can look: when asked, it saves one current picture from a public traffic camera on this map, straight from that camera, for a vision model to describe.',
+  },
   { good: true, text: 'Needs no account, no API key and no ShadowBroker install.' },
-  { good: true, text: 'Is plain text instructions plus one Python file that uses only the standard library.' },
+  { good: true, text: 'Is plain text instructions plus two Python files that use only the standard library.' },
   { good: false, text: 'Cannot send, post, message, pin or change anything. Those commands refuse without making a request.' },
-  { good: false, text: 'Does not look up people. It covers vehicles, places and events.' },
+  { good: false, text: 'Does not look up people. It covers vehicles, places and events, and its instructions forbid identifying anyone in a camera picture.' },
+  { good: false, text: 'Cannot be pointed at an address of your choosing. Camera pictures come only from cameras on this map, over HTTPS, never from a private network.' },
 ];
 
 function useEscape(onClose: () => void) {
@@ -164,7 +169,10 @@ export default function SkillModal({ onClose }: { onClose: () => void }) {
               </div>
               <ol className="sb-prose mt-2 list-decimal space-y-1.5 pl-4 text-[12px] text-[var(--text-primary)]">
                 <li>Read the instructions tab. It is short, and it is all your agent is told.</li>
-                <li>Skim the code tab. It only downloads files from one address and searches them.</li>
+                <li>
+                  Skim the code tabs. sb_public.py downloads the data files from one address and searches them.
+                  sb_camera.py fetches one camera picture and lists every check it makes at the top.
+                </li>
                 <li>
                   Compare each file&apos;s fingerprint with{' '}
                   {manifest ? (

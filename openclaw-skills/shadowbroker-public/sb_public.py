@@ -4,12 +4,14 @@
 This is the public sibling of ``openclaw-skills/shadowbroker`` (the full
 skill that talks to your own ShadowBroker install). It offers the same read
 commands and the same answer shapes, but it never contacts a ShadowBroker
-backend. It only downloads the map data files that the public viewer itself
-downloads, and answers questions from them.
+backend. It only downloads what the public viewer itself downloads: the map
+data files, and, when asked to look at a camera, that camera's current picture.
 
 That makes it safe to hand to anyone and any agent:
   * no API key, token, account or secret is needed or used;
-  * every request is a plain HTTPS GET of a published file;
+  * every request is a plain HTTPS GET of a published file, with one
+    exception you ask for by name: ``camera_snapshot`` downloads one current
+    picture from a public camera's own address (see ``sb_camera.py``);
   * there is nothing to send, post, pin or change. Write commands from the
     full skill are refused with a clear message.
 
@@ -21,6 +23,7 @@ Standard library only (Python 3.10+).
 
     python sb_public.py ask "ships near 36.8, -76.3"
     python sb_public.py cmd find_flights '{"callsign": "RCH"}'
+    python sb_public.py look --lat 40.758 --lng -73.9855
 """
 
 from __future__ import annotations
@@ -39,6 +42,11 @@ import urllib.error
 import urllib.request
 from typing import Any
 from urllib.parse import urlsplit
+
+try:  # packaged as a module, or run as a plain script next to sb_camera.py
+    from . import sb_camera
+except ImportError:
+    import sb_camera
 
 __all__ = ["ShadowBrokerPublicClient", "PublicSkillError", "READ_COMMANDS", "WRITE_COMMANDS"]
 
@@ -109,6 +117,8 @@ READ_COMMANDS = frozenset({
     "brief_area",
     "get_correlations",
     "get_sigint_totals",
+    "find_cameras",
+    "camera_snapshot",
 })
 
 # Commands of the full skill that need your own ShadowBroker install.
@@ -130,6 +140,8 @@ RE_RADIUS = re.compile(
     r"(km|kilomet(?:er|re)s?|mi|miles?|nm|nmi|nautical miles?)\b(?:\s+(?:of|from|around))?",
     re.I,
 )
+CAMERA_WORDS = ("camera", "cctv", "webcam", "traffic cam")
+LOOK_WORDS = ("look at", "look", "see", "show me", "snapshot", "picture", "photo", "image", "view", "watch")
 RE_LATLNG = re.compile(r"(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)")
 
 
@@ -319,6 +331,7 @@ class PublicFeed:
         if parts.username or parts.password or parts.query:
             raise PublicSkillError("The public feed address must not carry credentials or a query.")
         self.base = base
+        self.local = local
         self.timeout = timeout
         self._manifest: dict[str, Any] | None = None
         self._manifest_at = 0.0
@@ -479,6 +492,16 @@ class ShadowBrokerPublicClient:
 
     async def get_news_near(self, lat: float, lng: float, radius: float = 500) -> dict[str, Any]:
         return await self.send_command("brief_area", {"lat": lat, "lng": lng, "radius_km": radius})
+
+    async def find_cameras(self, lat: float | None = None, lng: float | None = None, radius_km: float = 5,
+                           query: str = "", limit: int = 10) -> dict[str, Any]:
+        return await self.send_command(
+            "find_cameras", {"lat": lat, "lng": lng, "radius_km": radius_km, "query": query, "limit": limit}
+        )
+
+    async def camera_snapshot(self, camera_id: str = "", lat: float | None = None, lng: float | None = None,
+                              **options: Any) -> dict[str, Any]:
+        return await self.send_command("camera_snapshot", {"id": camera_id, "lat": lat, "lng": lng, **options})
 
     def __getattr__(self, name: str) -> Any:
         if name in WRITE_COMMANDS:
@@ -831,6 +854,37 @@ class ShadowBrokerPublicClient:
 
     # -- routing ------------------------------------------------------------
 
+    def _cameras(self) -> list[Any]:
+        cameras = self.feed.layer("cctv")
+        if not isinstance(cameras, list):
+            raise PublicSkillError("The public feed does not publish cameras right now.")
+        return cameras
+
+    def _cmd_find_cameras(self, args: dict[str, Any]) -> dict[str, Any]:
+        lng = args.get("lng") if args.get("lng") is not None else args.get("lon")
+        if _coerce_float(args.get("lat")) is None and _coerce_float(lng) is None and not _norm_text(args.get("query")):
+            return {"ok": False, "detail": "lat and lng, or a query, required"}
+        found = sb_camera.search_cameras(
+            self._cameras(), lat=args.get("lat"), lng=lng, radius_km=args.get("radius_km"),
+            query=args.get("query"), media_type=args.get("media_type"), limit=args.get("limit", 10),
+        )
+        return {"ok": True, "data": {**found, "version": self._version()}}
+
+    def _cmd_camera_snapshot(self, args: dict[str, Any]) -> dict[str, Any]:
+        lng = args.get("lng") if args.get("lng") is not None else args.get("lon")
+        try:
+            camera = sb_camera.pick_camera(
+                self._cameras(), camera_id=args.get("id") or args.get("camera_id"), lat=args.get("lat"), lng=lng,
+                radius_km=args.get("radius_km"), query=args.get("query"),
+            )
+            shot = sb_camera.take_snapshot(
+                camera, out_dir=args.get("out_dir"), inline=bool(args.get("inline")),
+                frame=args.get("frame", True) is not False, allow_local=self.feed.local,
+            )
+        except sb_camera.CameraError as exc:
+            return {"ok": False, "detail": str(exc), "public_skill": True}
+        return {"ok": True, "data": {**shot, "version": self._version()}}
+
     def _cmd_route_query(self, args: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "data": route_query(
             str(args.get("text") or args.get("query") or ""),
@@ -934,19 +988,30 @@ def route_query(text: str, lat: float | None = None, lng: float | None = None,
                     [{"cmd": "find_flights", "args": {"registration": reg}}])
 
     if lat is not None and lng is not None and any(
-        k in lowered for k in ("near", "around", "within", "radius", "brief", "close to", "at ")
+        k in lowered for k in ("near", "around", "within", "radius", "brief", "close to", "at ", *CAMERA_WORDS)
     ):
         types = None
         if any(k in lowered for k in ("ship", "vessel", "boat", "maritime")):
             types = ["ships"]
         elif any(k in lowered for k in ("plane", "flight", "aircraft", "jet")):
             types = ["tracked_flights", "military_flights", "private_jets", "private_flights", "commercial_flights"]
-        elif any(k in lowered for k in ("camera", "cctv")):
-            types = ["cctv"]
+        elif any(k in lowered for k in CAMERA_WORDS):
+            look = any(k in lowered for k in LOOK_WORDS)
+            return plan("camera_look" if look else "camera_search",
+                        "camera_snapshot" if look else "find_cameras",
+                        {"lat": lat, "lng": lng, "radius_km": min(radius_km, 25.0)},
+                        [{"cmd": "find_cameras", "args": {"lat": lat, "lng": lng, "radius_km": radius_km}}])
         if types:
             return plan("nearby_entities", "entities_near",
                         {"lat": lat, "lng": lng, "radius_km": radius_km, "entity_types": types})
         return plan("area_brief", "brief_area", {"lat": lat, "lng": lng, "radius_km": radius_km})
+
+    if any(k in lowered for k in CAMERA_WORDS):
+        subject = re.sub(r"[^a-z0-9 ]+", " ", lowered)
+        for word in (*CAMERA_WORDS, *LOOK_WORDS, "cameras", "cams", "find", "list", "the", "a", "of", "on", "in",
+                     "at", "near", "around", "from", "any", "me", "what", "is", "are", "there", "live", "traffic"):
+            subject = re.sub(rf"\b{re.escape(word)}\b", " ", subject)
+        return plan("camera_search", "find_cameras", {"query": " ".join(subject.split()), "limit": 10})
 
     if any(k in lowered for k in ("news", "headline", "headlines", "gdelt", "happening")):
         return plan("news_search", "search_news", {"query": _news_query(raw), "limit": 10})
@@ -992,6 +1057,12 @@ def main(argv: list[str] | None = None) -> int:
     cmd.add_argument("name")
     cmd.add_argument("args", nargs="?", default="{}")
     sub.add_parser("status", help="feed health")
+    look = sub.add_parser("look", help="save a current picture from a camera: --id, or --lat/--lng for the nearest")
+    look.add_argument("--id", default="")
+    look.add_argument("--lat", type=float)
+    look.add_argument("--lng", type=float)
+    look.add_argument("--radius-km", type=float, default=5)
+    look.add_argument("--out-dir", default=None)
     options = parser.parse_args(argv)
     try:
         client = ShadowBrokerPublicClient(base_url=options.url)
@@ -1001,6 +1072,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif options.mode == "status":
             result = client.command("channel_status")
+        elif options.mode == "look":
+            result = client.command("camera_snapshot", {
+                "id": options.id, "lat": options.lat, "lng": options.lng, "radius_km": options.radius_km,
+                "out_dir": options.out_dir,
+            })
         else:
             result = client.command(options.name, json.loads(options.args))
     except PublicSkillError as exc:

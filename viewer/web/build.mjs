@@ -164,6 +164,7 @@ function pruneUnreachable() {
 const SKILL_FILES = [
   { name: 'SKILL.md', role: 'instructions' },
   { name: 'sb_public.py', role: 'code' },
+  { name: 'sb_camera.py', role: 'code' },
   { name: 'skill.yaml', role: 'manifest' },
 ];
 // Control characters, soft hyphen, zero-width and direction marks, variation

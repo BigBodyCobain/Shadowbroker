@@ -2,9 +2,10 @@ name: shadowbroker-public
 description: >-
   Read-only ShadowBroker for any agent. Answers questions about live
   aircraft, ships, satellites, hazards and news from the ShadowBroker public
-  data feed. No account, API key or ShadowBroker install required.
+  data feed, and can save a current picture from a public camera for a vision
+  model. No account, API key or ShadowBroker install required.
 
-version: 1.0.0
+version: 1.1.0
 author: ShadowBroker AI Module
 
 # No background monitor: the public skill only answers when asked.
@@ -33,6 +34,7 @@ capabilities:
   - live_telemetry          # Aircraft, ships, satellites, hazards, infrastructure
   - news_aggregation        # News + GDELT by topic or location
   - proximity_monitoring    # Radius search around coordinates
+  - camera_vision           # Current picture from a public camera, saved for a vision model
 
 # The only setting: where the public feed lives. Nothing here is a secret.
 config:

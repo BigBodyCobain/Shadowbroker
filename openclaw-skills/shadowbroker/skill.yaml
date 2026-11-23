@@ -61,6 +61,7 @@ capabilities:
   - time_machine            # Historical snapshot queries and pattern detection
   - correlation_alerts      # Multi-layer correlation alerts (RF, military, infra)
   - alpr_awareness          # ALPR/surveillance camera location awareness
+  - camera_vision           # Current picture from a public camera, saved for a vision model
   - wormhole_identity       # Ed25519 identity on the Wormhole network
   - infonet_participation   # Read/write to the decentralized InfoNet
   - gate_messaging          # Encrypted group channel communication
