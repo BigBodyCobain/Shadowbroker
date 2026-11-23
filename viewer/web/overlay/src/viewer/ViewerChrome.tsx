@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, MessagesSquare, Coins } from 'lucide-react';
 import { VIEWER_LINKS, type ViewerLinkId } from './config';
 import { feedAgeMs, feedIsStale, useFeedStatus } from './feedStatus';
+import { SkillButton } from './SkillModal';
 
 function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
@@ -25,7 +26,7 @@ function ageLabel(ms: number): string {
 }
 
 /** Top-right card: says what this page is, and how fresh the data is. */
-export function ViewerHeaderCard({ onAbout }: { onAbout: () => void }) {
+export function ViewerHeaderCard({ onAbout, onSkill }: { onAbout: () => void; onSkill?: () => void }) {
   const status = useFeedStatus();
   const now = useNow(1000);
   const age = feedAgeMs(status, now);
@@ -87,6 +88,7 @@ export function ViewerHeaderCard({ onAbout }: { onAbout: () => void }) {
           );
         })}
       </nav>
+      {onSkill && <SkillButton onOpen={onSkill} />}
       <style>{`
         .sb-link-tile {
           border-color: color-mix(in srgb, var(--tile) 26%, transparent);

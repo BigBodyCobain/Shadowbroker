@@ -95,6 +95,17 @@ Some layers show a location and hand the visitor to the source's own site:
 
 In every case the viewer supplies an address and nothing else.
 
+## The agent skill can be read before it is used
+
+The site has an "AI agent skill" button. It shows every file of
+`openclaw-skills/shadowbroker-public/` in full, as plain text, exactly as an
+agent would receive it, with a SHA-256 fingerprint for each and a link to the
+source. Nobody has to trust it unread.
+
+The build copies those files into the site and stops if one of them contains
+anything a reader could not see: invisible or direction-changing characters,
+stray control characters, or an HTML comment in the instructions.
+
 ## Changing what is public
 
 Edit `public-layers.json`, then restart the engine and bridge.

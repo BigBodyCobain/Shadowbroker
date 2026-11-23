@@ -39,6 +39,7 @@ import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
+import SkillModal from '@/viewer/SkillModal';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
 
@@ -88,6 +89,7 @@ export default function ViewerDashboard() {
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [skillOpen, setSkillOpen] = useState(false);
   const [mapView, setMapView] = useState({ zoom: 2, latitude: 20 });
   const [locateBarOpen, setLocateBarOpen] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
@@ -454,7 +456,7 @@ export default function ViewerDashboard() {
         animate={{ x: rightOpen ? 0 : 440 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
-        <ViewerHeaderCard onAbout={() => setAboutOpen(true)} />
+        <ViewerHeaderCard onAbout={() => setAboutOpen(true)} onSkill={() => setSkillOpen(true)} />
 
         <div className="flex-shrink-0">
           <FindLocateBar
@@ -654,6 +656,7 @@ export default function ViewerDashboard() {
 
       <StaleBanner />
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+      {skillOpen && <SkillModal onClose={() => setSkillOpen(false)} />}
     </main>
   );
 }

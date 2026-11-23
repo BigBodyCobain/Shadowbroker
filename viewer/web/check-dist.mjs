@@ -24,7 +24,9 @@ const args = process.argv.slice(2);
 const listApi = args.includes('--list-api');
 const distDir = path.resolve(args.find((a) => !a.startsWith('--')) || path.join(here, 'dist'));
 
-const TEXT_EXT = new Set(['.js', '.mjs', '.html', '.css', '.json', '.txt', '.map', '.svg', '.xml', '.webmanifest']);
+const TEXT_EXT = new Set([
+  '.js', '.mjs', '.html', '.css', '.json', '.txt', '.map', '.svg', '.xml', '.webmanifest', '.md', '.py', '.yaml',
+]);
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
