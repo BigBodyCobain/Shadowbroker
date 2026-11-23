@@ -37,10 +37,13 @@ export const VIEWER_STALE_AFTER_MS = 4 * 60 * 1000;
 export const VIEWER_REPO_URL = 'https://github.com/BigBodyCobain/Shadowbroker';
 
 /** Top-right links. Each opens the project's own page on that site in a new tab. */
-export const VIEWER_LINKS: readonly { label: string; title: string; href: string }[] = [
-  { label: 'GitHub', title: 'Source code, and the full app to run yourself', href: VIEWER_REPO_URL },
-  { label: 'Discussions', title: 'Project discussion board', href: `${VIEWER_REPO_URL}/discussions` },
+export type ViewerLinkId = 'discord' | 'github' | 'discussions' | 'token';
+export const VIEWER_LINKS: readonly { id: ViewerLinkId; label: string; title: string; href: string }[] = [
+  { id: 'discord', label: 'Discord', title: 'Join the community on Discord', href: 'https://discord.gg/hTWprYS6gC' },
+  { id: 'github', label: 'GitHub', title: 'Source code, and the full app to run yourself', href: VIEWER_REPO_URL },
+  { id: 'discussions', label: 'Forum', title: 'Project discussion board on GitHub', href: `${VIEWER_REPO_URL}/discussions` },
   {
+    id: 'token',
     label: 'pump.fun',
     title: 'The project token page on pump.fun',
     href: 'https://pump.fun/coin/8Uk9f5WfJndkC9VkFRLDwEpHgD2KD8BcFbqh5zuBpump',
