@@ -43,7 +43,7 @@ import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
 import TokenCard from '@/viewer/TokenCard';
-import { PHONE_QUERY, PhoneNav, PhoneStyles, scrollToMarker, usePhone } from '@/viewer/phone';
+import { PHONE_LANDSCAPE_QUERY, PHONE_QUERY, PhoneNav, PhoneStyles, scrollToMarker, usePhone } from '@/viewer/phone';
 import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -89,6 +89,14 @@ export default function ViewerDashboard() {
   // Right-click: latest satellite picture of that spot, asked for by the visitor's own browser.
   const { regionDossier, regionDossierLoading, handleMapRightClick } = useRegionDossier(selectedEntity, setSelectedEntity);
   const phone = usePhone();
+  const [sideways, setSideways] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia(PHONE_LANDSCAPE_QUERY);
+    const update = () => setSideways(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -403,7 +411,7 @@ export default function ViewerDashboard() {
         className="sb-left-col absolute left-6 top-24 bottom-[32px] w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
         style={{ direction: 'rtl' }}
         data-open={showLeft}
-        animate={phone ? { x: 0, y: showLeft ? 0 : 900 } : { x: showLeft ? 0 : -360, y: 0 }}
+        animate={phone ? (sideways ? { x: showLeft ? 0 : -700, y: 0 } : { x: 0, y: showLeft ? 0 : 900 }) : { x: showLeft ? 0 : -360, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <div className="contents" style={{ direction: 'ltr' }}>
@@ -508,7 +516,7 @@ export default function ViewerDashboard() {
       <motion.div
         className="sb-right-col absolute right-6 top-24 bottom-[32px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
         data-open={showRight}
-        animate={phone ? { x: 0, y: showRight ? 0 : 900 } : { x: showRight ? 0 : 440, y: 0 }}
+        animate={phone ? (sideways ? { x: showRight ? 0 : -700, y: 0 } : { x: 0, y: showRight ? 0 : 900 }) : { x: showRight ? 0 : 440, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <TokenCard />

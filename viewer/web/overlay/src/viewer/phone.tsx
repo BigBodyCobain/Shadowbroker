@@ -4,15 +4,20 @@
  * Phone layout for the public viewer.
  *
  * The app's panels are built for a wide screen. On a phone the map takes the
- * whole screen, a bar of four buttons sits at the bottom, and the two side
- * columns become sheets that slide up over the lower part of the map, one at
- * a time.
+ * whole screen and the two side columns become sheets, one at a time.
+ *   - Upright: four buttons along the bottom; a sheet slides up over the lower
+ *     part of the map.
+ *   - On its side: the screen is wide but short, so the buttons run down the
+ *     left edge and a sheet opens beside them at full height.
  */
 
 import React, { useEffect, useState } from 'react';
 import { Info, Layers, MessagesSquare, Radar } from 'lucide-react';
 
-export const PHONE_QUERY = '(max-width: 820px)';
+/** A phone held upright (narrow) or on its side (short). */
+export const PHONE_QUERY = '(max-width: 820px), (max-height: 520px)';
+/** A phone on its side: wide but very short. */
+export const PHONE_LANDSCAPE_QUERY = '(max-height: 520px) and (min-width: 560px)';
 
 /** True on a phone-sized screen. False during the first render, so the server and browser agree. */
 export function usePhone(): boolean {
@@ -144,6 +149,31 @@ export function PhoneStyles() {
         .maplibregl-popup { max-width: calc(100vw - 20px) !important; }
         .maplibregl-popup-content { max-width: calc(100vw - 20px) !important; }
         .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important; }
+      }
+
+      /* phone on its side */
+      @media ${PHONE_LANDSCAPE_QUERY} {
+        .sb-phone-nav {
+          top: 0; bottom: 0; right: auto; left: 0;
+          width: calc(60px + env(safe-area-inset-left, 0px));
+          grid-template-columns: 1fr; grid-auto-rows: 1fr;
+          padding: 6px 5px 6px calc(5px + env(safe-area-inset-left, 0px));
+          border-top: 0; border-right: 1px solid rgba(69, 216, 255, 0.26);
+          background: linear-gradient(90deg, rgba(3, 8, 16, 0.99), rgba(8, 18, 32, 0.96));
+        }
+        .sb-phone-nav-btn { min-height: 0; font-size: 9px; letter-spacing: 0.1em; }
+        html .sb-left-col, html .sb-right-col {
+          top: 0 !important; bottom: 0 !important; right: auto !important;
+          left: calc(60px + env(safe-area-inset-left, 0px)) !important;
+          width: min(400px, 54vw) !important;
+          padding: 10px 10px 12px !important;
+          border-top: 0; border-right: 1px solid rgba(69, 216, 255, 0.34);
+          border-radius: 0 16px 16px 0;
+          box-shadow: 18px 0 50px -10px rgba(0, 0, 0, 0.85);
+        }
+        .sb-brandbar { left: calc(72px + env(safe-area-inset-left, 0px)) !important; }
+        .maplibregl-ctrl-bottom-left { bottom: 0 !important; left: calc(60px + env(safe-area-inset-left, 0px)) !important; }
+        .maplibregl-ctrl-bottom-right { bottom: 0 !important; }
       }
     `}</style>
   );
