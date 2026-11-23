@@ -47,6 +47,8 @@ PUBLIC_ENGINE_ENV = {
     "MESH_FLEET_SEED_PEERS": "",
     "MESH_DEFAULT_SYNC_PEERS": "",
     "MESH_RNS_PEERS": "",
+    # Run the scheduler in UTC on every host, so start-up job offsets are right.
+    "TZ": "UTC",
     # Never hand a basemap key to a browser (the viewer uses keyless tiles).
     "CARTO_API_KEY": "",
 }
@@ -74,6 +76,12 @@ def stale_state_problems(data_dir: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--port", type=int, default=int(os.environ.get("PUBLIC_ENGINE_PORT", "8011")))
+    parser.add_argument(
+        "--keys-from",
+        default=os.environ.get("PUBLIC_ENGINE_KEYS_FROM", ""),
+        help="an .env file to borrow data-feed keys from. Only the names listed under "
+        "engine_keys in public-layers.json are read; everything else in the file is ignored.",
+    )
     args = parser.parse_args()
 
     backend_dir = Path(__file__).resolve().parents[2] / "backend"
@@ -91,6 +99,12 @@ def main() -> int:
         )
         return 2
 
+    policy_path = Path(__file__).resolve().parents[1] / "public-layers.json"
+    if args.keys_from:
+        loaded = borrow_feed_keys(Path(args.keys_from), policy_path)
+        # Names only. Values are never printed or written anywhere.
+        print(f"[public-engine] data-feed keys loaded: {', '.join(loaded) or 'none'}")
+
     for key, value in PUBLIC_ENGINE_ENV.items():
         os.environ[key] = value
     # The dev "bind all interfaces" switch must never apply here.
@@ -105,12 +119,42 @@ def main() -> int:
     # Importing main runs the backend's own environment setup first.
     import main as backend_main
 
-    apply_public_layers(Path(__file__).resolve().parents[1] / "public-layers.json")
+    apply_public_layers(policy_path)
     lock_out_private_transports()
 
     # Loopback only, always: the engine has no public address by design.
     uvicorn.run(backend_main.app, host="127.0.0.1", port=args.port, timeout_keep_alive=120)
     return 0
+
+
+def borrow_feed_keys(env_file: Path, policy_path: Path) -> list[str]:
+    """Load only the listed data-feed keys from another install's .env.
+
+    The public engine needs a few upstream keys (aircraft, ships, fires) to
+    have anything to show, but it must not inherit the rest of an owner's
+    configuration: the admin key, mesh secrets, AI and paid-tool keys all
+    stay behind. Returns the names that were loaded.
+    """
+    import json
+
+    wanted = list(json.loads(policy_path.read_text(encoding="utf-8")).get("engine_keys") or [])
+    loaded: list[str] = []
+    try:
+        lines = env_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        print(f"[public-engine] cannot read {env_file}: {exc}", file=sys.stderr)
+        return loaded
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, raw = line.partition("=")
+        name = name.replace("export ", "").strip()
+        value = raw.strip().strip("'\"")
+        if name in wanted and value:
+            os.environ[name] = value
+            loaded.append(name)
+    return loaded
 
 
 def apply_public_layers(policy_path: Path) -> None:

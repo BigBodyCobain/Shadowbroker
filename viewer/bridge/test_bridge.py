@@ -29,10 +29,10 @@ def test_real_policy_file_loads_and_withholds_private_layers():
     policy = br.Policy.load(br.DEFAULT_POLICY)
     assert policy.is_public("commercial_flights", "fast")
     assert not policy.is_public("commercial_flights", "slow")
-    for key in ("cctv", "stocks", "telegram_osint", "scanners", "kiwisdr", "liveuamap"):
+    for key in ("stocks", "telegram_osint", "liveuamap", "trending_markets", "crowdthreat"):
         assert not policy.is_public(key, "fast") and not policy.is_public(key, "slow"), key
     # Every engine switch that feeds a withheld or private surface stays off.
-    for gate in ("ai_intel", "sar", "scanners", "kiwisdr", "sigint_aprs", "telegram_osint", "cctv"):
+    for gate in ("ai_intel", "sar", "sigint_aprs", "telegram_osint", "road_corridor_trends"):
         assert policy.engine_layers[gate] is False, gate
 
 
@@ -168,3 +168,40 @@ def test_engine_must_be_loopback(url):
 
 def test_loopback_engine_accepted():
     assert br.check_engine_url("http://127.0.0.1:8011/") == "http://127.0.0.1:8011"
+
+
+def test_direct_media_keeps_only_browser_loadable_cameras(tmp_path):
+    policy = _policy(
+        cctv={
+            "tier": "fast",
+            "public": True,
+            "direct_media": {
+                "url_field": "media_url",
+                "type_field": "media_type",
+                "drop_types": ["hls"],
+                "drop_url_contains": [".m3u8", "its.txdot.gov"],
+            },
+        }
+    )
+    cams = [
+        {"id": "ok-jpg", "media_url": "https://cams.example/1.jpg", "media_type": "image"},
+        {"id": "ok-mp4", "media_url": "https://cams.example/1.mp4", "media_type": "video"},
+        {"id": "plain-http", "media_url": "http://cams.example/1.jpg", "media_type": "image"},
+        {"id": "hls-type", "media_url": "https://cams.example/live", "media_type": "hls"},
+        {"id": "hls-url", "media_url": "https://cams.example/live.M3U8", "media_type": "video"},
+        {"id": "needs-decoding", "media_url": "https://its.txdot.gov/snap/1", "media_type": "image"},
+        {"id": "token", "media_url": "https://cams.example/1.jpg?token=abcdef", "media_type": "image"},
+        {"id": "relative", "media_url": "/api/cctv/media?url=x", "media_type": "image"},
+        {"id": "missing"},
+        "not-a-dict",
+    ]
+    report = _bridge(tmp_path, policy).publish_tier("fast", {"cctv": cams})
+    assert [c["id"] for c in _read(tmp_path, "fast.json")["cctv"]] == ["ok-jpg", "ok-mp4"]
+    assert report["items_dropped"] == 8
+
+
+def test_real_policy_publishes_cameras_direct_only():
+    policy = br.Policy.load(br.DEFAULT_POLICY)
+    rule = policy.rule("cctv")
+    assert policy.is_public("cctv", "fast") and rule["direct_media"]["drop_types"] == ["hls"]
+    assert policy.engine_layers["cctv"] is True

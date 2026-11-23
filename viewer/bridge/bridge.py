@@ -137,6 +137,24 @@ def scrub(value: Any, drop_fields: frozenset[str], stats: dict[str, int]) -> Any
     return value
 
 
+def direct_media_ok(item: Any, rule: dict[str, Any]) -> bool:
+    """True if a camera-like item can be loaded by a browser straight from its
+    own public address: plain https, no credentials, and not a kind that needs
+    a relay (stream playlists, sources that need server-side decoding)."""
+    if not isinstance(item, dict):
+        return False
+    url = item.get(str(rule.get("url_field") or "url"))
+    if not isinstance(url, str) or not url.lower().startswith("https://"):
+        return False
+    if _url_carries_credentials(url):
+        return False
+    lowered = url.lower()
+    if any(str(part).lower() in lowered for part in rule.get("drop_url_contains") or ()):
+        return False
+    kind = str(item.get(str(rule.get("type_field") or "media_type")) or "").lower()
+    return kind not in {str(t).lower() for t in rule.get("drop_types") or ()}
+
+
 def sanitize_tier(payload: dict[str, Any], tier: str, policy: Policy) -> tuple[dict[str, Any], dict[str, Any]]:
     """Keep only public keys of one tier payload. Returns (public, report)."""
     public: dict[str, Any] = {}
@@ -155,6 +173,11 @@ def sanitize_tier(payload: dict[str, Any], tier: str, policy: Policy) -> tuple[d
         if only_sources and isinstance(value, list):
             allowed = set(only_sources)
             value = [item for item in value if isinstance(item, dict) and item.get("source") in allowed]
+        direct = rule.get("direct_media")
+        if direct and isinstance(value, list):
+            kept = [item for item in value if direct_media_ok(item, direct)]
+            report["items_dropped"] = report.get("items_dropped", 0) + len(value) - len(kept)
+            value = kept
         stats: dict[str, int] = {}
         public[key] = scrub(value, frozenset(rule.get("drop_fields") or ()), stats)
         report["fields_dropped"] += stats.get("fields_dropped", 0)

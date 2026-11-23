@@ -26,9 +26,6 @@ export const VIEWER_HIDDEN_LAYERS: ReadonlySet<string> = new Set([
   'ai_intel', // the owner's private pins
   'sar', // the owner's watch areas
   'road_corridor_trends', // starts jobs on the owner's server
-  'cctv', // streams through the owner's proxy
-  'kiwisdr', // receiver tracker removed
-  'scanners', // audio streams through the owner's server
   'sigint_aprs', // not published
   'telegram_osint', // media is relayed through the owner's server
   'crowdthreat', // not published

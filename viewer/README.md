@@ -32,8 +32,9 @@ engine and no code that could reach one.
 ## Run it locally
 
 ```bash
-# 1. Engine. Needs a checkout with a fresh backend/data folder.
-python viewer/engine/run_public_engine.py --port 8011
+# 1. Engine. Needs a checkout with a fresh backend/data folder, and
+#    `npm ci` run once in backend/ (the ship feed uses a small Node helper).
+python viewer/engine/run_public_engine.py --port 8011 --keys-from /path/to/an/install/backend/.env
 
 # 2. Bridge: writes data files every 15 s (fast) and 120 s (slow).
 python viewer/bridge/bridge.py --out viewer/web/.data
@@ -42,6 +43,12 @@ python viewer/bridge/bridge.py --out viewer/web/.data
 node viewer/web/build.mjs
 node viewer/web/serve.mjs            # http://127.0.0.1:4173
 ```
+
+`--keys-from` lends the engine the upstream keys it needs for aircraft, ships
+and fires. It reads only the names listed under `engine_keys` in
+`public-layers.json`; the admin key, mesh secrets and paid-tool keys in that
+file are ignored. The keys stay in the engine's memory. Without it the engine
+still runs, with far fewer aircraft and almost no ships.
 
 For a real deployment, build with the data host's address and upload
 `viewer/web/dist/`:
@@ -73,6 +80,18 @@ Several independent layers, so one mistake does not expose anything.
    hosts, so the browser enforces the rule even for code the guard never sees.
 7. **Build-time inspection.** `web/check-dist.mjs` fails the build if a
    secret name, a key-shaped string or an unlisted app route is in the output.
+
+## Things visitors open themselves
+
+Some layers show a location and hand the visitor to the source's own site:
+
+- **Cameras** load in the visitor's browser straight from the camera's public
+  https address. The bridge drops any camera that would need a relay.
+- **Radio receivers (KiwiSDR)** and **scanners (OpenMHZ)** are map markers
+  with a button that opens the provider's site in a new tab. Listening, and
+  any sign-in the provider asks for, happens there.
+
+In every case the viewer supplies an address and nothing else.
 
 ## Changing what is public
 
@@ -108,6 +127,6 @@ node viewer/web/build.mjs        # ends with the built-site inspection
 
 - Uploading to a data host. The bridge writes to a folder; serve that folder
   (nginx) or sync it to object storage.
-- Layers withheld in `public-layers.json`: cameras, Telegram, markets,
-  scanners and receivers, LiveUAMap.
+- Layers withheld in `public-layers.json`: Telegram, markets, LiveUAMap.
+- Stream-playlist (HLS) cameras and cameras that need server-side decoding.
 - Flight and ship trails, flight routes, place-name search, Time Machine.

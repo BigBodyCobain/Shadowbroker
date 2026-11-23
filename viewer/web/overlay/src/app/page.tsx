@@ -18,7 +18,7 @@ import CyberThreatPanel from '@/components/CyberThreatPanel';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import AlertToast from '@/components/AlertToast';
 import WatchlistWidget from '@/components/WatchlistWidget';
-import type { ActiveLayers, SelectedEntity } from '@/types/dashboard';
+import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
 import {
   getDefaultActiveLayers,
   getDefaultMapStyle,
@@ -58,6 +58,24 @@ function viewerStyle(style: MapStyle): MapStyle {
 }
 
 const noop = () => {};
+
+/** Open a third-party page in a new tab. The visitor's browser goes there by itself. */
+function openExternal(raw: string | undefined | null): void {
+  if (!raw) return;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
+    window.open(url.href, '_blank', 'noopener,noreferrer');
+  } catch {
+    /* not a usable address */
+  }
+}
+
+/** Receivers and scanners are shown as locations; listening happens on their own sites. */
+const openReceiver = (sdr: KiwiSDR | null) => openExternal(sdr?.url);
+const openScanner = (scanner: Scanner | null) => {
+  if (scanner?.shortName) openExternal(`https://openmhz.com/system/${encodeURIComponent(scanner.shortName)}`);
+};
 
 export default function ViewerDashboard() {
   const viewBoundsRef = useRef<{ south: number; west: number; north: number; east: number } | null>(null);
@@ -272,6 +290,7 @@ export default function ViewerDashboard() {
     if (secondaryBootReady) return activeLayers;
     return {
       ...activeLayers,
+      cctv: false,
       gibs_imagery: false,
       highres_satellite: false,
       viirs_nightlights: false,
@@ -282,7 +301,8 @@ export default function ViewerDashboard() {
     };
   }, [activeLayers, secondaryBootReady]);
 
-  const overlayOpen = selectedEntity?.type === 'news';
+  // Full-screen views (news dossier, camera) hide the dock and scale bar.
+  const overlayOpen = selectedEntity?.type === 'news' || selectedEntity?.type === 'cctv';
 
   return (
     <main className="fixed inset-0 w-full h-full bg-[var(--bg-primary)] overflow-hidden font-sans">
@@ -307,9 +327,9 @@ export default function ViewerDashboard() {
           measurePoints={measurePoints}
           viewBoundsRef={viewBoundsRef}
           trackedSdr={null}
-          setTrackedSdr={noop}
+          setTrackedSdr={openReceiver}
           trackedScanner={null}
-          setTrackedScanner={noop}
+          setTrackedScanner={openScanner}
           shodanResults={[]}
         />
       </ErrorBoundary>

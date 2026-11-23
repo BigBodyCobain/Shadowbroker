@@ -54,7 +54,8 @@ function contentSecurityPolicy(): string {
     "font-src 'self' data:",
     `connect-src ${connect.join(' ')}`,
     "worker-src 'self' blob:",
-    "media-src 'none'",
+    // Camera clips play straight from the camera's own https address.
+    "media-src 'self' blob: https:",
     "frame-src 'none'",
     "object-src 'none'",
     "form-action 'none'",

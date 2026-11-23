@@ -57,7 +57,8 @@ const KEY_SHAPES = [
   ['Google API key', /\bAIza[0-9A-Za-z_-]{35}\b/g],
   ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{30,}\b/g],
   ['Slack token', /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g],
-  ['private key block', /-----BEGIN [A-Z ]*PRIVATE KEY-----/g],
+  // Assembled from parts so this file does not itself look like a key block.
+  ['private key block', new RegExp(`-----BEGIN [A-Z ]*${'PRIVATE'} ${'KEY'}-----`, 'g')],
   ['bearer token literal', /\bBearer\s+[A-Za-z0-9._-]{24,}\b/g],
   ['key in URL', /[?&](?:api[_-]?key|apikey|access[_-]?token|token|secret)=[A-Za-z0-9._-]{12,}/gi],
 ];
