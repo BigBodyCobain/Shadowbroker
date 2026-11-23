@@ -1,0 +1,4 @@
+web/.build/
+web/dist/
+web/.data/
+__pycache__/
