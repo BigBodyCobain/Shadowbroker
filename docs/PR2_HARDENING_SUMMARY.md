@@ -46,6 +46,8 @@ by the large mechanical component/hook extractions.
   - CCTV APRR liveness validates the host; frame freshness kept on the original
     `requests.get` after a DNS-pinned variant broke mocked upstreams.
 - Madrid CCTV KML fetch prefers HTTPS with an HTTP fallback.
+- Telegram OSINT: fixed a multiline regex that dropped post links and added
+  missing Cyrillic/#hashtag place anchors.
 - OSM tile proxy retries transient upstream failures (3 attempts, backoff).
 - The Next.js API proxy uses a short circuit breaker: once an upstream fails,
   subsequent requests get an immediate `502` with `Retry-After` instead of
@@ -74,10 +76,10 @@ by the large mechanical component/hook extractions.
 | Run | Failed | Passed | Skipped |
 |---|---|---|---|
 | `main` baseline | 335 | 2911 | 16 |
-| this branch | **315** | **2936** | 16 |
+| this branch | **289** | **2962** | 16 |
 
 - **0 new failures** vs `main`
-- **20 baseline failures fixed**
+- **46 baseline failures fixed**
 
 ### Runtime smoke
 With both servers running, all checked endpoints returned 200 through the Next
