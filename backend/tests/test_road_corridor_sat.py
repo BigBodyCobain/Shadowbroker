@@ -58,10 +58,12 @@ class TestAnalyzeHere:
 
         monkeypatch.setattr("routers.road_corridors.optional_deps_available", lambda: True)
         monkeypatch.setattr("routers.road_corridors.sentinel_credentials_configured", lambda: False)
+        monkeypatch.setattr("auth._current_admin_key", lambda: "test-admin")
         client = TestClient(app)
         resp = client.post(
             "/api/road-corridors/analyze",
             json={"lat": 27.51, "lon": -99.53},
+            headers={"X-Admin-Key": "test-admin"},
         )
         assert resp.status_code == 503
 
@@ -77,10 +79,12 @@ class TestAnalyzeHere:
             return AnalyzeJob(job_id="job123", lat=lat, lon=lon, status="queued")
 
         monkeypatch.setattr("routers.road_corridors.enqueue_analyze", fake_enqueue)
+        monkeypatch.setattr("auth._current_admin_key", lambda: "test-admin")
         client = TestClient(app)
         resp = client.post(
             "/api/road-corridors/analyze",
             json={"lat": 27.51, "lon": -99.53},
+            headers={"X-Admin-Key": "test-admin"},
         )
         assert resp.status_code == 200
         body = resp.json()

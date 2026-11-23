@@ -348,6 +348,7 @@ from auth import (
     _transport_tier_precondition,
     require_admin,
     require_local_operator,
+    is_local_operator_request,
     _validate_admin_startup,
     _validate_insecure_admin_startup,
     _validate_peer_push_secret,
@@ -4106,45 +4107,6 @@ async def oracle_region_intel(
     return get_region_oracle_intel(lat, lng, news_items)
 
 
-@app.get("/api/thermal/verify")
-@limiter.limit("10/minute")
-async def thermal_verify(
-    request: Request,
-    lat: float = Query(..., ge=-90, le=90),
-    lng: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(10, ge=1, le=100),
-):
-    """On-demand thermal anomaly verification using Sentinel-2 SWIR bands."""
-    from services.thermal_sentinel import search_thermal_anomaly
-
-    result = search_thermal_anomaly(lat, lng, radius_km)
-    return result
-
-
-@app.post("/api/sigint/transmit")
-@limiter.limit("5/minute")
-async def sigint_transmit(request: Request):
-    """Send an APRS-IS message to a specific callsign. Requires ham radio credentials."""
-    from services.wormhole_supervisor import get_transport_tier
-
-    tier = get_transport_tier()
-    if str(tier or "").startswith("private_"):
-        return {"ok": False, "detail": "APRS transmit blocked in private transport mode"}
-    body = await request.json()
-    callsign = body.get("callsign", "")
-    passcode = body.get("passcode", "")
-    target = body.get("target", "")
-    message = body.get("message", "")
-    if not all([callsign, passcode, target, message]):
-        return {
-            "ok": False,
-            "detail": "Missing required fields: callsign, passcode, target, message",
-        }
-    from services.sigint_bridge import send_aprs_message
-
-    return send_aprs_message(callsign, passcode, target, message)
-
-
 @app.get("/api/sigint/nearest-sdr")
 @limiter.limit("30/minute")
 async def nearest_sdr(
@@ -4495,6 +4457,23 @@ async def mesh_send(request: Request):
     # â”€â”€â”€ Per-identity throttle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     priority_str = signed_payload["priority"]
     transport_lock = str(body.get("transport_lock", "") or "").lower()
+    # Public radio lanes (APRS-IS, Meshtastic MQTT) and the all-transport
+    # EMERGENCY broadcast are operator-only; see routers/mesh_public.py.
+    is_operator = is_local_operator_request(request)
+    from services.meshtastic_mqtt_settings import mqtt_bridge_enabled
+
+    allow_aprs = is_operator
+    allow_meshtastic = is_operator and mqtt_bridge_enabled()
+    if not is_operator and (priority_str == "emergency" or transport_lock in {"aprs", "meshtastic"}):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "ok": False,
+                "detail": "Radio transports and emergency broadcast require operator authentication",
+            },
+        )
+    if transport_lock == "meshtastic" and not allow_meshtastic:
+        return {"ok": False, "detail": "Meshtastic MQTT bridge is disabled"}
     throttle_ok, throttle_reason = _check_throttle(node_id, priority_str, transport_lock)
     if not throttle_ok:
         return {"ok": False, "detail": throttle_reason}
@@ -4562,9 +4541,19 @@ async def mesh_send(request: Request):
                 "Private-tier content cannot be sent over APRS"
             )]
         else:
-            results = mesh_router.route(envelope, credentials)
+            results = mesh_router.route(
+                envelope,
+                credentials,
+                allow_aprs=allow_aprs,
+                allow_meshtastic=allow_meshtastic,
+            )
     else:
-        results = mesh_router.route(envelope, credentials)
+        results = mesh_router.route(
+            envelope,
+            credentials,
+            allow_aprs=allow_aprs,
+            allow_meshtastic=allow_meshtastic,
+        )
     any_ok = any(r.ok for r in results)
 
     # â”€â”€â”€ Mirror to Meshtastic bridge feed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -8866,21 +8855,6 @@ def _rewrite_cctv_hls_playlist(base_url: str, body: str) -> str:
     return "\n".join(rewritten_lines) + ("\n" if body.endswith("\n") else "")
 
 
-@app.get("/api/cctv/media")
-@limiter.limit("120/minute")
-async def cctv_media_proxy(request: Request, url: str = Query(...)):
-    """Proxy CCTV media through the backend to bypass browser CORS restrictions."""
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    if not _cctv_host_allowed(parsed.hostname):
-        raise HTTPException(status_code=403, detail="Host not allowed")
-    if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Invalid scheme")
-
-    return _proxy_cctv_media_response(request, url)
-
-
 @app.get("/api/health", response_model=HealthResponse)
 @limiter.limit("30/minute")
 async def health_check(request: Request):
@@ -8929,19 +8903,6 @@ async def get_top_radios(request: Request):
 @limiter.limit("30/minute")
 async def api_get_openmhz_systems(request: Request):
     return get_openmhz_systems()
-
-
-@app.get("/api/radio/openmhz/calls/{sys_name}")
-@limiter.limit("60/minute")
-async def api_get_openmhz_calls(request: Request, sys_name: str):
-    return get_recent_openmhz_calls(sys_name)
-
-
-@app.get("/api/radio/openmhz/audio")
-@limiter.limit("120/minute")
-async def api_get_openmhz_audio(request: Request, url: str = Query(..., min_length=10)):
-    from services.radio_intercept import openmhz_audio_response
-    return openmhz_audio_response(url)
 
 
 @app.get("/api/radio/nearest")
@@ -9062,202 +9023,8 @@ def api_sentinel2_search(
     return search_sentinel2_scene(lat, lng)
 
 
-@app.post("/api/sentinel/token")
-@limiter.limit("60/minute")
-async def api_sentinel_token(request: Request):
-    """Proxy Copernicus CDSE OAuth2 token request (avoids browser CORS block).
-
-    The user's client_id + client_secret are forwarded to the Copernicus
-    identity provider and never stored on the server.
-    """
-    import requests as req
-
-    # Parse URL-encoded form body manually (avoids python-multipart dependency)
-    body = await request.body()
-    from urllib.parse import parse_qs
-    params = parse_qs(body.decode("utf-8"))
-    client_id = params.get("client_id", [""])[0]
-    client_secret = params.get("client_secret", [""])[0]
-
-    if not client_id or not client_secret:
-        raise HTTPException(400, "client_id and client_secret required")
-
-    token_url = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
-    try:
-        resp = await asyncio.to_thread(
-            req.post,
-            token_url,
-            data={
-                "grant_type": "client_credentials",
-                "client_id": client_id,
-                "client_secret": client_secret,
-            },
-            timeout=15,
-        )
-        return Response(
-            content=resp.content,
-            status_code=resp.status_code,
-            media_type="application/json",
-        )
-    except Exception as exc:
-        logger.exception("Token request failed")
-        raise HTTPException(502, "Token request failed")
-
-
 # Server-side token cache for tile requests (avoids re-auth on every tile)
 _sh_token_cache: dict = {"token": None, "expiry": 0, "client_id": ""}
-
-
-@app.post("/api/sentinel/tile")
-@limiter.limit("300/minute")
-async def api_sentinel_tile(request: Request):
-    """Proxy Sentinel Hub Process API tile request (avoids CORS block).
-
-    Expects JSON body with: client_id, client_secret, preset, date, z, x, y.
-    Returns the PNG tile directly.
-    """
-    import requests as req
-    import time as _time
-
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=422, content={"ok": False, "detail": "invalid JSON body"})
-
-    client_id = body.get("client_id", "")
-    client_secret = body.get("client_secret", "")
-    preset = body.get("preset", "TRUE-COLOR")
-    date_str = body.get("date", "")
-    z = body.get("z", 0)
-    x = body.get("x", 0)
-    y = body.get("y", 0)
-
-    if not client_id or not client_secret or not date_str:
-        raise HTTPException(400, "client_id, client_secret, and date required")
-
-    # Reuse cached token if same client_id and not expired
-    now = _time.time()
-    if (
-        _sh_token_cache["token"]
-        and _sh_token_cache["client_id"] == client_id
-        and now < _sh_token_cache["expiry"] - 30
-    ):
-        token = _sh_token_cache["token"]
-    else:
-        # Fetch new token
-        token_url = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
-        try:
-            tresp = await asyncio.to_thread(
-                req.post,
-                token_url,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                },
-                timeout=15,
-            )
-            if tresp.status_code != 200:
-                raise HTTPException(401, f"Token auth failed: {tresp.text[:200]}")
-            tdata = tresp.json()
-            token = tdata["access_token"]
-            _sh_token_cache["token"] = token
-            _sh_token_cache["expiry"] = now + tdata.get("expires_in", 300)
-            _sh_token_cache["client_id"] = client_id
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.exception("Token request failed")
-            raise HTTPException(502, "Token request failed")
-
-    # Compute bounding box from tile coordinates (EPSG:3857)
-    import math
-
-    half = 20037508.342789244
-    tile_size = (2 * half) / math.pow(2, z)
-    min_x = -half + x * tile_size
-    max_x = min_x + tile_size
-    max_y = half - y * tile_size
-    min_y = max_y - tile_size
-    bbox = [min_x, min_y, max_x, max_y]
-
-    # Evalscripts
-    evalscripts = {
-        "TRUE-COLOR": '//VERSION=3\nfunction setup(){return{input:["B04","B03","B02"],output:{bands:3}};}\nfunction evaluatePixel(s){return[2.5*s.B04,2.5*s.B03,2.5*s.B02];}',
-        "FALSE-COLOR": '//VERSION=3\nfunction setup(){return{input:["B08","B04","B03"],output:{bands:3}};}\nfunction evaluatePixel(s){return[2.5*s.B08,2.5*s.B04,2.5*s.B03];}',
-        "NDVI": '//VERSION=3\nfunction setup(){return{input:["B04","B08"],output:{bands:3}};}\nfunction evaluatePixel(s){var n=(s.B08-s.B04)/(s.B08+s.B04);if(n<-0.2)return[0.05,0.05,0.05];if(n<0)return[0.75,0.75,0.75];if(n<0.1)return[0.86,0.86,0.86];if(n<0.2)return[0.92,0.84,0.68];if(n<0.3)return[0.77,0.88,0.55];if(n<0.4)return[0.56,0.80,0.32];if(n<0.5)return[0.35,0.72,0.18];if(n<0.6)return[0.20,0.60,0.08];if(n<0.7)return[0.10,0.48,0.04];return[0.0,0.36,0.0];}',
-        "MOISTURE-INDEX": '//VERSION=3\nfunction setup(){return{input:["B8A","B11"],output:{bands:3}};}\nfunction evaluatePixel(s){var m=(s.B8A-s.B11)/(s.B8A+s.B11);var r=Math.max(0,Math.min(1,1.5-3*m));var g=Math.max(0,Math.min(1,m<0?1.5+3*m:1.5-3*m));var b=Math.max(0,Math.min(1,1.5+3*(m-0.5)));return[r,g,b];}',
-    }
-    evalscript = evalscripts.get(preset, evalscripts["TRUE-COLOR"])
-
-    # Adaptive time range: wider window at lower zoom for better coverage.
-    # Sentinel-2 has 5-day revisit â€” a single day often has gaps.
-    # At low zoom we mosaic over more days to fill gaps.
-    from datetime import datetime as _dt, timedelta as _td
-
-    try:
-        end_date = _dt.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
-        end_date = _dt.utcnow()
-
-    if z <= 6:
-        lookback_days = 30  # continent-level: mosaic a full month
-    elif z <= 9:
-        lookback_days = 14  # region-level: 2 weeks
-    elif z <= 11:
-        lookback_days = 7   # country-level: 1 week
-    else:
-        lookback_days = 5   # close-up: 5 days (one revisit cycle)
-
-    start_date = end_date - _td(days=lookback_days)
-
-    process_body = {
-        "input": {
-            "bounds": {
-                "bbox": bbox,
-                "properties": {"crs": "http://www.opengis.net/def/crs/EPSG/0/3857"},
-            },
-            "data": [
-                {
-                    "type": "sentinel-2-l2a",
-                    "dataFilter": {
-                        "timeRange": {
-                            "from": start_date.strftime("%Y-%m-%dT00:00:00Z"),
-                            "to": end_date.strftime("%Y-%m-%dT23:59:59Z"),
-                        },
-                        "maxCloudCoverage": 30,
-                        "mosaickingOrder": "leastCC",
-                    },
-                }
-            ],
-        },
-        "output": {
-            "width": 256,
-            "height": 256,
-            "responses": [{"identifier": "default", "format": {"type": "image/png"}}],
-        },
-        "evalscript": evalscript,
-    }
-
-    try:
-        resp = await asyncio.to_thread(
-            req.post,
-            "https://sh.dataspace.copernicus.eu/api/v1/process",
-            json=process_body,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "image/png",
-            },
-            timeout=30,
-        )
-        return Response(
-            content=resp.content,
-            status_code=resp.status_code,
-            media_type=resp.headers.get("content-type", "image/png"),
-        )
-    except Exception as exc:
-        logger.exception("Process API failed")
-        raise HTTPException(502, "Process API failed")
 
 
 # ---------------------------------------------------------------------------
@@ -9649,7 +9416,7 @@ async def api_set_node_settings(request: Request, body: NodeSettingsUpdate):
     return result
 
 
-@app.post("/api/mesh/infonet/swarm/join")
+@app.post("/api/mesh/infonet/swarm/join", dependencies=[Depends(require_local_operator)])
 @limiter.limit("10/minute")
 async def infonet_swarm_join(request: Request):
     """Announce this node to the fleet seed and pull the signed peer manifest."""
@@ -10434,77 +10201,6 @@ async def api_get_wormhole_status(request: Request):
         full_state,
         authenticated=authenticated,
     )
-
-
-@app.post("/api/wormhole/join")
-@limiter.limit("10/minute")
-async def api_wormhole_join(request: Request):
-    existing = read_wormhole_settings()
-    updated = write_wormhole_settings(
-        enabled=True,
-        transport="tor_arti",
-        socks_proxy=f"socks5h://127.0.0.1:{int(get_settings().MESH_ARTI_SOCKS_PORT or 9050)}",
-        socks_dns=True,
-        anonymous_mode=True,
-    )
-    transport_changed = (
-        str(existing.get("transport", "direct")) != "tor_arti"
-        or str(existing.get("socks_proxy", "")) != str(updated.get("socks_proxy", ""))
-        or bool(existing.get("socks_dns", True)) is not True
-        or bool(existing.get("anonymous_mode", False)) is not True
-        or bool(existing.get("enabled", False)) is not True
-    )
-    tor_result: dict[str, Any] = {"ok": False, "detail": "not started"}
-    try:
-        from services.tor_hidden_service import tor_service
-        from routers.ai_intel import _write_env_value
-
-        tor_result = await asyncio.to_thread(tor_service.start)
-        if tor_result.get("ok"):
-            _write_env_value("MESH_ARTI_ENABLED", "true")
-            get_settings.cache_clear()
-    except Exception as exc:
-        tor_result = {"ok": False, "detail": str(exc or type(exc).__name__)}
-    bootstrap_wormhole_identity()
-    bootstrap_wormhole_persona_state()
-    state = (
-        restart_wormhole(reason="join_wormhole")
-        if transport_changed
-        else connect_wormhole(reason="join_wormhole")
-    )
-
-    # Enable node participation so the sync/push workers connect to peers.
-    # This is the voluntary opt-in â€” the node only joins the network when
-    # the user explicitly opens the Wormhole.
-    from services.node_settings import write_node_settings
-
-    write_node_settings(enabled=True)
-    _refresh_node_peer_store()
-
-    return {
-        "ok": True,
-        "identity": get_transport_identity(),
-        "runtime": state,
-        "settings": updated,
-        "tor": tor_result,
-    }
-
-
-@app.post("/api/wormhole/leave")
-@limiter.limit("10/minute")
-async def api_wormhole_leave(request: Request):
-    updated = write_wormhole_settings(enabled=False)
-    state = disconnect_wormhole(reason="leave_wormhole")
-
-    # Leaving private DM mode must not disable Infonet participation. Infonet
-    # sync has its own private transport warmup and can remain connected to
-    # seed/peer nodes while MeshChat stays separately opt-in.
-
-    return {
-        "ok": True,
-        "runtime": state,
-        "settings": updated,
-    }
 
 
 @app.get("/api/wormhole/identity", dependencies=[Depends(require_local_operator)])

@@ -57,6 +57,12 @@ import pytest
         # identity-takeover surface as /identity/bootstrap. PR #227 hardened
         # the latter but missed the former.
         ("post", "/api/wormhole/join", {}),
+        ("post", "/api/wormhole/leave", {}),
+        # Joining the swarm changes this node's network participation.
+        ("post", "/api/mesh/infonet/swarm/join", {}),
+        # Corridor analysis runs Sentinel-2 jobs on the operator's imagery
+        # credentials.
+        ("post", "/api/road-corridors/analyze", {}),
         # /api/sigint/transmit relays APRS-IS packets over radio using
         # operator-supplied credentials. Any caller who reaches this endpoint
         # could transmit on the operator's authority. Must be local-only.

@@ -162,7 +162,7 @@ class _FakeMeshRouter:
         self.breakers = {"meshtastic": _DummyBreaker()}
         self.route_called = False
 
-    def route(self, _envelope, _credentials):
+    def route(self, _envelope, _credentials, **_kwargs):
         self.route_called = True
         return []
 
@@ -380,10 +380,18 @@ def test_runtime_smoke_public_meshtastic_send_route(monkeypatch):
     monkeypatch.setattr(main, "_check_throttle", lambda *_args: (True, "ok"))
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(sigint_grid, "mesh", fake_bridge)
+    # Radio transports are operator-only.
+    import auth
+    from services import meshtastic_mqtt_settings
+
+    monkeypatch.setattr(auth, "_current_admin_key", lambda: "test-admin")
+    monkeypatch.setattr(meshtastic_mqtt_settings, "mqtt_bridge_enabled", lambda: True)
 
     async def _run():
         async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://test") as ac:
-            response = await ac.post("/api/mesh/send", json=_meshtastic_send_body())
+            response = await ac.post(
+                "/api/mesh/send", json=_meshtastic_send_body(), headers={"X-Admin-Key": "test-admin"}
+            )
             return response.status_code, response.json()
 
     status_code, result = asyncio.run(_run())

@@ -21,7 +21,9 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Body, Path
+from fastapi import APIRouter, Body, Path, Request
+
+from limiter import limiter
 
 # Triggers the chain cutover at module-load time so registered
 # validators are live for any subsequent route invocation.
@@ -491,7 +493,8 @@ def get_bootstrap_market_state(market_id: str = Path(...)) -> dict[str, Any]:
 # ─── Signed write: append an Infonet economy event ──────────────────────
 
 @router.post("/append")
-def append_event(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+@limiter.limit("30/minute")
+def append_event(request: Request, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Append a signed Infonet economy event to the chain.
 
     Body shape (all required for production):

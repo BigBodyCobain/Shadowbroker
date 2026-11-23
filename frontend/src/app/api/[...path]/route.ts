@@ -82,6 +82,11 @@ function isSensitiveProxyPath(pathSegments: string[]): boolean {
   if (['mesh/infonet/session-stream', 'mesh/infonet/peer-registry', 'mesh/reputation/all', 'mesh/trust/vouches'].includes(joined)) return true;
   if (pathSegments[0] === 'mesh' && pathSegments[1] === 'oracle') return true;
   if (joined === 'mesh/meshtastic/send') return true;
+  // Public by design, but radio transports and emergency broadcast are
+  // operator-only on the backend, so forward the operator key when present.
+  if (joined === 'mesh/send') return true;
+  if (joined === 'mesh/infonet/swarm/join') return true;
+  if (joined === 'road-corridors/analyze') return true;
   // mesh/peers and all tools/* use require_local_operator on the backend and
   // need X-Admin-Key injected on the server-side proxy leg.
   if (pathSegments[0] === 'mesh' && pathSegments[1] === 'peers') return true;

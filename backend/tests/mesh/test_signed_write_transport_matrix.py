@@ -483,7 +483,7 @@ class _FakeMeshRouter:
         self.meshtastic = meshtastic
         self.breakers = {"meshtastic": _DummyBreaker()}
 
-    def route(self, _envelope, _credentials):
+    def route(self, _envelope, _credentials, **_kwargs):
         from services.mesh.mesh_router import TransportResult
 
         return [TransportResult(True, "internet", "sent")]
@@ -517,6 +517,11 @@ def test_mesh_send_transport_lock_matrix(monkeypatch, tier, transport_lock, expe
     )
     monkeypatch.setattr(main, "_check_throttle", lambda *_: (True, "ok"))
     monkeypatch.setattr(wormhole_supervisor, "get_transport_tier", lambda: tier)
+    # Radio locks are operator-only; this matrix covers the tier rules.
+    monkeypatch.setattr(main, "is_local_operator_request", lambda _request: True)
+    from services import meshtastic_mqtt_settings
+
+    monkeypatch.setattr(meshtastic_mqtt_settings, "mqtt_bridge_enabled", lambda: True)
     monkeypatch.setattr(mesh_router_mod, "mesh_router", fake_router)
     monkeypatch.setattr(sigint_grid, "mesh", fake_bridge)
 

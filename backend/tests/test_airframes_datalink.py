@@ -26,6 +26,7 @@ def airframes_env(tmp_path, monkeypatch):
     }
     airframes._queue.clear()
     airframes._queued_aircraft_keys.clear()
+    airframes._on_demand_times.clear()
     airframes._bulk_cursor = {"since_iso": "", "before_id": None, "pages": 0}
     airframes._cache_loaded = True
     airframes._api_key_known_configured = True

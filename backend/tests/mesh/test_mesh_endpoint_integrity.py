@@ -92,7 +92,7 @@ class _FakeMeshRouter:
         self.breakers = {"meshtastic": _DummyBreaker()}
         self.route_called = False
 
-    def route(self, _envelope, _credentials):
+    def route(self, _envelope, _credentials, **_kwargs):
         self.route_called = True
         return []
 

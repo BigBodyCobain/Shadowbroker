@@ -26,6 +26,11 @@ RETENTION_HOURS = max(6, int(os.environ.get("AIRFRAMES_RETENTION_HOURS", "48")))
 REQUEST_PAUSE_S = float(os.environ.get("AIRFRAMES_REQUEST_PAUSE_S", "2.0"))
 PRIORITY_LOOKBACK_HOURS = max(6, int(os.environ.get("AIRFRAMES_PRIORITY_LOOKBACK_HOURS", "48")))
 FETCH_TIMEOUT_S = max(5, int(os.environ.get("AIRFRAMES_FETCH_TIMEOUT_S", "20")))
+# Click-driven lookups jump the queue. Cap them so a crowd of map clicks can
+# neither grow the queue without bound nor use the whole API budget and
+# starve the bulk sync: at most this many per minute, and this many waiting.
+ON_DEMAND_LOOKUPS_PER_MIN = max(1, int(os.environ.get("AIRFRAMES_ON_DEMAND_PER_MIN", "10")))
+ON_DEMAND_QUEUE_MAX = max(1, int(os.environ.get("AIRFRAMES_ON_DEMAND_QUEUE_MAX", "20")))
 
 _DATA_DIR = Path(os.environ.get("SB_DATA_DIR", str(Path(__file__).resolve().parents[2] / "data")))
 if not _DATA_DIR.is_absolute():
@@ -37,6 +42,7 @@ _queue_lock = threading.Lock()
 _worker_guard = threading.Lock()
 _queue: deque[dict[str, Any]] = deque()
 _queued_aircraft_keys: set[str] = set()
+_on_demand_times: deque[float] = deque()
 _bulk_cursor: dict[str, Any] = {"since_iso": "", "before_id": None, "pages": 0}
 _worker_started = False
 _cache_loaded = False
@@ -305,6 +311,15 @@ def _prioritize_aircraft_scan(entry: dict[str, str]) -> bool:
 
     item = {"type": "aircraft", **entry}
     with _queue_lock:
+        if key not in _queued_aircraft_keys:
+            # Re-ordering an already-queued aircraft costs no extra API call;
+            # only new lookups count against the per-minute budget.
+            now = time.monotonic()
+            while _on_demand_times and now - _on_demand_times[0] > 60.0:
+                _on_demand_times.popleft()
+            if len(_on_demand_times) >= ON_DEMAND_LOOKUPS_PER_MIN:
+                return False
+            _on_demand_times.append(now)
         kept: deque[dict[str, Any]] = deque()
         for queued in _queue:
             if queued.get("type") == "aircraft" and _aircraft_queue_key(queued) == key:
@@ -315,6 +330,10 @@ def _prioritize_aircraft_scan(entry: dict[str, str]) -> bool:
         _queued_aircraft_keys.discard(key)
         _queued_aircraft_keys.add(key)
         _queue.appendleft(item)
+        aircraft_items = [queued for queued in _queue if queued.get("type") == "aircraft"]
+        for stale in aircraft_items[ON_DEMAND_QUEUE_MAX:]:
+            _queue.remove(stale)
+            _queued_aircraft_keys.discard(_aircraft_queue_key(stale))
     return True
 
 

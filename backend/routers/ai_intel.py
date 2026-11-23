@@ -3455,7 +3455,11 @@ async def channel_websocket(ws: WebSocket):
     """
     # Auth: check HMAC on upgrade, or allow local connections
     host = (ws.client.host or "").lower() if ws.client else ""
-    is_local = host in ("127.0.0.1", "::1", "localhost")
+    # Behind a same-host reverse proxy every internet client arrives as
+    # loopback; the operator declares that with SHADOWBROKER_UNTRUSTED_LOOPBACK.
+    from auth import _loopback_untrusted
+
+    is_local = host in ("127.0.0.1", "::1", "localhost") and not _loopback_untrusted()
 
     if not is_local and not await _verify_ws_hmac(ws):
         # Must accept before sending close with custom code
