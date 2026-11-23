@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import MotionRoot from '@/components/MotionRoot';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -30,6 +30,9 @@ const inter = localFont({
   display: 'swap',
   variable: '--font-inter',
 });
+
+// Phones: fill the screen edge to edge; the layout pads for notches and the home bar itself.
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 export const metadata: Metadata = {
   title: 'ShadowBroker — Live Public Viewer',

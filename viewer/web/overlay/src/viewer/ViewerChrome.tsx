@@ -287,7 +287,7 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
             few minutes. You can pan, zoom, filter and switch layers; those choices stay in your browser.
           </p>
           <p>
-            Right-click anywhere on the map for the latest satellite picture of that spot. Your browser asks
+            On a computer, right-click anywhere on the map for the latest satellite picture of that spot. Your browser asks
             the open Sentinel-2 archive for it directly.
           </p>
           <p>

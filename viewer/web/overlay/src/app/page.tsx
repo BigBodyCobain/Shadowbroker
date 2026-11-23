@@ -43,6 +43,7 @@ import { layersOnLoad, layersToStore, readLayerRev, withHiddenOff, writeLayerRev
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
 import SkillModal from '@/viewer/SkillModal';
 import TokenCard from '@/viewer/TokenCard';
+import { PHONE_QUERY, PhoneNav, PhoneStyles, scrollToMarker, usePhone } from '@/viewer/phone';
 import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
@@ -87,6 +88,7 @@ export default function ViewerDashboard() {
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   // Right-click: latest satellite picture of that spot, asked for by the visitor's own browser.
   const { regionDossier, regionDossierLoading, handleMapRightClick } = useRegionDossier(selectedEntity, setSelectedEntity);
+  const phone = usePhone();
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -99,10 +101,15 @@ export default function ViewerDashboard() {
   const [leftDataMinimized, setLeftDataMinimized] = useState(false);
 
   useEffect(() => {
-    const l = localStorage.getItem('sb_left_open');
-    const r = localStorage.getItem('sb_right_open');
-    if (l !== null) setLeftOpen(l === 'true');
-    if (r !== null) setRightOpen(r === 'true');
+    if (window.matchMedia(PHONE_QUERY).matches) {
+      setLeftOpen(false);
+      setRightOpen(false);
+    } else {
+      const l = localStorage.getItem('sb_left_open');
+      const r = localStorage.getItem('sb_right_open');
+      if (l !== null) setLeftOpen(l === 'true');
+      if (r !== null) setRightOpen(r === 'true');
+    }
     // A link ending in #skill opens the agent skill screen directly.
     if (window.location.hash === '#skill') {
       setSkillOpen(true);
@@ -114,12 +121,37 @@ export default function ViewerDashboard() {
       localStorage.setItem('sb_viewer_about_seen', '1');
     }
   }, []);
+  // The open/closed choice is remembered for wide screens only.
   useEffect(() => {
-    localStorage.setItem('sb_left_open', leftOpen.toString());
+    if (!window.matchMedia(PHONE_QUERY).matches) localStorage.setItem('sb_left_open', leftOpen.toString());
   }, [leftOpen]);
   useEffect(() => {
-    localStorage.setItem('sb_right_open', rightOpen.toString());
+    if (!window.matchMedia(PHONE_QUERY).matches) localStorage.setItem('sb_right_open', rightOpen.toString());
   }, [rightOpen]);
+  // Turning the phone, or resizing across the phone width: start from closed sheets.
+  useEffect(() => {
+    if (phone) {
+      setLeftOpen(false);
+      setRightOpen(false);
+    }
+  }, [phone]);
+
+  // Phone: details of a tapped aircraft, ship or event live in the Intel sheet, so open it.
+  useEffect(() => {
+    if (!phone || !selectedEntity) return;
+    const inSheet = ['flight', 'private_flight', 'private_jet', 'military_flight', 'tracked_flight', 'ship', 'airport', 'gdelt', 'liveuamap'];
+    if (!inSheet.includes(selectedEntity.type)) return;
+    setLeftOpen(false);
+    setRightOpen(true);
+    window.setTimeout(() => scrollToMarker('sb-entity-anchor'), 120);
+  }, [phone, selectedEntity]);
+
+  const openPhoneSheet = useCallback((sheet: 'layers' | 'intel', scrollTo?: string) => {
+    const wantLeft = sheet === 'layers';
+    setLeftOpen((was) => (wantLeft ? (scrollTo ? true : !was) : false));
+    setRightOpen((was) => (wantLeft ? false : !was));
+    if (scrollTo) window.setTimeout(() => scrollToMarker(scrollTo), 320);
+  }, []);
 
   // Layer switches, filters and basemap live in this browser only.
   const [activeLayers, setActiveLayersRaw] = useState<ActiveLayers>(() => viewerLayers(getDefaultActiveLayers()));
@@ -354,7 +386,7 @@ export default function ViewerDashboard() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1 }}
-        className="absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
+        className="sb-brandbar absolute top-6 left-6 z-[200] pointer-events-none flex items-center gap-4 hud-zone"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={asset('/brand/sb-mark-72.webp')} alt="" width={40} height={33} className="sb-brand-mark" />
@@ -370,7 +402,8 @@ export default function ViewerDashboard() {
       <motion.div
         className="sb-left-col absolute left-6 top-24 bottom-[32px] w-80 flex flex-col gap-3 z-[201] pointer-events-auto overflow-y-auto styled-scrollbar pl-2 pr-2 hud-zone"
         style={{ direction: 'rtl' }}
-        animate={{ x: showLeft ? 0 : -360 }}
+        data-open={showLeft}
+        animate={phone ? { x: 0, y: showLeft ? 0 : 900 } : { x: showLeft ? 0 : -360, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <div className="contents" style={{ direction: 'ltr' }}>
@@ -417,6 +450,7 @@ export default function ViewerDashboard() {
         </div>
         {secondaryBootReady && (
           <div className="contents" style={{ direction: 'ltr' }}>
+            <div id="sb-chat-anchor" className="contents" />
             <ErrorBoundary name="Chat">
               <ChatPanel />
             </ErrorBoundary>
@@ -436,7 +470,7 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showLeft ? 'sb-edge-left-open' : ''}`}
+        className={`sb-edge absolute left-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showLeft ? 'sb-edge-left-open' : ''}`}
         animate={{ x: showLeft ? 344 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
@@ -455,7 +489,7 @@ export default function ViewerDashboard() {
       </motion.div>
 
       <motion.div
-        className={`absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showRight ? 'sb-edge-right-open' : ''}`}
+        className={`sb-edge absolute right-0 top-[12.5rem] z-[201] pointer-events-auto hud-zone ${showRight ? 'sb-edge-right-open' : ''}`}
         animate={{ x: showRight ? -424 : 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
@@ -473,7 +507,8 @@ export default function ViewerDashboard() {
       {/* RIGHT: VIEWER CARD, FIND, FILTERS, NEWS */}
       <motion.div
         className="sb-right-col absolute right-6 top-24 bottom-[32px] w-[400px] flex flex-col gap-4 z-[200] pointer-events-auto overflow-y-auto styled-scrollbar pr-2 pl-2 hud-zone"
-        animate={{ x: showRight ? 0 : 440 }}
+        data-open={showRight}
+        animate={phone ? { x: 0, y: showRight ? 0 : 900 } : { x: showRight ? 0 : 440, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 250 }}
       >
         <TokenCard />
@@ -502,7 +537,7 @@ export default function ViewerDashboard() {
           </ErrorBoundary>
         </div>
 
-        <div className="flex-1 min-h-[300px] flex flex-col">
+        <div id="sb-entity-anchor" className="flex-1 min-h-[300px] flex flex-col">
           <ErrorBoundary name="NewsFeed">
             <NewsFeed
               selectedEntity={selectedEntity}
@@ -675,6 +710,16 @@ export default function ViewerDashboard() {
 
       <AlertToast toasts={toasts} onDismiss={dismissToast} onFlyTo={handleFlyTo} />
 
+      <PhoneStyles />
+      {phone && !overlayOpen && (
+        <PhoneNav
+          open={showLeft ? 'layers' : showRight ? 'intel' : null}
+          onLayers={() => openPhoneSheet('layers')}
+          onIntel={() => openPhoneSheet('intel')}
+          onChat={() => openPhoneSheet('layers', 'sb-chat-anchor')}
+          onAbout={() => setAboutOpen(true)}
+        />
+      )}
       <StaleBanner />
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
       {skillOpen && <SkillModal onClose={() => setSkillOpen(false)} />}
