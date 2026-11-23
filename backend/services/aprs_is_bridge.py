@@ -29,6 +29,8 @@ _DEFAULT_HOST = "rotate.aprs2.net"
 _DEFAULT_PORT = 14580
 _DEFAULT_RADIUS_KM = 100.0
 _MAX_PUBLIC_RADIUS_KM = 500.0
+# APRS-IS servers accept at most 9 range filters on one connection.
+_MAX_PUBLIC_RANGES = 9
 _DEFAULT_MAX_SIGNALS = 5000
 _MAX_SIGNAL_CAP = 20000
 _SIGNAL_MAX_AGE_S = 600.0
@@ -103,11 +105,50 @@ def _parse_public_range() -> tuple[float, float, float]:
     return lat, lon, radius
 
 
+def _parse_extra_public_ranges() -> list[tuple[float, float, float]]:
+    """Parse APRS_IS_EXTRA_RANGES: more bounded circles on the same connection.
+
+    Format: ``lat,lon,radius_km;lat,lon,radius_km``. Every circle obeys the same
+    limits as the main one, and the total is capped at what an APRS-IS server
+    accepts, so the subscription stays regional and never becomes a full feed.
+    """
+    raw = (os.getenv("APRS_IS_EXTRA_RANGES") or "").strip()
+    if not raw:
+        return []
+    ranges: list[tuple[float, float, float]] = []
+    for part in raw.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        fields = [f.strip() for f in part.split(",")]
+        if len(fields) != 3:
+            raise ValueError("APRS_IS_EXTRA_RANGES entries must be lat,lon,radius_km")
+        try:
+            lat, lon, radius = (float(f) for f in fields)
+        except ValueError as exc:
+            raise ValueError("APRS_IS_EXTRA_RANGES entries must be numeric") from exc
+        if not -90.0 <= lat <= 90.0 or not -180.0 <= lon <= 180.0:
+            raise ValueError("APRS_IS_EXTRA_RANGES has a center outside valid coordinate bounds")
+        if not 1.0 <= radius <= _MAX_PUBLIC_RADIUS_KM:
+            raise ValueError(
+                f"APRS_IS_EXTRA_RANGES radius must be between 1 and {_MAX_PUBLIC_RADIUS_KM:g} km "
+                "when using public APRS-IS"
+            )
+        ranges.append((lat, lon, radius))
+    if len(ranges) > _MAX_PUBLIC_RANGES - 1:
+        raise ValueError(
+            f"APRS_IS_EXTRA_RANGES allows at most {_MAX_PUBLIC_RANGES - 1} extra ranges "
+            f"({_MAX_PUBLIC_RANGES} in total)"
+        )
+    return ranges
+
+
 def aprs_connection_config() -> APRSISConfig | None:
     """Build the receive configuration, failing closed on unsafe public filters.
 
     Public APRS-IS requires an explicit geographic center and enforces a 500 km
-    maximum range. Operators running their own APRS-IS server may set
+    maximum range. APRS_IS_EXTRA_RANGES may add up to eight more circles with
+    the same limits. Operators running their own APRS-IS server may set
     APRS_IS_PRIVATE_SERVER=true; only then may APRS_IS_FILTER be arbitrary or
     blank. The private-server override is rejected for known public APRS hosts.
     """
@@ -127,8 +168,8 @@ def aprs_connection_config() -> APRSISConfig | None:
         if "\r" in filter_expr or "\n" in filter_expr:
             raise ValueError("APRS_IS_FILTER cannot contain line breaks")
     else:
-        lat, lon, radius = _parse_public_range()
-        filter_expr = f"r/{lat:.5f}/{lon:.5f}/{radius:g}"
+        ranges = [_parse_public_range(), *_parse_extra_public_ranges()]
+        filter_expr = " ".join(f"r/{lat:.5f}/{lon:.5f}/{radius:g}" for lat, lon, radius in ranges)
 
     callsign = (os.getenv("APRS_IS_CALLSIGN") or "N0CALL").strip().upper()
     if not _CALLSIGN_RE.fullmatch(callsign):
