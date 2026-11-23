@@ -5,14 +5,15 @@
  *
  * The app's panels are built for a wide screen. On a phone the map takes the
  * whole screen and the two side columns become sheets, one at a time.
- *   - Upright: four buttons along the bottom; a sheet slides up over the lower
+ *   - Upright: five buttons along the bottom; a sheet slides up over the lower
  *     part of the map.
  *   - On its side: the screen is wide but short, so the buttons run down the
  *     left edge and a sheet opens beside them at full height.
  */
 
 import React, { useEffect, useState } from 'react';
-import { Info, Layers, MessagesSquare, Radar } from 'lucide-react';
+import { Coins, Info, Layers, MessagesSquare, Radar } from 'lucide-react';
+import { VIEWER_TOKEN } from './config';
 
 /** A phone held upright (narrow) or on its side (short). */
 export const PHONE_QUERY = '(max-width: 820px), (max-height: 520px)';
@@ -60,26 +61,29 @@ export function PhoneNav({
   onChat: () => void;
   onAbout: () => void;
 }) {
-  const items: { id: string; label: string; icon: React.ReactNode; active: boolean; onClick: () => void }[] = [
-    { id: 'layers', label: 'Layers', icon: <Layers size={19} aria-hidden="true" />, active: open === 'layers', onClick: onLayers },
-    { id: 'intel', label: 'Intel', icon: <Radar size={19} aria-hidden="true" />, active: open === 'intel', onClick: onIntel },
-    { id: 'chat', label: 'Chat', icon: <MessagesSquare size={19} aria-hidden="true" />, active: false, onClick: onChat },
-    { id: 'about', label: 'About', icon: <Info size={19} aria-hidden="true" />, active: false, onClick: onAbout },
-  ];
+  const button = (id: string, label: string, icon: React.ReactNode, active: boolean, onClick: () => void) => (
+    <button key={id} type="button" onClick={onClick} aria-pressed={active} className={`sb-phone-nav-btn ${active ? 'is-active' : ''}`}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
   return (
     <nav className="sb-phone-nav hud-zone" aria-label="Map panels">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={item.onClick}
-          aria-pressed={item.active}
-          className={`sb-phone-nav-btn ${item.active ? 'is-active' : ''}`}
-        >
-          {item.icon}
-          <span>{item.label}</span>
-        </button>
-      ))}
+      {button('layers', 'Layers', <Layers size={19} aria-hidden="true" />, open === 'layers', onLayers)}
+      {button('intel', 'Intel', <Radar size={19} aria-hidden="true" />, open === 'intel', onIntel)}
+      {/* The token: on a phone it is a button here instead of a card in the Intel sheet. */}
+      <a
+        href={VIEWER_TOKEN.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="sb-phone-nav-btn sb-phone-nav-token"
+        aria-label={`${VIEWER_TOKEN.symbol} on pump.fun (opens in a new tab)`}
+      >
+        <Coins size={19} aria-hidden="true" />
+        <span>{VIEWER_TOKEN.symbol}</span>
+      </a>
+      {button('chat', 'Chat', <MessagesSquare size={19} aria-hidden="true" />, false, onChat)}
+      {button('about', 'About', <Info size={19} aria-hidden="true" />, false, onAbout)}
     </nav>
   );
 }
@@ -124,7 +128,7 @@ export function PhoneStyles() {
 
         /* bottom bar */
         .sb-phone-nav {
-          display: grid; grid-template-columns: repeat(4, 1fr);
+          display: grid; grid-template-columns: repeat(5, 1fr);
           position: fixed; left: 0; right: 0; bottom: 0; z-index: 320;
           padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
           background: linear-gradient(180deg, rgba(8, 18, 32, 0.96), rgba(3, 8, 16, 0.99));
@@ -138,6 +142,10 @@ export function PhoneStyles() {
           letter-spacing: 0.14em; text-transform: uppercase; -webkit-tap-highlight-color: transparent;
         }
         .sb-phone-nav-btn.is-active { color: #7fdcff; border-color: rgba(69, 216, 255, 0.4); background: rgba(30, 155, 255, 0.14); }
+        .sb-phone-nav-token { color: #2cf5a0; text-decoration: none; }
+        .sb-phone-nav-token svg { filter: drop-shadow(0 0 6px rgba(44, 245, 160, 0.55)); }
+        /* the token has its own button in the bar, so its card leaves the Intel sheet */
+        .sb-token-card { display: none !important; }
 
         /* touch: the map owns pinch and drag; sheets only scroll up and down; nothing zooms the page itself */
         .sb-left-col, .sb-right-col { touch-action: pan-y; -webkit-overflow-scrolling: touch; }
