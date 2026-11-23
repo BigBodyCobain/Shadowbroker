@@ -139,6 +139,12 @@
       "file": "src/components/WorldviewLeftPanel.tsx",
       "find": ": 'Catalog only (free) · Alerts: sign up →')),",
       "replace": ": 'NASA OPERA · no alerts right now')),"
+    },
+    {
+      "why": "the map must also receive the radar coverage list, which carries the watch areas",
+      "file": "src/components/MaplibreViewer.tsx",
+      "find": "  'sar_anomalies',\n",
+      "replace": "  'sar_anomalies',\n  'sar_aoi_coverage',\n"
     }
   ]
 }
