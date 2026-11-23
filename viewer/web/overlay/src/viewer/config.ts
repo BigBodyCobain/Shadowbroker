@@ -46,3 +46,21 @@ export const VIEWER_LINKS: readonly { label: string; title: string; href: string
     href: 'https://pump.fun/coin/8Uk9f5WfJndkC9VkFRLDwEpHgD2KD8BcFbqh5zuBpump',
   },
 ];
+
+/**
+ * Optional chat room, on a separate hosted login + database service. Both
+ * values are public by design (the "anon" key is what browsers are meant to
+ * hold); the database rules decide what a visitor may do. Empty = no chat.
+ */
+export const VIEWER_CHAT: {
+  url: string;
+  anonKey: string;
+  providers: ('google' | 'facebook')[];
+} = {
+  url: (process.env.NEXT_PUBLIC_SB_CHAT_URL || '').replace(/\/+$/, ''),
+  anonKey: process.env.NEXT_PUBLIC_SB_CHAT_KEY || '',
+  providers: (process.env.NEXT_PUBLIC_SB_CHAT_PROVIDERS || '')
+    .split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter((p): p is 'google' | 'facebook' => p === 'google' || p === 'facebook'),
+};

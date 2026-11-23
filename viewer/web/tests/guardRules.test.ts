@@ -116,3 +116,31 @@ test('non-web schemes and credentialed URLs are refused', () => {
   assert.equal(kind('data:application/json,{}'), 'network');
   assert.equal(kind('blob:https://live.example.org/abc'), 'network');
 });
+
+const CHAT = { ...SPLIT, chatBase: new URL('https://abc.supabase.co') };
+
+test('chat service: sign-in and posting only, on its own paths', () => {
+  assert.equal(kind('https://abc.supabase.co/rest/v1/messages?select=id', 'GET', CHAT), 'network');
+  assert.equal(kind('https://abc.supabase.co/rest/v1/messages', 'POST', CHAT), 'network');
+  assert.equal(kind('https://abc.supabase.co/auth/v1/token?grant_type=password', 'POST', CHAT), 'network');
+  // No edits or deletes from the browser, and nothing outside the two paths.
+  assert.equal(kind('https://abc.supabase.co/rest/v1/messages?id=eq.1', 'DELETE', CHAT), 'refuse');
+  assert.equal(kind('https://abc.supabase.co/rest/v1/profiles?id=eq.1', 'PATCH', CHAT), 'refuse');
+  assert.equal(kind('https://abc.supabase.co/storage/v1/object/x', 'POST', CHAT), 'refuse');
+  assert.equal(kind('https://abc.supabase.co/functions/v1/anything', 'POST', CHAT), 'refuse');
+  assert.equal(kind('https://abc.supabase.co/rest/v1/../../storage/v1/object/x', 'POST', CHAT), 'refuse');
+  // Look-alike hosts and plain http are not the chat service.
+  assert.equal(kind('https://abc.supabase.co.evil.example/rest/v1/messages', 'POST', CHAT), 'refuse');
+  assert.equal(kind('https://other.supabase.co/rest/v1/messages', 'POST', CHAT), 'refuse');
+  assert.equal(kind('http://abc.supabase.co/rest/v1/messages', 'POST', CHAT), 'refuse');
+});
+
+test('chat does not loosen any other rule', () => {
+  assert.equal(kind('/api/mesh/send', 'POST', CHAT), 'refuse');
+  assert.equal(kind('/api/settings/api-keys', 'GET', CHAT), 'refuse');
+  assert.equal(kind('https://data.example.org/v1/fast.json', 'POST', CHAT), 'refuse');
+  assert.equal(kind('https://example.com/collect', 'POST', CHAT), 'refuse');
+  assert.equal(kind('http://127.0.0.1:8011/api/live-data/fast', 'GET', CHAT), 'refuse');
+  // Without a chat service configured, its host is just another outside host.
+  assert.equal(kind('https://abc.supabase.co/rest/v1/messages', 'POST', SPLIT), 'refuse');
+});

@@ -39,6 +39,7 @@ import { useTranslation } from '@/i18n';
 import { LocateBar } from './LocateBar';
 import { VIEWER_HIDDEN_LAYERS } from '@/viewer/config';
 import { AboutModal, StaleBanner, ViewerHeaderCard, ViewerToolsPanel } from '@/viewer/ViewerChrome';
+import ChatPanel from '@/viewer/chat/ChatPanel';
 
 const MaplibreViewer = dynamic(() => import('@/components/MaplibreViewer'), { ssr: false });
 
@@ -400,6 +401,13 @@ export default function ViewerDashboard() {
             </div>
           )}
         </div>
+        {secondaryBootReady && (
+          <div className="contents" style={{ direction: 'ltr' }}>
+            <ErrorBoundary name="Chat">
+              <ChatPanel />
+            </ErrorBoundary>
+          </div>
+        )}
         {secondaryBootReady && (
           <div className="contents" style={{ direction: 'ltr' }}>
             <ViewerToolsPanel
