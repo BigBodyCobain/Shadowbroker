@@ -27,6 +27,7 @@ engine and no code that could reach one.
 | Engine launcher | `engine/` | Starts the normal backend on 127.0.0.1 with the community networks off |
 | Bridge | `bridge/` | Reads the engine over loopback, writes the approved data as JSON files |
 | Viewer site | `web/` | Builds the static site from a copy of `frontend/` |
+| Agent skill | `../openclaw-skills/shadowbroker-public/` | Lets any AI agent answer questions from the published files. Read-only, no keys |
 | The list | `public-layers.json` | The one list of what is public. Engine, bridge and viewer all follow it |
 
 ## Run it locally
@@ -37,7 +38,8 @@ engine and no code that could reach one.
 python viewer/engine/run_public_engine.py --port 8011 --keys-from /path/to/an/install/backend/.env
 
 # 2. Bridge: writes data files every 15 s (fast) and 120 s (slow).
-python viewer/bridge/bridge.py --out viewer/web/.data
+#    --lookup-index also publishes a small aircraft/ship index for agents and bots.
+python viewer/bridge/bridge.py --out viewer/web/.data --lookup-index 120
 
 # 3. Viewer: build once (needs `npm ci` in frontend/), then preview.
 node viewer/web/build.mjs
@@ -119,6 +121,7 @@ Each failure names the file. Fix the cut, stand-in or allowlist, and rebuild.
 
 ```bash
 python -m pytest viewer/bridge -q
+python -m pytest openclaw-skills/shadowbroker-public -q
 node --test viewer/web/tests/guardRules.test.ts
 node viewer/web/build.mjs        # ends with the built-site inspection
 ```

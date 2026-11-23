@@ -232,3 +232,46 @@ def test_real_policy_publishes_radio_positions_without_any_text(tmp_path):
         {"source": "aprs", "callsign": "N0CALL-9", "lat": 40.7, "lng": -74.0, "symbol": "/>"},
         {"source": "meshtastic", "callsign": "!abc", "lat": 1.0, "lng": 2.0},
     ]
+
+
+def test_lookup_index_finds_one_entity_from_one_small_file(tmp_path):
+    policy = _policy(
+        tracked_flights={"tier": "fast", "public": True},
+        commercial_flights={"tier": "fast", "public": True},
+        ships={"tier": "fast", "public": True},
+        secret_layer={"tier": "fast", "public": False},
+    )
+    bridge = br.Bridge(policy, br.DirPublisher(tmp_path), set(), index_s=1)
+    payload = {
+        "tracked_flights": [{"icao24": "a1b2c3", "callsign": "N189AM ", "registration": "N189AM",
+                             "alert_operator": "Example Owner", "lat": 1.5, "lng": 2.5}],
+        "commercial_flights": [{"icao24": "c0ffee", "callsign": "UAL12", "lat": 3.0, "lng": 4.0}],
+        "ships": [{"mmsi": 368207620, "name": "EVER GIVEN", "lat": 5.0, "lng": 6.0}],
+        "secret_layer": [{"icao24": "dead01", "callsign": "HIDDEN1"}],
+    }
+    bridge.publish_tier("fast", payload)
+    bridge.write_manifest()
+    manifest = _read(tmp_path, "manifest.json")
+    index = manifest["index"]
+    assert index["shards"] == 64 and len(index["files"]) == 64
+
+    def find(identifier):
+        key = br.lookup_key(identifier)
+        return _read(tmp_path, index["files"][br.lookup_shard(key)]["f"]).get(key)
+
+    assert find("n189am")[0]["owner"] == "Example Owner"
+    assert find("A1B2C3")[0]["lat"] == 1.5
+    assert find("UAL12")[0]["source_layer"] == "commercial_flights"
+    assert find("368207620")[0]["name"] == "EVER GIVEN"
+    assert find("Ever Given")[0]["mmsi"] == 368207620
+    # Only public layers are indexed.
+    assert find("HIDDEN1") is None and find("dead01") is None
+
+
+def test_lookup_index_is_off_by_default(tmp_path):
+    policy = _policy(ships={"tier": "fast", "public": True})
+    bridge = _bridge(tmp_path, policy)
+    bridge.publish_tier("fast", {"ships": [{"mmsi": 1, "name": "A SHIP"}]})
+    bridge.write_manifest()
+    assert "index" not in _read(tmp_path, "manifest.json")
+    assert not (tmp_path / "idx").exists()

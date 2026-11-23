@@ -1,0 +1,40 @@
+name: shadowbroker-public
+description: >-
+  Read-only ShadowBroker for any agent. Answers questions about live
+  aircraft, ships, satellites, hazards and news from the ShadowBroker public
+  data feed. No account, API key or ShadowBroker install required.
+
+version: 1.0.0
+author: ShadowBroker AI Module
+
+# No background monitor: the public skill only answers when asked.
+heartbeat:
+  enabled: false
+
+# Skill entry points
+entry_points:
+  query: sb_public.ShadowBrokerPublicClient
+
+# Standard library only.
+requirements: []
+
+# Thin agent surface — expose only these to the LLM tool picker
+agent_surface:
+  primary_reads:
+    - sb_public.ShadowBrokerPublicClient.ask
+    - sb_public.ShadowBrokerPublicClient.send_command
+    - sb_public.ShadowBrokerPublicClient.send_batch
+    - sb_public.ShadowBrokerPublicClient.run_playbook
+    - sb_public.ShadowBrokerPublicClient.channel_status
+  writes: []
+
+# Capabilities declared (a read-only subset of the full skill's)
+capabilities:
+  - live_telemetry          # Aircraft, ships, satellites, hazards, infrastructure
+  - news_aggregation        # News + GDELT by topic or location
+  - proximity_monitoring    # Radius search around coordinates
+
+# The only setting: where the public feed lives. Nothing here is a secret.
+config:
+  public_url_env: "SHADOWBROKER_PUBLIC_URL"
+  auth_mode: "none"

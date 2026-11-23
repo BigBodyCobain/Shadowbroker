@@ -303,6 +303,99 @@ class DirPublisher:
             pass
 
 
+# ---------------------------------------------------------------------------
+# Lookup index
+# ---------------------------------------------------------------------------
+# A small "phone book" so an agent or bot can find one aircraft or ship by
+# its identifier without downloading whole layers. Rows are split into a few
+# files by a hash of the identifier; a lookup reads exactly one of them.
+
+INDEX_SHARDS = 64
+INDEX_FLIGHT_LAYERS = ("tracked_flights", "military_flights", "private_jets", "private_flights", "commercial_flights")
+_INDEX_ROWS_PER_KEY = 5
+
+
+def lookup_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+
+
+def lookup_shard(key: str, shards: int = INDEX_SHARDS) -> str:
+    return format(int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:8], 16) % shards, "x")
+
+
+def _feet(metres: Any) -> int | None:
+    try:
+        return None if metres in (None, "") else round(float(metres) / 0.3048)
+    except (TypeError, ValueError):
+        return None
+
+
+def _index_flight(layer: str, flight: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source_layer": layer,
+        "callsign": flight.get("callsign") or flight.get("flight") or flight.get("call") or "",
+        "registration": flight.get("registration") or flight.get("r") or "",
+        "icao24": flight.get("icao24") or "",
+        "owner": flight.get("owner") or flight.get("operator") or flight.get("alert_operator") or "",
+        "type": flight.get("type") or flight.get("t") or flight.get("aircraft_type") or "",
+        "lat": flight.get("lat") or flight.get("latitude"),
+        "lng": flight.get("lng") or flight.get("lon") or flight.get("longitude"),
+        "altitude": flight.get("altitude") or flight.get("alt_baro") or flight.get("alt"),
+        "speed": flight.get("speed") or flight.get("gs"),
+        "heading": flight.get("heading") or flight.get("track"),
+        "alert_category": flight.get("alert_category") or "",
+        "alert_operator": flight.get("alert_operator") or "",
+        "model": flight.get("model") or "",
+        "speed_knots": flight.get("speed_knots"),
+        "altitude_ft": _feet(flight.get("alt")),
+    }
+
+
+def _index_ship(ship: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "mmsi": ship.get("mmsi") or "",
+        "imo": ship.get("imo") or "",
+        "name": ship.get("name") or ship.get("shipName") or "",
+        "owner": ship.get("yacht_owner") or ship.get("owner") or "",
+        "tracked_name": ship.get("yacht_name") or "",
+        "tracked_category": ship.get("yacht_category") or "",
+        "callsign": ship.get("callsign") or "",
+        "type": ship.get("shipType") or ship.get("type") or "",
+        "lat": ship.get("lat") or ship.get("latitude"),
+        "lng": ship.get("lng") or ship.get("lon") or ship.get("longitude"),
+        "speed": ship.get("speed") or ship.get("sog"),
+        "heading": ship.get("heading") or ship.get("course"),
+    }
+
+
+def build_lookup_index(public: dict[str, Any], shards: int = INDEX_SHARDS) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Group already-sanitized aircraft and ships by identifier, split into shards."""
+    out: dict[str, dict[str, list[dict[str, Any]]]] = {format(i, "x"): {} for i in range(shards)}
+
+    def add(identifier: Any, row: dict[str, Any]) -> None:
+        key = lookup_key(identifier)
+        if len(key) < 3:
+            return
+        rows = out[lookup_shard(key, shards)].setdefault(key, [])
+        if len(rows) < _INDEX_ROWS_PER_KEY:
+            # Empty fields are left out to keep each file small.
+            rows.append({k: v for k, v in row.items() if v not in ("", None)})
+
+    for layer in INDEX_FLIGHT_LAYERS:
+        for flight in public.get(layer) or []:
+            if isinstance(flight, dict):
+                row = _index_flight(layer, flight)
+                for identifier in (row["icao24"], row["callsign"], row["registration"]):
+                    add(identifier, row)
+    ships = public.get("ships") or []
+    for ship in ships if isinstance(ships, list) else []:
+        if isinstance(ship, dict):
+            row = _index_ship(ship)
+            for identifier in (row["mmsi"], row["imo"], row["name"], row["tracked_name"]):
+                add(identifier, row)
+    return out
+
+
 class Bridge:
     def __init__(
         self,
@@ -311,7 +404,12 @@ class Bridge:
         secrets: set[str],
         fast_s: int = 15,
         slow_s: int = 120,
+        index_s: int = 0,
     ):
+        # Seconds between lookup-index rebuilds; 0 = no index.
+        self.index_s = index_s
+        self._index: dict[str, Any] = {}
+        self._index_built = 0.0
         self.policy = policy
         self.publisher = publisher
         self.secrets = secrets
@@ -386,8 +484,21 @@ class Bridge:
         self._bundles[tier] = {"f": bundle_rel, "v": _digest(bundle_blob), "bytes": len(bundle_blob)}
         self._tiers[tier] = {"at": _now_iso()}
         report["published"] = sorted(public.keys())
+        if tier == "fast" and self.index_s > 0 and time.monotonic() - self._index_built >= self.index_s:
+            self._publish_index(public)
         report["bytes"] = sum(len(blob) for _, blob in staged)
         return report
+
+    def _publish_index(self, public: dict[str, Any]) -> None:
+        shards = build_lookup_index(public)
+        staged = [(f"idx/{name}.json", _dumps(rows)) for name, rows in shards.items()]
+        for rel, blob in staged:
+            assert_no_secrets(blob, self.secrets, rel)
+        files = {}
+        for (rel, blob), name in zip(staged, shards):
+            files[name] = {"f": rel, "v": self._put_if_changed(rel, blob), "bytes": len(blob)}
+        self._index = {"shards": len(shards), "at": _now_iso(), "files": files}
+        self._index_built = time.monotonic()
 
     def write_manifest(self) -> None:
         self.seq += 1
@@ -400,6 +511,8 @@ class Bridge:
             "bundles": self._bundles,
             "keys": self._keys,
         }
+        if self._index:
+            manifest["index"] = self._index
         blob = _dumps(manifest)
         assert_no_secrets(blob, self.secrets, "manifest.json")
         self.publisher.put("manifest.json", blob)
@@ -418,7 +531,14 @@ def run(args: argparse.Namespace) -> int:
     secrets = load_secret_values(env_files)
     log.info("secret canary armed with %d value(s)", len(secrets))
 
-    bridge = Bridge(policy, DirPublisher(Path(args.out)), secrets, fast_s=args.fast_interval, slow_s=args.slow_interval)
+    bridge = Bridge(
+        policy,
+        DirPublisher(Path(args.out)),
+        secrets,
+        fast_s=args.fast_interval,
+        slow_s=args.slow_interval,
+        index_s=args.lookup_index,
+    )
 
     def cycle(tier: str) -> bool:
         try:
@@ -465,6 +585,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--policy", default=str(DEFAULT_POLICY))
     parser.add_argument("--fast-interval", type=int, default=15)
     parser.add_argument("--slow-interval", type=int, default=120)
+    parser.add_argument(
+        "--lookup-index",
+        type=int,
+        default=0,
+        metavar="SECONDS",
+        help="also publish a small aircraft/ship lookup index, rebuilt this often (0 = off). "
+        "Lets agents and bots find one aircraft or ship without downloading whole layers.",
+    )
     parser.add_argument("--once", action="store_true", help="run one fast and one slow cycle, then exit")
     parser.add_argument(
         "--secrets-env",
