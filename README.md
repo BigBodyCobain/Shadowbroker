@@ -16,7 +16,7 @@
   <a href="https://shadowbroker.dev/map/"><img src="https://img.shields.io/badge/live_map-look--only_preview-2cf5a0?style=for-the-badge&labelColor=555" alt="Live map: look-only preview" /></a>
   <a href="https://discord.gg/hTWprYS6gC"><img src="https://img.shields.io/badge/discord-join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white&labelColor=555" alt="Discord: join the server" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-d22128?style=for-the-badge&labelColor=555" alt="License: AGPL-3.0" /></a>
-  <a href="https://github.com/BigBodyCobain/Shadowbroker/stargazers"><img src="https://img.shields.io/github/stars/BigBodyCobain/Shadowbroker?style=for-the-badge&logo=github&labelColor=555&color=f5c518" alt="GitHub stars" /></a>
+  <a href="https://github.com/BigBodyCobain/Shadowbroker/stargazers"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fungh.cc%2Frepos%2FBigBodyCobain%2FShadowbroker&query=%24.repo.stars&label=stars&style=for-the-badge&logo=github&labelColor=555&color=f5c518" alt="GitHub stars" /></a>
 </p>
 
 <p align="center">
