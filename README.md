@@ -14,6 +14,22 @@ https://github.com/user-attachments/assets/248208ec-62f7-49d1-831d-4bd0a1fa6852
 
 **ShadowBroker** is a decentralized intelligence platform that aggregates real-time, multi-domain OSINT telemetry from 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen, as well as an obfuscated communications protocol and information exchange infrastructure.
 
+### 🗺️ Public map vs. the full app
+
+**[shadowbroker.dev/map](https://shadowbroker.dev/map/)** is a free, look-only preview you can open in a browser. It is **not** the full app: it shows a copy of the public layers and leaves out everything that needs your own server, keys or settings. To get everything below, run ShadowBroker from this repository on your own computer.
+
+| | Public map (shadowbroker.dev/map) | Full app (this repository) |
+|---|---|---|
+| **Runs on** | Our website, nothing to install | Your own computer |
+| **Data** | A copy refreshed every few minutes, fixed regions | Live from the sources, your own areas and regions |
+| **Layers** | Most public layers | Every layer, including Shodan, Telegram OSINT, Sentinel Hub and AI intel pins |
+| **Right-click** | Latest Sentinel-2 satellite picture | Country dossier, Wikipedia summary, entity graph and the satellite picture |
+| **Tools** | Two reference lists (supply chain, cyber threats) | Recon toolkit, Shodan, AI analysis |
+| **Radio** | Shows receivers and scanners; you listen on their own sites | Tune KiwiSDR receivers and scanners inside the app; mesh radio chat |
+| **InfoNet testnet** | Not included | Included |
+| **AI agents** | Read-only public skill | Agent command channel that can search, pin and control the map |
+| **Keys and settings** | None; visitors cannot change anything | Your own API keys, data sources and settings |
+
 <details>
 <summary>🛰️ Project Description</summary>
 
