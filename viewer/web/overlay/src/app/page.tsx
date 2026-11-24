@@ -16,7 +16,6 @@ import ScaleBar from '@/components/ScaleBar';
 import ScmPanel from '@/components/ScmPanel';
 import CyberThreatPanel from '@/components/CyberThreatPanel';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import AlertToast from '@/components/AlertToast';
 import WatchlistWidget from '@/components/WatchlistWidget';
 import type { ActiveLayers, KiwiSDR, Scanner, SelectedEntity } from '@/types/dashboard';
 import {
@@ -33,7 +32,6 @@ import {
 import { useDataPolling } from '@/hooks/useDataPolling';
 import { useDataKey, useDataKeys } from '@/hooks/useDataStore';
 import { useFeedHealth } from '@/hooks/useFeedHealth';
-import { useAlertToasts } from '@/hooks/useAlertToasts';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useRegionDossier } from '@/hooks/useRegionDossier';
 import { useTranslation } from '@/i18n';
@@ -298,7 +296,6 @@ export default function ViewerDashboard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [legendOpen]);
 
-  const { toasts, dismiss: dismissToast } = useAlertToasts();
   const { items: watchlistItems, removeFromWatchlist, clearWatchlist } = useWatchlist();
 
   // NASA GIBS imagery date (tiles load straight from NASA).
@@ -735,7 +732,7 @@ export default function ViewerDashboard() {
         <MapLegend isOpen={legendOpen} onClose={() => setLegendOpen(false)} />
       </ErrorBoundary>
 
-      <AlertToast toasts={toasts} onDismiss={dismissToast} onFlyTo={handleFlyTo} />
+      {/* No news pop-ups: each visit would repeat stories the news panel already lists. */}
 
       <PhoneStyles />
       {phone && !overlayOpen && (
