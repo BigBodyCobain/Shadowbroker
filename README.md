@@ -2,7 +2,25 @@
   <img src="frontend/public/brand/sb-mark.webp" alt="ShadowBroker logo" width="120" />
   <h1 align="center">S H A D O W B R O K E R</h1>
   <p align="center"><strong>Global Threat Intercept — Real-Time Geospatial Intelligence Platform</strong></p>
-  <p align="center"><a href="https://shadowbroker.dev"><strong>🌐 shadowbroker.dev</strong></a></p>
+</p>
+
+<p align="center">
+  <a href="https://shadowbroker.dev"><strong>Website</strong></a> |
+  <a href="https://shadowbroker.dev/map/"><strong>Live map</strong></a> |
+  <a href="https://discord.gg/hTWprYS6gC"><strong>Discord</strong></a> |
+  <a href="https://github.com/BigBodyCobain/Shadowbroker/discussions"><strong>Forum</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://shadowbroker.dev"><img src="https://img.shields.io/badge/website-shadowbroker.dev-00e5ff?style=for-the-badge&labelColor=555" alt="Website: shadowbroker.dev" /></a>
+  <a href="https://shadowbroker.dev/map/"><img src="https://img.shields.io/badge/live_map-look--only_preview-2cf5a0?style=for-the-badge&labelColor=555" alt="Live map: look-only preview" /></a>
+  <a href="https://discord.gg/hTWprYS6gC"><img src="https://img.shields.io/badge/discord-join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white&labelColor=555" alt="Discord: join the server" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-d22128?style=for-the-badge&labelColor=555" alt="License: AGPL-3.0" /></a>
+  <a href="https://github.com/BigBodyCobain/Shadowbroker/stargazers"><img src="https://img.shields.io/github/stars/BigBodyCobain/Shadowbroker?style=for-the-badge&logo=github&labelColor=555&color=f5c518" alt="GitHub stars" /></a>
+</p>
+
+<p align="center">
+  <a href="https://news.ycombinator.com/item?id=47300102"><img src="https://hackergit.org/badge/BigBodyCobain/Shadowbroker.svg?style=rank&rank=week&scope=show" alt="Hacker News: #1 Show HN of the Week" width="250" height="55" /></a>
 </p>
 
 ---
