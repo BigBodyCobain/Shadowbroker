@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, MessagesSquare } from 'lucide-react';
-import { VIEWER_LINKS, type ViewerLinkId } from './config';
+import { Eye, Info, X, Target, AlertTriangle, Minus, Wrench, MessagesSquare, ChevronRight } from 'lucide-react';
+import { VIEWER_LINKS, VIEWER_REPO_URL, type ViewerLinkId } from './config';
 import { feedAgeMs, feedIsStale, useFeedStatus } from './feedStatus';
 import { SkillButton } from './SkillModal';
 
@@ -62,6 +62,17 @@ export function ViewerHeaderCard({ onAbout, onSkill }: { onAbout: () => void; on
           About
         </button>
       </div>
+
+      {/* This page is a preview, not the app: say so where everyone sees it. */}
+      <button
+        type="button"
+        onClick={onAbout}
+        className="mt-2.5 w-full flex items-center gap-2 rounded-md border border-amber-400/25 bg-amber-400/[0.06] px-2.5 py-1.5 text-left text-[11px] leading-snug text-amber-100/90 hover:border-amber-400/50 hover:bg-amber-400/10 transition-colors"
+      >
+        <span className="text-amber-400" aria-hidden="true">●</span>
+        <span className="flex-1">Public preview. The full app on GitHub does much more.</span>
+        <ChevronRight size={13} className="text-amber-300/80 shrink-0" aria-hidden="true" />
+      </button>
 
       {/* Community links: one tile each, opening the project's page on that site. */}
       <nav aria-label="Community links" className="mt-3 grid grid-cols-3 gap-2">
@@ -250,6 +261,22 @@ const SOURCES: { name: string; what: string; href: string }[] = [
   { name: 'Wikipedia', what: 'Summaries (CC BY-SA)', href: 'https://www.wikipedia.org' },
 ];
 
+/** What the public map has, next to what only the full app has. Keep both short. */
+const ON_THIS_MAP: string[] = [
+  'A copy of the public layers, refreshed every few minutes',
+  'Pan, zoom, filter and switch layers',
+  'Right-click for the latest satellite picture of a spot',
+  'Two reference lists: supply chain and cyber threats',
+];
+const ONLY_IN_FULL_APP: string[] = [
+  'Live data straight from the sources, with your own areas and regions',
+  'Every layer, including Shodan, Telegram OSINT, Sentinel Hub and AI intel pins',
+  'Recon toolkit, AI analysis, and country dossiers on right-click',
+  'Tune KiwiSDR receivers and scanners inside the app',
+  'Mesh radio chat, the InfoNet testnet, and AI agents that can act on the map',
+  'Your own API keys, data sources and settings',
+];
+
 /** What this page is, what it cannot do, and where the data comes from. */
 export function AboutModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
@@ -300,6 +327,41 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
             </li>
           </ul>
 
+          {/* The map is a preview of the app, not a copy of it. */}
+          <section aria-label="This map and the full app" className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.04] px-3.5 py-3">
+              <h3 className="text-[11px] font-mono font-bold tracking-[0.16em] text-cyan-300">ON THIS MAP</h3>
+              <ul className="mt-2 space-y-1.5 text-[12.5px] leading-snug text-[var(--text-primary)]">
+                {ON_THIS_MAP.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-cyan-400" aria-hidden="true">·</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-lg border border-amber-400/25 bg-amber-400/[0.05] px-3.5 py-3">
+              <h3 className="text-[11px] font-mono font-bold tracking-[0.16em] text-amber-300">ONLY IN THE FULL APP</h3>
+              <ul className="mt-2 space-y-1.5 text-[12.5px] leading-snug text-[var(--text-primary)]">
+                {ONLY_IN_FULL_APP.map((item) => (
+                  <li key={item} className="flex gap-2">
+                    <span className="text-amber-400" aria-hidden="true">·</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={VIEWER_REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2.5 inline-flex items-center gap-1 text-[12px] font-mono font-bold tracking-wider text-amber-200 hover:text-white"
+              >
+                Get the full app on GitHub (free, runs on your computer)
+                <ChevronRight size={13} aria-hidden="true" />
+              </a>
+            </div>
+          </section>
+
           <details className="mt-4 text-[13px] text-[var(--text-primary)]">
             <summary className="cursor-pointer select-none text-[11px] font-mono font-bold tracking-[0.16em] uppercase text-cyan-300">
               More about this map and its sources
@@ -316,10 +378,6 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
               <p>
                 This page has no connection to the machine that gathers the data: it only downloads finished data
                 files.
-              </p>
-              <p>
-                The full app adds radio and mesh tools, AI analysis, imagery lookups and your own data sources. It is
-                free and open source, and runs on your own computer.
               </p>
             </div>
             <h3 className="mt-4 text-[11px] font-mono font-bold tracking-[0.16em] text-[var(--text-secondary)]">

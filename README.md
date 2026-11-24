@@ -2,7 +2,25 @@
   <img src="frontend/public/brand/sb-mark.webp" alt="ShadowBroker logo" width="120" />
   <h1 align="center">S H A D O W B R O K E R</h1>
   <p align="center"><strong>Global Threat Intercept — Real-Time Geospatial Intelligence Platform</strong></p>
-  <p align="center"><a href="https://shadowbroker.dev"><strong>🌐 shadowbroker.dev</strong></a></p>
+</p>
+
+<p align="center">
+  <a href="https://shadowbroker.dev"><strong>Website</strong></a> |
+  <a href="https://shadowbroker.dev/map/"><strong>Live map</strong></a> |
+  <a href="https://discord.gg/hTWprYS6gC"><strong>Discord</strong></a> |
+  <a href="https://github.com/BigBodyCobain/Shadowbroker/discussions"><strong>Forum</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://shadowbroker.dev"><img src="https://img.shields.io/badge/website-shadowbroker.dev-00e5ff?style=for-the-badge&labelColor=555" alt="Website: shadowbroker.dev" /></a>
+  <a href="https://shadowbroker.dev/map/"><img src="https://img.shields.io/badge/live_map-look--only_preview-2cf5a0?style=for-the-badge&labelColor=555" alt="Live map: look-only preview" /></a>
+  <a href="https://discord.gg/hTWprYS6gC"><img src="https://img.shields.io/badge/discord-join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white&labelColor=555" alt="Discord: join the server" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-d22128?style=for-the-badge&labelColor=555" alt="License: AGPL-3.0" /></a>
+  <a href="https://github.com/BigBodyCobain/Shadowbroker/stargazers"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fungh.cc%2Frepos%2FBigBodyCobain%2FShadowbroker&query=%24.repo.stars&label=stars&style=for-the-badge&logo=github&labelColor=555&color=f5c518" alt="GitHub stars" /></a>
+</p>
+
+<p align="center">
+  <a href="https://news.ycombinator.com/item?id=47300102"><img src="https://hackergit.org/badge/BigBodyCobain/Shadowbroker.svg?style=rank&rank=week&scope=show" alt="Hacker News: #1 Show HN of the Week" width="250" height="55" /></a>
 </p>
 
 ---
@@ -13,6 +31,22 @@ https://github.com/user-attachments/assets/248208ec-62f7-49d1-831d-4bd0a1fa6852
 
 
 **ShadowBroker** is a decentralized intelligence platform that aggregates real-time, multi-domain OSINT telemetry from 60+ live intelligence feeds into a single dark-ops map interface. Aircraft, ships, satellites, conflict zones, CCTV networks, GPS jamming, internet-connected devices, police scanners, mesh radio nodes, and breaking geopolitical events — all updating in real time on one screen, as well as an obfuscated communications protocol and information exchange infrastructure.
+
+### 🗺️ Public map vs. the full app
+
+**[shadowbroker.dev/map](https://shadowbroker.dev/map/)** is a free, look-only preview you can open in a browser. It is **not** the full app: it shows a copy of the public layers and leaves out everything that needs your own server, keys or settings. To get everything below, run ShadowBroker from this repository on your own computer.
+
+| | Public map (shadowbroker.dev/map) | Full app (this repository) |
+|---|---|---|
+| **Runs on** | Our website, nothing to install | Your own computer |
+| **Data** | A copy refreshed every few minutes, fixed regions | Live from the sources, your own areas and regions |
+| **Layers** | Most public layers | Every layer, including Shodan, Telegram OSINT, Sentinel Hub and AI intel pins |
+| **Right-click** | Latest Sentinel-2 satellite picture | Country dossier, Wikipedia summary, entity graph and the satellite picture |
+| **Tools** | Two reference lists (supply chain, cyber threats) | Recon toolkit, Shodan, AI analysis |
+| **Radio** | Shows receivers and scanners; you listen on their own sites | Tune KiwiSDR receivers and scanners inside the app; mesh radio chat |
+| **InfoNet testnet** | Not included | Included |
+| **AI agents** | Read-only public skill | Agent command channel that can search, pin and control the map |
+| **Keys and settings** | None; visitors cannot change anything | Your own API keys, data sources and settings |
 
 <details>
 <summary>🛰️ Project Description</summary>
