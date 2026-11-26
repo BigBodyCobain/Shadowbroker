@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import quote
 
 from services.network_utils import fetch_with_curl
-from services.sanctions.ofac import match_exact, search_sanctions
+from services.sanctions.ofac import SOURCE_LABEL, match_exact, search_sanctions
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,11 @@ def _add_sanctions(id_label: str, root_id: str, nodes: list, links: list) -> Non
                 "id": sid,
                 "label": hit["name"],
                 "type": "sanction",
-                "properties": {"programs": hit.get("programs"), "source": "OFAC SDN"},
+                "properties": {
+                    "programs": hit.get("programs"),
+                    "datasets": hit.get("datasets"),
+                    "source": SOURCE_LABEL,
+                },
             }
         )
         links.append({"source": root_id, "target": sid, "label": "SANCTIONS MATCH"})

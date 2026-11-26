@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import quote
 
 from services.network_utils import fetch_with_curl
-from services.sanctions.ofac import match_exact, search_sanctions
+from services.sanctions.ofac import SOURCE_LABEL, match_exact, search_sanctions
 from services.ssrf_guard import safe_get, validate_domain, validate_host
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ def lookup_ip(ip: str) -> dict[str, Any]:
         }
         sm = _sanctions_hits(geo.get("org") or "", geo.get("isp") or "", geo.get("asname") or "")
         if sm:
-            results["sanctions_match"] = {"source": "OFAC SDN", "hits": sm}
+            results["sanctions_match"] = {"source": SOURCE_LABEL, "hits": sm}
     return results
 
 
@@ -161,7 +161,7 @@ def lookup_whois(domain: str) -> dict[str, Any]:
         results["last_changed"] = next((e["date"] for e in events if e["action"] == "last changed"), None)
         sm = _sanctions_hits(*(e.get("name") or "" for e in entities), *(e.get("org") or "" for e in entities))
         if sm:
-            results["sanctions_match"] = {"source": "OFAC SDN", "hits": sm}
+            results["sanctions_match"] = {"source": SOURCE_LABEL, "hits": sm}
 
     try:
         res = safe_get(f"https://{domain}", timeout=5, headers={"User-Agent": "Shadowbroker-OSINT/1.0"})
@@ -326,7 +326,7 @@ def lookup_sanctions(query: str, *, schema: str | None = None, limit: int = 25) 
         "schema": schema,
         "total": len(matches),
         "matches": matches,
-        "source": "OpenSanctions / US OFAC SDN",
+        "source": SOURCE_LABEL,
         "timestamp": _now_iso(),
     }
 

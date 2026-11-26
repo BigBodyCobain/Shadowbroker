@@ -33,7 +33,7 @@ const TABS: Array<{
   { id: 'certs', label: 'CERTS', param: 'domain', path: 'certs' },
   { id: 'threats', label: 'THREATS', param: 'query', path: 'threats', optional: true },
   { id: 'bgp', label: 'BGP / ASN', param: 'query', path: 'bgp' },
-  { id: 'sanctions', label: 'OFAC SDN', param: 'query', path: 'sanctions' },
+  { id: 'sanctions', label: 'US sanctions', param: 'query', path: 'sanctions' },
   { id: 'cve', label: 'CVE', param: 'cve', path: 'cve' },
   { id: 'mac', label: 'MAC', param: 'mac', path: 'mac' },
   { id: 'github', label: 'GITHUB', param: 'username', path: 'github' },
