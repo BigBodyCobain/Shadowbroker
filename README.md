@@ -311,7 +311,7 @@ Adapted from the [OSIRIS](https://github.com/simplifaisoul/osiris) recon stack (
 
 **Recon Toolkit** (left sidebar — local operator only):
 
-* **IP / DNS / WHOIS** — ip-api.com geolocation, Google DNS-over-HTTPS, RDAP registrant data with optional HTTP security header scoring
+* **IP / DNS / WHOIS** — ip-api.com geolocation, VPNDetection VPN / Tor / relay flags, Google DNS-over-HTTPS, RDAP registrant data with optional HTTP security header scoring
 * **Certificates & BGP** — crt.sh subdomain discovery, bgpview.io ASN/prefix lookups
 * **Threat intel** — AlienVault OTX pulses, Tor exit-node checks, optional per-IP/domain reputation
 * **Sanctions** — OpenSanctions `us_ofac_sdn` index (CC-BY); cross-checks on WHOIS entities and IP ISP/org strings
@@ -657,6 +657,7 @@ ShadowBroker v0.9.7 is composed of three vertically-stacked planes — the **Ope
 | [C2IntelFeeds](https://github.com/drb-ra/C2IntelFeeds) (CC BY-NC-SA 4.0) | Cobalt Strike C2 servers | ~30min (opt-in layer) | No |
 | [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Known exploited CVEs | ~5min (opt-in layer) | No |
 | [ip-api.com](https://ip-api.com) | IP geolocation (recon, entity graph) | On-demand | No |
+| [VPNDetection](https://vpndetection.io) | VPN, Tor and relay flags (recon) | On-demand | No |
 | [Google Public DNS](https://dns.google) | DNS-over-HTTPS lookups (recon) | On-demand | No |
 | [RDAP.org](https://rdap.org) | Domain registration data (recon) | On-demand | No |
 | [crt.sh](https://crt.sh) | Certificate transparency (recon) | On-demand | No |
