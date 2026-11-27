@@ -51,6 +51,14 @@ def _sanctions_hits(*values: str) -> list[dict[str, Any]] | None:
     return hits or None
 
 
+def _anonymity_lookup(ip: str) -> dict[str, Any] | None:
+    """VPN, Tor and relay flags from VPNDetection's keyless API (HTTPS, no key needed)."""
+    data = _json_get(f"https://api.vpndetection.io/{quote(ip)}", timeout=5)
+    if not isinstance(data, dict) or "is_vpn" not in data:
+        return None
+    return data
+
+
 def lookup_ip(ip: str) -> dict[str, Any]:
     if not _IPV4_RE.match(ip) and not _IPV6_RE.match(ip):
         raise ValueError("Invalid IP format")
@@ -63,7 +71,15 @@ def lookup_ip(ip: str) -> dict[str, Any]:
         "status,message,continent,country,countryCode,region,regionName,city,zip,"
         "lat,lon,timezone,isp,org,as,asname,mobile,proxy,hosting,query"
     )
-    geo = _json_get(f"https://ip-api.com/json/{quote(ip)}?fields={fields}", timeout=5)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        geo_future = pool.submit(
+            _json_get, f"https://ip-api.com/json/{quote(ip)}?fields={fields}", timeout=5
+        )
+        anon_future = pool.submit(_anonymity_lookup, ip)
+        geo = geo_future.result()
+        anon = anon_future.result()
+
+    reputation: dict[str, Any] = {}
     if isinstance(geo, dict) and geo.get("status") == "success":
         results["geo"] = {
             "country": geo.get("country"),
@@ -81,15 +97,47 @@ def lookup_ip(ip: str) -> dict[str, Any]:
             "is_proxy": geo.get("proxy"),
             "is_hosting": geo.get("hosting"),
         }
-        results["reputation"] = {
-            "is_proxy": bool(geo.get("proxy")),
-            "is_hosting": bool(geo.get("hosting")),
-            "is_mobile": bool(geo.get("mobile")),
-            "risk_level": "HIGH" if geo.get("proxy") else "MEDIUM" if geo.get("hosting") else "LOW",
+        reputation.update(
+            {
+                "is_proxy": bool(geo.get("proxy")),
+                "is_hosting": bool(geo.get("hosting")),
+                "is_mobile": bool(geo.get("mobile")),
+            }
+        )
+    elif anon:
+        # ip-api's free tier refuses HTTPS, so the location and network come from VPNDetection.
+        loc = anon.get("location") or {}
+        asn = anon.get("asn") or {}
+        as_label = f"AS{asn['asn']} {asn.get('name') or ''}".strip() if asn.get("asn") else None
+        results["geo"] = {
+            "country": loc.get("country_name"),
+            "country_code": loc.get("country"),
+            "timezone": loc.get("timezone"),
+            "org": asn.get("name"),
+            "as_number": as_label,
+            "as_name": asn.get("name"),
         }
-        sm = _sanctions_hits(geo.get("org") or "", geo.get("isp") or "", geo.get("asname") or "")
-        if sm:
-            results["sanctions_match"] = {"source": SOURCE_LABEL, "hits": sm}
+
+    if anon:
+        relay = anon.get("relay") or {}
+        reputation.update(
+            {
+                "is_vpn": bool(anon.get("is_vpn")),
+                "is_tor": bool(anon.get("is_tor")),
+                "is_relay": bool(anon.get("is_relay")),
+                "relay_provider": relay.get("provider_name") or None,
+            }
+        )
+
+    if reputation:
+        hidden = reputation.get("is_proxy") or reputation.get("is_vpn") or reputation.get("is_tor")
+        reputation["risk_level"] = "HIGH" if hidden else "MEDIUM" if reputation.get("is_hosting") else "LOW"
+        results["reputation"] = reputation
+
+    geo_out = results.get("geo") or {}
+    sm = _sanctions_hits(geo_out.get("org") or "", geo_out.get("isp") or "", geo_out.get("as_name") or "")
+    if sm:
+        results["sanctions_match"] = {"source": SOURCE_LABEL, "hits": sm}
     return results
 
 

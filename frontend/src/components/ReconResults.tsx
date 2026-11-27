@@ -149,6 +149,9 @@ function IpDossier({ data }: { data: Record<string, unknown> }) {
       />
       <DossierRow label="PROXY" value={fmt(rep.is_proxy)} />
       <DossierRow label="HOSTING" value={fmt(rep.is_hosting)} />
+      <DossierRow label="VPN" value={fmt(rep.is_vpn)} />
+      <DossierRow label="TOR" value={fmt(rep.is_tor)} />
+      <DossierRow label="RELAY" value={fmt(rep.relay_provider || rep.is_relay)} />
       {sanctions ? (
         <DossierRow
           label="SANCTIONS"
